@@ -1,0 +1,869 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { api } from "../api.js";
+import StatusBadge from "../components/StatusBadge.jsx";
+import { useTelephonie } from "../telephony/CallContext.jsx";
+import {
+  ISSUES_APPEL,
+  SORTIES_DOSSIER,
+  formatMontant,
+  formatDate,
+  formatDateHeure,
+  formatDuree,
+} from "../constants.js";
+
+// Libellé + style du badge de neutralisation légale (règle des 5 ans), utilisé
+// à la fois dans "Informations structure" et dans "Obligation OETH".
+function libelleNeutralisation(neutralisation) {
+  if (!neutralisation || neutralisation.ancienneteAnnees == null) {
+    return { label: "Date de création non renseignée", className: "bg-slate-100 text-slate-500 border-slate-300" };
+  }
+  const { ancienneteAnnees, alerteAnticipation, neutralise } = neutralisation;
+  const an = `${ancienneteAnnees} an${ancienneteAnnees > 1 ? "s" : ""}`;
+  if (alerteAnticipation) {
+    return {
+      label: `Alerte Anticipation (An ${ancienneteAnnees}) — bientôt assujettie`,
+      className: "bg-amber-100 text-amber-800 border-amber-300",
+    };
+  }
+  if (neutralise) {
+    return {
+      label: `Non assujettie — Période de neutralisation (${an} < 5 ans)`,
+      className: "bg-emerald-100 text-emerald-700 border-emerald-300",
+    };
+  }
+  return {
+    label: `Assujettissement complet (${an})`,
+    className: "bg-slate-100 text-slate-600 border-slate-300",
+  };
+}
+
+export default function EntrepriseDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { startCall } = useTelephonie();
+  const [entreprise, setEntreprise] = useState(null);
+  const [erreur, setErreur] = useState(null);
+  const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
+  const [nouveauTelephone, setNouveauTelephone] = useState("");
+
+  const [issueChoisie, setIssueChoisie] = useState("");
+  const [dateIssue, setDateIssue] = useState("");
+  const [detailsIssue, setDetailsIssue] = useState("");
+
+  const [sortieChoisie, setSortieChoisie] = useState("");
+  const [detailsSortie, setDetailsSortie] = useState("");
+
+  const [nouveauCommentaire, setNouveauCommentaire] = useState("");
+  const [enregistrement, setEnregistrement] = useState(false);
+
+  const [effectifSaisi, setEffectifSaisi] = useState("");
+  const [effectifBeneficiaireSaisi, setEffectifBeneficiaireSaisi] = useState("");
+  const [enregistrementEffectifs, setEnregistrementEffectifs] = useState(false);
+
+  const [dateCreationSaisie, setDateCreationSaisie] = useState("");
+  const [enregistrementDateCreation, setEnregistrementDateCreation] = useState(false);
+  const [enregistrementSecteurPublic, setEnregistrementSecteurPublic] = useState(false);
+
+  function charger() {
+    api
+      .getEntreprise(id)
+      .then((e) => {
+        setEntreprise(e);
+        setEffectifSaisi(String(e.effectif));
+        setEffectifBeneficiaireSaisi(String(e.effectifBeneficiaire));
+        setDateCreationSaisie(e.dateCreation || "");
+        setErreur(null);
+      })
+      .catch((e) => setErreur(e.message));
+  }
+
+  useEffect(() => {
+    charger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Se met à jour si un appel VoIP (module AGIR) enregistre une issue pendant
+  // que cette fiche est ouverte.
+  useEffect(() => {
+    function onMaj(ev) {
+      if (ev.detail.id === id) setEntreprise(ev.detail);
+    }
+    function onArchive(ev) {
+      if (ev.detail.id === id) navigate("/");
+    }
+    window.addEventListener("entreprise:maj", onMaj);
+    window.addEventListener("entreprise:archivee", onArchive);
+    return () => {
+      window.removeEventListener("entreprise:maj", onMaj);
+      window.removeEventListener("entreprise:archivee", onArchive);
+    };
+  }, [id, navigate]);
+
+  async function soumettreIssueAppel(ev) {
+    ev.preventDefault();
+    if (!issueChoisie) return;
+    const infoIssue = ISSUES_APPEL.find((i) => i.value === issueChoisie);
+    if (infoIssue?.needsDate && !dateIssue) {
+      setErreur("Merci de choisir une date pour cette issue d'appel.");
+      return;
+    }
+    setEnregistrement(true);
+    try {
+      const updated = await api.enregistrerAppel(id, {
+        issue: issueChoisie,
+        date: dateIssue || null,
+        details: detailsIssue || null,
+      });
+      setEntreprise(updated);
+      setIssueChoisie("");
+      setDateIssue("");
+      setDetailsIssue("");
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function soumettreSortieDossier(ev) {
+    ev.preventDefault();
+    if (!sortieChoisie) return;
+    setEnregistrement(true);
+    try {
+      const { archive, entreprise: updated } = await api.enregistrerSortie(id, {
+        sortie: sortieChoisie,
+        details: detailsSortie || null,
+      });
+      if (archive) {
+        // Dossier "mort" : archivé côté serveur, retiré du pipeline actif —
+        // retour au tableau de bord, la fiche n'y est plus consultable en direct.
+        navigate("/");
+        return;
+      }
+      setEntreprise(updated);
+      setSortieChoisie("");
+      setDetailsSortie("");
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function soumettreCommentaire(ev) {
+    ev.preventDefault();
+    if (!nouveauCommentaire.trim()) return;
+    setEnregistrement(true);
+    try {
+      const updated = await api.ajouterCommentaire(id, { texte: nouveauCommentaire, auteur: "Philippe" });
+      setEntreprise(updated);
+      setNouveauCommentaire("");
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function mettreAJourEffectifs(payload) {
+    setEnregistrementEffectifs(true);
+    try {
+      const updated = await api.patchEntreprise(id, payload);
+      setEntreprise(updated);
+      setEffectifSaisi(String(updated.effectif));
+      setEffectifBeneficiaireSaisi(String(updated.effectifBeneficiaire));
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementEffectifs(false);
+    }
+  }
+
+  async function soumettreEffectifs(ev) {
+    ev.preventDefault();
+    await mettreAJourEffectifs({
+      effectif: Number(effectifSaisi) || 0,
+      effectifBeneficiaire: Number(effectifBeneficiaireSaisi) || 0,
+    });
+  }
+
+  async function soumettreDateCreation(ev) {
+    ev.preventDefault();
+    setEnregistrementDateCreation(true);
+    try {
+      const updated = await api.patchEntreprise(id, { dateCreation: dateCreationSaisie || null });
+      setEntreprise(updated);
+      setDateCreationSaisie(updated.dateCreation || "");
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementDateCreation(false);
+    }
+  }
+
+  // Corrige la classification public/privé (donc le collecteur AGEFIPH/FIPHFP)
+  // quand la détection automatique par SIREN ou par mots-clés est erronée.
+  async function changerSecteurPublic(valeur) {
+    setEnregistrementSecteurPublic(true);
+    try {
+      const updated = await api.patchEntreprise(id, { secteurPublic: valeur === "oui" });
+      setEntreprise(updated);
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementSecteurPublic(false);
+    }
+  }
+
+  // Bascule Oui/Non "au moins un bénéficiaire recruté" : force 0 (surcontribution)
+  // côté Non, ou restaure/initialise un effectif >= 1 côté Oui, puis déclenche
+  // immédiatement le recalcul serveur (seule source de vérité du montant OETH).
+  async function changerPresenceBeneficiaire(reponse) {
+    const effectifBeneficiaire =
+      reponse === "oui" ? Math.max(1, Number(effectifBeneficiaireSaisi) || 1) : 0;
+    await mettreAJourEffectifs({
+      effectif: Number(effectifSaisi) || 0,
+      effectifBeneficiaire,
+    });
+  }
+
+  // Espace IA : signale un numéro non attribué/invalide (journalisé + flaggé
+  // côté serveur) puis, une fois un numéro alternatif trouvé par l'agent via
+  // les pistes de recherche proposées, l'enregistre pour lever le signalement.
+  async function signalerTelephoneInvalide() {
+    setEnregistrementTelephone(true);
+    try {
+      const updated = await api.signalerTelephoneInvalide(id);
+      setEntreprise(updated);
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementTelephone(false);
+    }
+  }
+
+  async function corrigerTelephone(ev) {
+    ev.preventDefault();
+    if (!nouveauTelephone.trim()) return;
+    setEnregistrementTelephone(true);
+    try {
+      await api.patchEntreprise(id, {
+        contact: { ...entreprise.contact, telephone: nouveauTelephone.trim(), telephoneInvalide: false },
+      });
+      const updated = await api.ajouterCommentaire(id, {
+        texte: `Numéro corrigé manuellement : ${nouveauTelephone.trim()} (ancien numéro signalé invalide).`,
+        auteur: "Philippe",
+      });
+      setEntreprise(updated);
+      setNouveauTelephone("");
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementTelephone(false);
+    }
+  }
+
+  const infoIssueSelectionnee = ISSUES_APPEL.find((i) => i.value === issueChoisie);
+
+  if (erreur && !entreprise) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <Link to="/" className="text-sm text-blue-600 hover:underline">
+          &larr; Retour au tableau de bord
+        </Link>
+        <div className="mt-4 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">
+          {erreur}
+        </div>
+      </div>
+    );
+  }
+
+  if (!entreprise) {
+    return <div className="p-6 text-slate-400 text-sm">Chargement…</div>;
+  }
+
+  const { oeth, categorie } = entreprise;
+
+  // Fusionne historique d'appels et commentaires pour la messagerie, triés du plus récent au plus ancien.
+  const fil = [
+    ...entreprise.historiqueAppels.map((h) => ({ ...h, kind: "appel" })),
+    ...entreprise.commentaires.map((c) => ({ ...c, kind: "commentaire" })),
+  ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return (
+    <div className="min-h-screen p-6 max-w-6xl mx-auto">
+      <Link to="/" className="text-sm text-blue-600 hover:underline">
+        &larr; Retour au tableau de bord
+      </Link>
+
+      <div className="flex flex-wrap items-start justify-between gap-3 mt-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">{entreprise.nom}</h1>
+          <p className="text-slate-500 text-sm">
+            {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
+          </p>
+        </div>
+        <StatusBadge statut={entreprise.statut} />
+      </div>
+
+      {erreur && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">
+          {erreur}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Colonne informations structure */}
+        <section className="lg:col-span-1 space-y-6 h-fit">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 mb-4">Informations structure</h2>
+            <dl className="space-y-3 text-sm">
+              <Info label="SIRET" value={entreprise.siret} />
+              <Info label="Forme juridique" value={entreprise.formeJuridique} />
+              <Info label="Secteur d'activité" value={entreprise.secteurActivite} />
+              <Info
+                label="Téléphone"
+                value={
+                  entreprise.contact?.telephone ? (
+                    <button
+                      onClick={() => startCall(entreprise)}
+                      className="text-blue-600 hover:underline font-medium"
+                      title="Lancer un appel VoIP"
+                    >
+                      {entreprise.contact.telephone}
+                    </button>
+                  ) : (
+                    "-"
+                  )
+                }
+              />
+              <Info
+                label="Contact"
+                value={
+                  entreprise.contact
+                    ? `${entreprise.contact.nom}${entreprise.contact.fonction ? " — " + entreprise.contact.fonction : ""}`
+                    : "-"
+                }
+              />
+              <Info label="Email" value={entreprise.contact?.email || "-"} />
+              <Info label="Type de contrat" value={entreprise.typeContrat} />
+              <Info label="ESAT associé" value={entreprise.esatAssocie} />
+              <Info label="Part. manquant" value={entreprise.partManquant ?? "-"} />
+              <Info
+                label="Début / Fin Op."
+                value={`${formatDate(entreprise.partDebutOp)} → ${formatDate(entreprise.partFinOp)}`}
+              />
+              {entreprise.dateRappel && <Info label="Date de rappel prévue" value={formatDate(entreprise.dateRappel)} />}
+              {entreprise.dateRdv && <Info label="Date de RDV" value={formatDate(entreprise.dateRdv)} />}
+            </dl>
+
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <label className="block text-xs text-slate-500 mb-2">
+                Secteur public (relève du FIPHFP) ?
+                <select
+                  value={entreprise.secteurPublic ? "oui" : "non"}
+                  onChange={(e) => changerSecteurPublic(e.target.value)}
+                  disabled={enregistrementSecteurPublic}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:opacity-40"
+                >
+                  <option value="non">Non — secteur privé (AGEFIPH)</option>
+                  <option value="oui">Oui — secteur public (FIPHFP)</option>
+                </select>
+              </label>
+              <span
+                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                  entreprise.collecteur === "FIPHFP"
+                    ? "bg-indigo-100 text-indigo-700 border-indigo-300"
+                    : "bg-sky-100 text-sky-700 border-sky-300"
+                }`}
+              >
+                Collecteur : {entreprise.collecteur}
+              </span>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <form onSubmit={soumettreDateCreation} className="flex items-end gap-2 mb-3">
+                <label className="text-xs text-slate-500 flex-1">
+                  Date de création
+                  <input
+                    type="date"
+                    value={dateCreationSaisie}
+                    onChange={(e) => setDateCreationSaisie(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={enregistrementDateCreation}
+                  className="rounded-lg bg-slate-900 text-white text-xs font-medium px-3 py-[7px] disabled:opacity-40"
+                >
+                  Enregistrer
+                </button>
+              </form>
+              <div className="flex flex-wrap items-center gap-2">
+                {oeth?.neutralisation?.ancienneteAnnees != null && (
+                  <span className="text-xs text-slate-500">
+                    Ancienneté :{" "}
+                    <strong>
+                      {oeth.neutralisation.ancienneteAnnees} an{oeth.neutralisation.ancienneteAnnees > 1 ? "s" : ""}
+                    </strong>
+                  </span>
+                )}
+                <span
+                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    libelleNeutralisation(oeth?.neutralisation).className
+                  }`}
+                >
+                  {libelleNeutralisation(oeth?.neutralisation).label}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Classification secteur + argumentaire */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 mb-2">Catégorie & argumentaire</h2>
+            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 mb-3">
+              {categorie?.label}
+            </span>
+            <p className="text-sm text-slate-600">{categorie?.argumentaire}</p>
+            {oeth?.neutralisation?.alerteAnticipation && (
+              <p className="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <strong>Conseil An 4 :</strong> insistez sur l'anticipation des difficultés de recrutement de
+                travailleurs handicapés et proposez dès maintenant une mise en relation avec l'ESAT Tremplin, pour
+                sécuriser la structure avant la levée de la neutralisation l'an prochain.
+              </p>
+            )}
+          </div>
+
+          {/* Obligation OETH */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 mb-4">Obligation OETH</h2>
+
+            <form onSubmit={soumettreEffectifs} className="grid grid-cols-2 gap-3 mb-4">
+              <label className="text-xs text-slate-500">
+                Effectif total
+                <input
+                  type="number"
+                  min="0"
+                  value={effectifSaisi}
+                  onChange={(e) => setEffectifSaisi(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-xs text-slate-500">
+                Bénéficiaires recrutés
+                <input
+                  type="number"
+                  min="1"
+                  value={effectifBeneficiaireSaisi}
+                  onChange={(e) => setEffectifBeneficiaireSaisi(e.target.value)}
+                  disabled={Number(effectifBeneficiaireSaisi) === 0}
+                  title={
+                    Number(effectifBeneficiaireSaisi) === 0
+                      ? "Sélectionnez « Oui » ci-dessous pour saisir un nombre de bénéficiaires"
+                      : undefined
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={enregistrementEffectifs}
+                className="col-span-2 rounded-lg bg-slate-900 text-white text-xs font-medium py-1.5 disabled:opacity-40"
+              >
+                Mettre à jour les effectifs
+              </button>
+            </form>
+
+            <label className="block text-xs text-slate-500 mb-4">
+              L'entreprise a-t-elle au moins un travailleur handicapé (bénéficiaire) ?
+              <select
+                value={Number(effectifBeneficiaireSaisi) > 0 ? "oui" : "non"}
+                onChange={(e) => changerPresenceBeneficiaire(e.target.value)}
+                disabled={enregistrementEffectifs}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:opacity-40"
+              >
+                <option value="non">Non — 0 recruté (surcontribution forcée)</option>
+                <option value="oui">Oui — au moins 1 recruté (contribution classique)</option>
+              </select>
+            </label>
+
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">Mode appliqué :</span>
+              {oeth?.neutralisation?.neutralise ? (
+                <span
+                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    libelleNeutralisation(oeth.neutralisation).className
+                  }`}
+                >
+                  {libelleNeutralisation(oeth.neutralisation).label}
+                </span>
+              ) : (
+                <span
+                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    !oeth?.assujetti
+                      ? "bg-slate-100 text-slate-500 border-slate-300"
+                      : oeth.surcontribution
+                      ? "bg-red-100 text-red-700 border-red-300"
+                      : "bg-blue-100 text-blue-700 border-blue-300"
+                  }`}
+                >
+                  {!oeth?.assujetti
+                    ? "Non assujetti"
+                    : oeth.surcontribution
+                    ? "Surcontribution — coefficient 1500"
+                    : `Contribution classique — coefficient ${oeth.coefficient ?? "—"}`}
+                </span>
+              )}
+            </div>
+
+            {oeth?.neutralisation?.neutralise ? (
+              <div className="space-y-3">
+                <p
+                  className={`text-sm rounded-lg border p-3 ${
+                    oeth.neutralisation.alerteAnticipation
+                      ? "bg-amber-50 border-amber-200 text-amber-800"
+                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  }`}
+                >
+                  {oeth.neutralisation.alerteAnticipation
+                    ? `An ${oeth.neutralisation.ancienneteAnnees} : dernière année de la période de neutralisation légale. Taxe estimée à 0 € pour l'instant, mais l'assujettissement complet à l'OETH s'appliquera dans un an.`
+                    : `Entreprise créée il y a ${oeth.neutralisation.ancienneteAnnees} an${
+                        oeth.neutralisation.ancienneteAnnees > 1 ? "s" : ""
+                      } : période de neutralisation légale (< 5 ans). Taxe estimée à 0 € — l'entreprise n'a pas à s'inquiéter pour le moment.`}
+                </p>
+                {oeth.neutralisation.alerteAnticipation && oeth.projectionSiAssujetti && !oeth.projectionSiAssujetti.conforme && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
+                    <p className="font-semibold uppercase tracking-wide">Anticipation recommandée — ESAT Tremplin</p>
+                    <p>
+                      À effectif constant, la taxe représenterait environ{" "}
+                      <strong>{formatMontant(oeth.projectionSiAssujetti.montantEstime)}</strong> (
+                      {oeth.projectionSiAssujetti.deficit} UB manquante
+                      {oeth.projectionSiAssujetti.deficit > 1 ? "s" : ""}) dès la levée de la neutralisation.
+                      Recommandez dès maintenant l'ESAT Tremplin pour préparer le recrutement et éviter le mur de la
+                      surcontribution.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : !oeth?.assujetti ? (
+              <p className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                Non assujetti à l'OETH (effectif &lt; {oeth?.seuilAssujettissement}).
+              </p>
+            ) : (
+              <dl className="space-y-2 text-sm">
+                <Info label="Unités bénéficiaires requises" value={oeth.unitesRequises} />
+                <Info label="Bénéficiaires recrutés" value={oeth.beneficiairesRecrutes} />
+                <Info
+                  label="Déficit"
+                  value={
+                    oeth.conforme ? (
+                      <span className="text-green-700 font-semibold">0 — conforme</span>
+                    ) : (
+                      <span className={oeth.surcontribution ? "text-red-700 font-semibold" : "text-orange-700 font-semibold"}>
+                        {oeth.deficit} UB
+                      </span>
+                    )
+                  }
+                />
+                {!oeth.conforme && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Décomposition du calcul
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                      <span className="px-2 py-1 rounded-md bg-white border border-slate-300 font-semibold text-slate-700">
+                        {oeth.deficit} UB manquante{oeth.deficit > 1 ? "s" : ""}
+                      </span>
+                      <span className="text-slate-400">×</span>
+                      <span
+                        className={`px-2 py-1 rounded-md bg-white border font-semibold ${
+                          oeth.surcontribution ? "border-red-300 text-red-700" : "border-orange-300 text-orange-700"
+                        }`}
+                      >
+                        {oeth.coefficient}
+                      </span>
+                      <span className="text-slate-400">×</span>
+                      <span className="px-2 py-1 rounded-md bg-white border border-slate-300 font-semibold text-slate-700">
+                        {oeth.tauxHoraireSmic} € (SMIC horaire)
+                      </span>
+                      <span className="text-slate-400">=</span>
+                      <span className="px-2 py-1 rounded-md bg-slate-900 text-white font-bold">
+                        {formatMontant(oeth.montantEstime)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {oeth.deficit} unité{oeth.deficit > 1 ? "s" : ""} bénéficiaire{oeth.deficit > 1 ? "s" : ""}{" "}
+                      manquante{oeth.deficit > 1 ? "s" : ""} × coefficient <strong>{oeth.coefficient}</strong>{" "}
+                      {oeth.surcontribution
+                        ? "(surcontribution — aucun bénéficiaire recruté)"
+                        : `(tranche ${oeth.tranche} salariés)`}{" "}
+                      × <strong>{oeth.tauxHoraireSmic} €</strong> de taux horaire SMIC ={" "}
+                      <strong>{formatMontant(oeth.montantEstime)}</strong> dus au titre de l'obligation d'emploi.
+                    </p>
+                    {oeth.surcontribution && (
+                      <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+                        Surcontribution maximale : aucun travailleur handicapé recruté en interne.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div className="pt-2 border-t border-slate-100">
+                  <Info label="Montant estimé" value={<strong>{formatMontant(oeth.montantEstime)}</strong>} />
+                </div>
+              </dl>
+            )}
+          </div>
+        </section>
+
+        {/* Colonne module AGIR + messagerie */}
+        <section className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 mb-4">Module AGIR</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Nouvelle issue d'appel */}
+              <form onSubmit={soumettreIssueAppel} className="border border-slate-200 rounded-lg p-4">
+                <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">
+                  Nouvelle issue d'appel
+                </label>
+                <select
+                  value={issueChoisie}
+                  onChange={(e) => setIssueChoisie(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                >
+                  <option value="">Sélectionner…</option>
+                  {ISSUES_APPEL.map((i) => (
+                    <option key={i.value} value={i.value}>
+                      {i.label}
+                    </option>
+                  ))}
+                </select>
+
+                {infoIssueSelectionnee?.needsDate && (
+                  <input
+                    type="date"
+                    value={dateIssue}
+                    onChange={(e) => setDateIssue(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                  />
+                )}
+
+                <textarea
+                  value={detailsIssue}
+                  onChange={(e) => setDetailsIssue(e.target.value)}
+                  placeholder="Détails (facultatif)"
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                />
+
+                <button
+                  type="submit"
+                  disabled={!issueChoisie || enregistrement}
+                  className="w-full rounded-lg bg-slate-900 text-white text-sm font-medium py-2 disabled:opacity-40"
+                >
+                  Enregistrer l'issue
+                </button>
+              </form>
+
+              {/* Sortie du dossier */}
+              <form onSubmit={soumettreSortieDossier} className="border border-slate-200 rounded-lg p-4">
+                <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">
+                  Sortie du dossier
+                </label>
+                <select
+                  value={sortieChoisie}
+                  onChange={(e) => setSortieChoisie(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                >
+                  <option value="">Sélectionner…</option>
+                  {SORTIES_DOSSIER.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+
+                <textarea
+                  value={detailsSortie}
+                  onChange={(e) => setDetailsSortie(e.target.value)}
+                  placeholder="Détails (facultatif)"
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                />
+
+                <button
+                  type="submit"
+                  disabled={!sortieChoisie || enregistrement}
+                  className="w-full rounded-lg bg-red-600 text-white text-sm font-medium py-2 disabled:opacity-40"
+                >
+                  Clore / envoyer en atelier
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Espace IA : contact alternatif en cas de numéro invalide */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 mb-4">Espace IA — Contact alternatif</h2>
+
+            {!entreprise.contact?.telephoneInvalide ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-slate-500">
+                  Numéro {entreprise.contact?.telephone || "(aucun renseigné)"} non attribué ou injoignable ?
+                </p>
+                <button
+                  onClick={signalerTelephoneInvalide}
+                  disabled={enregistrementTelephone}
+                  className="rounded-lg bg-amber-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
+                >
+                  Signaler numéro invalide
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  Numéro signalé invalide. Sans accès à une base de téléphonie payante (Pappers), l'assistant ne
+                  devine pas de numéro — voici des pistes de recherche prêtes à cliquer, et un champ pour
+                  enregistrer le bon numéro dès que vous l'avez trouvé.
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={`https://www.google.com/search?q=${encodeURIComponent(
+                      `${entreprise.nom} ${entreprise.ville} téléphone`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
+                  >
+                    Rechercher sur Google
+                  </a>
+                  <a
+                    href={`https://www.societe.com/cgi-bin/search?champs=${encodeURIComponent(
+                      entreprise.siret?.slice(0, 9) || entreprise.nom
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
+                  >
+                    Fiche Societe.com
+                  </a>
+                  <a
+                    href={`https://www.pagesjaunes.fr/recherche/${encodeURIComponent(entreprise.nom)}/${encodeURIComponent(
+                      entreprise.ville || ""
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
+                  >
+                    PagesJaunes
+                  </a>
+                  <a
+                    href={`https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(entreprise.nom)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
+                  >
+                    LinkedIn
+                  </a>
+                </div>
+
+                <form onSubmit={corrigerTelephone} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nouveau numéro trouvé…"
+                    value={nouveauTelephone}
+                    onChange={(e) => setNouveauTelephone(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!nouveauTelephone.trim() || enregistrementTelephone}
+                    className="rounded-lg bg-slate-900 text-white text-sm font-medium px-4 disabled:opacity-40"
+                  >
+                    Enregistrer
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+
+          {/* Messagerie / historique */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 mb-4">Messagerie & historique</h2>
+
+            <form onSubmit={soumettreCommentaire} className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={nouveauCommentaire}
+                onChange={(e) => setNouveauCommentaire(e.target.value)}
+                placeholder="Ajouter un commentaire…"
+                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={!nouveauCommentaire.trim() || enregistrement}
+                className="rounded-lg bg-slate-900 text-white text-sm font-medium px-4 disabled:opacity-40"
+              >
+                Envoyer
+              </button>
+            </form>
+
+            <ul className="space-y-3 max-h-[420px] overflow-y-auto">
+              {fil.map((item) => (
+                <li key={item.id} className="border border-slate-100 rounded-lg p-3 text-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-slate-700">
+                      {item.kind === "appel" ? item.issueLabel : item.auteur}
+                    </span>
+                    <span className="text-xs text-slate-400">{formatDateHeure(item.date)}</span>
+                  </div>
+                  {item.kind === "appel" ? (
+                    <p className="text-slate-500">
+                      {item.details || "Aucun détail renseigné."}
+                      {item.dateProgrammee && (
+                        <span className="block text-xs mt-1 text-slate-400">
+                          Date programmée : {formatDate(item.dateProgrammee)}
+                        </span>
+                      )}
+                      {Number.isFinite(item.dureeSecondes) && (
+                        <span className="block text-xs mt-1 text-slate-400">
+                          Durée d'appel : {formatDuree(item.dureeSecondes)}
+                        </span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-slate-600">{item.texte}</p>
+                  )}
+                </li>
+              ))}
+              {fil.length === 0 && (
+                <li className="text-slate-400 text-sm">Aucun historique pour ce dossier.</li>
+              )}
+            </ul>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Info({ label, value }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-slate-400">{label}</dt>
+      <dd className="text-slate-700 font-medium text-right">{value}</dd>
+    </div>
+  );
+}
