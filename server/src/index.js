@@ -1,10 +1,19 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
 import db, { initDb } from "./db.js";
 import { calculerObligationOeth } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur } from "./secteurs.js";
 import { estSirenValide, rechercherEntrepriseParSiren } from "./insee.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Build de production du frontend React (généré par `npm run build` côté
+// client). N'existe pas en développement local (Vite sert le frontend
+// séparément sur le port 5173) — uniquement en production (Render).
+const distClient = path.join(__dirname, "..", "..", "client", "dist");
 
 const app = express();
 app.use(cors());
@@ -325,6 +334,21 @@ app.post("/api/entreprises/:id/telephone-invalide", async (req, res) => {
   await db.write();
   res.json(enrichir(entreprise));
 });
+
+// Sert le frontend React buildé et gère le routage côté client (React
+// Router) : toute route qui n'est pas une route API renvoie index.html,
+// pour que /entreprise/:id fonctionne aussi en accès direct ou au rechargement.
+if (fs.existsSync(distClient)) {
+  app.use(express.static(distClient));
+  app.get(/^(?!\/api\/).*/, (req, res) => {
+    res.sendFile(path.join(distClient, "index.html"));
+  });
+} else {
+  console.warn(
+    `Build client introuvable (${distClient}) — le frontend n'est pas servi. ` +
+      "Lancez `npm run build` à la racine du projet avant `npm start` en production."
+  );
+}
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
