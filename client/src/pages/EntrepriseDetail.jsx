@@ -4,7 +4,7 @@ import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import MessagerieMail from "../components/MessagerieMail.jsx";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
-import { AGENT_ACTUEL } from "../agent.js";
+import { useIdentiteActuelle } from "../identite.js";
 import {
   ISSUES_APPEL,
   SORTIES_DOSSIER,
@@ -43,6 +43,7 @@ function libelleNeutralisation(neutralisation) {
 export default function EntrepriseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { prenom: prenomAgent } = useIdentiteActuelle();
   const [entreprise, setEntreprise] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
@@ -163,7 +164,7 @@ export default function EntrepriseDetail() {
     if (!nouveauCommentaire.trim()) return;
     setEnregistrement(true);
     try {
-      const updated = await api.ajouterCommentaire(id, { texte: nouveauCommentaire, auteur: AGENT_ACTUEL.prenom });
+      const updated = await api.ajouterCommentaire(id, { texte: nouveauCommentaire, auteur: prenomAgent });
       setEntreprise(updated);
       setNouveauCommentaire("");
       setErreur(null);
@@ -295,7 +296,7 @@ export default function EntrepriseDetail() {
       if (appliqueCategorie) morceauxTexte.push(`Catégorie mise à jour : ${propositionIa.secteurCategorieLabel}.`);
       const updated = await api.ajouterCommentaire(id, {
         texte: morceauxTexte.join(" "),
-        auteur: AGENT_ACTUEL.prenom,
+        auteur: prenomAgent,
       });
       setEntreprise(updated);
       setNouveauTelephone("");

@@ -1,4 +1,7 @@
-export default function Header({ prenom = "Philippe" }) {
+import { useIdentiteActuelle } from "../identite.js";
+
+export default function Header() {
+  const { prenom } = useIdentiteActuelle();
   const heure = new Date().getHours();
   const salutation = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
 

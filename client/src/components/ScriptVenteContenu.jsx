@@ -1,6 +1,6 @@
 import { api } from "../api.js";
 import { useContenuAide } from "../useContenuAide.js";
-import { AGENT_ACTUEL } from "../agent.js";
+import { useIdentiteActuelle } from "../identite.js";
 
 // Trame d'appel type (ouverture → clôture), à garder sous les yeux pendant
 // l'appel. Chaque ligne est soit une instruction pour l'agent (italique,
@@ -9,18 +9,19 @@ import { AGENT_ACTUEL } from "../agent.js";
 // pour que ce soit directement pitchable mot pour mot.
 export default function ScriptVenteContenu() {
   const { data, erreur } = useContenuAide("script-vente", api.getScriptVente);
+  const { prenom } = useIdentiteActuelle();
 
   if (erreur) return <p className="text-sm text-red-600 dark:text-red-400">{erreur}</p>;
   if (!data) return <p className="text-sm text-slate-400 dark:text-slate-500">Chargement du script…</p>;
 
   function personnaliser(texte) {
-    return texte.replaceAll("[Prénom]", AGENT_ACTUEL.prenom);
+    return texte.replaceAll("[Prénom]", prenom);
   }
 
   return (
     <div className="space-y-5 text-sm">
       <p className="text-xs text-slate-400 dark:text-slate-500 italic">
-        Script personnalisé pour {AGENT_ACTUEL.prenom} — prêt à être lu tel quel.
+        Script personnalisé pour {prenom} — prêt à être lu tel quel.
       </p>
       {data.sections.map((s) => (
         <div key={s.titre}>

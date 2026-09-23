@@ -11,7 +11,6 @@ import ImportLot from "../components/ImportLot.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import { useTheme } from "../useTheme.js";
 import { useAuth } from "../AuthContext.jsx";
-import { AGENT_ACTUEL } from "../agent.js";
 import { ORDRE_STATUTS } from "../constants.js";
 
 const TAILLES_PAGE = [10, 20, 50];
@@ -148,7 +147,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen p-6 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-        <Header prenom={AGENT_ACTUEL.prenom} />
+        <Header />
         <UserMenu theme={theme} onBasculerTheme={basculer} />
       </div>
 

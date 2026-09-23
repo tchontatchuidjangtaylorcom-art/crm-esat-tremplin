@@ -1,23 +1,16 @@
 import { Link } from "react-router-dom";
-import { AGENT_ACTUEL } from "../agent.js";
 import { useAuth } from "../AuthContext.jsx";
+import { useIdentiteActuelle } from "../identite.js";
 import { api } from "../api.js";
 
 // Widget de profil + bascule clair/sombre, en haut à droite du tableau de
 // bord. L'accès à cette page exige déjà une session valide (RequireAuth),
-// donc `utilisateur` est normalement toujours renseigné ici ; le repli sur
-// l'identité de démonstration (agent.js) ne sert que de filet de sécurité.
+// donc l'identité vient normalement toujours de la session réelle ; le repli
+// sur l'identité de démonstration (agent.js, via useIdentiteActuelle) ne sert
+// que de filet de sécurité.
 export default function UserMenu({ theme, onBasculerTheme }) {
   const { utilisateur } = useAuth();
-
-  const identite = utilisateur
-    ? {
-        prenom: utilisateur.prenom || utilisateur.email.split("@")[0],
-        nom: utilisateur.nom || "",
-        role: utilisateur.role === "admin" ? "Administrateur" : "Télépro",
-        bureau: utilisateur.email,
-      }
-    : AGENT_ACTUEL;
+  const identite = useIdentiteActuelle();
 
   const initiales = `${identite.prenom?.[0] || "?"}${identite.nom?.[0] || ""}`.toUpperCase();
 
