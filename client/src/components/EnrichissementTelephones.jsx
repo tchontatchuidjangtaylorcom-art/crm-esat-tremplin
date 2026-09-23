@@ -62,14 +62,21 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
           <>
             🤖 Enrichissement IA en cours… {statut.traites} / {statut.total} fiche{statut.total > 1 ? "s" : ""}{" "}
             traitée{statut.traites > 1 ? "s" : ""} ({statut.trouves} numéro{statut.trouves > 1 ? "s" : ""} trouvé
-            {statut.trouves > 1 ? "s" : ""}).
+            {statut.trouves > 1 ? "s" : ""}
+            {statut.erreurs > 0 ? `, ${statut.erreurs} échec${statut.erreurs > 1 ? "s" : ""}` : ""}).
           </>
         ) : (
           <>
             <strong>{manquants}</strong> fiche{manquants > 1 ? "s" : ""} sans numéro de téléphone dans le pipeline
             actif.
-            {statut?.termine && statut.trouves > 0 && (
-              <> Dernier enrichissement : {statut.trouves} numéro{statut.trouves > 1 ? "s" : ""} trouvé.</>
+            {statut?.termine && (
+              <>
+                {" "}
+                Dernier enrichissement : {statut.trouves} numéro{statut.trouves > 1 ? "s" : ""} trouvé
+                {statut.trouves > 1 ? "s" : ""} sur {statut.traites} fiche{statut.traites > 1 ? "s" : ""} traitée
+                {statut.traites > 1 ? "s" : ""}
+                {statut.erreurs > 0 ? `, ${statut.erreurs} échec${statut.erreurs > 1 ? "s" : ""}` : ""}.
+              </>
             )}
           </>
         )}
@@ -83,6 +90,14 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
         {statut?.enCours ? "Enrichissement…" : "🤖 Lancer l'enrichissement Gemini des numéros manquants"}
       </button>
 
+      {statut?.interrompu && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 w-full">⚠️ {statut.interrompu}</p>
+      )}
+      {!statut?.interrompu && !statut?.enCours && statut?.derniereErreur && (
+        <p className="text-xs text-slate-400 dark:text-slate-500 w-full">
+          Dernière erreur rencontrée : {statut.derniereErreur}
+        </p>
+      )}
       {erreur && <p className="text-sm text-red-600 dark:text-red-400 w-full">{erreur}</p>}
     </div>
   );

@@ -71,7 +71,10 @@ export default function EntrepriseTable({ entreprises, estAdmin, agents, onAssig
                 <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
                   {e.oeth?.assujetti ? formatMontant(e.oeth.montantEstime) : "-"}
                 </td>
-                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.contact?.nom || "-"}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                  {e.contact?.nom && e.contact.nom !== "-" && <span className="block">{e.contact.nom}</span>}
+                  <BoutonAppel entreprise={e} variant="lien" />
+                </td>
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.codePostal}</td>
                 <td
                   className="px-4 py-3 text-slate-500 dark:text-slate-400 max-w-[220px] truncate"

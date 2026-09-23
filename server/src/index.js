@@ -527,9 +527,27 @@ app.post("/api/leads/siren/lot", exigerAdmin, async (req, res) => {
 // simplement à compléter manuellement comme avant cette fonctionnalité — pas
 // d'écriture de numéro halluciné, rechercherContactAlternatif renvoie déjà
 // null plutôt qu'inventer une valeur.
+//
+// Espacement des appels : le plan gratuit Gemini limite le débit à quelques
+// requêtes/minute (bien en dessous de l'API Sirene) — 300ms suffisait pour
+// enchaîner les appels mais faisait cogner le quota dès la dizaine de fiches
+// suivante, chaque appel échouant alors en 429 (voir le retry/backoff dédié
+// dans rechercheContact.js, qui absorbe les 429 isolés ; ce délai réduit
+// simplement la fréquence à laquelle on les déclenche).
+const DELAI_ENTRE_APPELS_IA_MS = Number(process.env.GEMINI_ENRICHISSEMENT_DELAI_MS) || 4000;
+// Au-delà de ce nombre d'échecs consécutifs, on arrête le lot plutôt que de
+// continuer à égrener silencieusement des échecs : ça sent l'erreur de
+// configuration (clé/modèle Gemini invalide, quota journalier épuisé) plutôt
+// qu'un raté ponctuel sur une fiche — mieux vaut le signaler clairement que
+// de laisser tourner un lot de 100 fiches pour zéro résultat.
+const ECHECS_CONSECUTIFS_MAX = 5;
+
 async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
+  let echecsConsecutifs = 0;
+  let interrompu = null;
   for (const entreprise of entreprises) {
     let trouve = false;
+    let erreurMessage = null;
     try {
       const resultat = await rechercherContactAlternatif(entreprise);
       if (resultat.telephone) {
@@ -546,16 +564,26 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
         await db.write();
         trouve = true;
       }
+      echecsConsecutifs = 0;
     } catch (e) {
+      erreurMessage = e.message;
+      echecsConsecutifs += 1;
       console.error(
         `[ia] Échec de recherche automatique de téléphone pour ${entreprise.nom} :`,
         JSON.stringify(detailErreurIa(e))
       );
     }
-    onProgres?.(trouve);
-    // Petite pause polie entre deux appels à l'API Gemini.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    onProgres?.({ trouve, erreur: erreurMessage });
+
+    if (echecsConsecutifs >= ECHECS_CONSECUTIFS_MAX) {
+      interrompu = `Interrompu après ${echecsConsecutifs} échecs consécutifs (dernière erreur : ${erreurMessage}) — vérifiez la configuration Gemini (GEMINI_API_KEY / GEMINI_MODEL) ou le quota.`;
+      console.error(`[ia] Enrichissement en lot interrompu : ${interrompu}`);
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, DELAI_ENTRE_APPELS_IA_MS));
   }
+  return { interrompu };
 }
 
 // État du dernier/actuel enrichissement téléphone en lot déclenché depuis le
@@ -563,7 +591,17 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
 // process uniquement, pas persisté en base : sert seulement à bloquer un
 // double lancement concurrent et à exposer une progression au frontend
 // (polling de /statut), pas à survivre à un redémarrage du serveur.
-let etatEnrichissementLot = { enCours: false, total: 0, traites: 0, trouves: 0, demarre: null, termine: null };
+let etatEnrichissementLot = {
+  enCours: false,
+  total: 0,
+  traites: 0,
+  trouves: 0,
+  erreurs: 0,
+  derniereErreur: null,
+  interrompu: null,
+  demarre: null,
+  termine: null,
+};
 
 // Enrichit en lot les fiches déjà présentes dans le CRM (actives, hors
 // archives) qui n'ont toujours aucun numéro de téléphone — typiquement des
@@ -592,17 +630,27 @@ app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
     total: cibles.length,
     traites: 0,
     trouves: 0,
+    erreurs: 0,
+    derniereErreur: null,
+    interrompu: null,
     demarre: new Date().toISOString(),
     termine: null,
   };
   res.status(202).json(etatEnrichissementLot);
 
   enrichirTelephonesViaIA(cibles, {
-    onProgres: (trouve) => {
+    onProgres: ({ trouve, erreur }) => {
       etatEnrichissementLot.traites += 1;
       if (trouve) etatEnrichissementLot.trouves += 1;
+      if (erreur) {
+        etatEnrichissementLot.erreurs += 1;
+        etatEnrichissementLot.derniereErreur = erreur;
+      }
     },
   })
+    .then((resultat) => {
+      if (resultat?.interrompu) etatEnrichissementLot.interrompu = resultat.interrompu;
+    })
     .catch((e) => console.error("[ia] Échec de l'enrichissement en lot :", e.message))
     .finally(() => {
       etatEnrichissementLot.enCours = false;

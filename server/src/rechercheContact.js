@@ -21,8 +21,41 @@ import { CATEGORIES, listerCategories } from "./secteurs.js";
 const MODELE_PAR_DEFAUT = "gemini-2.5-flash";
 const TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 20000;
 
+// Le plan gratuit de l'API Gemini limite le débit à quelques requêtes par
+// minute (bien moins que l'API Sirene) : un enrichissement en lot sur
+// plusieurs dizaines de fiches y cogne systématiquement après les toutes
+// premières requêtes. Même parade que pour l'API Sirene (voir insee.js) —
+// retry/backoff dédié aux 429, en respectant le délai indiqué par Gemini.
+const TENTATIVES_MAX_429 = 3;
+const ATTENTE_429_PLAFOND_MS = 65_000;
+
 function cleApi() {
   return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+}
+
+function attendre(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Lit le délai d'attente conseillé par Gemini sur un 429 : d'abord l'en-tête
+// HTTP standard Retry-After, à défaut le champ RetryInfo.retryDelay que
+// l'API Gemini renvoie dans le corps de l'erreur (ex : "38s").
+function delaiAttenteConseille(reponse, corpsErreur) {
+  const enTete = reponse.headers.get("retry-after");
+  if (enTete) {
+    const secondes = Number(enTete);
+    if (!Number.isNaN(secondes)) return secondes * 1000;
+    const date = Date.parse(enTete);
+    if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
+  }
+  const retryInfo = (corpsErreur?.error?.details || []).find((d) =>
+    d["@type"]?.includes("RetryInfo")
+  );
+  if (retryInfo?.retryDelay) {
+    const secondes = Number(String(retryInfo.retryDelay).replace(/s$/, ""));
+    if (!Number.isNaN(secondes)) return secondes * 1000;
+  }
+  return null;
 }
 
 export function estRechercheIaConfiguree() {
@@ -63,14 +96,37 @@ function construirePrompt(entreprise) {
   );
 }
 
+// Extrait le premier objet JSON complet contenant "telephone" du texte —
+// par comptage d'accolades plutôt qu'une regex à profondeur fixe (qui
+// échouait dès que la réponse groundée par la recherche web contenait des
+// accolades imbriquées avant le JSON final, ex. citations/notes de l'outil
+// google_search), ce qui faisait systématiquement échouer l'extraction sur
+// certaines fiches.
+function extraireBlocJson(texte) {
+  const debutCle = texte.indexOf('"telephone"');
+  if (debutCle === -1) return null;
+  const debutObjet = texte.lastIndexOf("{", debutCle);
+  if (debutObjet === -1) return null;
+
+  let profondeur = 0;
+  for (let i = debutObjet; i < texte.length; i++) {
+    if (texte[i] === "{") profondeur++;
+    else if (texte[i] === "}") {
+      profondeur--;
+      if (profondeur === 0) return texte.slice(debutObjet, i + 1);
+    }
+  }
+  return null;
+}
+
 function extraireResultat(corpsReponse) {
   const texte = (corpsReponse.candidates || [])
     .flatMap((candidat) => candidat.content?.parts || [])
     .map((partie) => partie.text || "")
     .join("\n");
 
-  const correspondance = texte.match(/\{[^{}]*"telephone"[^{}]*\}/s);
-  if (!correspondance) {
+  const bloc = extraireBlocJson(texte);
+  if (!bloc) {
     const erreur = new Error("Réponse de l'IA illisible (pas de JSON de résultat trouvé).");
     erreur.code = "REPONSE_IA_INVALIDE";
     erreur.response = texte.slice(0, 500);
@@ -79,11 +135,11 @@ function extraireResultat(corpsReponse) {
 
   let resultat;
   try {
-    resultat = JSON.parse(correspondance[0]);
+    resultat = JSON.parse(bloc);
   } catch {
     const erreur = new Error("Réponse de l'IA illisible (JSON invalide).");
     erreur.code = "REPONSE_IA_INVALIDE";
-    erreur.response = correspondance[0];
+    erreur.response = bloc;
     throw erreur;
   }
 
@@ -103,15 +159,7 @@ function extraireResultat(corpsReponse) {
   };
 }
 
-export async function rechercherContactAlternatif(entreprise) {
-  const cle = cleApi();
-  if (!cle) {
-    const erreur = new Error("Recherche IA non configurée (renseignez GEMINI_API_KEY).");
-    erreur.code = "IA_NON_CONFIGUREE";
-    throw erreur;
-  }
-
-  const modele = process.env.GEMINI_MODEL || MODELE_PAR_DEFAUT;
+async function appelerGemini(entreprise, cle, modele) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modele}:generateContent?key=${cle}`;
 
   const controleur = new AbortController();
@@ -146,8 +194,44 @@ export async function rechercherContactAlternatif(entreprise) {
     erreur.code = corps.error?.status || `HTTP_${reponse.status}`;
     erreur.responseCode = reponse.status;
     erreur.response = JSON.stringify(corps).slice(0, 500);
+    erreur.reponseHttp = reponse;
+    erreur.corpsErreur = corps;
     throw erreur;
   }
 
   return extraireResultat(corps);
+}
+
+export async function rechercherContactAlternatif(entreprise) {
+  const cle = cleApi();
+  if (!cle) {
+    const erreur = new Error("Recherche IA non configurée (renseignez GEMINI_API_KEY).");
+    erreur.code = "IA_NON_CONFIGUREE";
+    throw erreur;
+  }
+
+  const modele = process.env.GEMINI_MODEL || MODELE_PAR_DEFAUT;
+
+  let derniereErreur;
+  for (let tentative = 1; tentative <= TENTATIVES_MAX_429; tentative++) {
+    try {
+      return await appelerGemini(entreprise, cle, modele);
+    } catch (e) {
+      // Seul le 429 (quota/débit dépassé — le cas courant sur le plan
+      // gratuit Gemini lors d'un enrichissement en lot) vaut la peine d'être
+      // réessayé : une clé invalide, un modèle inconnu ou un timeout
+      // donneront systématiquement la même erreur, autant échouer tout de
+      // suite plutôt que de perdre du temps à réessayer 3 fois par fiche.
+      if (e.responseCode !== 429 || tentative === TENTATIVES_MAX_429) throw e;
+      derniereErreur = e;
+      const delaiMs = delaiAttenteConseille(e.reponseHttp, e.corpsErreur) ?? 5000 * tentative;
+      console.warn(
+        `[ia] 429 Gemini pour ${entreprise.nom} — nouvelle tentative dans ${Math.round(
+          Math.min(delaiMs, ATTENTE_429_PLAFOND_MS) / 1000
+        )}s (${tentative}/${TENTATIVES_MAX_429}).`
+      );
+      await attendre(Math.min(delaiMs, ATTENTE_429_PLAFOND_MS));
+    }
+  }
+  throw derniereErreur;
 }
