@@ -273,5 +273,6 @@ export function buildSeedData() {
       },
     ],
     archives: [],
+    utilisateurs: [],
   };
 }

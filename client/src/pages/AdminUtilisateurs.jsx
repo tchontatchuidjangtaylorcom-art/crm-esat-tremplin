@@ -1,0 +1,132 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api } from "../api.js";
+import { formatDate } from "../constants.js";
+
+const LIBELLES_STATUT = {
+  en_attente: { label: "En attente", classe: "bg-amber-100 text-amber-700 border-amber-300" },
+  valide: { label: "Validé", classe: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+  refuse: { label: "Refusé", classe: "bg-red-100 text-red-700 border-red-300" },
+};
+
+// Validation des comptes agents par un administrateur — l'API sous-jacente
+// (exigerAdmin) refuse déjà l'accès à qui n'est pas admin ; cette page se
+// contente d'afficher l'erreur renvoyée le cas échéant.
+export default function AdminUtilisateurs() {
+  const [utilisateurs, setUtilisateurs] = useState(null);
+  const [erreur, setErreur] = useState(null);
+
+  function charger() {
+    api
+      .listUtilisateurs()
+      .then(setUtilisateurs)
+      .catch((e) => setErreur(e.message));
+  }
+
+  useEffect(() => {
+    charger();
+  }, []);
+
+  async function valider(id, role) {
+    try {
+      await api.validerUtilisateur(id, role);
+      charger();
+    } catch (e) {
+      setErreur(e.message);
+    }
+  }
+
+  async function refuser(id) {
+    try {
+      await api.refuserUtilisateur(id);
+      charger();
+    } catch (e) {
+      setErreur(e.message);
+    }
+  }
+
+  return (
+    <div className="min-h-screen p-6 max-w-4xl mx-auto">
+      <Link to="/" className="text-sm text-blue-600 hover:underline">
+        &larr; Retour au tableau de bord
+      </Link>
+      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-3 mb-6">Gestion des accès</h1>
+
+      {erreur && (
+        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
+          {erreur}
+        </div>
+      )}
+
+      {!utilisateurs ? (
+        <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>
+      ) : (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+                <th className="px-4 py-3 text-left">Email</th>
+                <th className="px-4 py-3 text-left">Nom</th>
+                <th className="px-4 py-3 text-left">Rôle</th>
+                <th className="px-4 py-3 text-left">Statut</th>
+                <th className="px-4 py-3 text-left">Demande</th>
+                <th className="px-4 py-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+              {utilisateurs.map((u) => (
+                <tr key={u.id}>
+                  <td className="px-4 py-3 text-slate-800 dark:text-slate-100">{u.email}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {[u.prenom, u.nom].filter(Boolean).join(" ") || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{u.role}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                        LIBELLES_STATUT[u.statut]?.classe || ""
+                      }`}
+                    >
+                      {LIBELLES_STATUT[u.statut]?.label || u.statut}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-400 dark:text-slate-500">{formatDate(u.dateCreation)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {u.statut !== "valide" && (
+                      <button
+                        onClick={() => valider(u.id, "agent")}
+                        className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline mr-3"
+                      >
+                        Valider
+                      </button>
+                    )}
+                    {u.statut === "valide" && u.role !== "admin" && (
+                      <button
+                        onClick={() => valider(u.id, "admin")}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline mr-3"
+                      >
+                        Passer admin
+                      </button>
+                    )}
+                    {u.statut !== "refuse" && (
+                      <button onClick={() => refuser(u.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline">
+                        Refuser
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {utilisateurs.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500">
+                    Aucun compte pour l'instant.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

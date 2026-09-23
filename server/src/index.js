@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -13,16 +14,33 @@ import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
 import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
 import { estMailConfigure, relaverBoiteMail, envoyerMail, signatureMail, adresseMailPole } from "./mail.js";
+import {
+  trouverOuCreerUtilisateur,
+  trouverUtilisateurParId,
+  envoyerLienMagique,
+  verifierLienMagique,
+  creerCookieSession,
+  optionsCookie,
+  NOM_COOKIE,
+  exigerAuth,
+  exigerAdmin,
+} from "./auth.js";
+import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
 // client). N'existe pas en développement local (Vite sert le frontend
 // séparément sur le port 5173) — uniquement en production (Render).
 const distClient = path.join(__dirname, "..", "..", "client", "dist");
+// URL publique du CRM telle qu'accédée par un navigateur — sert à construire
+// les liens de connexion envoyés par mail. Doit pointer vers le service
+// Render en production (voir server/.env.example).
+const APP_URL = process.env.APP_URL || "http://localhost:5173";
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 await initDb();
 
@@ -99,6 +117,111 @@ function trouverEntrepriseParEmail(adresse) {
     null
   );
 }
+
+// ---- Authentification (lien magique + Google, validation admin) ----
+//
+// Note de déploiement : ces routes sont fonctionnelles et testables dès
+// maintenant, mais ne sont pas encore appliquées au reste du CRM (aucune
+// route entreprise/dashboard n'exige de session) — le temps de valider que
+// l'envoi de mail et la connexion fonctionnent bout en bout avec de vrais
+// identifiants avant de verrouiller l'accès à toute l'application.
+
+app.get("/api/auth/config", (req, res) => {
+  res.json({ mailConfigure: estMailConfigure(), googleConfigure: googleConfigure(), googleClientId: process.env.GOOGLE_CLIENT_ID || null });
+});
+
+app.post("/api/auth/demander-lien", async (req, res) => {
+  const email = String(req.body.email || "").trim();
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "Adresse mail invalide." });
+  }
+
+  const utilisateur = await trouverOuCreerUtilisateur(email);
+
+  if (utilisateur.statut === "refuse") {
+    return res.status(403).json({ error: "Accès non autorisé pour cette adresse. Contactez l'administrateur." });
+  }
+  if (utilisateur.statut === "en_attente") {
+    return res.json({
+      statut: "en_attente",
+      message: "Votre demande d'accès a été transmise à l'administrateur. Vous recevrez un lien dès validation.",
+    });
+  }
+
+  try {
+    await envoyerLienMagique(utilisateur, APP_URL);
+  } catch (e) {
+    const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
+    return res.status(statutHttp).json({ error: e.message });
+  }
+  res.json({ statut: "lien_envoye", message: "Un lien de connexion vient de vous être envoyé par mail." });
+});
+
+// Lien cliqué depuis le mail : vérifie le jeton, ouvre la session, puis
+// redirige vers l'application (jamais une réponse JSON, c'est une navigation
+// de navigateur).
+app.get("/api/auth/verifier", (req, res) => {
+  try {
+    const utilisateur = verifierLienMagique(String(req.query.token || ""));
+    creerCookieSession(res, utilisateur);
+    res.redirect(`${APP_URL}/`);
+  } catch {
+    res.redirect(`${APP_URL}/connexion?erreur=lien_invalide`);
+  }
+});
+
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { email, prenom, nom } = await verifierIdTokenGoogle(req.body.idToken);
+    const utilisateur = await trouverOuCreerUtilisateur(email, { prenom, nom });
+
+    if (utilisateur.statut === "refuse") {
+      return res.status(403).json({ error: "Accès non autorisé pour cette adresse." });
+    }
+    if (utilisateur.statut === "en_attente") {
+      return res.json({ statut: "en_attente", message: "Votre demande d'accès a été transmise à l'administrateur." });
+    }
+
+    creerCookieSession(res, utilisateur);
+    res.json({ statut: "connecte", utilisateur: { email: utilisateur.email, prenom: utilisateur.prenom, nom: utilisateur.nom, role: utilisateur.role } });
+  } catch (e) {
+    const statutHttp = e.code === "GOOGLE_NON_CONFIGURE" ? 503 : 400;
+    res.status(statutHttp).json({ error: e.message });
+  }
+});
+
+app.get("/api/auth/moi", exigerAuth, (req, res) => {
+  const { id, email, prenom, nom, role } = req.utilisateur;
+  res.json({ id, email, prenom, nom, role });
+});
+
+app.post("/api/auth/deconnexion", (req, res) => {
+  res.clearCookie(NOM_COOKIE, optionsCookie());
+  res.json({ ok: true });
+});
+
+// Administration des accès (réservé aux comptes "admin")
+app.get("/api/utilisateurs", exigerAdmin, (req, res) => {
+  res.json(db.data.utilisateurs);
+});
+
+app.post("/api/utilisateurs/:id/valider", exigerAdmin, async (req, res) => {
+  const utilisateur = trouverUtilisateurParId(req.params.id);
+  if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
+  utilisateur.statut = "valide";
+  utilisateur.role = req.body.role === "admin" ? "admin" : "agent";
+  utilisateur.dateValidation = new Date().toISOString();
+  await db.write();
+  res.json(utilisateur);
+});
+
+app.post("/api/utilisateurs/:id/refuser", exigerAdmin, async (req, res) => {
+  const utilisateur = trouverUtilisateurParId(req.params.id);
+  if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
+  utilisateur.statut = "refuse";
+  await db.write();
+  res.json(utilisateur);
+});
 
 // ---- Routes ----
 

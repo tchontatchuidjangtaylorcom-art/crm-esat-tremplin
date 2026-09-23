@@ -82,4 +82,35 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ objet, corps }),
     }).then(handle),
+
+  getAuthConfig: () => fetch(`${BASE}/auth/config`).then(handle),
+
+  demanderLien: (email) =>
+    fetch(`${BASE}/auth/demander-lien`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    }).then(handle),
+
+  connexionGoogle: (idToken) =>
+    fetch(`${BASE}/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    }).then(handle),
+
+  getMoi: () => fetch(`${BASE}/auth/moi`).then(handle),
+
+  deconnexion: () => fetch(`${BASE}/auth/deconnexion`, { method: "POST" }).then(handle),
+
+  listUtilisateurs: () => fetch(`${BASE}/utilisateurs`).then(handle),
+
+  validerUtilisateur: (id, role) =>
+    fetch(`${BASE}/utilisateurs/${id}/valider`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    }).then(handle),
+
+  refuserUtilisateur: (id) => fetch(`${BASE}/utilisateurs/${id}/refuser`, { method: "POST" }).then(handle),
 };

@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const file = path.join(__dirname, "..", "data", "db.json");
 
 const adapter = new JSONFile(file);
-const db = new Low(adapter, { entreprises: [], archives: [] });
+const db = new Low(adapter, { entreprises: [], archives: [], utilisateurs: [] });
 
 export async function initDb() {
   await db.read();
@@ -16,12 +16,18 @@ export async function initDb() {
     db.data = buildSeedData();
     await db.write();
   }
-  // Migration douce pour les bases existantes créées avant l'ajout de
-  // l'archivage automatique des dossiers "mort".
+  // Migrations douces pour les bases existantes créées avant l'ajout de
+  // l'archivage automatique des dossiers "mort", puis des comptes agents.
+  let aEcrire = false;
   if (!db.data.archives) {
     db.data.archives = [];
-    await db.write();
+    aEcrire = true;
   }
+  if (!db.data.utilisateurs) {
+    db.data.utilisateurs = [];
+    aEcrire = true;
+  }
+  if (aEcrire) await db.write();
   return db;
 }
 
