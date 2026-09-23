@@ -9,10 +9,7 @@ const OUTILS = [
 
 export default function BarreOutilsVente({ outilActif, onSelect }) {
   return (
-    <div className="sticky top-0 z-30 flex flex-wrap items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mr-1">
-        Aide à la vente
-      </span>
+    <div className="sticky top-0 z-30 flex flex-wrap items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-950 border-b-2 border-purple-300 dark:border-purple-800">
       {OUTILS.map((o) => {
         const actif = outilActif === o.cle;
         return (

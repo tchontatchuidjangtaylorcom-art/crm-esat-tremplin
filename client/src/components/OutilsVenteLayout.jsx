@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import BarreOutilsVente from "./BarreOutilsVente.jsx";
 import PanelOutilsVente from "./PanelOutilsVente.jsx";
 
@@ -7,7 +8,14 @@ import PanelOutilsVente from "./PanelOutilsVente.jsx";
 // choisi s'ouvre en colonne docquée à droite — la page principale rétrécit
 // pour lui faire de la place au lieu d'être recouverte par une modale.
 export default function OutilsVenteLayout({ children }) {
-  const [outil, setOutil] = useState(null);
+  const location = useLocation();
+  // Sur une fiche entreprise, l'argumentaire s'ouvre par défaut (chaque fiche
+  // est chargée dans un nouvel onglet, donc cet état initial ne s'applique
+  // qu'une fois, au premier rendu de cet onglet — il ne force jamais la
+  // réouverture si l'agent ferme le panneau ou choisit un autre outil).
+  const [outil, setOutil] = useState(() =>
+    location.pathname.startsWith("/entreprise/") ? "argumentaire" : null
+  );
 
   // Permet à n'importe quel composant (ex: la fiche entreprise) d'ouvrir un
   // panneau sans dépendre directement de cet état, via un simple événement —
@@ -30,7 +38,7 @@ export default function OutilsVenteLayout({ children }) {
       <div className="flex flex-1 flex-col lg:flex-row items-stretch">
         <div className="flex-1 min-w-0">{children}</div>
         {outil && (
-          <aside className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-y-auto">
+          <aside className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l-2 border-purple-200 dark:border-purple-900/50 bg-white dark:bg-slate-900 overflow-y-auto">
             <PanelOutilsVente outil={outil} onFermer={() => setOutil(null)} />
           </aside>
         )}

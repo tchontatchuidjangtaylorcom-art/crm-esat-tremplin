@@ -1,14 +1,18 @@
-// Contenu de l'affiche officielle du pôle AGEFIPH, partagé entre le tiroir
-// d'aide-mémoire (accessible partout) et la fiche entreprise (mise en avant
-// contextuelle selon l'effectif du prospect en cours d'appel).
+// Contenu de l'affiche officielle du pôle AGEFIPH, partagé entre le panneau
+// d'aide-mémoire (accessible partout via la barre d'outils) et la fiche
+// entreprise (mise en avant contextuelle selon l'effectif du prospect en
+// cours d'appel). Séparateurs violets (couleur associée à l'AGEFIPH) entre
+// les sections, pour bien les distinguer d'un coup d'œil.
+const SECTION = "py-4 first:pt-0 border-t border-purple-100 dark:border-purple-900/30 first:border-t-0";
+
 export default function ArgumentaireContenu({ data, ligneSurlignee, compact = false }) {
   if (!data) {
     return <p className="text-sm text-slate-400 dark:text-slate-500">Chargement de l'argumentaire…</p>;
   }
 
   return (
-    <div className="space-y-5 text-sm">
-      <div>
+    <div className="text-sm">
+      <div className={SECTION}>
         <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Qui sommes-nous ?</h3>
         <p className="text-slate-600 dark:text-slate-300">{data.quiSommesNous.texte}</p>
         <ul className="mt-1 space-y-0.5">
@@ -20,12 +24,12 @@ export default function ArgumentaireContenu({ data, ligneSurlignee, compact = fa
         </ul>
       </div>
 
-      <div>
+      <div className={SECTION}>
         <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Objectif</h3>
         <p className="text-slate-600 dark:text-slate-300">{data.objectif}</p>
       </div>
 
-      <div>
+      <div className={SECTION}>
         <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Quotas OETH</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
           Calcul : <strong>{data.calcul.formule}</strong>
@@ -62,9 +66,9 @@ export default function ArgumentaireContenu({ data, ligneSurlignee, compact = fa
       </div>
 
       {!compact && (
-        <div>
+        <div className={SECTION}>
           <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Chronologie & dates clés</h3>
-          <ul className="space-y-2 border-l-2 border-red-200 dark:border-red-900 pl-3">
+          <ul className="space-y-2 border-l-2 border-purple-200 dark:border-purple-900 pl-3">
             {data.chronologie.map((c, i) => (
               <li key={i}>
                 <span className="inline-block text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 rounded px-1.5 py-0.5 mr-1.5">
@@ -78,7 +82,7 @@ export default function ArgumentaireContenu({ data, ligneSurlignee, compact = fa
         </div>
       )}
 
-      <div>
+      <div className={SECTION}>
         <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Pourquoi cette obligation ?</h3>
         <ul className="space-y-1.5">
           {data.pourquoiObligation.map((p, i) => (
@@ -90,7 +94,7 @@ export default function ArgumentaireContenu({ data, ligneSurlignee, compact = fa
         </ul>
       </div>
 
-      <p className="text-center font-bold uppercase tracking-wide text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950 rounded-lg py-2 px-3 text-xs">
+      <p className="text-center font-bold uppercase tracking-wide text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950 rounded-lg py-2 px-3 text-xs mt-4">
         {data.devise}
       </p>
     </div>

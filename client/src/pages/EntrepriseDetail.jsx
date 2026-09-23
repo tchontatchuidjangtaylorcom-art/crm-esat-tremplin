@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
-import ArgumentaireContenu from "../components/ArgumentaireContenu.jsx";
-import { useContenuAide } from "../useContenuAide.js";
 import { useTelephonie } from "../telephony/CallContext.jsx";
 import {
   ISSUES_APPEL,
@@ -44,7 +42,6 @@ export default function EntrepriseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { startCall } = useTelephonie();
-  const { data: argumentaire } = useContenuAide("argumentaire-agefiph", api.getArgumentaireAgefiph);
   const [entreprise, setEntreprise] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
@@ -303,7 +300,7 @@ export default function EntrepriseDetail() {
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   return (
-    <div className="min-h-screen p-6 max-w-6xl mx-auto">
+    <div className="min-h-screen p-6">
       <Link to="/" className="text-sm text-blue-600 hover:underline">
         &larr; Retour au tableau de bord
       </Link>
@@ -327,7 +324,7 @@ export default function EntrepriseDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Colonne informations structure */}
         <section className="lg:col-span-1 space-y-6 h-fit">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Informations structure</h2>
             <dl className="space-y-3 text-sm">
               <Info label="SIRET" value={entreprise.siret} />
@@ -369,7 +366,7 @@ export default function EntrepriseDetail() {
               {entreprise.dateRdv && <Info label="Date de RDV" value={formatDate(entreprise.dateRdv)} />}
             </dl>
 
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+            <div className="mt-4 pt-4 border-t border-purple-100 dark:border-purple-900/30">
               <label className="block text-xs text-slate-500 dark:text-slate-400 mb-2">
                 Secteur public (relève du FIPHFP) ?
                 <select
@@ -393,7 +390,7 @@ export default function EntrepriseDetail() {
               </span>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+            <div className="mt-4 pt-4 border-t border-purple-100 dark:border-purple-900/30">
               <form onSubmit={soumettreDateCreation} className="flex items-end gap-2 mb-3">
                 <label className="text-xs text-slate-500 dark:text-slate-400 flex-1">
                   Date de création
@@ -433,7 +430,7 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Classification secteur + argumentaire */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Catégorie & argumentaire</h2>
             <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 mb-3">
               {categorie?.label}
@@ -449,7 +446,7 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Obligation OETH */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Obligation OETH</h2>
 
             <form onSubmit={soumettreEffectifs} className="grid grid-cols-2 gap-3 mb-4">
@@ -621,7 +618,7 @@ export default function EntrepriseDetail() {
                     )}
                   </div>
                 )}
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                <div className="pt-2 border-t border-purple-100 dark:border-purple-900/30">
                   <Info label="Montant estimé" value={<strong>{formatMontant(oeth.montantEstime)}</strong>} />
                 </div>
               </dl>
@@ -631,34 +628,7 @@ export default function EntrepriseDetail() {
 
         {/* Colonne module AGIR + messagerie */}
         <section className="lg:col-span-2 space-y-6">
-          {/* Argumentaire AGEFIPH contextuel : la ligne de barème correspondant
-              à cette entreprise est mise en évidence, pour l'avoir sous les
-              yeux pendant l'appel sans quitter la fiche. */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-slate-800 dark:text-slate-100">Argumentaire AGEFIPH</h2>
-              <button
-                onClick={() => window.dispatchEvent(new CustomEvent("outils-vente:ouvrir", { detail: "argumentaire" }))}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
-              >
-                Voir tout l'aide-mémoire →
-              </button>
-            </div>
-            {entreprise.ligneBareme ? (
-              <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
-                Avec <strong>{entreprise.effectif}</strong> salariés, cette entreprise doit compter{" "}
-                <strong>{entreprise.ligneBareme.unitesBeneficiaires} unité{entreprise.ligneBareme.unitesBeneficiaires > 1 ? "s" : ""} bénéficiaire{entreprise.ligneBareme.unitesBeneficiaires > 1 ? "s" : ""}</strong>{" "}
-                (tranche {entreprise.ligneBareme.effectifMin}–{entreprise.ligneBareme.effectifMax ?? "+"}).
-              </p>
-            ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                Effectif &lt; 20 : non assujettie à l'OETH, hors barème.
-              </p>
-            )}
-            <ArgumentaireContenu data={argumentaire} ligneSurlignee={entreprise.ligneBareme} compact />
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Module AGIR</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -744,7 +714,7 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Espace IA : contact alternatif en cas de numéro invalide */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Espace IA — Contact alternatif</h2>
 
             {!entreprise.contact?.telephoneInvalide ? (
@@ -830,7 +800,7 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Messagerie / historique */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Messagerie & historique</h2>
 
             <form onSubmit={soumettreCommentaire} className="flex gap-2 mb-4">
