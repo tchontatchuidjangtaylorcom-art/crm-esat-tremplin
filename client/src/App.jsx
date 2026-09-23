@@ -3,6 +3,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
 import Connexion from "./pages/Connexion.jsx";
 import AdminUtilisateurs from "./pages/AdminUtilisateurs.jsx";
+import SiteVitrine from "./pages/SiteVitrine.jsx";
 import Chat from "./pages/Chat.jsx";
 import { CallProvider } from "./telephony/CallContext.jsx";
 import { DialerProvider } from "./telephony/DialerContext.jsx";
@@ -21,6 +22,12 @@ export default function App() {
       <CallProvider>
         <DialerProvider>
           <Routes>
+            {/* Site vitrine public — pas d'authentification, pas d'habillage CRM.
+                Vit à /vitrine plutôt qu'à la racine "/" pour ne rien changer au
+                routage existant du CRM (déjà utilisé en production) ; le bouton
+                "Portail sécurisé" de la vitrine renvoie vers /connexion. */}
+            <Route path="/vitrine" element={<SiteVitrine />} />
+
             {/* Hors du habillage CRM (pas de barre d'outils vente) */}
             <Route path="/connexion" element={<Connexion />} />
             <Route

@@ -44,9 +44,22 @@ export default {
           "0%": { opacity: "0", transform: "translateY(-8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        // Ticker de la landing page publique (SiteVitrine) : translation
+        // continue de -50% (le contenu est dupliqué une fois dans le DOM
+        // pour boucler sans à-coup).
+        defiler: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
+        "toast-slide-in": {
+          "0%": { opacity: "0", transform: "translateX(-16px)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
       },
       animation: {
         "toast-in": "toast-in 0.2s ease-out",
+        defiler: "defiler 32s linear infinite",
+        "toast-slide-in": "toast-slide-in 0.35s ease-out",
       },
     },
   },

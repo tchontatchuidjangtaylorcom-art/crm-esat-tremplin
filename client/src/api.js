@@ -110,6 +110,9 @@ export const api = {
 
   getModelesMails: () => fetch(`${BASE}/modeles-mails`).then(handle),
 
+  // Public, sans authentification (landing page /vitrine).
+  getVitrine: () => fetch(`${BASE}/vitrine`).then(handle),
+
   getStatutMail: () => fetch(`${BASE}/emails/statut`).then(handle),
 
   getEmailsNonLus: () => fetch(`${BASE}/emails/non-lus`).then(handle),

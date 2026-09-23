@@ -377,6 +377,67 @@ function resoudreCibleSupervision(req) {
   return trouverUtilisateurParId(req.query.commeAgentId);
 }
 
+// ---- Site vitrine public (aucune authentification) ----
+//
+// Alimente la landing page publique (/vitrine côté frontend) : des
+// statistiques agrégées calculées depuis les VRAIES données du portefeuille,
+// et une liste d'entreprises nommément citées. Deux garde-fous volontaires :
+//  1. Une entreprise n'apparaît NOMMÉE que si `consentementAffichagePublic`
+//     a été explicitement activé sur son dossier (jamais par défaut) — on ne
+//     divulgue pas publiquement le statut de conformité OETH d'un tiers sans
+//     son accord, même si le calcul sous-jacent est exact.
+//  2. Le mapping ci-dessous est une liste blanche stricte : aucun champ
+//     interne (contact, commentaires, historique, agent assigné...) n'est
+//     jamais exposé, même par erreur d'un futur enrichissement de `entreprise`.
+function toutesEntreprises() {
+  return [...db.data.entreprises, ...db.data.archives];
+}
+
+app.get("/api/vitrine", (req, res) => {
+  const toutes = toutesEntreprises().map((e) => ({ ...e, oeth: calculerObligationOeth(e) }));
+  const assujetties = toutes.filter((e) => e.oeth.assujetti);
+  const conformes = assujetties.filter((e) => e.oeth.conforme);
+
+  const nbBeneficiairesInseres = conformes.reduce((somme, e) => somme + (e.oeth.beneficiairesRecrutes || 0), 0);
+  const tauxConformite = assujetties.length ? Math.round((conformes.length / assujetties.length) * 100) : 0;
+  // "Économies réalisées" : estimation de la contribution qui serait due par
+  // les entreprises conformes si elles n'avaient recruté personne (calcul
+  // hypothétique à effectifBeneficiaire=0), c'est-à-dire le montant que leur
+  // démarche de recrutement direct leur évite réellement.
+  const economiesRealisees = conformes.reduce((somme, e) => {
+    const hypothetique = calculerObligationOeth({ effectif: e.effectif, effectifBeneficiaire: 0, dateCreation: e.dateCreation });
+    return somme + (hypothetique.montantEstime || 0);
+  }, 0);
+
+  const vues = new Set();
+  const entreprisesPubliques = [];
+  for (const e of conformes) {
+    if (!e.consentementAffichagePublic) continue;
+    const siren = e.siret ? e.siret.slice(0, 9) : e.id;
+    if (vues.has(siren)) continue;
+    vues.add(siren);
+    entreprisesPubliques.push({
+      id: e.id,
+      nom: e.nom,
+      ville: e.ville || null,
+      secteur: classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee })?.label || null,
+      siteWeb: e.siteWeb || null,
+      beneficiairesRecrutes: e.oeth.beneficiairesRecrutes,
+      unitesRequises: e.oeth.unitesRequises,
+    });
+  }
+
+  res.json({
+    statistiques: {
+      nbEntreprisesConformes: conformes.length,
+      nbBeneficiairesInseres,
+      tauxConformite,
+      economiesRealisees,
+    },
+    entreprises: entreprisesPubliques,
+  });
+});
+
 // Vue filtrée par rôle : un agent ne reçoit que ses dossiers assignés,
 // l'administrateur reçoit tout le pipeline (voir estVisiblePar ci-dessus).
 app.get("/api/entreprises", exigerAuth, (req, res) => {
@@ -789,6 +850,7 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
     "nom",
     "contact",
     "siteWeb",
+    "consentementAffichagePublic",
     "effectif",
     "effectifBeneficiaire",
     "typeContrat",

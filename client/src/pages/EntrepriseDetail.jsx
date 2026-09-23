@@ -82,6 +82,7 @@ export default function EntrepriseDetail() {
 
   const [siteWebSaisi, setSiteWebSaisi] = useState("");
   const [enregistrementSiteWeb, setEnregistrementSiteWeb] = useState(false);
+  const [enregistrementConsentement, setEnregistrementConsentement] = useState(false);
 
   const [dateRappelSaisie, setDateRappelSaisie] = useState("");
   const [dateRdvSaisie, setDateRdvSaisie] = useState("");
@@ -271,6 +272,25 @@ export default function EntrepriseDetail() {
       setErreur(e.message);
     } finally {
       setEnregistrementSiteWeb(false);
+    }
+  }
+
+  // Autorisation explicite, dossier par dossier, à citer nommément cette
+  // entreprise (nom, ville, site web) sur la landing page publique
+  // (/vitrine) — jamais activé par défaut : le calcul de conformité OETH
+  // reste exact, mais le rendre public sans accord serait une divulgation
+  // non consentie du statut réglementaire d'un tiers. Voir /api/vitrine
+  // côté serveur pour la liste blanche stricte des champs exposés.
+  async function changerConsentementPublic(valeur) {
+    setEnregistrementConsentement(true);
+    try {
+      const updated = await api.patchEntreprise(id, { consentementAffichagePublic: valeur });
+      setEntreprise(updated);
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementConsentement(false);
     }
   }
 
@@ -557,6 +577,24 @@ export default function EntrepriseDetail() {
                   Enregistrer
                 </button>
               </form>
+
+              {oeth?.conforme && (
+                <label className="flex items-start gap-2 mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(entreprise.consentementAffichagePublic)}
+                    onChange={(e) => changerConsentementPublic(e.target.checked)}
+                    disabled={enregistrementConsentement}
+                    className="mt-0.5 rounded border-slate-300"
+                  />
+                  <span>
+                    Afficher nommément sur le site vitrine public (nom, ville, site web)
+                    <span className="block text-[11px] text-slate-400 dark:text-slate-500">
+                      Nécessite l'accord de l'entreprise — n'active que si elle a explicitement consenti à être citée.
+                    </span>
+                  </span>
+                </label>
+              )}
             </div>
 
             <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
