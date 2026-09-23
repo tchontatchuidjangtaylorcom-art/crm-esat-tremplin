@@ -48,6 +48,9 @@ export default function EntrepriseDetail() {
   const [erreur, setErreur] = useState(null);
   const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
   const [nouveauTelephone, setNouveauTelephone] = useState("");
+  const [rechercheIaEnCours, setRechercheIaEnCours] = useState(false);
+  const [propositionIa, setPropositionIa] = useState(null);
+  const [erreurRechercheIa, setErreurRechercheIa] = useState(null);
 
   const [issueChoisie, setIssueChoisie] = useState("");
   const [dateIssue, setDateIssue] = useState("");
@@ -237,8 +240,8 @@ export default function EntrepriseDetail() {
   }
 
   // Espace IA : signale un numéro non attribué/invalide (journalisé + flaggé
-  // côté serveur) puis, une fois un numéro alternatif trouvé par l'agent via
-  // les pistes de recherche proposées, l'enregistre pour lever le signalement.
+  // côté serveur) puis, une fois un numéro alternatif trouvé (recherche IA ou
+  // pistes manuelles) et vérifié par l'agent, l'enregistre pour lever le signalement.
   async function signalerTelephoneInvalide() {
     setEnregistrementTelephone(true);
     try {
@@ -249,6 +252,28 @@ export default function EntrepriseDetail() {
       setErreur(e.message);
     } finally {
       setEnregistrementTelephone(false);
+    }
+  }
+
+  // Recherche IA (Claude + recherche web) : propose un numéro/contact
+  // alternatif SANS l'écrire en base — pré-remplit juste le champ de
+  // correction manuel existant, que l'agent doit vérifier et valider
+  // lui-même avant "Enregistrer" (un numéro halluciné utilisé pour un
+  // vrai appel commercial serait pire que l'absence de numéro).
+  async function rechercherContactIa() {
+    setRechercheIaEnCours(true);
+    setErreurRechercheIa(null);
+    setPropositionIa(null);
+    try {
+      const resultat = await api.rechercherContactAlternatif(id);
+      setPropositionIa(resultat);
+      if (resultat.telephone) setNouveauTelephone(resultat.telephone);
+      const misAJour = await api.getEntreprise(id);
+      setEntreprise(misAJour);
+    } catch (e) {
+      setErreurRechercheIa(e.message);
+    } finally {
+      setRechercheIaEnCours(false);
     }
   }
 
@@ -735,10 +760,51 @@ export default function EntrepriseDetail() {
             ) : (
               <div className="space-y-4">
                 <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  Numéro signalé invalide. Sans accès à une base de téléphonie payante (Pappers), l'assistant ne
-                  devine pas de numéro — voici des pistes de recherche prêtes à cliquer, et un champ pour
-                  enregistrer le bon numéro dès que vous l'avez trouvé.
+                  Numéro signalé invalide. Lancez une recherche IA ci-dessous, ou utilisez les pistes de recherche
+                  manuelles — dans tous les cas, vérifiez le résultat avant de l'enregistrer.
                 </p>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={rechercherContactIa}
+                    disabled={rechercheIaEnCours}
+                    className="rounded-lg bg-purple-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {rechercheIaEnCours ? "Recherche en cours…" : "🔎 Rechercher via IA"}
+                  </button>
+                  {propositionIa && (
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      {propositionIa.telephone ? (
+                        <>
+                          Proposition : <strong>{propositionIa.telephone}</strong>
+                          {propositionIa.contact ? ` — ${propositionIa.contact}` : ""}{" "}
+                          <span className="text-xs opacity-70">(confiance {propositionIa.confiance})</span>
+                          {propositionIa.source && (
+                            <>
+                              {" · "}
+                              <a
+                                href={propositionIa.source}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                              >
+                                source
+                              </a>
+                            </>
+                          )}
+                          {" — vérifiez puis cliquez sur Enregistrer ci-dessous."}
+                        </>
+                      ) : (
+                        "Aucun numéro fiable trouvé par l'IA."
+                      )}
+                    </p>
+                  )}
+                </div>
+                {erreurRechercheIa && (
+                  <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg p-3">
+                    {erreurRechercheIa}
+                  </p>
+                )}
 
                 <div className="flex flex-wrap gap-2">
                   <a

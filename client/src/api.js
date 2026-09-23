@@ -64,6 +64,9 @@ export const api = {
   signalerTelephoneInvalide: (id) =>
     fetch(`${BASE}/entreprises/${id}/telephone-invalide`, { method: "POST" }).then(handle),
 
+  rechercherContactAlternatif: (id) =>
+    fetch(`${BASE}/entreprises/${id}/rechercher-contact`, { method: "POST" }).then(handle),
+
   getArgumentaireAgefiph: () => fetch(`${BASE}/argumentaire-agefiph`).then(handle),
 
   getScriptVente: () => fetch(`${BASE}/script-vente`).then(handle),

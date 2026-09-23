@@ -25,6 +25,11 @@ import {
   verifierConnexionSMTP,
 } from "./mail.js";
 import {
+  estRechercheIaConfiguree,
+  rechercherContactAlternatif,
+  detailErreur as detailErreurIa,
+} from "./rechercheContact.js";
+import {
   trouverOuCreerUtilisateur,
   trouverUtilisateurParId,
   envoyerLienMagique,
@@ -513,6 +518,41 @@ app.post("/api/entreprises/:id/telephone-invalide", async (req, res) => {
 
   await db.write();
   res.json(enrichir(entreprise));
+});
+
+// Recherche IA (Claude + recherche web) d'un numéro/contact alternatif quand
+// le numéro enregistré a été signalé invalide. Optionnelle (ANTHROPIC_API_KEY)
+// et protégée par une session valide même si les autres routes /api/entreprises
+// ne le sont pas ici : chaque appel déclenche un appel facturé à l'API
+// Anthropic, à ne pas laisser accessible sans authentification.
+// Renvoie une PROPOSITION seulement — voir rechercheContact.js : le numéro
+// n'est jamais écrit en base ici, l'agent doit valider via le formulaire
+// existant (POST /entreprises/:id qui gère déjà la correction manuelle).
+app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, async (req, res) => {
+  const entreprise = findEntreprise(req.params.id);
+  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+
+  if (!estRechercheIaConfiguree()) {
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
+  }
+
+  try {
+    const resultat = await rechercherContactAlternatif(entreprise);
+    entreprise.commentaires.unshift({
+      id: nanoid(),
+      date: new Date().toISOString(),
+      auteur: "Assistant IA",
+      texte: resultat.telephone
+        ? `Recherche IA : numéro proposé ${resultat.telephone}${resultat.contact ? ` (contact : ${resultat.contact})` : ""} — confiance ${resultat.confiance}${resultat.source ? `, source : ${resultat.source}` : ""}. À valider avant application.`
+        : `Recherche IA : aucun numéro fiable trouvé.`,
+    });
+    await db.write();
+    res.json(resultat);
+  } catch (e) {
+    console.error(`[ia] Échec de recherche de contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
+    const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
+    res.status(statutHttp).json({ error: e.message });
+  }
 });
 
 // Boîte mail connectée (IMAP/SMTP) : indique si elle est configurée, et
