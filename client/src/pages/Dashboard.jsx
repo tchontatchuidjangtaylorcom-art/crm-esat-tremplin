@@ -11,6 +11,7 @@ import ImportLot from "../components/ImportLot.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import KpiObjectifMensuel from "../components/KpiObjectifMensuel.jsx";
 import BanniereSupervision from "../components/BanniereSupervision.jsx";
+import FluxConformite from "../components/FluxConformite.jsx";
 import { useTheme } from "../useTheme.js";
 import { useAuth } from "../AuthContext.jsx";
 import { useSupervision } from "../SupervisionContext.jsx";
@@ -212,6 +213,8 @@ export default function Dashboard() {
       <BanniereSupervision />
 
       <KpiObjectifMensuel valeur={nbQualifieesCeMois} min={OBJECTIF_MENSUEL_MIN} max={OBJECTIF_MENSUEL_MAX} />
+
+      <FluxConformite entreprises={entreprises} archives={archives} />
 
       {erreur && (
         <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-3 text-sm">

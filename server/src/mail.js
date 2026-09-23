@@ -24,8 +24,78 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
+import { nanoid } from "nanoid";
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+
+// ---- Délivrabilité : en-têtes propres + alternative HTML ----
+//
+// Ce qui suit ne remplace PAS une authentification de domaine correcte
+// (SPF/DKIM/DMARC alignés sur le domaine d'envoi) : c'est le facteur qui
+// pèse le plus lourd sur l'atterrissage en spam, et il se configure côté
+// DNS/fournisseur (Brevo affiche les enregistrements exacts à publier une
+// fois BREVO_API_KEY renseignée), pas dans ce fichier. Ici, on soigne ce qui
+// relève du code : un Reply-To cohérent, un Message-ID sur le bon domaine,
+// un en-tête List-Unsubscribe pour les mails de prospection (attendu par
+// Gmail/Yahoo pour tout envoi qui ressemble à du démarchage en nombre), et
+// une alternative HTML propre à côté du texte brut plutôt qu'un mail
+// texte seul (certains filtres pénalisent aussi bien le "texte seul sans
+// HTML" que le "HTML sans repli texte").
+
+// Un en-tête (Subject, nom d'expéditeur…) ne doit jamais contenir de retour
+// à la ligne : au mieux ça casse l'affichage, au pire c'est une injection
+// d'en-têtes SMTP (ajout d'un destinataire cc/bcc caché, par exemple). Les
+// valeurs viennent en partie de champs saisis par l'agent (objet du mail,
+// prénom du compte) : on les nettoie systématiquement avant de les poser
+// dans un en-tête, plutôt que de compter sur le fait que nodemailer encode
+// déjà correctement ces champs.
+function nettoyerEntete(valeur) {
+  return String(valeur || "").replace(/[\r\n]+/g, " ").trim();
+}
+
+function domaineDe(adresse) {
+  const m = /@([^>]+)$/.exec(String(adresse || ""));
+  return m ? m[1] : "localhost";
+}
+
+function echapperHtml(texte) {
+  return String(texte)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Génère une alternative HTML minimale à partir du texte brut quand l'appelant
+// n'en fournit pas une explicitement : CSS entièrement inline (les clients
+// mail ignorent ou suppriment les balises <style>), aucune image, aucun
+// pixel de suivi, aucun script — rien qui ressemble à un template marketing
+// aux yeux d'un filtre antispam, juste la même lettre proprement formatée.
+function texteVersHtml(texte) {
+  const paragraphes = String(texte || "")
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 1em 0;">${echapperHtml(p).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+  return (
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#1a1a1a;">` +
+    `${paragraphes}</div>`
+  );
+}
+
+// En-tête List-Unsubscribe (RFC 2369) — réservé aux mails de prospection
+// (voir `listeDiffusion` sur envoyerMail), pas aux mails transactionnels
+// individuels (lien de connexion, création de compte) où il n'a pas de sens.
+// Le lien mailto fonctionne toujours ; l'URL HTTPS en un clic (List-
+// Unsubscribe-Post, RFC 8058) n'est ajoutée que si MAIL_LIST_UNSUBSCRIBE_URL
+// est configurée (ce CRM n'héberge pas de page de désinscription par défaut).
+function entetesDesinscription(adresseExpediteur) {
+  const adresseMailto = `mailto:${adresseExpediteur}?subject=${encodeURIComponent("Désinscription")}`;
+  const urlUnClic = process.env.MAIL_LIST_UNSUBSCRIBE_URL;
+  const valeurs = urlUnClic ? [`<${urlUnClic}>`, `<${adresseMailto}>`] : [`<${adresseMailto}>`];
+  const entetes = { "List-Unsubscribe": valeurs.join(", ") };
+  if (urlUnClic) entetes["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+  return entetes;
+}
 
 function config() {
   return {
@@ -170,7 +240,7 @@ export async function verifierConnexionSMTP() {
 // court que le chemin SMTP (voir avecTimeout) plutôt que de compter
 // uniquement sur celui de `avecTimeout`, au cas où `fetch` lui-même ignore
 // le rejet de la promesse "course" et garde la requête réseau ouverte.
-async function envoyerViaBrevo({ to, subject, text, fromName, attachments }) {
+async function envoyerViaBrevo({ to, subject, text, html, fromName, replyTo, attachments, entetes }) {
   const c = config();
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
@@ -186,8 +256,11 @@ async function envoyerViaBrevo({ to, subject, text, fromName, attachments }) {
       body: JSON.stringify({
         sender: { email: c.from, name: fromName || signatureMail() },
         to: [{ email: to }],
+        replyTo: { email: replyTo || c.from },
         subject,
         textContent: text,
+        htmlContent: html,
+        ...(entetes && Object.keys(entetes).length ? { headers: entetes } : {}),
         ...(attachments?.length
           ? { attachment: attachments.map((a) => ({ content: a.content.toString("base64"), name: a.filename })) }
           : {}),
@@ -221,12 +294,45 @@ async function envoyerViaBrevo({ to, subject, text, fromName, attachments }) {
 // `inReplyTo` (Message-ID du mail reçu) garde le fil de discussion dans le
 // client mail du destinataire — uniquement pris en compte par le chemin
 // SMTP (l'API Brevo transactionnelle ne gère pas l'en-tête In-Reply-To).
-export async function envoyerMail({ to, subject, text, inReplyTo, fromName, attachments }) {
+// `replyTo` : adresse de réponse, par défaut la même boîte que l'envoi (la
+// boîte relevée par IMAP) — surchargeable via MAIL_REPLY_TO si les réponses
+// doivent atterrir ailleurs. `html` : alternative HTML explicite ; à défaut,
+// générée automatiquement à partir de `text` (voir texteVersHtml ci-dessus).
+// `listeDiffusion: true` ajoute l'en-tête List-Unsubscribe — à réserver aux
+// mails de prospection envoyés à des entreprises, jamais aux mails
+// transactionnels individuels (lien de connexion, création de compte).
+export async function envoyerMail({
+  to,
+  subject,
+  text,
+  html,
+  inReplyTo,
+  fromName,
+  replyTo,
+  attachments,
+  listeDiffusion = false,
+}) {
+  const c = config();
+  const sujetPropre = nettoyerEntete(subject);
+  const nomExpediteurPropre = fromName ? nettoyerEntete(fromName) : undefined;
+  const adresseReponse = nettoyerEntete(replyTo) || process.env.MAIL_REPLY_TO || c.from;
+  const contenuHtml = html || texteVersHtml(text);
+  const entetesSupplementaires = listeDiffusion ? entetesDesinscription(c.from) : {};
+
   if (estBrevoConfigure()) {
     console.log(`[mail] Tentative d'envoi (API Brevo) à ${to} (expéditeur ${config().from})…`);
     try {
       const info = await avecTimeout(
-        envoyerViaBrevo({ to, subject, text, fromName, attachments }),
+        envoyerViaBrevo({
+          to,
+          subject: sujetPropre,
+          text,
+          html: contenuHtml,
+          fromName: nomExpediteurPropre,
+          replyTo: adresseReponse,
+          attachments,
+          entetes: entetesSupplementaires,
+        }),
         TIMEOUT_MS + 2000,
         `Délai d'envoi via l'API Brevo dépassé (${TIMEOUT_MS + 2000}ms).`
       );
@@ -251,15 +357,22 @@ export async function envoyerMail({ to, subject, text, inReplyTo, fromName, atta
     erreur.code = "MAIL_NON_CONFIGURE";
     throw erreur;
   }
-  const c = config();
   console.log(`[mail] Tentative d'envoi (SMTP) à ${to} via ${c.smtpHost}:${c.smtpPort} (utilisateur ${c.user})…`);
   try {
     const info = await avecTimeout(
       getTransporteur().sendMail({
-        from: fromName ? { name: fromName, address: c.from } : c.from,
+        from: nomExpediteurPropre ? { name: nomExpediteurPropre, address: c.from } : c.from,
+        replyTo: adresseReponse,
         to,
-        subject,
+        subject: sujetPropre,
         text,
+        html: contenuHtml,
+        // Sur le domaine d'envoi plutôt que le nom d'hôte local par défaut de
+        // nodemailer (souvent un hostname interne type "DESKTOP-XXXX" ou
+        // l'hôte Render) : un Message-ID sur un domaine qui n'a rien à voir
+        // avec l'expéditeur réel est un signal antispam classique.
+        messageId: `<${nanoid()}@${domaineDe(c.from)}>`,
+        headers: entetesSupplementaires,
         ...(inReplyTo ? { inReplyTo, references: inReplyTo } : {}),
         ...(attachments?.length
           ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }

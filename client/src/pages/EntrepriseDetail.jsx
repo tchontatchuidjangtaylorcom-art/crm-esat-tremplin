@@ -80,6 +80,9 @@ export default function EntrepriseDetail() {
   const [enregistrementDateCreation, setEnregistrementDateCreation] = useState(false);
   const [enregistrementSecteurPublic, setEnregistrementSecteurPublic] = useState(false);
 
+  const [siteWebSaisi, setSiteWebSaisi] = useState("");
+  const [enregistrementSiteWeb, setEnregistrementSiteWeb] = useState(false);
+
   const [dateRappelSaisie, setDateRappelSaisie] = useState("");
   const [dateRdvSaisie, setDateRdvSaisie] = useState("");
   const [enregistrementEcheance, setEnregistrementEcheance] = useState(false);
@@ -94,6 +97,7 @@ export default function EntrepriseDetail() {
         setDateCreationSaisie(e.dateCreation || "");
         setDateRappelSaisie(e.dateRappel || "");
         setDateRdvSaisie(e.dateRdv || "");
+        setSiteWebSaisi(e.siteWeb || "");
         setErreur(null);
       })
       .catch((e) => setErreur(e.message));
@@ -245,6 +249,28 @@ export default function EntrepriseDetail() {
       setErreur(e.message);
     } finally {
       setEnregistrementDateCreation(false);
+    }
+  }
+
+  // Site officiel de l'entreprise : saisie manuelle par l'agent (aucune API
+  // publique fiable ne fournit cette donnée — Sirene/recherche-entreprises
+  // ne renseigne que des informations légales, pas d'URL commerciale).
+  // Alimente notamment le clic sur les cartes du flux "Entreprises en règle"
+  // du tableau de bord (voir FluxConformite.jsx).
+  async function soumettreSiteWeb(ev) {
+    ev.preventDefault();
+    setEnregistrementSiteWeb(true);
+    try {
+      let valeur = siteWebSaisi.trim();
+      if (valeur && !/^https?:\/\//i.test(valeur)) valeur = `https://${valeur}`;
+      const updated = await api.patchEntreprise(id, { siteWeb: valeur || null });
+      setEntreprise(updated);
+      setSiteWebSaisi(updated.siteWeb || "");
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementSiteWeb(false);
     }
   }
 
@@ -452,6 +478,23 @@ export default function EntrepriseDetail() {
                 }
               />
               <Info label="Email" value={entreprise.contact?.email || "-"} />
+              <Info
+                label="Site web"
+                value={
+                  entreprise.siteWeb ? (
+                    <a
+                      href={entreprise.siteWeb}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-marine-700 dark:text-marine-300 hover:underline"
+                    >
+                      {entreprise.siteWeb.replace(/^https?:\/\//i, "").replace(/\/$/, "")}
+                    </a>
+                  ) : (
+                    "-"
+                  )
+                }
+              />
               <Info label="Type de contrat" value={entreprise.typeContrat} />
               <Info label="ESAT associé" value={entreprise.esatAssocie} />
               <Info label="Part. manquant" value={entreprise.partManquant ?? "-"} />
@@ -490,6 +533,28 @@ export default function EntrepriseDetail() {
                   className="col-span-1 sm:col-span-2 rounded-lg bg-slate-900 text-white text-xs font-medium py-1.5 disabled:opacity-40"
                 >
                   Enregistrer l'échéance
+                </button>
+              </form>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
+              <form onSubmit={soumettreSiteWeb} className="flex items-end gap-2">
+                <label className="text-xs text-slate-500 dark:text-slate-400 flex-1">
+                  Site web officiel
+                  <input
+                    type="text"
+                    placeholder="www.entreprise.fr"
+                    value={siteWebSaisi}
+                    onChange={(e) => setSiteWebSaisi(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={enregistrementSiteWeb}
+                  className="rounded-lg bg-marine-800 hover:bg-marine-900 text-white text-xs font-medium px-3 py-[7px] disabled:opacity-40"
+                >
+                  Enregistrer
                 </button>
               </form>
             </div>

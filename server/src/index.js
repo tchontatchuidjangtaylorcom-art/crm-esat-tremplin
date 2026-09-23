@@ -788,6 +788,7 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
     "dateRdv",
     "nom",
     "contact",
+    "siteWeb",
     "effectif",
     "effectifBeneficiaire",
     "typeContrat",
@@ -1178,6 +1179,10 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       text: corps,
       fromName: nomExpediteur,
       attachments: attachmentsBrevo,
+      // Mail de prospection vers une entreprise externe (pas un mail
+      // transactionnel de compte) : ajoute l'en-tête List-Unsubscribe
+      // attendu par Gmail/Yahoo pour ce type d'envoi (voir mail.js).
+      listeDiffusion: true,
     });
   } catch (e) {
     const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
