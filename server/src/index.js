@@ -15,6 +15,8 @@ import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
 import {
   estSmtpConfigure,
+  estBrevoConfigure,
+  estEnvoiConfigure,
   estImapConfigure,
   relaverBoiteMail,
   envoyerMail,
@@ -135,7 +137,7 @@ function trouverEntrepriseParEmail(adresse) {
 // identifiants avant de verrouiller l'accès à toute l'application.
 
 app.get("/api/auth/config", (req, res) => {
-  res.json({ mailConfigure: estSmtpConfigure(), googleConfigure: googleConfigure(), googleClientId: process.env.GOOGLE_CLIENT_ID || null });
+  res.json({ mailConfigure: estEnvoiConfigure(), googleConfigure: googleConfigure(), googleClientId: process.env.GOOGLE_CLIENT_ID || null });
 });
 
 app.post("/api/auth/demander-lien", async (req, res) => {
@@ -516,7 +518,7 @@ app.post("/api/entreprises/:id/telephone-invalide", async (req, res) => {
 // Boîte mail connectée (IMAP/SMTP) : indique si elle est configurée, et
 // l'adresse du pôle pour l'affichage côté frontend.
 app.get("/api/emails/statut", (req, res) => {
-  res.json({ configuree: estSmtpConfigure(), adresse: adresseMailPole(), signature: signatureMail() });
+  res.json({ configuree: estEnvoiConfigure(), adresse: adresseMailPole(), signature: signatureMail() });
 });
 
 // Notification globale (nombre de mails non lus par entreprise), pour
@@ -616,9 +618,13 @@ async function relevePeriodiqueBoiteMail() {
   }
 }
 
-// Envoi (SMTP) et réception (IMAP) sont vérifiés et activés indépendamment —
-// voir mail.js pour le détail des noms de variables acceptés.
-if (estSmtpConfigure()) {
+// Envoi et réception (IMAP) sont vérifiés et activés indépendamment — voir
+// mail.js pour le détail des noms de variables acceptés. L'envoi via l'API
+// Brevo est prioritaire sur le SMTP direct : Render (et la plupart des PaaS)
+// bloque le trafic SMTP sortant au niveau réseau, quel que soit le plan.
+if (estBrevoConfigure()) {
+  console.log(`[mail] Envoi via l'API Brevo activé pour ${adresseMailPole()}.`);
+} else if (estSmtpConfigure()) {
   // Vérifie immédiatement l'authentification SMTP au démarrage — le moyen le
   // plus rapide de voir dans les logs Render si le mot de passe OVH est
   // accepté, sans attendre qu'un agent déclenche un envoi.
@@ -631,13 +637,14 @@ if (estSmtpConfigure()) {
           `${resultat.code ? ` [code: ${resultat.code}]` : ""}`
       );
       console.error(
-        "[mail] Vérifiez MAIL_USER / MAIL_PASSWORD / MAIL_SMTP_HOST (ou MAIL_HOST) / MAIL_SMTP_PORT (ou MAIL_PORT)."
+        "[mail] Si l'erreur est un ETIMEDOUT/ECONNREFUSED : l'hébergeur bloque le port SMTP en sortie " +
+          "(cas fréquent sur Render, même en payant) — configurez BREVO_API_KEY pour envoyer via API HTTP à la place."
       );
     }
   });
 } else {
   console.log(
-    "[mail] Envoi non configuré (renseignez MAIL_SMTP_HOST ou MAIL_HOST, MAIL_USER, MAIL_PASSWORD) — lien magique et mails agents désactivés."
+    "[mail] Envoi non configuré (renseignez BREVO_API_KEY, ou à défaut MAIL_SMTP_HOST/MAIL_HOST + MAIL_USER + MAIL_PASSWORD) — lien magique et mails agents désactivés."
   );
 }
 

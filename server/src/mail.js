@@ -1,18 +1,31 @@
-// Intégration boîte mail réelle (IMAP/SMTP générique) du Pôle OETH/AGEFIPH.
+// Intégration boîte mail réelle (envoi + réception) du Pôle OETH/AGEFIPH.
 //
-// Envoi (SMTP) et réception (IMAP) sont deux fonctionnalités INDÉPENDANTES :
-// beaucoup de fournisseurs (et pas mal de configurations types "juste
-// envoyer un mail transactionnel") ne renseignent que le SMTP — exiger les
-// deux avant d'activer quoi que ce soit bloquait l'envoi (lien magique,
-// mails agents) même quand le SMTP seul était parfaitement fonctionnel.
+// Envoi et réception sont deux fonctionnalités INDÉPENDANTES : beaucoup de
+// configurations ne renseignent que l'envoi — exiger les deux avant
+// d'activer quoi que ce soit bloquait le lien magique même quand l'envoi
+// seul était parfaitement fonctionnel.
+//
+// ENVOI — deux méthodes possibles :
+//  1. API HTTP Brevo (BREVO_API_KEY) — RECOMMANDÉ sur Render : Render (comme
+//     la plupart des hébergeurs PaaS : Railway, Heroku, Fly...) bloque le
+//     trafic SMTP sortant (ports 25/465/587) au niveau réseau, quel que soit
+//     le plan payant — ce n'est pas une histoire de compte gratuit vs payant,
+//     et ça ne se contourne pas en payant. L'API Brevo passe en HTTPS
+//     (port 443), jamais bloqué. Utilisée en priorité si configurée.
+//  2. SMTP direct (nodemailer) — fonctionne en local/sur un hébergeur qui
+//     n'a pas cette restriction, mais échouera systématiquement (ETIMEDOUT)
+//     depuis Render. Conservée comme repli pour le développement local.
 //
 // Noms de variables acceptés (le premier qui existe est utilisé) :
+//   Brevo : BREVO_API_KEY
 //   SMTP  : MAIL_SMTP_HOST / MAIL_HOST,  MAIL_SMTP_PORT / MAIL_PORT
 //   IMAP  : MAIL_IMAP_HOST,              MAIL_IMAP_PORT
 //   Commun: MAIL_USER, MAIL_PASSWORD,    MAIL_FROM (optionnel, sinon MAIL_USER)
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
+
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 function config() {
   return {
@@ -26,10 +39,24 @@ function config() {
   };
 }
 
-// Suffisant pour envoyer (lien magique, mails agents depuis une fiche).
+// Envoi via l'API HTTP Brevo — fonctionne depuis Render (voir note en tête
+// de fichier). Prioritaire sur le SMTP direct dès qu'elle est configurée.
+export function estBrevoConfigure() {
+  return Boolean(process.env.BREVO_API_KEY && config().from);
+}
+
+// Envoi via SMTP direct (nodemailer) — repli pour le développement local ;
+// échoue systématiquement depuis Render (port bloqué).
 export function estSmtpConfigure() {
   const c = config();
   return Boolean(c.smtpHost && c.user && c.password);
+}
+
+// Vrai dès qu'une des deux méthodes d'envoi est utilisable — c'est ce que
+// l'interface (bandeau de config, page de connexion) doit vérifier, peu
+// importe laquelle des deux est réellement active.
+export function estEnvoiConfigure() {
+  return estBrevoConfigure() || estSmtpConfigure();
 }
 
 // Nécessaire en plus pour la relève automatique de la boîte de réception.
@@ -126,21 +153,86 @@ export async function verifierConnexionSMTP() {
   }
 }
 
+// Envoie via l'API HTTP Brevo (https://api.brevo.com). `fetch` est global
+// depuis Node 18. Utilise AbortController pour appliquer le même timeout
+// court que le chemin SMTP (voir avecTimeout) plutôt que de compter
+// uniquement sur celui de `avecTimeout`, au cas où `fetch` lui-même ignore
+// le rejet de la promesse "course" et garde la requête réseau ouverte.
+async function envoyerViaBrevo({ to, subject, text, fromName }) {
+  const c = config();
+  const controleur = new AbortController();
+  const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
+  let reponse;
+  try {
+    reponse = await fetch(BREVO_API_URL, {
+      method: "POST",
+      headers: {
+        "api-key": process.env.BREVO_API_KEY,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender: { email: c.from, name: fromName || signatureMail() },
+        to: [{ email: to }],
+        subject,
+        textContent: text,
+      }),
+      signal: controleur.signal,
+    });
+  } catch (e) {
+    if (e.name === "AbortError") {
+      const erreur = new Error(`Délai d'appel à l'API Brevo dépassé (${TIMEOUT_MS}ms).`);
+      erreur.code = "TIMEOUT_MANUEL";
+      throw erreur;
+    }
+    throw e;
+  } finally {
+    clearTimeout(idAbort);
+  }
+  const corps = await reponse.json().catch(() => ({}));
+  if (!reponse.ok) {
+    const erreur = new Error(corps.message || `L'API Brevo a répondu ${reponse.status}.`);
+    erreur.code = corps.code || `HTTP_${reponse.status}`;
+    erreur.responseCode = reponse.status;
+    erreur.response = JSON.stringify(corps);
+    throw erreur;
+  }
+  return { messageId: corps.messageId || null };
+}
+
 // Envoie un mail réel au nom de la boîte du pôle. `fromName` personnalise le
 // nom d'expéditeur affiché (ex: "Pôle FIPHFP" pour un contact public, "Pôle
 // OETH / AGEFIPH" pour le privé) sans changer l'adresse réelle de la boîte.
 // `inReplyTo` (Message-ID du mail reçu) garde le fil de discussion dans le
-// client mail du destinataire.
+// client mail du destinataire — uniquement pris en compte par le chemin
+// SMTP (l'API Brevo transactionnelle ne gère pas l'en-tête In-Reply-To).
 export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
+  if (estBrevoConfigure()) {
+    console.log(`[mail] Tentative d'envoi (API Brevo) à ${to} (expéditeur ${config().from})…`);
+    try {
+      const info = await avecTimeout(
+        envoyerViaBrevo({ to, subject, text, fromName }),
+        TIMEOUT_MS + 2000,
+        `Délai d'envoi via l'API Brevo dépassé (${TIMEOUT_MS + 2000}ms).`
+      );
+      console.log(`[mail] Envoyé (Brevo) à ${to} (messageId: ${info.messageId}).`);
+      return info;
+    } catch (e) {
+      const detail = detailErreur(e);
+      console.error(`[mail] ÉCHEC Brevo vers ${to} :`, JSON.stringify(detail));
+      throw e;
+    }
+  }
+
   if (!estSmtpConfigure()) {
     const erreur = new Error(
-      "Envoi de mail non configuré (renseignez MAIL_SMTP_HOST ou MAIL_HOST, MAIL_USER, MAIL_PASSWORD)."
+      "Envoi de mail non configuré (renseignez BREVO_API_KEY, ou à défaut MAIL_SMTP_HOST/MAIL_HOST + MAIL_USER + MAIL_PASSWORD)."
     );
     erreur.code = "MAIL_NON_CONFIGURE";
     throw erreur;
   }
   const c = config();
-  console.log(`[mail] Tentative d'envoi à ${to} via ${c.smtpHost}:${c.smtpPort} (utilisateur ${c.user})…`);
+  console.log(`[mail] Tentative d'envoi (SMTP) à ${to} via ${c.smtpHost}:${c.smtpPort} (utilisateur ${c.user})…`);
   try {
     const info = await avecTimeout(
       getTransporteur().sendMail({
@@ -154,7 +246,7 @@ export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
       `Délai d'envoi SMTP dépassé (${TIMEOUT_MS + 2000}ms) — ${c.smtpHost}:${c.smtpPort} ne répond pas ` +
         `(l'hébergeur bloque peut-être ce port en sortie, ou l'hôte/port est incorrect).`
     );
-    console.log(`[mail] Envoyé à ${to} via ${c.smtpHost}:${c.smtpPort} (messageId: ${info.messageId}).`);
+    console.log(`[mail] Envoyé (SMTP) à ${to} via ${c.smtpHost}:${c.smtpPort} (messageId: ${info.messageId}).`);
     return info;
   } catch (e) {
     const detail = detailErreur(e);
