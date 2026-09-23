@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { creerProviderTelephonie } from "./provider.js";
 import { api } from "../api.js";
 
@@ -21,20 +21,23 @@ export function CallProvider({ children }) {
   const providerRef = useRef(creerProviderTelephonie());
   const appelActifRef = useRef(null);
   const [appel, setAppel] = useState(null);
-  // appel: { entreprise, statut: 'connecting' | 'active' | 'ended', debut, fin, erreur }
+  // appel: { entreprise, statut: 'connecting' | 'active' | 'ended', debut, fin, erreur, sansReponse }
 
   const startCall = useCallback((entreprise) => {
     const numero = entreprise?.contact?.telephone;
     if (!numero) return;
 
     const debut = Date.now();
-    setAppel({ entreprise, statut: "connecting", debut, fin: null, erreur: null });
+    setAppel({ entreprise, statut: "connecting", debut, fin: null, erreur: null, sansReponse: false });
 
     appelActifRef.current = providerRef.current.call(numero, {
-      onStateChange: (statut) => {
+      onStateChange: (statut, info) => {
         setAppel((prev) => {
           if (!prev) return prev;
-          return statut === "ended" ? { ...prev, statut, fin: Date.now() } : { ...prev, statut };
+          if (statut === "ended") {
+            return { ...prev, statut, fin: Date.now(), sansReponse: !!info?.sansReponse };
+          }
+          return { ...prev, statut };
         });
       },
       onError: (erreur) => {
@@ -73,6 +76,37 @@ export function CallProvider({ children }) {
     },
     [appel, fermer]
   );
+
+  // Appel sans réponse (Power Dialer ou manuel) : journalise automatiquement
+  // un NRP, sans action agent — c'est la seule issue entièrement automatique,
+  // toutes les autres (décroché) attendent la qualification manuelle via le
+  // CallPanel.
+  useEffect(() => {
+    if (appel?.statut !== "ended" || !appel.sansReponse) return;
+    const dureeSecondes = appel.debut && appel.fin ? Math.round((appel.fin - appel.debut) / 1000) : null;
+    let annule = false;
+
+    api
+      .enregistrerAppel(appel.entreprise.id, {
+        issue: "nrp",
+        date: null,
+        details: "Sans réponse — journalisé automatiquement par le Power Dialer.",
+        dureeSecondes,
+      })
+      .then((updated) => {
+        if (annule) return;
+        diffuserEntrepriseMaj(updated);
+      })
+      .finally(() => {
+        if (annule) return;
+        appelActifRef.current = null;
+        setAppel(null);
+      });
+
+    return () => {
+      annule = true;
+    };
+  }, [appel]);
 
   return (
     <CallContext.Provider value={{ appel, startCall, raccrocher, fermer, enregistrerIssue }}>

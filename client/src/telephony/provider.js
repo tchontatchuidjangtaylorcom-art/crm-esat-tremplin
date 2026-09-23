@@ -2,7 +2,11 @@
 //
 // Un provider doit exposer une seule méthode :
 //   call(numero, { onStateChange, onError }) -> { hangup() }
-// où onStateChange reçoit successivement "connecting", "active", puis "ended".
+// où onStateChange reçoit successivement "connecting", puis soit "active"
+// (décroché), soit directement "ended" avec `{ sansReponse: true }` si
+// personne ne décroche (sonnerie dans le vide, répondeur, occupé…) — c'est
+// ce deuxième cas que le Power Dialer utilise pour journaliser un NRP
+// automatique et enchaîner sur le prospect suivant sans intervention agent.
 //
 // Ce fichier fournit un provider SIMULÉ (pas d'appel réel) qui sert de point
 // de branchement pour une vraie intégration WebRTC :
@@ -11,23 +15,36 @@
 //   - SIP générique      : JsSIP.UA + ua.call(numero, { mediaConstraints }) (softphone Afrique/monde)
 //
 // Remplacer `creerProviderTelephonie` ci-dessous pour brancher l'un de ces
-// SDKs sans changer le reste de l'application (CallContext / CallPanel ne
-// connaissent que `call()` et `hangup()`).
+// SDKs sans changer le reste de l'application (CallContext / CallPanel /
+// DialerContext ne connaissent que `call()` et `hangup()`).
+
+// Proportion d'appels simulés sans réponse, pour pouvoir tester le
+// comportement "NRP automatique" du Power Dialer sans téléphonie réelle.
+const TAUX_SANS_REPONSE_SIMULE = 0.35;
 
 function creerAppelSimule(numero, { onStateChange }) {
   let actif = true;
+  const decroche = Math.random() >= TAUX_SANS_REPONSE_SIMULE;
 
   onStateChange("connecting");
-  const delaiConnexion = setTimeout(() => {
-    if (actif) onStateChange("active");
-  }, 1200 + Math.round(Math.random() * 600));
+  const delaiSonnerie = 1200 + Math.round(Math.random() * 1200);
+
+  const minuteur = setTimeout(() => {
+    if (!actif) return;
+    if (decroche) {
+      onStateChange("active");
+    } else {
+      actif = false;
+      onStateChange("ended", { sansReponse: true });
+    }
+  }, delaiSonnerie);
 
   return {
     hangup() {
       if (!actif) return;
       actif = false;
-      clearTimeout(delaiConnexion);
-      onStateChange("ended");
+      clearTimeout(minuteur);
+      onStateChange("ended", { sansReponse: false });
     },
   };
 }

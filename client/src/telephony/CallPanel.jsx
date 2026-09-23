@@ -64,9 +64,10 @@ export default function CallPanel() {
           <p className="text-xs text-slate-300">{appel.entreprise.contact?.telephone}</p>
         </div>
         <span className="text-xs font-medium px-2 py-1 rounded-full bg-white/10">
-          {appel.statut === "connecting" && "Connexion…"}
+          {appel.statut === "connecting" && "Composition…"}
           {appel.statut === "active" && `En appel — ${formatDuree(dureeAffichee)}`}
-          {appel.statut === "ended" && `Terminé — ${formatDuree(dureeFinale)}`}
+          {appel.statut === "ended" && !appel.sansReponse && `Terminé — ${formatDuree(dureeFinale)}`}
+          {appel.statut === "ended" && appel.sansReponse && "Sans réponse"}
         </span>
       </div>
 
@@ -87,7 +88,13 @@ export default function CallPanel() {
           </>
         )}
 
-        {appel.statut === "ended" && (
+        {appel.statut === "ended" && appel.sansReponse && (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Aucune réponse — NRP enregistré automatiquement, passage au prospect suivant…
+          </p>
+        )}
+
+        {appel.statut === "ended" && !appel.sansReponse && (
           <>
             <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
               Appel terminé — sélectionnez l'issue pour enregistrer l'historique.
