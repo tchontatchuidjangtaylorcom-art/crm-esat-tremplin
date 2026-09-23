@@ -46,6 +46,14 @@ export function adresseMailPole() {
   return config().from || null;
 }
 
+// Nodemailer utilise par défaut des délais très longs (jusqu'à plusieurs
+// minutes) avant d'abandonner une connexion SMTP qui ne répond pas — ce qui,
+// côté utilisateur, se traduit par une requête qui semble "pendue" sans
+// jamais afficher d'erreur. On raccourcit volontairement ces délais pour
+// échouer vite et logguer la vraie cause (ex: port SMTP bloqué par
+// l'hébergeur, host/port erroné, pare-feu). Ajustable via MAIL_TIMEOUT_MS.
+const TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS) || 8000;
+
 let transporteur = null;
 function getTransporteur() {
   if (!transporteur) {
@@ -55,9 +63,47 @@ function getTransporteur() {
       port: c.smtpPort,
       secure: c.smtpPort === 465,
       auth: { user: c.user, pass: c.password },
+      connectionTimeout: TIMEOUT_MS,
+      greetingTimeout: TIMEOUT_MS,
+      socketTimeout: TIMEOUT_MS,
     });
   }
   return transporteur;
+}
+
+// Filet de sécurité en plus des timeouts nodemailer ci-dessus : garantit que
+// la promesse se résout/rejette dans tous les cas (y compris un blocage
+// avant même l'ouverture du socket, que connectionTimeout ne couvre pas
+// toujours selon les environnements), pour que la requête HTTP appelante ne
+// reste jamais indéfiniment en attente.
+function avecTimeout(promesse, ms, message) {
+  let idTimer;
+  const timeout = new Promise((_, reject) => {
+    idTimer = setTimeout(() => {
+      const erreur = new Error(message);
+      erreur.code = "TIMEOUT_MANUEL";
+      reject(erreur);
+    }, ms);
+  });
+  return Promise.race([promesse, timeout]).finally(() => clearTimeout(idTimer));
+}
+
+// Extrait tous les champs utiles d'une erreur réseau/SMTP (Node et
+// nodemailer ne renseignent jamais tous les mêmes champs selon le type
+// d'échec : ECONNREFUSED/ETIMEDOUT portent errno/syscall/address/port, un
+// rejet SMTP applicatif porte code/command/response/responseCode).
+function detailErreur(e) {
+  return {
+    message: e.message,
+    code: e.code,
+    command: e.command,
+    responseCode: e.responseCode,
+    response: e.response,
+    errno: e.errno,
+    syscall: e.syscall,
+    address: e.address,
+    port: e.port,
+  };
 }
 
 // Vérifie la connexion/authentification SMTP sans envoyer de mail (utile au
@@ -65,10 +111,17 @@ function getTransporteur() {
 // de passe OVH est accepté).
 export async function verifierConnexionSMTP() {
   if (!estSmtpConfigure()) return { ok: false, raison: "non_configure" };
+  const c = config();
   try {
-    await getTransporteur().verify();
+    await avecTimeout(
+      getTransporteur().verify(),
+      TIMEOUT_MS + 2000,
+      `Délai de vérification SMTP dépassé (${TIMEOUT_MS + 2000}ms) — ${c.smtpHost}:${c.smtpPort} ne répond pas.`
+    );
     return { ok: true };
   } catch (e) {
+    const detail = detailErreur(e);
+    console.error(`[mail] Échec de vérification SMTP (${c.smtpHost}:${c.smtpPort}) :`, JSON.stringify(detail));
     return { ok: false, raison: e.message, code: e.code, reponse: e.response };
   }
 }
@@ -87,22 +140,28 @@ export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
     throw erreur;
   }
   const c = config();
+  console.log(`[mail] Tentative d'envoi à ${to} via ${c.smtpHost}:${c.smtpPort} (utilisateur ${c.user})…`);
   try {
-    const info = await getTransporteur().sendMail({
-      from: fromName ? { name: fromName, address: c.from } : c.from,
-      to,
-      subject,
-      text,
-      ...(inReplyTo ? { inReplyTo, references: inReplyTo } : {}),
-    });
+    const info = await avecTimeout(
+      getTransporteur().sendMail({
+        from: fromName ? { name: fromName, address: c.from } : c.from,
+        to,
+        subject,
+        text,
+        ...(inReplyTo ? { inReplyTo, references: inReplyTo } : {}),
+      }),
+      TIMEOUT_MS + 2000,
+      `Délai d'envoi SMTP dépassé (${TIMEOUT_MS + 2000}ms) — ${c.smtpHost}:${c.smtpPort} ne répond pas ` +
+        `(l'hébergeur bloque peut-être ce port en sortie, ou l'hôte/port est incorrect).`
+    );
     console.log(`[mail] Envoyé à ${to} via ${c.smtpHost}:${c.smtpPort} (messageId: ${info.messageId}).`);
     return info;
   } catch (e) {
+    const detail = detailErreur(e);
     console.error(
-      `[mail] ÉCHEC SMTP vers ${to} via ${c.smtpHost}:${c.smtpPort} (utilisateur ${c.user}) — ${e.message}` +
-        `${e.code ? ` [code: ${e.code}]` : ""}${e.responseCode ? ` [SMTP ${e.responseCode}]` : ""}`
+      `[mail] ÉCHEC SMTP vers ${to} via ${c.smtpHost}:${c.smtpPort} (utilisateur ${c.user}) :`,
+      JSON.stringify(detail)
     );
-    if (e.response) console.error(`[mail] Réponse du serveur SMTP : ${e.response}`);
     throw e;
   }
 }
