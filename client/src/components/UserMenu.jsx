@@ -1,10 +1,14 @@
+import { AGENT_ACTUEL } from "../agent.js";
+
 // Widget de profil + bascule clair/sombre, en haut à droite du tableau de
 // bord — reproduit le repère visuel du CRM de référence (agent connecté
 // après validation de son compte par l'admin). L'authentification réelle
 // (inscription, validation admin, sessions) n'est pas encore branchée ici :
-// ces informations sont pour l'instant celles de l'agent de démonstration,
-// en attendant la prochaine étape.
+// ces informations viennent du fichier agent.js, en attendant la prochaine
+// étape.
 export default function UserMenu({ theme, onBasculerTheme }) {
+  const initiales = `${AGENT_ACTUEL.prenom[0]}${AGENT_ACTUEL.nom[0]}`;
+
   return (
     <div className="flex items-center gap-3">
       <button
@@ -17,11 +21,15 @@ export default function UserMenu({ theme, onBasculerTheme }) {
 
       <div className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="w-8 h-8 rounded-full bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center text-xs font-bold shrink-0">
-          PT
+          {initiales}
         </div>
         <div className="leading-tight text-left hidden sm:block">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Philippe Tchams</p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">Télépro · BUREAU HAYAT&amp;CO</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+            {AGENT_ACTUEL.prenom} {AGENT_ACTUEL.nom}
+          </p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+            {AGENT_ACTUEL.role} · {AGENT_ACTUEL.bureau}
+          </p>
         </div>
       </div>
 

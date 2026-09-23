@@ -8,6 +8,7 @@ import DialerPanel from "../components/DialerPanel.jsx";
 import UserMenu from "../components/UserMenu.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import { useTheme } from "../useTheme.js";
+import { AGENT_ACTUEL } from "../agent.js";
 import { ORDRE_STATUTS } from "../constants.js";
 
 export default function Dashboard() {
@@ -107,7 +108,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen p-6 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-        <Header prenom="Philippe" />
+        <Header prenom={AGENT_ACTUEL.prenom} />
         <UserMenu theme={theme} onBasculerTheme={basculer} />
       </div>
 
@@ -180,7 +181,7 @@ export default function Dashboard() {
 
               <span
                 className="text-sm text-slate-400 dark:text-slate-500"
-                title="Dossiers 'mort'/'refus' archivés automatiquement, hors pipeline actif"
+                title="Dossiers 'conforme'/'refus'/'mort' archivés automatiquement, hors pipeline actif"
               >
                 Archivées : {nbArchivees}
               </span>

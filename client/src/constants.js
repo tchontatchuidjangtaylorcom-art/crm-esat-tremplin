@@ -10,14 +10,16 @@ export const STATUTS = {
   autre: { label: "Autre", badge: "bg-gray-100 text-gray-700 border border-gray-300" },
   fiche: { label: "Fiche", badge: "bg-teal-100 text-teal-700 border border-teal-300" },
   fiche_one_shot: { label: "Fiche one-shot", badge: "bg-indigo-100 text-indigo-700 border border-indigo-300" },
+  conforme: { label: "Conforme", badge: "bg-emerald-100 text-emerald-700 border border-emerald-300" },
   refus: { label: "Refus", badge: "bg-rose-100 text-rose-700 border border-rose-300" },
   mort: { label: "Mort", badge: "bg-neutral-800 text-white border border-neutral-900" },
 };
 
 // Statuts qui font quitter le pipeline actif (archivage automatique côté
 // serveur dès la sortie de dossier) : utile au frontend pour ne pas les
-// compter dans les indicateurs de la file active.
-export const STATUTS_ARCHIVES = ["refus", "mort"];
+// compter dans les indicateurs de la file active. "conforme" est distinct de
+// "refus"/"mort" — un dossier réglé n'est pas un échec de prospection.
+export const STATUTS_ARCHIVES = ["conforme", "refus", "mort"];
 
 // Ordre d'affichage des compteurs sur le tableau de bord. "refus"/"mort" en
 // sont délibérément absents : ces dossiers sont archivés automatiquement dès
@@ -56,6 +58,7 @@ export const ISSUES_APPEL = [
 export const SORTIES_DOSSIER = [
   { value: "fiche", label: "Fiche → atelier" },
   { value: "fiche_one_shot", label: "Fiche one-shot → atelier" },
+  { value: "conforme", label: "Conforme — dossier réglé (archivé)" },
   { value: "refus", label: "Refus (dossier clos)" },
   { value: "mort", label: "Mort (dossier clos)" },
 ];

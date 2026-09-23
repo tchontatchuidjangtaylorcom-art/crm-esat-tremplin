@@ -44,10 +44,12 @@ function getTransporteur() {
   return transporteur;
 }
 
-// Envoie un mail réel au nom de la boîte du pôle. `inReplyTo` (Message-ID du
-// mail reçu) permet de garder le fil de discussion dans le client mail du
-// destinataire.
-export async function envoyerMail({ to, subject, text, inReplyTo }) {
+// Envoie un mail réel au nom de la boîte du pôle. `fromName` personnalise le
+// nom d'expéditeur affiché (ex: "Pôle FIPHFP" pour un contact public, "Pôle
+// OETH / AGEFIPH" pour le privé) sans changer l'adresse réelle de la boîte.
+// `inReplyTo` (Message-ID du mail reçu) garde le fil de discussion dans le
+// client mail du destinataire.
+export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
   if (!estMailConfigure()) {
     const erreur = new Error("Boîte mail non configurée (variables MAIL_* absentes de server/.env).");
     erreur.code = "MAIL_NON_CONFIGURE";
@@ -55,7 +57,7 @@ export async function envoyerMail({ to, subject, text, inReplyTo }) {
   }
   const c = config();
   await getTransporteur().sendMail({
-    from: c.user,
+    from: fromName ? { name: fromName, address: c.user } : c.user,
     to,
     subject,
     text,

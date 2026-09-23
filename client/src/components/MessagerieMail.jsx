@@ -31,9 +31,18 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entreprise.id]);
 
+  // Bloc de signature adapté au collecteur réel de l'entreprise : privé
+  // (AGEFIPH) ou public (FIPHFP, avec mention de la mise en relation ESAT).
+  function signaturePourEntreprise() {
+    if (entreprise.collecteur === "FIPHFP") {
+      return "Pôle FIPHFP\nN'hésitez pas à nous solliciter pour une mise en relation avec un ESAT partenaire.\n[Signature]";
+    }
+    return "Pôle OETH / AGEFIPH\n[Signature]";
+  }
+
   function inserer(modele) {
     setObjet(modele.objet);
-    setCorps(modele.corps);
+    setCorps(modele.corps.replaceAll("{{SIGNATURE}}", signaturePourEntreprise()));
   }
 
   async function envoyer(ev) {

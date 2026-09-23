@@ -39,14 +39,18 @@ const ISSUES_APPEL = {
 const SORTIES_DOSSIER = {
   fiche: "Fiche → atelier",
   fiche_one_shot: "Fiche one-shot → atelier",
+  conforme: "Conforme — dossier réglé",
   refus: "Refus (dossier clos)",
   mort: "Mort (dossier clos)",
 };
 
 // Sorties qui font quitter le pipeline actif : le dossier est archivé
-// automatiquement (voir `archiver()`), qu'il s'agisse d'un refus explicite du
-// prospect ou d'une entreprise injoignable/radiée.
-const SORTIES_ARCHIVANTES = new Set(["refus", "mort"]);
+// automatiquement (voir `archiver()`) — que ce soit un succès (déjà en
+// conformité, plus rien à prospecter), un refus explicite du prospect, ou
+// une entreprise injoignable/radiée. On distingue volontairement "conforme"
+// de "mort"/"refus" pour ne pas mélanger un dossier réglé avec un échec de
+// prospection dans les statistiques.
+const SORTIES_ARCHIVANTES = new Set(["conforme", "refus", "mort"]);
 
 // Cherche dans les dossiers actifs puis dans les archives, pour que les
 // fiches archivées (dossiers "mort") restent consultables via les mêmes
@@ -424,8 +428,12 @@ app.post("/api/entreprises/:id/emails/envoyer", async (req, res) => {
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
 
+  // Nom d'expéditeur adapté au collecteur réel de l'entreprise (privé →
+  // AGEFIPH, public → FIPHFP), sans changer l'adresse mail elle-même.
+  const nomExpediteur = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+
   try {
-    await envoyerMail({ to: entreprise.contact.email, subject: objet, text: corps });
+    await envoyerMail({ to: entreprise.contact.email, subject: objet, text: corps, fromName: nomExpediteur });
   } catch (e) {
     const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
     return res.status(statutHttp).json({ error: e.message });

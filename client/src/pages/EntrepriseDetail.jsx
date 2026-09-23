@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import MessagerieMail from "../components/MessagerieMail.jsx";
 import { useTelephonie } from "../telephony/CallContext.jsx";
+import { AGENT_ACTUEL } from "../agent.js";
 import {
   ISSUES_APPEL,
   SORTIES_DOSSIER,
@@ -159,7 +160,7 @@ export default function EntrepriseDetail() {
     if (!nouveauCommentaire.trim()) return;
     setEnregistrement(true);
     try {
-      const updated = await api.ajouterCommentaire(id, { texte: nouveauCommentaire, auteur: "Philippe" });
+      const updated = await api.ajouterCommentaire(id, { texte: nouveauCommentaire, auteur: AGENT_ACTUEL.prenom });
       setEntreprise(updated);
       setNouveauCommentaire("");
       setErreur(null);
@@ -261,7 +262,7 @@ export default function EntrepriseDetail() {
       });
       const updated = await api.ajouterCommentaire(id, {
         texte: `Numéro corrigé manuellement : ${nouveauTelephone.trim()} (ancien numéro signalé invalide).`,
-        auteur: "Philippe",
+        auteur: AGENT_ACTUEL.prenom,
       });
       setEntreprise(updated);
       setNouveauTelephone("");

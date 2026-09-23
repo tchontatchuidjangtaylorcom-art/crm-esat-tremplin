@@ -26,7 +26,7 @@ export function getScriptVente() {
           "Confirmer l'effectif total et le nombre de bénéficiaires déjà recrutés.",
           "« Pourquoi êtes-vous aujourd'hui en déficit d'unités bénéficiaires ? Avez-vous déjà essayé de recruter sur ce type de profil ? »",
           "« Avez-vous des postes ouverts actuellement, ou des postes qui pourraient être adaptés ? »",
-          "« Avez-vous déjà pris contact avec Cap Emploi ou le site de l'Agefiph pour vous accompagner sur le recrutement ? »",
+          "« Avez-vous déjà pris contact avec Cap Emploi (l'organisme spécialisé handicap) ou le site de l'Agefiph pour vous accompagner sur le recrutement ? Avez-vous tenté d'autres canaux (Apec, Pôle emploi, cabinet de recrutement) ? »",
           "Ne jamais sauter cette étape : c'est le diagnostic réel de l'entreprise qui doit orienter la suite de l'appel, pas un script figé.",
         ],
       },

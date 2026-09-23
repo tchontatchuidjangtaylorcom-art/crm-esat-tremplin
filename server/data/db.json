@@ -124,35 +124,6 @@
       "dateCreation": "2017-11-03"
     },
     {
-      "id": "atelier-vert",
-      "nom": "Atelier Vert EURL",
-      "siret": "50912345600012",
-      "formeJuridique": "EURL",
-      "adresse": "27 Chemin des Vignes",
-      "codePostal": "31000",
-      "ville": "Toulouse",
-      "secteurActivite": "Espaces verts et paysagisme",
-      "effectif": 25,
-      "effectifBeneficiaire": 1,
-      "typeContrat": "CDI",
-      "esatAssocie": "ESAT Occitanie Verte",
-      "statut": "mail",
-      "partManquant": 0,
-      "partDebutOp": "2024-04-01",
-      "partFinOp": "2025-03-31",
-      "contact": {
-        "nom": "Mme Garcia",
-        "fonction": "Gérante",
-        "telephone": "05 61 22 33 44",
-        "email": "contact@atelier-vert.fr"
-      },
-      "dateRappel": null,
-      "dateRdv": null,
-      "commentaires": [],
-      "historiqueAppels": [],
-      "dateCreation": "2013-05-15"
-    },
-    {
       "id": "mairie-vercors",
       "nom": "Mairie de Vercors-sur-Isle",
       "siret": "21380045600019",
@@ -259,6 +230,35 @@
         }
       ],
       "historiqueAppels": []
+    },
+    {
+      "id": "atelier-vert",
+      "nom": "Atelier Vert EURL",
+      "siret": "50912345600012",
+      "formeJuridique": "EURL",
+      "adresse": "27 Chemin des Vignes",
+      "codePostal": "31000",
+      "ville": "Toulouse",
+      "secteurActivite": "Espaces verts et paysagisme",
+      "effectif": 25,
+      "effectifBeneficiaire": 1,
+      "typeContrat": "CDI",
+      "esatAssocie": "ESAT Occitanie Verte",
+      "statut": "mail",
+      "partManquant": 0,
+      "partDebutOp": "2024-04-01",
+      "partFinOp": "2025-03-31",
+      "contact": {
+        "nom": "Mme Garcia",
+        "fonction": "Gérante",
+        "telephone": "05 61 22 33 44",
+        "email": "contact@atelier-vert.fr"
+      },
+      "dateRappel": null,
+      "dateRdv": null,
+      "commentaires": [],
+      "historiqueAppels": [],
+      "dateCreation": "2013-05-15"
     }
   ],
   "archives": []
