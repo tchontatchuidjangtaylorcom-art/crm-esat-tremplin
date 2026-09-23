@@ -215,7 +215,12 @@ export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
         TIMEOUT_MS + 2000,
         `Délai d'envoi via l'API Brevo dépassé (${TIMEOUT_MS + 2000}ms).`
       );
-      console.log(`[mail] Envoyé (Brevo) à ${to} (messageId: ${info.messageId}).`);
+      // Brevo répond "OK" (2xx + messageId) dès que le mail est ACCEPTÉ pour
+      // traitement — pas dès qu'il est réellement délivré en boîte. Un 2xx
+      // ici n'exclut donc pas un blocage/spam en aval (SPF, filtre du
+      // destinataire...). Le messageId loggué permet de retrouver le statut
+      // réel de délivrance dans Brevo > Transactionnel > Journal des emails.
+      console.log(`[mail] Accepté par Brevo pour ${to} (messageId: ${info.messageId}) — vérifiez le statut de délivrance dans Brevo > Transactionnel > Journal des emails.`);
       return info;
     } catch (e) {
       const detail = detailErreur(e);
