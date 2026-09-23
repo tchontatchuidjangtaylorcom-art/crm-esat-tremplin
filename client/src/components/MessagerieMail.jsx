@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import { useAuth } from "../AuthContext.jsx";
 import { useContenuAide } from "../useContenuAide.js";
 import { formatDateHeure } from "../constants.js";
+import { construireSignature } from "../mailSignature.js";
 
 // Fil de messagerie mail réel avec le contact de l'entreprise (boîte IMAP/SMTP
 // du pôle — voir server/src/mail.js). Reste utilisable même sans boîte
 // connectée : affiche juste un message explicatif et masque l'envoi.
 export default function MessagerieMail({ entreprise, onMaj }) {
+  const { utilisateur } = useAuth();
   const [statutMail, setStatutMail] = useState(null);
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
+  const [joindrePdf, setJoindrePdf] = useState(true);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
   const { data: modeles } = useContenuAide("modeles-mails", api.getModelesMails);
@@ -31,22 +35,14 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entreprise.id]);
 
-  // Bloc de signature adapté au collecteur réel de l'entreprise : privé
-  // (AGEFIPH) ou public (FIPHFP, avec mention de la mise en relation ESAT).
-  // Utilise la vraie adresse de la boîte connectée quand elle est configurée,
-  // plutôt qu'un domaine fictif en dur.
-  function signaturePourEntreprise() {
-    const ligneEmail = statutMail?.adresse ? `\n✉️ ${statutMail.adresse}` : "";
-    const ligneTelephone = "\n📞 [Numéro du pôle]";
-    if (entreprise.collecteur === "FIPHFP") {
-      return `Pôle FIPHFP\nN'hésitez pas à nous solliciter pour une mise en relation avec un ESAT partenaire.\n[Signature]${ligneEmail}${ligneTelephone}`;
-    }
-    return `Pôle OETH / AGEFIPH\n[Signature]${ligneEmail}${ligneTelephone}`;
-  }
-
   function inserer(modele) {
     setObjet(modele.objet);
-    setCorps(modele.corps.replaceAll("{{SIGNATURE}}", signaturePourEntreprise()));
+    setCorps(
+      modele.corps.replaceAll(
+        "{{SIGNATURE}}",
+        construireSignature({ utilisateur, statutMail, collecteur: entreprise.collecteur })
+      )
+    );
   }
 
   async function envoyer(ev) {
@@ -55,7 +51,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     setEnvoiEnCours(true);
     setErreur(null);
     try {
-      const updated = await api.envoyerEmail(entreprise.id, { objet, corps });
+      const updated = await api.envoyerEmail(entreprise.id, { objet, corps, joindrePdf });
       onMaj(updated);
       setObjet("");
       setCorps("");
@@ -102,6 +98,11 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             </div>
             <p className="font-semibold text-slate-800 dark:text-slate-100 mb-1">{m.objet}</p>
             <p className="text-slate-600 dark:text-slate-300 whitespace-pre-line">{m.corps}</p>
+            {m.piecesJointes?.length > 0 && (
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
+                📎 {m.piecesJointes.map((p) => p.nom).join(", ")}
+              </p>
+            )}
           </li>
         ))}
         {emails.length === 0 && (
@@ -141,13 +142,21 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             rows={5}
             className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
           />
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <input type="checkbox" checked={joindrePdf} onChange={(e) => setJoindrePdf(e.target.checked)} />
+            Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée)
+          </label>
           {erreur && <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>}
           <button
             type="submit"
             disabled={!objet.trim() || !corps.trim() || envoiEnCours || statutMail?.configuree === false}
             className="rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
-            {envoiEnCours ? "Envoi…" : "Envoyer (signé Pôle OETH / AGEFIPH)"}
+            {envoiEnCours
+              ? "Envoi…"
+              : `Envoyer (signé ${utilisateur?.prenom || utilisateur?.nom || "vous"} — ${
+                  entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH"
+                })`}
           </button>
         </form>
       )}

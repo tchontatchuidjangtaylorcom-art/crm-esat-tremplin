@@ -19,7 +19,7 @@ function OethCell({ oeth }) {
   );
 }
 
-export default function EntrepriseTable({ entreprises }) {
+export default function EntrepriseTable({ entreprises, estAdmin, agents, onAssigner }) {
   const { startCall } = useTelephonie();
 
   return (
@@ -36,6 +36,7 @@ export default function EntrepriseTable({ entreprises }) {
             <th className="px-4 py-3 text-left">Contact</th>
             <th className="px-4 py-3 text-left">CP</th>
             <th className="px-4 py-3 text-left">Commentaire récent</th>
+            {estAdmin && <th className="px-4 py-3 text-left">Assigné à</th>}
             <th className="px-4 py-3 text-left">Appel</th>
           </tr>
         </thead>
@@ -80,6 +81,22 @@ export default function EntrepriseTable({ entreprises }) {
                 >
                   {dernierCommentaire || "-"}
                 </td>
+                {estAdmin && (
+                  <td className="px-4 py-3">
+                    <select
+                      value={e.assigneA || ""}
+                      onChange={(ev) => onAssigner?.(e.id, ev.target.value || null)}
+                      className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs px-2 py-1"
+                    >
+                      <option value="">Non assigné</option>
+                      {agents?.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.prenom || a.email}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   {e.contact?.telephone && (
                     <button
@@ -99,7 +116,7 @@ export default function EntrepriseTable({ entreprises }) {
           })}
           {entreprises.length === 0 && (
             <tr>
-              <td colSpan={10} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500">
+              <td colSpan={estAdmin ? 11 : 10} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500">
                 Aucune entreprise pour ce filtre.
               </td>
             </tr>

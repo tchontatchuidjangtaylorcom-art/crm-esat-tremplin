@@ -1,5 +1,3 @@
-import ImportLot from "./ImportLot.jsx";
-
 function itemClasse(actif) {
   return `w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-sm text-left transition ${
     actif
@@ -21,7 +19,6 @@ export default function Sidebar({
   compteursLot,
   filtreLot,
   onFiltreLot,
-  onImporte,
 }) {
   return (
     <aside className="w-64 shrink-0 space-y-6 lg:sticky lg:top-6 lg:self-start">
@@ -64,8 +61,6 @@ export default function Sidebar({
           </nav>
         </div>
       )}
-
-      <ImportLot categories={categories} onImporte={onImporte} />
     </aside>
   );
 }

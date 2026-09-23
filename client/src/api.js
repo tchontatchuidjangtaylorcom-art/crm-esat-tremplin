@@ -73,6 +73,11 @@ export const api = {
       body: JSON.stringify({ categorie, lot, sirens, assigneA: assigneA || null, rechercheTelephoneIA }),
     }).then(handle),
 
+  lancerEnrichissementTelephones: () =>
+    fetch(`${BASE}/leads/enrichir-telephones`, { method: "POST" }).then(handle),
+
+  getStatutEnrichissementTelephones: () => fetch(`${BASE}/leads/enrichir-telephones/statut`).then(handle),
+
   listLots: () => fetch(`${BASE}/lots`).then(handle),
 
   listArchives: () => fetch(`${BASE}/archives`).then(handle),
@@ -109,11 +114,11 @@ export const api = {
 
   marquerEmailsLus: (id) => fetch(`${BASE}/entreprises/${id}/emails/lu`, { method: "POST" }).then(handle),
 
-  envoyerEmail: (id, { objet, corps }) =>
+  envoyerEmail: (id, { objet, corps, joindrePdf = true }) =>
     fetch(`${BASE}/entreprises/${id}/emails/envoyer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ objet, corps }),
+      body: JSON.stringify({ objet, corps, joindrePdf }),
     }).then(handle),
 
   getAuthConfig: () => fetch(`${BASE}/auth/config`).then(handle),

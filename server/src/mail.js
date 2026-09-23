@@ -73,6 +73,18 @@ export function adresseMailPole() {
   return config().from || null;
 }
 
+// Coordonnées réelles du pôle affichées en signature des mails et sur le PDF
+// de synthèse joint (voir pdfSynthese.js) — renforcent la crédibilité des
+// messages envoyés aux entreprises. Valeurs par défaut = coordonnées
+// officielles communiquées par le pôle ; surchageables via .env si besoin.
+export function adressePostalePole() {
+  return process.env.POLE_ADRESSE || "47 rue Eugène Oudiné, 75013 Paris";
+}
+
+export function telephonePole() {
+  return process.env.POLE_TELEPHONE || "+33 7 44 12 79 17";
+}
+
 // Nodemailer utilise par défaut des délais très longs (jusqu'à plusieurs
 // minutes) avant d'abandonner une connexion SMTP qui ne répond pas — ce qui,
 // côté utilisateur, se traduit par une requête qui semble "pendue" sans
@@ -158,7 +170,7 @@ export async function verifierConnexionSMTP() {
 // court que le chemin SMTP (voir avecTimeout) plutôt que de compter
 // uniquement sur celui de `avecTimeout`, au cas où `fetch` lui-même ignore
 // le rejet de la promesse "course" et garde la requête réseau ouverte.
-async function envoyerViaBrevo({ to, subject, text, fromName }) {
+async function envoyerViaBrevo({ to, subject, text, fromName, attachments }) {
   const c = config();
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
@@ -176,6 +188,9 @@ async function envoyerViaBrevo({ to, subject, text, fromName }) {
         to: [{ email: to }],
         subject,
         textContent: text,
+        ...(attachments?.length
+          ? { attachment: attachments.map((a) => ({ content: a.content.toString("base64"), name: a.filename })) }
+          : {}),
       }),
       signal: controleur.signal,
     });
@@ -206,12 +221,12 @@ async function envoyerViaBrevo({ to, subject, text, fromName }) {
 // `inReplyTo` (Message-ID du mail reçu) garde le fil de discussion dans le
 // client mail du destinataire — uniquement pris en compte par le chemin
 // SMTP (l'API Brevo transactionnelle ne gère pas l'en-tête In-Reply-To).
-export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
+export async function envoyerMail({ to, subject, text, inReplyTo, fromName, attachments }) {
   if (estBrevoConfigure()) {
     console.log(`[mail] Tentative d'envoi (API Brevo) à ${to} (expéditeur ${config().from})…`);
     try {
       const info = await avecTimeout(
-        envoyerViaBrevo({ to, subject, text, fromName }),
+        envoyerViaBrevo({ to, subject, text, fromName, attachments }),
         TIMEOUT_MS + 2000,
         `Délai d'envoi via l'API Brevo dépassé (${TIMEOUT_MS + 2000}ms).`
       );
@@ -246,6 +261,9 @@ export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
         subject,
         text,
         ...(inReplyTo ? { inReplyTo, references: inReplyTo } : {}),
+        ...(attachments?.length
+          ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
+          : {}),
       }),
       TIMEOUT_MS + 2000,
       `Délai d'envoi SMTP dépassé (${TIMEOUT_MS + 2000}ms) — ${c.smtpHost}:${c.smtpPort} ne répond pas ` +

@@ -22,8 +22,11 @@ import {
   envoyerMail,
   signatureMail,
   adresseMailPole,
+  adressePostalePole,
+  telephonePole,
   verifierConnexionSMTP,
 } from "./mail.js";
+import { genererSynthesePdf } from "./pdfSynthese.js";
 import {
   estRechercheIaConfiguree,
   rechercherContactAlternatif,
@@ -159,11 +162,11 @@ function trouverEntrepriseParEmail(adresse) {
 
 // ---- Authentification (lien magique + Google, validation admin) ----
 //
-// Note de déploiement : ces routes sont fonctionnelles et testables dès
-// maintenant, mais ne sont pas encore appliquées au reste du CRM (aucune
-// route entreprise/dashboard n'exige de session) — le temps de valider que
-// l'envoi de mail et la connexion fonctionnent bout en bout avec de vrais
-// identifiants avant de verrouiller l'accès à toute l'application.
+// Toutes les routes /api/entreprises, /api/leads, /api/lots et /api/emails
+// exigent désormais une session valide (exigerAuth) — nécessaire pour
+// l'assignation des dossiers aux agents (voir estVisiblePar/
+// chargerEntrepriseAutorisee ci-dessus) : sans authentification, impossible
+// de savoir qui demande quoi, donc impossible de filtrer par agent.
 
 app.get("/api/auth/config", (req, res) => {
   res.json({ mailConfigure: estEnvoiConfigure(), googleConfigure: googleConfigure(), googleClientId: process.env.GOOGLE_CLIENT_ID || null });
@@ -453,8 +456,9 @@ app.post("/api/leads/siren/lot", exigerAdmin, async (req, res) => {
 // simplement à compléter manuellement comme avant cette fonctionnalité — pas
 // d'écriture de numéro halluciné, rechercherContactAlternatif renvoie déjà
 // null plutôt qu'inventer une valeur.
-async function enrichirTelephonesViaIA(entreprises) {
+async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
   for (const entreprise of entreprises) {
+    let trouve = false;
     try {
       const resultat = await rechercherContactAlternatif(entreprise);
       if (resultat.telephone) {
@@ -469,6 +473,7 @@ async function enrichirTelephonesViaIA(entreprises) {
             `${resultat.contact ? ` — contact suggéré : ${resultat.contact}` : ""}. À vérifier au premier appel.`,
         });
         await db.write();
+        trouve = true;
       }
     } catch (e) {
       console.error(
@@ -476,10 +481,70 @@ async function enrichirTelephonesViaIA(entreprises) {
         JSON.stringify(detailErreurIa(e))
       );
     }
+    onProgres?.(trouve);
     // Petite pause polie entre deux appels à l'API Gemini.
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 }
+
+// État du dernier/actuel enrichissement téléphone en lot déclenché depuis le
+// bouton admin (voir /api/leads/enrichir-telephones ci-dessous) — mémoire
+// process uniquement, pas persisté en base : sert seulement à bloquer un
+// double lancement concurrent et à exposer une progression au frontend
+// (polling de /statut), pas à survivre à un redémarrage du serveur.
+let etatEnrichissementLot = { enCours: false, total: 0, traites: 0, trouves: 0, demarre: null, termine: null };
+
+// Enrichit en lot les fiches déjà présentes dans le CRM (actives, hors
+// archives) qui n'ont toujours aucun numéro de téléphone — typiquement des
+// leads importés par secteur avant l'ajout de la recherche automatique à
+// l'import (voir /api/leads/secteur/importer), ou dont la recherche
+// automatique n'a rien trouvé à l'époque. Action admin explicite (bouton
+// dédié côté frontend) plutôt qu'automatique : elle peut déclencher des
+// dizaines/centaines d'appels Gemini sur tout le pipeline existant, à ne pas
+// lancer sans le vouloir. Tourne en arrière-plan comme l'enrichissement à
+// l'import (même raison : trop long pour bloquer une requête HTTP).
+app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
+  if (!estRechercheIaConfiguree()) {
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez GEMINI_API_KEY)." });
+  }
+  if (etatEnrichissementLot.enCours) {
+    return res.status(409).json({ error: "Un enrichissement est déjà en cours.", ...etatEnrichissementLot });
+  }
+
+  const cibles = db.data.entreprises.filter((e) => !e.contact?.telephone);
+  if (cibles.length === 0) {
+    return res.json({ total: 0, enCours: false, message: "Aucune fiche sans téléphone à enrichir." });
+  }
+
+  etatEnrichissementLot = {
+    enCours: true,
+    total: cibles.length,
+    traites: 0,
+    trouves: 0,
+    demarre: new Date().toISOString(),
+    termine: null,
+  };
+  res.status(202).json(etatEnrichissementLot);
+
+  enrichirTelephonesViaIA(cibles, {
+    onProgres: (trouve) => {
+      etatEnrichissementLot.traites += 1;
+      if (trouve) etatEnrichissementLot.trouves += 1;
+    },
+  })
+    .catch((e) => console.error("[ia] Échec de l'enrichissement en lot :", e.message))
+    .finally(() => {
+      etatEnrichissementLot.enCours = false;
+      etatEnrichissementLot.termine = new Date().toISOString();
+    });
+});
+
+// Suivi de progression de l'enrichissement en lot ci-dessus — le frontend
+// interroge cette route toutes les quelques secondes pendant qu'un
+// enrichissement tourne, pour afficher une barre de progression.
+app.get("/api/leads/enrichir-telephones/statut", exigerAdmin, (req, res) => {
+  res.json(etatEnrichissementLot);
+});
 
 // Génération d'une vague de prospects par secteur : recherche de candidats
 // RÉELS dans le répertoire Sirene (INSEE), filtrés par code NAF (précis —
@@ -783,7 +848,13 @@ app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepris
 // Boîte mail connectée (IMAP/SMTP) : indique si elle est configurée, et
 // l'adresse du pôle pour l'affichage côté frontend.
 app.get("/api/emails/statut", (req, res) => {
-  res.json({ configuree: estEnvoiConfigure(), adresse: adresseMailPole(), signature: signatureMail() });
+  res.json({
+    configuree: estEnvoiConfigure(),
+    adresse: adresseMailPole(),
+    signature: signatureMail(),
+    telephone: telephonePole(),
+    adressePostale: adressePostalePole(),
+  });
 });
 
 // Notification globale (nombre de mails non lus par entreprise), pour
@@ -813,12 +884,14 @@ app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorise
   res.json(enrichir(entreprise));
 });
 
-// Envoie un mail réel au contact de l'entreprise (signé Pôle OETH/AGEFIPH) et
-// journalise l'envoi dans son fil de messagerie.
+// Envoie un mail réel au contact de l'entreprise depuis l'adresse unique du
+// pôle (contact@oeth-fiph.fr), avec une signature qui engage nommément
+// l'agent connecté, journalise l'envoi dans le fil de messagerie ET dans
+// l'historique du dossier, et bascule son statut sur "Mail".
 app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
-  const { objet, corps } = req.body;
+  const { objet, corps, joindrePdf = true } = req.body;
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
@@ -826,12 +899,39 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
 
-  // Nom d'expéditeur adapté au collecteur réel de l'entreprise (privé →
-  // AGEFIPH, public → FIPHFP), sans changer l'adresse mail elle-même.
-  const nomExpediteur = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+  // Nom d'expéditeur : coordonnées uniques du pôle (adresse d'envoi
+  // contact@oeth-fiph.fr, inchangée), mais nom affiché personnalisé avec
+  // l'agent connecté + le collecteur réel de l'entreprise (privé → AGEFIPH,
+  // public → FIPHFP) — l'agent est identifiable sans multiplier les boîtes mail.
+  const agentNom = req.utilisateur.prenom || req.utilisateur.nom || req.utilisateur.email;
+  const libellePole = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+  const nomExpediteur = `${agentNom} — ${libellePole}`;
+
+  // PDF de synthèse OETH personnalisé, joint automatiquement (voir
+  // pdfSynthese.js) — désactivable ponctuellement par l'agent (ex: mail de
+  // confirmation de RDV où la synthèse chiffrée n'a pas sa place).
+  let piecesJointes = [];
+  let attachmentsBrevo;
+  if (joindrePdf) {
+    const pdf = await genererSynthesePdf({
+      entreprise,
+      oeth: calculerObligationOeth(entreprise),
+      agentNom,
+      poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
+    });
+    const nomFichier = `synthese-oeth-${(entreprise.nom || "entreprise").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+    attachmentsBrevo = [{ filename: nomFichier, content: pdf, contentType: "application/pdf" }];
+    piecesJointes = [{ nom: nomFichier, taille: pdf.length }];
+  }
 
   try {
-    await envoyerMail({ to: entreprise.contact.email, subject: objet, text: corps, fromName: nomExpediteur });
+    await envoyerMail({
+      to: entreprise.contact.email,
+      subject: objet,
+      text: corps,
+      fromName: nomExpediteur,
+      attachments: attachmentsBrevo,
+    });
   } catch (e) {
     const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
     return res.status(statutHttp).json({ error: e.message });
@@ -844,9 +944,26 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     de: adresseMailPole(),
     objet,
     corps,
+    piecesJointes,
     date: new Date().toISOString(),
     lu: true,
   });
+
+  // Suivi des réponses : journalise l'envoi dans l'historique du dossier
+  // (même mécanisme que les issues d'appel) et bascule le statut sur "Mail"
+  // pour que le dossier ressorte dans les relances à suivre.
+  entreprise.historiqueAppels = entreprise.historiqueAppels || [];
+  entreprise.historiqueAppels.unshift({
+    id: nanoid(),
+    date: new Date().toISOString(),
+    type: "mail",
+    issue: "mail",
+    issueLabel: ISSUES_APPEL.mail,
+    details: objet,
+    dateProgrammee: null,
+    dureeSecondes: null,
+  });
+  entreprise.statut = "mail";
 
   await db.write();
   res.json(enrichir(entreprise));

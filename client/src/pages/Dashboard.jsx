@@ -7,15 +7,23 @@ import RechercheSiren from "../components/RechercheSiren.jsx";
 import DialerPanel from "../components/DialerPanel.jsx";
 import UserMenu from "../components/UserMenu.jsx";
 import Sidebar from "../components/Sidebar.jsx";
+import ImportLot from "../components/ImportLot.jsx";
+import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import { useTheme } from "../useTheme.js";
+import { useAuth } from "../AuthContext.jsx";
 import { AGENT_ACTUEL } from "../agent.js";
 import { ORDRE_STATUTS } from "../constants.js";
 
+const TAILLES_PAGE = [10, 20, 50];
+
 export default function Dashboard() {
   const { theme, basculer } = useTheme();
+  const { utilisateur } = useAuth();
+  const estAdmin = utilisateur?.role === "admin";
   const [entreprises, setEntreprises] = useState([]);
   const [categories, setCategories] = useState([]);
   const [lots, setLots] = useState([]);
+  const [agents, setAgents] = useState([]);
   const [nbArchivees, setNbArchivees] = useState(0);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState(null);
@@ -24,14 +32,19 @@ export default function Dashboard() {
   const [filtreLot, setFiltreLot] = useState("");
   const [prioritairesUniquement, setPrioritairesUniquement] = useState(true);
   const [recherche, setRecherche] = useState("");
+  const [tailleParPage, setTailleParPage] = useState(20);
+  const [page, setPage] = useState(1);
 
   function charger() {
-    return Promise.all([api.listEntreprises(), api.listCategories(), api.listLots(), api.listArchives()])
-      .then(([e, c, l, a]) => {
+    const appels = [api.listEntreprises(), api.listCategories(), api.listLots(), api.listArchives()];
+    if (estAdmin) appels.push(api.listUtilisateurs());
+    return Promise.all(appels)
+      .then(([e, c, l, a, u]) => {
         setEntreprises(e);
         setCategories(c);
         setLots(l);
         setNbArchivees(a.length);
+        if (u) setAgents(u.filter((util) => util.statut === "valide"));
         setErreur(null);
       })
       .catch((e) => setErreur(e.message));
@@ -39,7 +52,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     charger().finally(() => setLoading(false));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estAdmin]);
+
+  // Revient à la première page dès qu'un filtre ou la taille de page change,
+  // pour ne jamais rester bloqué sur une page qui n'a plus de résultats.
+  useEffect(() => {
+    setPage(1);
+  }, [filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche, tailleParPage]);
 
   // Reçoit les mises à jour émises par le panneau d'appel (module AGIR / VoIP)
   // sans avoir à tout recharger depuis l'API.
@@ -87,6 +107,8 @@ export default function Dashboard() {
 
   const nbPrioritaires = useMemo(() => entreprises.filter((e) => e.oeth?.assujetti).length, [entreprises]);
 
+  const nbSansTelephone = useMemo(() => entreprises.filter((e) => !e.contact?.telephone).length, [entreprises]);
+
   const entreprisesFiltrees = useMemo(() => {
     let liste = entreprises.filter((e) => {
       if (prioritairesUniquement && !e.oeth?.assujetti) return false;
@@ -105,6 +127,24 @@ export default function Dashboard() {
     return liste;
   }, [entreprises, filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche]);
 
+  const nbPages = Math.max(1, Math.ceil(entreprisesFiltrees.length / tailleParPage));
+  const pageCourante = Math.min(page, nbPages);
+  const entreprisesPage = useMemo(
+    () => entreprisesFiltrees.slice((pageCourante - 1) * tailleParPage, pageCourante * tailleParPage),
+    [entreprisesFiltrees, pageCourante, tailleParPage]
+  );
+
+  function assignerEntreprise(id, utilisateurId) {
+    return api.assignerEntreprise(id, utilisateurId).then((maj) => {
+      setEntreprises((prev) => prev.map((e) => (e.id === id ? maj : e)));
+    });
+  }
+
+  function assignerLotEntier(utilisateurId) {
+    if (!filtreLot) return;
+    return api.assignerLot(filtreLot, utilisateurId).then(charger);
+  }
+
   return (
     <div className="min-h-screen p-6 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -118,6 +158,18 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Bloc d'import indépendant, pleine largeur : ni imbriqué dans la barre
+          latérale (qui reste "sticky" et courte), ni limité à sa largeur
+          étroite — ses propres onglets/listes défilent au besoin sans jamais
+          bloquer le défilement général de la page. Réservé aux admins :
+          l'import en masse est une décision de constitution de pipeline. */}
+      {estAdmin && (
+        <div className="mb-6">
+          <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
+          <ImportLot categories={categories} agents={agents} onImporte={charger} />
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row gap-6">
         <Sidebar
           categories={categories}
@@ -128,7 +180,6 @@ export default function Dashboard() {
           compteursLot={compteursLot}
           filtreLot={filtreLot}
           onFiltreLot={setFiltreLot}
-          onImporte={charger}
         />
 
         <div className="flex-1 min-w-0">
@@ -196,10 +247,78 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {estAdmin && filtreLot && (
+            <div className="flex flex-wrap items-center gap-2 mb-3 text-sm bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/50 rounded-lg px-3 py-2">
+              <span className="text-slate-600 dark:text-slate-300">
+                Assigner toute la vague « {filtreLot} » à :
+              </span>
+              <select
+                onChange={(e) => e.target.value && assignerLotEntier(e.target.value).then(() => (e.target.value = ""))}
+                defaultValue=""
+                className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-1 text-sm"
+              >
+                <option value="" disabled>
+                  Choisir un agent…
+                </option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.prenom || a.email} {a.role === "admin" ? "(admin)" : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => assignerLotEntier(null)}
+                className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
+              >
+                Retirer l'assignation
+              </button>
+            </div>
+          )}
+
           {loading ? (
             <div className="text-slate-400 dark:text-slate-500 text-sm">Chargement…</div>
           ) : (
-            <EntrepriseTable entreprises={entreprisesFiltrees} />
+            <>
+              <EntrepriseTable entreprises={entreprisesPage} estAdmin={estAdmin} agents={agents} onAssigner={assignerEntreprise} />
+
+              <div className="flex flex-wrap items-center justify-between gap-3 mt-3 text-sm text-slate-500 dark:text-slate-400">
+                <label className="flex items-center gap-2">
+                  Afficher
+                  <select
+                    value={tailleParPage}
+                    onChange={(e) => setTailleParPage(Number(e.target.value))}
+                    className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1"
+                  >
+                    {TAILLES_PAGE.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  par page — {entreprisesFiltrees.length} au total
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={pageCourante <= 1}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-40"
+                  >
+                    Précédent
+                  </button>
+                  <span>
+                    Page {pageCourante} / {nbPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(nbPages, p + 1))}
+                    disabled={pageCourante >= nbPages}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-40"
+                  >
+                    Suivant
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
