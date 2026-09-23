@@ -16,6 +16,15 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [joindrePdf, setJoindrePdf] = useState(true);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
+  const [toastEnvoi, setToastEnvoi] = useState(null);
+
+  // Le toast se referme tout seul après quelques secondes — pas besoin d'une
+  // action de l'agent pour le faire disparaître.
+  useEffect(() => {
+    if (!toastEnvoi) return;
+    const id = setTimeout(() => setToastEnvoi(null), 4000);
+    return () => clearTimeout(id);
+  }, [toastEnvoi]);
   const { data: modeles } = useContenuAide("modeles-mails", api.getModelesMails);
 
   useEffect(() => {
@@ -53,6 +62,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     try {
       const updated = await api.envoyerEmail(entreprise.id, { objet, corps, joindrePdf });
       onMaj(updated);
+      setToastEnvoi(`E-mail envoyé à ${entreprise.contact.email}.`);
       setObjet("");
       setCorps("");
     } catch (e) {
@@ -65,7 +75,17 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const emails = entreprise.emails || [];
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
+    <>
+      {toastEnvoi && (
+        <div
+          role="status"
+          className="fixed top-6 right-6 z-50 flex items-start gap-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium px-4 py-3 shadow-lg animate-toast-in"
+        >
+          <span className="text-lg leading-none">✓</span>
+          <span>{toastEnvoi}</span>
+        </div>
+      )}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
       <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Boîte mail — Pôle OETH/AGEFIPH</h2>
       <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
         {entreprise.contact?.email
@@ -160,6 +180,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           </button>
         </form>
       )}
-    </div>
+      </div>
+    </>
   );
 }

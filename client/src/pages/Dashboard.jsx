@@ -9,11 +9,24 @@ import UserMenu from "../components/UserMenu.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import ImportLot from "../components/ImportLot.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
+import KpiObjectifMensuel from "../components/KpiObjectifMensuel.jsx";
 import { useTheme } from "../useTheme.js";
 import { useAuth } from "../AuthContext.jsx";
 import { ORDRE_STATUTS } from "../constants.js";
 
 const TAILLES_PAGE = [10, 20, 50];
+
+// Sorties considérées comme des fiches "qualifiées" pour l'objectif mensuel
+// de prospection (dossier envoyé en atelier ou réglé, pas un abandon).
+const STATUTS_QUALIFIES = new Set(["fiche", "fiche_one_shot", "conforme"]);
+const OBJECTIF_MENSUEL_MIN = 20;
+const OBJECTIF_MENSUEL_MAX = 30;
+
+function correspondRecherche(e, recherche) {
+  if (!recherche.trim()) return true;
+  const q = recherche.trim().toLowerCase();
+  return e.nom.toLowerCase().includes(q) || e.siret.includes(q) || e.codePostal.includes(q);
+}
 
 export default function Dashboard() {
   const { theme, basculer } = useTheme();
@@ -79,30 +92,47 @@ export default function Dashboard() {
     };
   }, []);
 
+  // Chaque compteur de facette (statut, catégorie, lot) s'appuie sur les
+  // MÊMES filtres actifs que la liste, à l'exception de sa propre dimension —
+  // sinon un compteur peut afficher un nombre que la liste, elle, filtre à
+  // zéro (ex. "À relancer : 2" alors que ces 2 dossiers sont exclus par
+  // "Prioritaires uniquement"), ce qui donne l'impression d'un filtre cassé.
   const compteurs = useMemo(() => {
     const c = Object.fromEntries(ORDRE_STATUTS.map((s) => [s, 0]));
     for (const e of entreprises) {
+      if (prioritairesUniquement && !e.oeth?.assujetti) continue;
+      if (filtreCategorie && e.categorie?.cle !== filtreCategorie) continue;
+      if (filtreLot && e.lot !== filtreLot) continue;
+      if (!correspondRecherche(e, recherche)) continue;
       if (c[e.statut] !== undefined) c[e.statut] += 1;
     }
     return c;
-  }, [entreprises]);
+  }, [entreprises, prioritairesUniquement, filtreCategorie, filtreLot, recherche]);
 
   const compteursCategorie = useMemo(() => {
     const c = {};
     for (const e of entreprises) {
+      if (prioritairesUniquement && !e.oeth?.assujetti) continue;
+      if (filtreStatut && e.statut !== filtreStatut) continue;
+      if (filtreLot && e.lot !== filtreLot) continue;
+      if (!correspondRecherche(e, recherche)) continue;
       const cle = e.categorie?.cle;
       if (cle) c[cle] = (c[cle] || 0) + 1;
     }
     return c;
-  }, [entreprises]);
+  }, [entreprises, prioritairesUniquement, filtreStatut, filtreLot, recherche]);
 
   const compteursLot = useMemo(() => {
     const c = {};
     for (const e of entreprises) {
+      if (prioritairesUniquement && !e.oeth?.assujetti) continue;
+      if (filtreStatut && e.statut !== filtreStatut) continue;
+      if (filtreCategorie && e.categorie?.cle !== filtreCategorie) continue;
+      if (!correspondRecherche(e, recherche)) continue;
       if (e.lot) c[e.lot] = (c[e.lot] || 0) + 1;
     }
     return c;
-  }, [entreprises]);
+  }, [entreprises, prioritairesUniquement, filtreStatut, filtreCategorie, recherche]);
 
   const nbPrioritaires = useMemo(() => entreprises.filter((e) => e.oeth?.assujetti).length, [entreprises]);
 
@@ -114,11 +144,7 @@ export default function Dashboard() {
       if (filtreStatut && e.statut !== filtreStatut) return false;
       if (filtreCategorie && e.categorie?.cle !== filtreCategorie) return false;
       if (filtreLot && e.lot !== filtreLot) return false;
-      if (recherche.trim()) {
-        const q = recherche.trim().toLowerCase();
-        return e.nom.toLowerCase().includes(q) || e.siret.includes(q) || e.codePostal.includes(q);
-      }
-      return true;
+      return correspondRecherche(e, recherche);
     });
 
     // Priorité : déficit d'unités bénéficiaires le plus élevé en tête.

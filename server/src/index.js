@@ -838,7 +838,7 @@ app.post("/api/entreprises/:id/appels", exigerAuth, chargerEntrepriseAutorisee, 
 
   entreprise.historiqueAppels.unshift(entree);
   entreprise.statut = issue;
-  if (issue === "a_rappeler") entreprise.dateRappel = date || null;
+  if (issue === "a_rappeler" || issue === "me_rappelle") entreprise.dateRappel = date || null;
   if (issue === "rdv") entreprise.dateRdv = date || null;
 
   await db.write();

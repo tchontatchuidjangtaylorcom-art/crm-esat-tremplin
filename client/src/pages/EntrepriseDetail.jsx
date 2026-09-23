@@ -71,6 +71,10 @@ export default function EntrepriseDetail() {
   const [enregistrementDateCreation, setEnregistrementDateCreation] = useState(false);
   const [enregistrementSecteurPublic, setEnregistrementSecteurPublic] = useState(false);
 
+  const [dateRappelSaisie, setDateRappelSaisie] = useState("");
+  const [dateRdvSaisie, setDateRdvSaisie] = useState("");
+  const [enregistrementEcheance, setEnregistrementEcheance] = useState(false);
+
   function charger() {
     api
       .getEntreprise(id)
@@ -79,6 +83,8 @@ export default function EntrepriseDetail() {
         setEffectifSaisi(String(e.effectif));
         setEffectifBeneficiaireSaisi(String(e.effectifBeneficiaire));
         setDateCreationSaisie(e.dateCreation || "");
+        setDateRappelSaisie(e.dateRappel || "");
+        setDateRdvSaisie(e.dateRdv || "");
         setErreur(null);
       })
       .catch((e) => setErreur(e.message));
@@ -196,6 +202,26 @@ export default function EntrepriseDetail() {
       effectif: Number(effectifSaisi) || 0,
       effectifBeneficiaire: Number(effectifBeneficiaireSaisi) || 0,
     });
+  }
+
+  // Planifie ou corrige directement une échéance (relance/RDV), sans passer
+  // par le module AGIR — utile notamment pour "À relancer", qui n'a pas
+  // d'issue d'appel dédiée, ou pour corriger une date après coup.
+  async function soumettreEcheance(ev) {
+    ev.preventDefault();
+    setEnregistrementEcheance(true);
+    try {
+      const updated = await api.patchEntreprise(id, {
+        dateRappel: dateRappelSaisie || null,
+        dateRdv: dateRdvSaisie || null,
+      });
+      setEntreprise(updated);
+      setErreur(null);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementEcheance(false);
+    }
   }
 
   async function soumettreDateCreation(ev) {
@@ -384,9 +410,40 @@ export default function EntrepriseDetail() {
                 label="Début / Fin Op."
                 value={`${formatDate(entreprise.partDebutOp)} → ${formatDate(entreprise.partFinOp)}`}
               />
-              {entreprise.dateRappel && <Info label="Date de rappel prévue" value={formatDate(entreprise.dateRappel)} />}
-              {entreprise.dateRdv && <Info label="Date de RDV" value={formatDate(entreprise.dateRdv)} />}
             </dl>
+
+            <div className="mt-4 pt-4 border-t border-purple-100 dark:border-purple-900/30">
+              <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
+                Échéance / prochaine relance
+              </p>
+              <form onSubmit={soumettreEcheance} className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
+                <label className="text-xs text-slate-500 dark:text-slate-400">
+                  Rappel prévu
+                  <input
+                    type="datetime-local"
+                    value={dateRappelSaisie}
+                    onChange={(e) => setDateRappelSaisie(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-slate-500 dark:text-slate-400">
+                  RDV
+                  <input
+                    type="datetime-local"
+                    value={dateRdvSaisie}
+                    onChange={(e) => setDateRdvSaisie(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={enregistrementEcheance}
+                  className="col-span-1 sm:col-span-2 rounded-lg bg-slate-900 text-white text-xs font-medium py-1.5 disabled:opacity-40"
+                >
+                  Enregistrer l'échéance
+                </button>
+              </form>
+            </div>
 
             <div className="mt-4 pt-4 border-t border-purple-100 dark:border-purple-900/30">
               <label className="block text-xs text-slate-500 dark:text-slate-400 mb-2">
@@ -674,7 +731,7 @@ export default function EntrepriseDetail() {
 
                 {infoIssueSelectionnee?.needsDate && (
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={dateIssue}
                     onChange={(e) => setDateIssue(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"

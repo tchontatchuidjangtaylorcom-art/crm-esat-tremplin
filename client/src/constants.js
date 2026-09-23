@@ -47,7 +47,7 @@ export const SEGMENTS_DIALER_PAR_DEFAUT = ["nouveau", "nrp"];
 // Menu "NOUVELLE ISSUE D'APPEL" du module AGIR.
 export const ISSUES_APPEL = [
   { value: "nrp", label: "NRP (Non Répondant)", needsDate: false },
-  { value: "me_rappelle", label: "Me rappelle", needsDate: false },
+  { value: "me_rappelle", label: "Me rappelle", needsDate: true },
   { value: "a_rappeler", label: "À rappeler", needsDate: true },
   { value: "rdv", label: "RDV", needsDate: true },
   { value: "mail", label: "Mail", needsDate: false },
