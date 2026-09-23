@@ -55,11 +55,28 @@ export default {
           "0%": { opacity: "0", transform: "translateX(-16px)" },
           "100%": { opacity: "1", transform: "translateX(0)" },
         },
+        // Nébuleuses en fond du hero (SiteVitrine) : dérive lente et douce,
+        // jamais de mouvement brusque qui distrairait de la lecture.
+        flotter: {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "50%": { transform: "translate(3%, -4%) scale(1.08)" },
+        },
+        "flotter-inverse": {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "50%": { transform: "translate(-4%, 3%) scale(1.05)" },
+        },
+        "fleche-rebond": {
+          "0%, 100%": { transform: "translateY(0)", opacity: "0.6" },
+          "50%": { transform: "translateY(6px)", opacity: "1" },
+        },
       },
       animation: {
         "toast-in": "toast-in 0.2s ease-out",
         defiler: "defiler 32s linear infinite",
         "toast-slide-in": "toast-slide-in 0.35s ease-out",
+        flotter: "flotter 18s ease-in-out infinite",
+        "flotter-inverse": "flotter-inverse 22s ease-in-out infinite",
+        "fleche-rebond": "fleche-rebond 2s ease-in-out infinite",
       },
     },
   },

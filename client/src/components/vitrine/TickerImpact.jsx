@@ -22,19 +22,30 @@ function construireMessages(statistiques, entreprises) {
   return messages;
 }
 
-export default function TickerImpact({ statistiques, entreprises }) {
+// `verre` : variante "glass" (fond translucide + flou), pensée pour flotter
+// sur le hero animé plutôt que comme bandeau plein plaqué en haut de page.
+export default function TickerImpact({ statistiques, entreprises, verre = false }) {
   const messages = construireMessages(statistiques, entreprises);
   // Dupliqué une fois pour boucler sans coupure visible (translateX -50%).
   const boucle = [...messages, ...messages];
 
   return (
-    <div className="bg-marine-900 text-white overflow-hidden border-b border-marine-800">
-      <div className="group flex whitespace-nowrap py-2">
+    <div
+      className={
+        verre
+          ? "overflow-hidden rounded-full border border-white/15 bg-white/[0.06] backdrop-blur-md"
+          : "bg-marine-900 text-white overflow-hidden border-b border-marine-800"
+      }
+    >
+      <div className="group flex whitespace-nowrap py-2.5">
         <div className="flex animate-defiler group-hover:[animation-play-state:paused]">
           {boucle.map((m, i) => (
-            <span key={i} className="flex items-center text-xs sm:text-sm font-medium px-6">
+            <span
+              key={i}
+              className={`flex items-center text-xs sm:text-sm font-medium px-6 ${verre ? "text-slate-100" : ""}`}
+            >
               {m}
-              <span className="ml-6 text-marine-500" aria-hidden>
+              <span className={`ml-6 ${verre ? "text-white/30" : "text-marine-500"}`} aria-hidden>
                 •
               </span>
             </span>
