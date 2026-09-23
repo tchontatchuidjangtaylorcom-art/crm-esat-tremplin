@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import MessagerieMail from "../components/MessagerieMail.jsx";
-import { useTelephonie } from "../telephony/CallContext.jsx";
+import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { AGENT_ACTUEL } from "../agent.js";
 import {
   ISSUES_APPEL,
@@ -43,7 +43,6 @@ function libelleNeutralisation(neutralisation) {
 export default function EntrepriseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { startCall } = useTelephonie();
   const [entreprise, setEntreprise] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
@@ -367,22 +366,7 @@ export default function EntrepriseDetail() {
               <Info label="SIRET" value={entreprise.siret} />
               <Info label="Forme juridique" value={entreprise.formeJuridique} />
               <Info label="Secteur d'activité" value={entreprise.secteurActivite} />
-              <Info
-                label="Téléphone"
-                value={
-                  entreprise.contact?.telephone ? (
-                    <button
-                      onClick={() => startCall(entreprise)}
-                      className="text-blue-600 hover:underline font-medium"
-                      title="Lancer un appel VoIP"
-                    >
-                      {entreprise.contact.telephone}
-                    </button>
-                  ) : (
-                    "-"
-                  )
-                }
-              />
+              <Info label="Téléphone" value={<BoutonAppel entreprise={entreprise} variant="lien" />} />
               <Info
                 label="Contact"
                 value={

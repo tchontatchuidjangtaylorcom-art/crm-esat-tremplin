@@ -1,6 +1,6 @@
 import StatusBadge from "./StatusBadge.jsx";
 import { formatMontant, formatDate } from "../constants.js";
-import { useTelephonie } from "../telephony/CallContext.jsx";
+import BoutonAppel from "../telephony/BoutonAppel.jsx";
 
 function OethCell({ oeth }) {
   if (!oeth?.assujetti) {
@@ -20,8 +20,6 @@ function OethCell({ oeth }) {
 }
 
 export default function EntrepriseTable({ entreprises, estAdmin, agents, onAssigner }) {
-  const { startCall } = useTelephonie();
-
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
       <table className="min-w-full text-sm">
@@ -98,18 +96,7 @@ export default function EntrepriseTable({ entreprises, estAdmin, agents, onAssig
                   </td>
                 )}
                 <td className="px-4 py-3">
-                  {e.contact?.telephone && (
-                    <button
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        startCall(e);
-                      }}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition"
-                      title={`Appeler ${e.contact.telephone}`}
-                    >
-                      &#9742;
-                    </button>
-                  )}
+                  <BoutonAppel entreprise={e} variant="icone" />
                 </td>
               </tr>
             );

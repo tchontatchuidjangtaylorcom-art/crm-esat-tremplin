@@ -4,6 +4,22 @@ import { api } from "../api.js";
 
 const CallContext = createContext(null);
 
+const MODE_STORAGE_KEY = "telephonie:mode";
+
+// Deux modes de téléphonie, choisis par l'agent selon l'équipement disponible :
+//  - "manuel"  : les numéros sont de simples liens tel: (téléphone perso/pro de
+//                l'agent, Phone Link, FaceTime…), aucun enchaînement automatique.
+//  - "auto"    : les appels passent par le provider VoIP (Power Dialer, SIP à
+//                connecter dans provider.js), avec enchaînement automatique.
+function chargerModeInitial() {
+  try {
+    const stocke = window.localStorage.getItem(MODE_STORAGE_KEY);
+    return stocke === "auto" ? "auto" : "manuel";
+  } catch {
+    return "manuel";
+  }
+}
+
 // Diffuse une entreprise mise à jour à toutes les pages ouvertes (Dashboard,
 // fiche entreprise), sans dépendance ajoutée : un simple événement DOM suffit
 // pour ce volume d'écrans.
@@ -21,7 +37,17 @@ export function CallProvider({ children }) {
   const providerRef = useRef(creerProviderTelephonie());
   const appelActifRef = useRef(null);
   const [appel, setAppel] = useState(null);
+  const [mode, setModeState] = useState(chargerModeInitial);
   // appel: { entreprise, statut: 'connecting' | 'active' | 'ended', debut, fin, erreur, sansReponse }
+
+  const setMode = useCallback((m) => {
+    setModeState(m);
+    try {
+      window.localStorage.setItem(MODE_STORAGE_KEY, m);
+    } catch {
+      // stockage indisponible (navigation privée…) — le mode reste actif pour la session en cours
+    }
+  }, []);
 
   const startCall = useCallback((entreprise) => {
     const numero = entreprise?.contact?.telephone;
@@ -109,7 +135,7 @@ export function CallProvider({ children }) {
   }, [appel]);
 
   return (
-    <CallContext.Provider value={{ appel, startCall, raccrocher, fermer, enregistrerIssue }}>
+    <CallContext.Provider value={{ appel, mode, setMode, startCall, raccrocher, fermer, enregistrerIssue }}>
       {children}
     </CallContext.Provider>
   );
