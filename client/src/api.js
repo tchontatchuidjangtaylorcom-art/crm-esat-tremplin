@@ -143,6 +143,13 @@ export const api = {
 
   listUtilisateurs: () => fetch(`${BASE}/utilisateurs`).then(handle),
 
+  creerUtilisateur: ({ email, prenom, nom, role }) =>
+    fetch(`${BASE}/utilisateurs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, prenom: prenom || "", nom: nom || "", role: role || "agent" }),
+    }).then(handle),
+
   validerUtilisateur: (id, role) =>
     fetch(`${BASE}/utilisateurs/${id}/valider`, {
       method: "POST",

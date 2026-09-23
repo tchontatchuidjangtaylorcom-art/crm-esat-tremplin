@@ -16,6 +16,13 @@ export default function AdminUtilisateurs() {
   const [utilisateurs, setUtilisateurs] = useState(null);
   const [erreur, setErreur] = useState(null);
 
+  const [email, setEmail] = useState("");
+  const [prenom, setPrenom] = useState("");
+  const [role, setRole] = useState("agent");
+  const [creation, setCreation] = useState(false);
+  const [erreurCreation, setErreurCreation] = useState(null);
+  const [confirmationCreation, setConfirmationCreation] = useState(null);
+
   function charger() {
     api
       .listUtilisateurs()
@@ -26,6 +33,30 @@ export default function AdminUtilisateurs() {
   useEffect(() => {
     charger();
   }, []);
+
+  async function creerAcces(ev) {
+    ev.preventDefault();
+    if (!email.trim()) return;
+    setCreation(true);
+    setErreurCreation(null);
+    setConfirmationCreation(null);
+    try {
+      const { utilisateur, mailEnvoye } = await api.creerUtilisateur({ email: email.trim(), prenom: prenom.trim(), role });
+      setConfirmationCreation(
+        mailEnvoye
+          ? `Accès créé pour ${utilisateur.email} — un mail avec les instructions de connexion lui a été envoyé.`
+          : `Accès créé pour ${utilisateur.email}. Envoi automatique du mail indisponible : communiquez-lui l'adresse du CRM pour qu'il se connecte.`
+      );
+      setEmail("");
+      setPrenom("");
+      setRole("agent");
+      charger();
+    } catch (e) {
+      setErreurCreation(e.message);
+    } finally {
+      setCreation(false);
+    }
+  }
 
   async function valider(id, role) {
     try {
@@ -57,6 +88,59 @@ export default function AdminUtilisateurs() {
           {erreur}
         </div>
       )}
+
+      <form
+        onSubmit={creerAcces}
+        className="mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-4 space-y-3"
+      >
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">+ Créer un accès agent</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Le compte est créé directement validé — l'agent n'aura qu'à se connecter avec cette adresse (lien de
+          connexion par mail) pour accéder au CRM, limité aux dossiers qui lui seront assignés.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            E-mail de l'agent
+            <input
+              type="email"
+              required
+              placeholder="prenom.nom@exemple.fr"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 w-64 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            Prénom (optionnel)
+            <input
+              type="text"
+              value={prenom}
+              onChange={(e) => setPrenom(e.target.value)}
+              className="mt-1 w-40 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            Rôle
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+            >
+              <option value="agent">Agent</option>
+              <option value="admin">Administrateur</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={creation || !email.trim()}
+            className="rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
+          >
+            {creation ? "Création…" : "Créer l'accès"}
+          </button>
+        </div>
+        {erreurCreation && <p className="text-sm text-red-600 dark:text-red-400">{erreurCreation}</p>}
+        {confirmationCreation && <p className="text-sm text-emerald-600 dark:text-emerald-400">{confirmationCreation}</p>}
+      </form>
 
       {!utilisateurs ? (
         <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>

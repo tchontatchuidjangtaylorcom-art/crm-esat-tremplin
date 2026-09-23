@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { AGENT_ACTUEL } from "../agent.js";
 import { useAuth } from "../AuthContext.jsx";
 import { api } from "../api.js";
@@ -27,6 +28,16 @@ export default function UserMenu({ theme, onBasculerTheme }) {
 
   return (
     <div className="flex items-center gap-3">
+      {utilisateur?.role === "admin" && (
+        <Link
+          to="/admin/utilisateurs"
+          title="Gérer les accès agents/administrateurs"
+          className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+        >
+          👤 Gestion des accès
+        </Link>
+      )}
+
       <button
         onClick={onBasculerTheme}
         title={theme === "sombre" ? "Passer en mode clair" : "Passer en mode sombre"}

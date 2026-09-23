@@ -14,7 +14,7 @@
 import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
 import db from "./db.js";
-import { envoyerMail } from "./mail.js";
+import { envoyerMail, estEnvoiConfigure } from "./mail.js";
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-non-securise-a-changer-en-production";
 const DUREE_LIEN_MINUTES = 15;
@@ -73,6 +73,65 @@ export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" }
   await db.write();
   console.log(`[auth] Nouveau compte ${propre} (${utilisateur.role}, ${utilisateur.statut}).`);
   return utilisateur;
+}
+
+// Création directe d'un compte agent par un administrateur (interface
+// "Gestion des accès" — voir AdminUtilisateurs.jsx) : contrairement à
+// trouverOuCreerUtilisateur ci-dessus (déclenché par l'agent lui-même via
+// "demander un lien", et qui crée un compte "en_attente" à valider), ici
+// c'est l'admin qui anticipe l'accès — le compte est donc créé directement
+// "valide", l'agent n'a plus qu'à se connecter avec cette adresse.
+export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", role = "agent", appUrl } = {}) {
+  const propre = normaliserEmail(email);
+  if (!propre || !propre.includes("@")) {
+    const erreur = new Error("Adresse mail invalide.");
+    erreur.code = "EMAIL_INVALIDE";
+    throw erreur;
+  }
+
+  const existant = trouverUtilisateurParEmail(propre);
+  if (existant) {
+    const erreur = new Error(`Un compte existe déjà pour ${propre} (statut : ${existant.statut}).`);
+    erreur.code = "COMPTE_EXISTANT";
+    throw erreur;
+  }
+
+  const utilisateur = {
+    id: nanoid(),
+    email: propre,
+    prenom,
+    nom,
+    role: role === "admin" ? "admin" : "agent",
+    statut: "valide",
+    dateCreation: new Date().toISOString(),
+    dateValidation: new Date().toISOString(),
+  };
+  db.data.utilisateurs.push(utilisateur);
+  await db.write();
+  console.log(`[auth] Compte ${propre} créé directement par un administrateur (${utilisateur.role}, validé).`);
+
+  // Best-effort : l'agent peut aussi être prévenu autrement (oral, Slack…) —
+  // un échec d'envoi ne doit pas faire échouer la création du compte, qui a
+  // déjà réussi côté base au moment où on tente ce mail.
+  let mailEnvoye = false;
+  if (appUrl && estEnvoiConfigure()) {
+    try {
+      await envoyerMail({
+        to: utilisateur.email,
+        subject: "Votre accès au CRM OETH/AGEFIPH est prêt",
+        text:
+          `Bonjour,\n\nUn accès au CRM OETH/AGEFIPH vient d'être créé pour vous.\n\n` +
+          `Pour vous connecter, rendez-vous sur ${appUrl} et indiquez cette adresse mail : ` +
+          `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.\n\nPôle OETH / AGEFIPH`,
+        fromName: "Pôle OETH / AGEFIPH",
+      });
+      mailEnvoye = true;
+    } catch (e) {
+      console.error(`[auth] Compte ${propre} créé mais échec d'envoi du mail d'invitation : ${e.message}`);
+    }
+  }
+
+  return { utilisateur, mailEnvoye };
 }
 
 function genererLienMagique(utilisateur, appUrl) {
