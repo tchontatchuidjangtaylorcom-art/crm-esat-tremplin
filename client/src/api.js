@@ -65,4 +65,8 @@ export const api = {
     fetch(`${BASE}/entreprises/${id}/telephone-invalide`, { method: "POST" }).then(handle),
 
   getArgumentaireAgefiph: () => fetch(`${BASE}/argumentaire-agefiph`).then(handle),
+
+  getScriptVente: () => fetch(`${BASE}/script-vente`).then(handle),
+
+  getModelesMails: () => fetch(`${BASE}/modeles-mails`).then(handle),
 };

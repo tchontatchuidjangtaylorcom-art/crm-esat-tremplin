@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import ArgumentaireContenu from "../components/ArgumentaireContenu.jsx";
-import { useArgumentaireAgefiph } from "../useArgumentaireAgefiph.js";
+import { useContenuAide } from "../useContenuAide.js";
 import { useTelephonie } from "../telephony/CallContext.jsx";
 import {
   ISSUES_APPEL,
@@ -44,7 +44,7 @@ export default function EntrepriseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { startCall } = useTelephonie();
-  const { data: argumentaire } = useArgumentaireAgefiph();
+  const { data: argumentaire } = useContenuAide("argumentaire-agefiph", api.getArgumentaireAgefiph);
   const [entreprise, setEntreprise] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
@@ -638,7 +638,7 @@ export default function EntrepriseDetail() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100">Argumentaire AGEFIPH</h2>
               <button
-                onClick={() => window.dispatchEvent(new Event("argumentaire:ouvrir"))}
+                onClick={() => window.dispatchEvent(new CustomEvent("outils-vente:ouvrir", { detail: "argumentaire" }))}
                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
               >
                 Voir tout l'aide-mémoire →

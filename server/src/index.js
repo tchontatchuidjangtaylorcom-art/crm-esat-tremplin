@@ -9,6 +9,8 @@ import { calculerObligationOeth } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur } from "./secteurs.js";
 import { estSirenValide, rechercherEntrepriseParSiren } from "./insee.js";
 import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
+import { getScriptVente } from "./scriptVente.js";
+import { getModelesMails } from "./modelesMails.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -90,6 +92,16 @@ app.get("/api/categories", (req, res) => {
 // par le tiroir d'aide et la fiche entreprise.
 app.get("/api/argumentaire-agefiph", (req, res) => {
   res.json(getArgumentaireAgefiph());
+});
+
+// Script de vente et modèles de mails : mêmes principes que l'argumentaire
+// AGEFIPH ci-dessus — contenu statique, source unique côté serveur.
+app.get("/api/script-vente", (req, res) => {
+  res.json(getScriptVente());
+});
+
+app.get("/api/modeles-mails", (req, res) => {
+  res.json(getModelesMails());
 });
 
 app.get("/api/entreprises", (req, res) => {
