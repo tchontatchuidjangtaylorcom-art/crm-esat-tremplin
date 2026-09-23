@@ -14,11 +14,16 @@
 import { CATEGORIES, listerCategories } from "./secteurs.js";
 
 // Modèle configurable : la nomenclature des modèles Gemini change avec le
-// temps (générations 1.5 / 2.0 / 2.5 / ultérieures) — vérifiez le nom exact
+// temps et Google retire régulièrement les anciennes générations (ex :
+// gemini-1.5-flash renvoie 404 depuis son arrêt complet ; gemini-2.5-flash,
+// utilisé ici jusqu'ici, a cessé de répondre après son propre arrêt le
+// 17/06/2026 — d'où l'échec en production) — vérifiez le nom exact
 // disponible pour votre clé sur https://aistudio.google.com/ et ajustez
-// GEMINI_MODEL si besoin. Valeur par défaut : un modèle "Flash" (rapide, bon
-// marché) de la génération la plus récente connue au moment de l'écriture.
-const MODELE_PAR_DEFAUT = "gemini-2.5-flash";
+// GEMINI_MODEL (sans toucher au code) si ce modèle par défaut venait à son
+// tour à être retiré. Valeur par défaut : le modèle "Flash" généralement
+// disponible (GA, donc pas un aperçu susceptible d'être coupé sans préavis)
+// le plus récent connu au moment de l'écriture.
+const MODELE_PAR_DEFAUT = "gemini-3.8-flash";
 const TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 20000;
 
 // Le plan gratuit de l'API Gemini limite le débit à quelques requêtes par
