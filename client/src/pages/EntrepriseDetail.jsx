@@ -16,7 +16,7 @@ import {
 // à la fois dans "Informations structure" et dans "Obligation OETH".
 function libelleNeutralisation(neutralisation) {
   if (!neutralisation || neutralisation.ancienneteAnnees == null) {
-    return { label: "Date de création non renseignée", className: "bg-slate-100 text-slate-500 border-slate-300" };
+    return { label: "Date de création non renseignée", className: "bg-slate-100 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600" };
   }
   const { ancienneteAnnees, alerteAnticipation, neutralise } = neutralisation;
   const an = `${ancienneteAnnees} an${ancienneteAnnees > 1 ? "s" : ""}`;
@@ -34,7 +34,7 @@ function libelleNeutralisation(neutralisation) {
   }
   return {
     label: `Assujettissement complet (${an})`,
-    className: "bg-slate-100 text-slate-600 border-slate-300",
+    className: "bg-slate-100 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600",
   };
 }
 
@@ -288,7 +288,7 @@ export default function EntrepriseDetail() {
   }
 
   if (!entreprise) {
-    return <div className="p-6 text-slate-400 text-sm">Chargement…</div>;
+    return <div className="p-6 text-slate-400 dark:text-slate-500 text-sm">Chargement…</div>;
   }
 
   const { oeth, categorie } = entreprise;
@@ -307,8 +307,8 @@ export default function EntrepriseDetail() {
 
       <div className="flex flex-wrap items-start justify-between gap-3 mt-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">{entreprise.nom}</h1>
-          <p className="text-slate-500 text-sm">
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{entreprise.nom}</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
           </p>
         </div>
@@ -324,8 +324,8 @@ export default function EntrepriseDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Colonne informations structure */}
         <section className="lg:col-span-1 space-y-6 h-fit">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 mb-4">Informations structure</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Informations structure</h2>
             <dl className="space-y-3 text-sm">
               <Info label="SIRET" value={entreprise.siret} />
               <Info label="Forme juridique" value={entreprise.formeJuridique} />
@@ -366,14 +366,14 @@ export default function EntrepriseDetail() {
               {entreprise.dateRdv && <Info label="Date de RDV" value={formatDate(entreprise.dateRdv)} />}
             </dl>
 
-            <div className="mt-4 pt-4 border-t border-slate-100">
-              <label className="block text-xs text-slate-500 mb-2">
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-2">
                 Secteur public (relève du FIPHFP) ?
                 <select
                   value={entreprise.secteurPublic ? "oui" : "non"}
                   onChange={(e) => changerSecteurPublic(e.target.value)}
                   disabled={enregistrementSecteurPublic}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:opacity-40"
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm disabled:opacity-40"
                 >
                   <option value="non">Non — secteur privé (AGEFIPH)</option>
                   <option value="oui">Oui — secteur public (FIPHFP)</option>
@@ -390,15 +390,15 @@ export default function EntrepriseDetail() {
               </span>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
               <form onSubmit={soumettreDateCreation} className="flex items-end gap-2 mb-3">
-                <label className="text-xs text-slate-500 flex-1">
+                <label className="text-xs text-slate-500 dark:text-slate-400 flex-1">
                   Date de création
                   <input
                     type="date"
                     value={dateCreationSaisie}
                     onChange={(e) => setDateCreationSaisie(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
                   />
                 </label>
                 <button
@@ -411,7 +411,7 @@ export default function EntrepriseDetail() {
               </form>
               <div className="flex flex-wrap items-center gap-2">
                 {oeth?.neutralisation?.ancienneteAnnees != null && (
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     Ancienneté :{" "}
                     <strong>
                       {oeth.neutralisation.ancienneteAnnees} an{oeth.neutralisation.ancienneteAnnees > 1 ? "s" : ""}
@@ -430,12 +430,12 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Classification secteur + argumentaire */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 mb-2">Catégorie & argumentaire</h2>
-            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 mb-3">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Catégorie & argumentaire</h2>
+            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 mb-3">
               {categorie?.label}
             </span>
-            <p className="text-sm text-slate-600">{categorie?.argumentaire}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">{categorie?.argumentaire}</p>
             {oeth?.neutralisation?.alerteAnticipation && (
               <p className="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
                 <strong>Conseil An 4 :</strong> insistez sur l'anticipation des difficultés de recrutement de
@@ -446,21 +446,21 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Obligation OETH */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 mb-4">Obligation OETH</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Obligation OETH</h2>
 
             <form onSubmit={soumettreEffectifs} className="grid grid-cols-2 gap-3 mb-4">
-              <label className="text-xs text-slate-500">
+              <label className="text-xs text-slate-500 dark:text-slate-400">
                 Effectif total
                 <input
                   type="number"
                   min="0"
                   value={effectifSaisi}
                   onChange={(e) => setEffectifSaisi(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
                 />
               </label>
-              <label className="text-xs text-slate-500">
+              <label className="text-xs text-slate-500 dark:text-slate-400">
                 Bénéficiaires recrutés
                 <input
                   type="number"
@@ -473,7 +473,7 @@ export default function EntrepriseDetail() {
                       ? "Sélectionnez « Oui » ci-dessous pour saisir un nombre de bénéficiaires"
                       : undefined
                   }
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500"
                 />
               </label>
               <button
@@ -485,13 +485,13 @@ export default function EntrepriseDetail() {
               </button>
             </form>
 
-            <label className="block text-xs text-slate-500 mb-4">
+            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-4">
               L'entreprise a-t-elle au moins un travailleur handicapé (bénéficiaire) ?
               <select
                 value={Number(effectifBeneficiaireSaisi) > 0 ? "oui" : "non"}
                 onChange={(e) => changerPresenceBeneficiaire(e.target.value)}
                 disabled={enregistrementEffectifs}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:opacity-40"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm disabled:opacity-40"
               >
                 <option value="non">Non — 0 recruté (surcontribution forcée)</option>
                 <option value="oui">Oui — au moins 1 recruté (contribution classique)</option>
@@ -499,7 +499,7 @@ export default function EntrepriseDetail() {
             </label>
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500">Mode appliqué :</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Mode appliqué :</span>
               {oeth?.neutralisation?.neutralise ? (
                 <span
                   className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
@@ -512,7 +512,7 @@ export default function EntrepriseDetail() {
                 <span
                   className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
                     !oeth?.assujetti
-                      ? "bg-slate-100 text-slate-500 border-slate-300"
+                      ? "bg-slate-100 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600"
                       : oeth.surcontribution
                       ? "bg-red-100 text-red-700 border-red-300"
                       : "bg-blue-100 text-blue-700 border-blue-300"
@@ -557,7 +557,7 @@ export default function EntrepriseDetail() {
                 )}
               </div>
             ) : !oeth?.assujetti ? (
-              <p className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <p className="text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
                 Non assujetti à l'OETH (effectif &lt; {oeth?.seuilAssujettissement}).
               </p>
             ) : (
@@ -577,15 +577,15 @@ export default function EntrepriseDetail() {
                   }
                 />
                 {!oeth.conforme && (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Décomposition du calcul
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                      <span className="px-2 py-1 rounded-md bg-white border border-slate-300 font-semibold text-slate-700">
+                      <span className="px-2 py-1 rounded-md bg-white border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200">
                         {oeth.deficit} UB manquante{oeth.deficit > 1 ? "s" : ""}
                       </span>
-                      <span className="text-slate-400">×</span>
+                      <span className="text-slate-400 dark:text-slate-500">×</span>
                       <span
                         className={`px-2 py-1 rounded-md bg-white border font-semibold ${
                           oeth.surcontribution ? "border-red-300 text-red-700" : "border-orange-300 text-orange-700"
@@ -593,16 +593,16 @@ export default function EntrepriseDetail() {
                       >
                         {oeth.coefficient}
                       </span>
-                      <span className="text-slate-400">×</span>
-                      <span className="px-2 py-1 rounded-md bg-white border border-slate-300 font-semibold text-slate-700">
+                      <span className="text-slate-400 dark:text-slate-500">×</span>
+                      <span className="px-2 py-1 rounded-md bg-white border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200">
                         {oeth.tauxHoraireSmic} € (SMIC horaire)
                       </span>
-                      <span className="text-slate-400">=</span>
+                      <span className="text-slate-400 dark:text-slate-500">=</span>
                       <span className="px-2 py-1 rounded-md bg-slate-900 text-white font-bold">
                         {formatMontant(oeth.montantEstime)}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-600 leading-relaxed">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                       {oeth.deficit} unité{oeth.deficit > 1 ? "s" : ""} bénéficiaire{oeth.deficit > 1 ? "s" : ""}{" "}
                       manquante{oeth.deficit > 1 ? "s" : ""} × coefficient <strong>{oeth.coefficient}</strong>{" "}
                       {oeth.surcontribution
@@ -618,7 +618,7 @@ export default function EntrepriseDetail() {
                     )}
                   </div>
                 )}
-                <div className="pt-2 border-t border-slate-100">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
                   <Info label="Montant estimé" value={<strong>{formatMontant(oeth.montantEstime)}</strong>} />
                 </div>
               </dl>
@@ -628,19 +628,19 @@ export default function EntrepriseDetail() {
 
         {/* Colonne module AGIR + messagerie */}
         <section className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 mb-4">Module AGIR</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Module AGIR</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Nouvelle issue d'appel */}
-              <form onSubmit={soumettreIssueAppel} className="border border-slate-200 rounded-lg p-4">
-                <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">
+              <form onSubmit={soumettreIssueAppel} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                <label className="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
                   Nouvelle issue d'appel
                 </label>
                 <select
                   value={issueChoisie}
                   onChange={(e) => setIssueChoisie(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
                 >
                   <option value="">Sélectionner…</option>
                   {ISSUES_APPEL.map((i) => (
@@ -655,7 +655,7 @@ export default function EntrepriseDetail() {
                     type="date"
                     value={dateIssue}
                     onChange={(e) => setDateIssue(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
                   />
                 )}
 
@@ -664,7 +664,7 @@ export default function EntrepriseDetail() {
                   onChange={(e) => setDetailsIssue(e.target.value)}
                   placeholder="Détails (facultatif)"
                   rows={2}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
                 />
 
                 <button
@@ -677,14 +677,14 @@ export default function EntrepriseDetail() {
               </form>
 
               {/* Sortie du dossier */}
-              <form onSubmit={soumettreSortieDossier} className="border border-slate-200 rounded-lg p-4">
-                <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">
+              <form onSubmit={soumettreSortieDossier} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                <label className="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
                   Sortie du dossier
                 </label>
                 <select
                   value={sortieChoisie}
                   onChange={(e) => setSortieChoisie(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
                 >
                   <option value="">Sélectionner…</option>
                   {SORTIES_DOSSIER.map((s) => (
@@ -699,7 +699,7 @@ export default function EntrepriseDetail() {
                   onChange={(e) => setDetailsSortie(e.target.value)}
                   placeholder="Détails (facultatif)"
                   rows={2}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
                 />
 
                 <button
@@ -714,12 +714,12 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Espace IA : contact alternatif en cas de numéro invalide */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 mb-4">Espace IA — Contact alternatif</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Espace IA — Contact alternatif</h2>
 
             {!entreprise.contact?.telephoneInvalide ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Numéro {entreprise.contact?.telephone || "(aucun renseigné)"} non attribué ou injoignable ?
                 </p>
                 <button
@@ -745,7 +745,7 @@ export default function EntrepriseDetail() {
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
                   >
                     Rechercher sur Google
                   </a>
@@ -755,7 +755,7 @@ export default function EntrepriseDetail() {
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
                   >
                     Fiche Societe.com
                   </a>
@@ -765,7 +765,7 @@ export default function EntrepriseDetail() {
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
                   >
                     PagesJaunes
                   </a>
@@ -773,7 +773,7 @@ export default function EntrepriseDetail() {
                     href={`https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(entreprise.nom)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
                   >
                     LinkedIn
                   </a>
@@ -785,7 +785,7 @@ export default function EntrepriseDetail() {
                     placeholder="Nouveau numéro trouvé…"
                     value={nouveauTelephone}
                     onChange={(e) => setNouveauTelephone(e.target.value)}
-                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                   />
                   <button
                     type="submit"
@@ -800,8 +800,8 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Messagerie / historique */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 mb-4">Messagerie & historique</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Messagerie & historique</h2>
 
             <form onSubmit={soumettreCommentaire} className="flex gap-2 mb-4">
               <input
@@ -809,7 +809,7 @@ export default function EntrepriseDetail() {
                 value={nouveauCommentaire}
                 onChange={(e) => setNouveauCommentaire(e.target.value)}
                 placeholder="Ajouter un commentaire…"
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
               />
               <button
                 type="submit"
@@ -822,34 +822,34 @@ export default function EntrepriseDetail() {
 
             <ul className="space-y-3 max-h-[420px] overflow-y-auto">
               {fil.map((item) => (
-                <li key={item.id} className="border border-slate-100 rounded-lg p-3 text-sm">
+                <li key={item.id} className="border border-slate-100 dark:border-slate-700 rounded-lg p-3 text-sm">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-slate-700 dark:text-slate-200">
                       {item.kind === "appel" ? item.issueLabel : item.auteur}
                     </span>
-                    <span className="text-xs text-slate-400">{formatDateHeure(item.date)}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">{formatDateHeure(item.date)}</span>
                   </div>
                   {item.kind === "appel" ? (
-                    <p className="text-slate-500">
+                    <p className="text-slate-500 dark:text-slate-400">
                       {item.details || "Aucun détail renseigné."}
                       {item.dateProgrammee && (
-                        <span className="block text-xs mt-1 text-slate-400">
+                        <span className="block text-xs mt-1 text-slate-400 dark:text-slate-500">
                           Date programmée : {formatDate(item.dateProgrammee)}
                         </span>
                       )}
                       {Number.isFinite(item.dureeSecondes) && (
-                        <span className="block text-xs mt-1 text-slate-400">
+                        <span className="block text-xs mt-1 text-slate-400 dark:text-slate-500">
                           Durée d'appel : {formatDuree(item.dureeSecondes)}
                         </span>
                       )}
                     </p>
                   ) : (
-                    <p className="text-slate-600">{item.texte}</p>
+                    <p className="text-slate-600 dark:text-slate-300">{item.texte}</p>
                   )}
                 </li>
               ))}
               {fil.length === 0 && (
-                <li className="text-slate-400 text-sm">Aucun historique pour ce dossier.</li>
+                <li className="text-slate-400 dark:text-slate-500 text-sm">Aucun historique pour ce dossier.</li>
               )}
             </ul>
           </div>
@@ -862,8 +862,8 @@ export default function EntrepriseDetail() {
 function Info({ label, value }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="text-slate-400">{label}</dt>
-      <dd className="text-slate-700 font-medium text-right">{value}</dd>
+      <dt className="text-slate-400 dark:text-slate-500">{label}</dt>
+      <dd className="text-slate-700 dark:text-slate-200 font-medium text-right">{value}</dd>
     </div>
   );
 }

@@ -23,10 +23,10 @@ export default function EntrepriseTable({ entreprises }) {
   const { startCall } = useTelephonie();
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
       <table className="min-w-full text-sm">
         <thead>
-          <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+          <tr className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
             <th className="px-4 py-3 text-left">Société</th>
             <th className="px-4 py-3 text-left">Statut</th>
             <th className="px-4 py-3 text-left">Secteur</th>
@@ -39,17 +39,17 @@ export default function EntrepriseTable({ entreprises }) {
             <th className="px-4 py-3 text-left">Appel</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
           {entreprises.map((e) => {
             const dernierCommentaire = e.commentaires?.[0]?.texte;
             return (
-              <tr key={e.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium text-slate-800">
+              <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
                   <a
                     href={`/entreprise/${e.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline hover:text-blue-700"
+                    className="hover:underline hover:text-blue-700 dark:hover:text-blue-400"
                     title="Ouvrir la fiche dans un nouvel onglet"
                   >
                     {e.nom}
@@ -58,23 +58,26 @@ export default function EntrepriseTable({ entreprises }) {
                 <td className="px-4 py-3">
                   <StatusBadge statut={e.statut} />
                 </td>
-                <td className="px-4 py-3 text-slate-600">
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                   {e.secteurActivite}
-                  <span className="block text-[11px] text-slate-400">
+                  <span className="block text-[11px] text-slate-400 dark:text-slate-500">
                     {e.categorie?.label}
                     {e.lot ? ` · ${e.lot}` : ""}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{e.effectif}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.effectif}</td>
                 <td className="px-4 py-3">
                   <OethCell oeth={e.oeth} />
                 </td>
-                <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
                   {e.oeth?.assujetti ? formatMontant(e.oeth.montantEstime) : "-"}
                 </td>
-                <td className="px-4 py-3 text-slate-600">{e.contact?.nom || "-"}</td>
-                <td className="px-4 py-3 text-slate-600">{e.codePostal}</td>
-                <td className="px-4 py-3 text-slate-500 max-w-[220px] truncate" title={dernierCommentaire}>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.contact?.nom || "-"}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.codePostal}</td>
+                <td
+                  className="px-4 py-3 text-slate-500 dark:text-slate-400 max-w-[220px] truncate"
+                  title={dernierCommentaire}
+                >
                   {dernierCommentaire || "-"}
                 </td>
                 <td className="px-4 py-3">
@@ -96,7 +99,7 @@ export default function EntrepriseTable({ entreprises }) {
           })}
           {entreprises.length === 0 && (
             <tr>
-              <td colSpan={10} className="px-4 py-8 text-center text-slate-400">
+              <td colSpan={10} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500">
                 Aucune entreprise pour ce filtre.
               </td>
             </tr>

@@ -57,8 +57,8 @@ export default function CallPanel() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-96 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
-      <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
+    <div className="fixed bottom-4 right-4 z-50 w-96 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl overflow-hidden">
+      <div className="bg-slate-900 dark:bg-slate-950 text-white px-4 py-3 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">{appel.entreprise.nom}</p>
           <p className="text-xs text-slate-300">{appel.entreprise.contact?.telephone}</p>
@@ -73,7 +73,7 @@ export default function CallPanel() {
       <div className="p-4 space-y-3">
         {(appel.statut === "connecting" || appel.statut === "active") && (
           <>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               {appel.statut === "connecting"
                 ? "Établissement de l'appel (module VoIP simulé — à connecter à Twilio / Aircall / SIP)…"
                 : "Appel en cours."}
@@ -89,16 +89,16 @@ export default function CallPanel() {
 
         {appel.statut === "ended" && (
           <>
-            <p className="text-sm font-medium text-slate-700">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
               Appel terminé — sélectionnez l'issue pour enregistrer l'historique.
             </p>
 
-            {erreur && <p className="text-sm text-red-600">{erreur}</p>}
+            {erreur && <p className="text-sm text-red-600 dark:text-red-400">{erreur}</p>}
 
             <select
               value={issueChoisie}
               onChange={(e) => setIssueChoisie(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
               autoFocus
             >
               <option value="">Sélectionner une issue…</option>
@@ -123,7 +123,7 @@ export default function CallPanel() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
               />
             )}
 
@@ -132,20 +132,20 @@ export default function CallPanel() {
               onChange={(e) => setDetails(e.target.value)}
               placeholder="Détails (facultatif)"
               rows={2}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
             />
 
             <button
               onClick={valider}
               disabled={!issueChoisie || enregistrement}
-              className="w-full rounded-lg bg-slate-900 text-white text-sm font-medium py-2 disabled:opacity-40"
+              className="w-full rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium py-2 disabled:opacity-40"
             >
               Enregistrer l'issue et fermer
             </button>
             <button
               onClick={fermerSansEnregistrer}
               disabled={enregistrement}
-              className="w-full text-xs text-slate-400 hover:text-slate-600 py-1"
+              className="w-full text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 py-1"
             >
               Fermer sans enregistrer
             </button>

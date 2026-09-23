@@ -5,9 +5,12 @@ import StatCard from "../components/StatCard.jsx";
 import EntrepriseTable from "../components/EntrepriseTable.jsx";
 import RechercheSiren from "../components/RechercheSiren.jsx";
 import ImportLot from "../components/ImportLot.jsx";
+import UserMenu from "../components/UserMenu.jsx";
+import { useTheme } from "../useTheme.js";
 import { ORDRE_STATUTS } from "../constants.js";
 
 export default function Dashboard() {
+  const { theme, basculer } = useTheme();
   const [entreprises, setEntreprises] = useState([]);
   const [categories, setCategories] = useState([]);
   const [lots, setLots] = useState([]);
@@ -85,10 +88,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen p-6 max-w-7xl mx-auto">
-      <Header prenom="Philippe" />
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <Header prenom="Philippe" />
+        <UserMenu theme={theme} onBasculerTheme={basculer} />
+      </div>
 
       {erreur && (
-        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">
+        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
           Impossible de charger les données ({erreur}). Vérifiez que le serveur API tourne sur le port 4000.
         </div>
       )}
@@ -122,12 +128,12 @@ export default function Dashboard() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <h2 className="text-lg font-semibold text-slate-800">
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
           Entreprises {filtreStatut ? `— filtre : ${filtreStatut}` : ""}
         </h2>
 
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-600 select-none">
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 select-none">
             <input
               type="checkbox"
               checked={prioritairesUniquement}
@@ -140,7 +146,7 @@ export default function Dashboard() {
           <select
             value={filtreCategorie}
             onChange={(e) => setFiltreCategorie(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm"
           >
             <option value="">Toutes catégories</option>
             {categories.map((c) => (
@@ -154,7 +160,7 @@ export default function Dashboard() {
             <select
               value={filtreLot}
               onChange={(e) => setFiltreLot(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm"
             >
               <option value="">Toutes les vagues</option>
               {lots.map((l) => (
@@ -165,7 +171,10 @@ export default function Dashboard() {
             </select>
           )}
 
-          <span className="text-sm text-slate-400" title="Dossiers 'mort' archivés automatiquement, hors pipeline actif">
+          <span
+            className="text-sm text-slate-400 dark:text-slate-500"
+            title="Dossiers 'mort' archivés automatiquement, hors pipeline actif"
+          >
             Archivées : {nbArchivees}
           </span>
 
@@ -174,13 +183,13 @@ export default function Dashboard() {
             placeholder="Rechercher (société, SIRET, code postal)…"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
-            className="w-72 max-w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+            className="w-72 max-w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
           />
         </div>
       </div>
 
       {loading ? (
-        <div className="text-slate-400 text-sm">Chargement…</div>
+        <div className="text-slate-400 dark:text-slate-500 text-sm">Chargement…</div>
       ) : (
         <EntrepriseTable entreprises={entreprisesFiltrees} />
       )}

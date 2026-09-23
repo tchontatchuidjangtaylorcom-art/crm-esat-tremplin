@@ -49,51 +49,51 @@ export default function ImportLot({ onImporte }) {
   );
 
   return (
-    <div className="mb-6 bg-white border border-slate-200 rounded-xl shadow-sm">
+    <div className="mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm">
       <button
         onClick={() => setOuvert((o) => !o)}
-        className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 flex items-center justify-between"
+        className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 flex items-center justify-between"
       >
         <span>+ Importer un lot d'entreprises (par SIREN, vague de prospection)</span>
-        <span className="text-slate-400">{ouvert ? "▲" : "▼"}</span>
+        <span className="text-slate-400 dark:text-slate-500">{ouvert ? "▲" : "▼"}</span>
       </button>
 
       {ouvert && (
         <form onSubmit={soumettre} className="px-4 pb-4 space-y-3">
-          <label className="block text-xs text-slate-500">
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
             Nom du lot
             <input
               type="text"
               placeholder="Ex : Lot 3 — Octobre"
               value={lot}
               onChange={(e) => setLot(e.target.value)}
-              className="mt-1 w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full max-w-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
             />
           </label>
 
-          <label className="block text-xs text-slate-500">
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
             Liste de SIREN (un par ligne, jusqu'à 100)
             <textarea
               value={sirensTexte}
               onChange={(e) => setSirensTexte(e.target.value)}
               placeholder={"552100554\n214401093\n..."}
               rows={5}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm font-mono"
             />
           </label>
 
           <button
             type="submit"
             disabled={enCours}
-            className="rounded-lg bg-slate-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
+            className="rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
             {enCours ? "Import en cours…" : "Importer le lot"}
           </button>
 
-          {erreur && <p className="text-sm text-red-600">{erreur}</p>}
+          {erreur && <p className="text-sm text-red-600 dark:text-red-400">{erreur}</p>}
 
           {resultat && (
-            <div className="text-sm text-slate-600 space-y-2">
+            <div className="text-sm text-slate-600 dark:text-slate-300 space-y-2">
               <p>
                 {compteurs.cree || 0} créé{(compteurs.cree || 0) > 1 ? "s" : ""} ·{" "}
                 {compteurs.existant || 0} déjà existant{(compteurs.existant || 0) > 1 ? "s" : ""} ·{" "}
@@ -102,7 +102,7 @@ export default function ImportLot({ onImporte }) {
                 {(compteurs.erreur || 0) > 1 ? "s" : ""}
               </p>
               {compteurs.erreur > 0 && (
-                <ul className="text-xs text-red-600 list-disc list-inside">
+                <ul className="text-xs text-red-600 dark:text-red-400 list-disc list-inside">
                   {resultat
                     .filter((r) => r.statut === "erreur")
                     .map((r) => (
