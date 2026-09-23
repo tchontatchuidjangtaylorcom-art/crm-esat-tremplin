@@ -385,7 +385,7 @@ app.post("/api/leads/siren/lot", async (req, res) => {
       resultats.push({ siren, statut: "erreur", erreur: e.message });
     }
     // Petite pause polie entre deux appels à l'API publique Sirene.
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
   res.status(201).json({ lot, resultats });
@@ -448,7 +448,7 @@ app.post("/api/leads/secteur/importer", async (req, res) => {
       resultats.push({ siren, statut: "erreur", erreur: e.message });
     }
     // Petite pause polie entre deux appels à l'API publique Sirene.
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
   res.status(201).json({ lot, categorie: cle, resultats });

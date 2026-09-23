@@ -5,6 +5,61 @@
 
 const BASE_URL = "https://recherche-entreprises.api.gouv.fr/search";
 
+// Limite documentée par l'API : 7 requêtes/seconde par IP, 30/seconde par
+// ASN (partagé entre TOUS les hébergés du même fournisseur cloud — donc un
+// 429 peut survenir même à faible volume si d'autres services sur le même
+// ASN Render sollicitent l'API au même moment, indépendamment de notre
+// propre débit). Cette API publique et gratuite ne propose aucune clé
+// d'authentification (aucun paramètre de ce type dans sa spec OpenAPI) :
+// impossible d'obtenir un quota dédié ici. La seule vraie parade est de
+// respecter un débit prudent ET de réessayer intelligemment en cas de 429,
+// en respectant l'en-tête Retry-After renvoyé par le serveur.
+const DELAI_ENTRE_APPELS_MS = 300;
+const TENTATIVES_MAX_429 = 3;
+const ATTENTE_429_PLAFOND_MS = 10_000;
+
+function attendre(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Fetch avec retry/backoff dédié aux 429 (Too Many Requests) de l'API
+// publique Sirene : relit l'en-tête Retry-After (secondes, ou date HTTP)
+// pour attendre exactement ce que le serveur demande plutôt qu'un délai
+// arbitraire, avec un plafond de sécurité et un nombre de tentatives limité.
+async function fetchAvecRetry(url) {
+  for (let tentative = 1; tentative <= TENTATIVES_MAX_429; tentative++) {
+    let reponse;
+    try {
+      reponse = await fetch(url, {
+        headers: { "User-Agent": "CRM-OETH-AGEFIPH/1.0 (prospection ESAT Tremplin)" },
+      });
+    } catch {
+      const erreur = new Error(
+        "Impossible de contacter l'API publique Sirene (INSEE). Vérifiez la connexion et réessayez."
+      );
+      erreur.code = "INSEE_INDISPONIBLE";
+      throw erreur;
+    }
+
+    if (reponse.status !== 429) return reponse;
+
+    if (tentative === TENTATIVES_MAX_429) return reponse; // on laisse l'appelant gérer l'échec final
+
+    const enTete = reponse.headers.get("retry-after");
+    let delaiMs = 2000 * tentative; // repli si l'en-tête est absent/illisible
+    if (enTete) {
+      const secondes = Number(enTete);
+      if (!Number.isNaN(secondes)) {
+        delaiMs = secondes * 1000;
+      } else {
+        const date = Date.parse(enTete);
+        if (!Number.isNaN(date)) delaiMs = Math.max(0, date - Date.now());
+      }
+    }
+    await attendre(Math.min(delaiMs, ATTENTE_429_PLAFOND_MS));
+  }
+}
+
 // Tranches d'effectifs Sirene (code INSEE -> libellé + effectif indicatif).
 // L'INSEE ne donne qu'une fourchette : on prend un point médian pour amorcer
 // le calcul OETH, à confirmer/affiner par l'agent au téléphone — exactement
@@ -169,19 +224,14 @@ function normaliserResultat(r) {
 // vers les champs utilisés par la fiche entreprise du CRM.
 export async function rechercherEntrepriseParSiren(siren) {
   const url = `${BASE_URL}?q=${siren}&page=1&per_page=1`;
-  let reponse;
-  try {
-    reponse = await fetch(url);
-  } catch {
-    const erreur = new Error(
-      "Impossible de contacter l'API publique Sirene (INSEE). Vérifiez la connexion et réessayez."
-    );
-    erreur.code = "INSEE_INDISPONIBLE";
-    throw erreur;
-  }
+  const reponse = await fetchAvecRetry(url);
 
   if (!reponse.ok) {
-    const erreur = new Error(`L'API Sirene a répondu une erreur (HTTP ${reponse.status}).`);
+    const erreur = new Error(
+      reponse.status === 429
+        ? "L'API publique Sirene (INSEE) est momentanément saturée (limite de débit partagée avec d'autres utilisateurs de l'hébergeur) — réessayez dans quelques instants."
+        : `L'API Sirene a répondu une erreur (HTTP ${reponse.status}).`
+    );
     erreur.code = "INSEE_INDISPONIBLE";
     throw erreur;
   }
@@ -235,18 +285,13 @@ export async function rechercherEntreprisesParSecteur(
     }
     if (departement) params.set("departement", departement);
 
-    let reponse;
-    try {
-      reponse = await fetch(`${BASE_URL}?${params.toString()}`);
-    } catch {
-      const erreur = new Error(
-        "Impossible de contacter l'API publique Sirene (INSEE). Vérifiez la connexion et réessayez."
-      );
-      erreur.code = "INSEE_INDISPONIBLE";
-      throw erreur;
-    }
+    const reponse = await fetchAvecRetry(`${BASE_URL}?${params.toString()}`);
     if (!reponse.ok) {
-      const erreur = new Error(`L'API Sirene a répondu une erreur (HTTP ${reponse.status}).`);
+      const erreur = new Error(
+        reponse.status === 429
+          ? "L'API publique Sirene (INSEE) est momentanément saturée (limite de débit partagée avec d'autres utilisateurs de l'hébergeur) — réessayez dans quelques instants, ou avec une quantité plus faible."
+          : `L'API Sirene a répondu une erreur (HTTP ${reponse.status}).`
+      );
       erreur.code = "INSEE_INDISPONIBLE";
       throw erreur;
     }
@@ -262,8 +307,8 @@ export async function rechercherEntreprisesParSecteur(
 
     if (lot.length < parPage) break; // dernière page atteinte
     page += 1;
-    // Petite pause polie entre deux appels à l'API publique Sirene.
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    // Pause entre deux pages, en plus du retry/backoff sur 429 ci-dessus.
+    await attendre(DELAI_ENTRE_APPELS_MS);
   }
 
   return resultats;
