@@ -64,10 +64,14 @@ function genererSessionJWT(utilisateur) {
   );
 }
 
+// Cookie marqué "secure" dès que l'URL publique du CRM est en HTTPS (Render
+// en production) — plus fiable que NODE_ENV, que Render ne définit pas
+// systématiquement à "production".
 export function optionsCookie() {
+  const https = (process.env.APP_URL || "").startsWith("https://");
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: https,
     sameSite: "lax",
     maxAge: DUREE_SESSION_JOURS * 24 * 60 * 60 * 1000,
   };

@@ -1,14 +1,13 @@
 import { AGENT_ACTUEL } from "../agent.js";
-import { useUtilisateurConnecte } from "../useUtilisateurConnecte.js";
+import { useAuth } from "../AuthContext.jsx";
 import { api } from "../api.js";
 
 // Widget de profil + bascule clair/sombre, en haut à droite du tableau de
-// bord. Affiche la vraie session (lien magique / Google) si une connexion
-// est active ; sinon replie sur l'identité de démonstration (agent.js),
-// tant que l'authentification n'est pas encore obligatoire sur le reste du
-// CRM (voir server/src/index.js).
+// bord. L'accès à cette page exige déjà une session valide (RequireAuth),
+// donc `utilisateur` est normalement toujours renseigné ici ; le repli sur
+// l'identité de démonstration (agent.js) ne sert que de filet de sécurité.
 export default function UserMenu({ theme, onBasculerTheme }) {
-  const { utilisateur } = useUtilisateurConnecte();
+  const { utilisateur } = useAuth();
 
   const identite = utilisateur
     ? {
@@ -22,7 +21,6 @@ export default function UserMenu({ theme, onBasculerTheme }) {
   const initiales = `${identite.prenom?.[0] || "?"}${identite.nom?.[0] || ""}`.toUpperCase();
 
   async function deconnecter() {
-    if (!utilisateur) return; // rien à faire pour la session de démonstration
     await api.deconnexion().catch(() => {});
     window.location.href = "/connexion";
   }
@@ -53,7 +51,7 @@ export default function UserMenu({ theme, onBasculerTheme }) {
 
       <button
         onClick={deconnecter}
-        title={utilisateur ? "Se déconnecter" : "Session de démonstration — authentification pas encore obligatoire"}
+        title="Se déconnecter"
         className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
       >
         Se déconnecter

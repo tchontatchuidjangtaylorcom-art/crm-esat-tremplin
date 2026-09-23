@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Navigate } from "react-router-dom";
 import { api } from "../api.js";
+import { useAuth } from "../AuthContext.jsx";
 
 // Connexion sans mot de passe : lien magique par mail, ou Google si
 // configuré côté serveur (bouton masqué sinon). Le premier compte jamais
 // créé devient automatiquement administrateur (voir server/src/auth.js).
 export default function Connexion() {
+  const { utilisateur, chargement } = useAuth();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -71,6 +73,10 @@ export default function Connexion() {
     } finally {
       setEnvoiEnCours(false);
     }
+  }
+
+  if (!chargement && utilisateur) {
+    return <Navigate to="/" replace />;
   }
 
   return (

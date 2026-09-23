@@ -8,31 +8,44 @@ import { DialerProvider } from "./telephony/DialerContext.jsx";
 import CallPanel from "./telephony/CallPanel.jsx";
 import OutilsVenteLayout from "./components/OutilsVenteLayout.jsx";
 import NotificationsMail from "./components/NotificationsMail.jsx";
+import RequireAuth from "./components/RequireAuth.jsx";
+import { AuthProvider } from "./AuthContext.jsx";
 
 export default function App() {
   return (
-    <CallProvider>
-      <DialerProvider>
-        <Routes>
-          {/* Hors du habillage CRM (pas de barre d'outils vente) */}
-          <Route path="/connexion" element={<Connexion />} />
-          <Route path="/admin/utilisateurs" element={<AdminUtilisateurs />} />
+    <AuthProvider>
+      <CallProvider>
+        <DialerProvider>
+          <Routes>
+            {/* Hors du habillage CRM (pas de barre d'outils vente) */}
+            <Route path="/connexion" element={<Connexion />} />
+            <Route
+              path="/admin/utilisateurs"
+              element={
+                <RequireAuth adminSeulement>
+                  <AdminUtilisateurs />
+                </RequireAuth>
+              }
+            />
 
-          <Route
-            path="/*"
-            element={
-              <OutilsVenteLayout>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/entreprise/:id" element={<EntrepriseDetail />} />
-                </Routes>
-              </OutilsVenteLayout>
-            }
-          />
-        </Routes>
-        <CallPanel />
-        <NotificationsMail />
-      </DialerProvider>
-    </CallProvider>
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <OutilsVenteLayout>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/entreprise/:id" element={<EntrepriseDetail />} />
+                    </Routes>
+                  </OutilsVenteLayout>
+                </RequireAuth>
+              }
+            />
+          </Routes>
+          <CallPanel />
+          <NotificationsMail />
+        </DialerProvider>
+      </CallProvider>
+    </AuthProvider>
   );
 }
