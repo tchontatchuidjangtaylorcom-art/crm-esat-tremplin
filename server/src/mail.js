@@ -1,25 +1,41 @@
 // Intégration boîte mail réelle (IMAP/SMTP générique) du Pôle OETH/AGEFIPH.
-// Entièrement optionnelle : si les variables MAIL_* ne sont pas renseignées
-// dans server/.env, la fonctionnalité reste désactivée sans casser le reste
-// de l'application (voir estMailConfigure()).
+//
+// Envoi (SMTP) et réception (IMAP) sont deux fonctionnalités INDÉPENDANTES :
+// beaucoup de fournisseurs (et pas mal de configurations types "juste
+// envoyer un mail transactionnel") ne renseignent que le SMTP — exiger les
+// deux avant d'activer quoi que ce soit bloquait l'envoi (lien magique,
+// mails agents) même quand le SMTP seul était parfaitement fonctionnel.
+//
+// Noms de variables acceptés (le premier qui existe est utilisé) :
+//   SMTP  : MAIL_SMTP_HOST / MAIL_HOST,  MAIL_SMTP_PORT / MAIL_PORT
+//   IMAP  : MAIL_IMAP_HOST,              MAIL_IMAP_PORT
+//   Commun: MAIL_USER, MAIL_PASSWORD,    MAIL_FROM (optionnel, sinon MAIL_USER)
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 
 function config() {
   return {
+    smtpHost: process.env.MAIL_SMTP_HOST || process.env.MAIL_HOST,
+    smtpPort: Number(process.env.MAIL_SMTP_PORT || process.env.MAIL_PORT) || 587,
     imapHost: process.env.MAIL_IMAP_HOST,
     imapPort: Number(process.env.MAIL_IMAP_PORT) || 993,
-    smtpHost: process.env.MAIL_SMTP_HOST,
-    smtpPort: Number(process.env.MAIL_SMTP_PORT) || 587,
     user: process.env.MAIL_USER,
     password: process.env.MAIL_PASSWORD,
+    from: process.env.MAIL_FROM || process.env.MAIL_USER,
   };
 }
 
-export function estMailConfigure() {
+// Suffisant pour envoyer (lien magique, mails agents depuis une fiche).
+export function estSmtpConfigure() {
   const c = config();
-  return Boolean(c.imapHost && c.smtpHost && c.user && c.password);
+  return Boolean(c.smtpHost && c.user && c.password);
+}
+
+// Nécessaire en plus pour la relève automatique de la boîte de réception.
+export function estImapConfigure() {
+  const c = config();
+  return Boolean(c.imapHost && c.user && c.password);
 }
 
 export function signatureMail() {
@@ -27,7 +43,7 @@ export function signatureMail() {
 }
 
 export function adresseMailPole() {
-  return config().user || null;
+  return config().from || null;
 }
 
 let transporteur = null;
@@ -48,7 +64,7 @@ function getTransporteur() {
 // démarrage du serveur pour savoir immédiatement, dans les logs, si le mot
 // de passe OVH est accepté).
 export async function verifierConnexionSMTP() {
-  if (!estMailConfigure()) return { ok: false, raison: "non_configure" };
+  if (!estSmtpConfigure()) return { ok: false, raison: "non_configure" };
   try {
     await getTransporteur().verify();
     return { ok: true };
@@ -63,15 +79,17 @@ export async function verifierConnexionSMTP() {
 // `inReplyTo` (Message-ID du mail reçu) garde le fil de discussion dans le
 // client mail du destinataire.
 export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
-  if (!estMailConfigure()) {
-    const erreur = new Error("Boîte mail non configurée (variables MAIL_* absentes de server/.env).");
+  if (!estSmtpConfigure()) {
+    const erreur = new Error(
+      "Envoi de mail non configuré (renseignez MAIL_SMTP_HOST ou MAIL_HOST, MAIL_USER, MAIL_PASSWORD)."
+    );
     erreur.code = "MAIL_NON_CONFIGURE";
     throw erreur;
   }
   const c = config();
   try {
     const info = await getTransporteur().sendMail({
-      from: fromName ? { name: fromName, address: c.user } : c.user,
+      from: fromName ? { name: fromName, address: c.from } : c.from,
       to,
       subject,
       text,
@@ -91,9 +109,11 @@ export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
 
 // Relève les messages non lus de la boîte de réception, appelle `onMessage`
 // pour chacun, puis le marque comme lu côté serveur mail (pour ne pas le
-// retraiter à la prochaine relève).
+// retraiter à la prochaine relève). Nécessite MAIL_IMAP_HOST spécifiquement
+// (pas de repli sur MAIL_HOST : IMAP et SMTP utilisent rarement le même
+// port, et souvent le même host ne suffit pas à distinguer les deux).
 export async function relaverBoiteMail(onMessage) {
-  if (!estMailConfigure()) return;
+  if (!estImapConfigure()) return;
   const c = config();
   const client = new ImapFlow({
     host: c.imapHost,

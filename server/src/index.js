@@ -13,7 +13,15 @@ import { estSirenValide, rechercherEntrepriseParSiren } from "./insee.js";
 import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
 import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
-import { estMailConfigure, relaverBoiteMail, envoyerMail, signatureMail, adresseMailPole, verifierConnexionSMTP } from "./mail.js";
+import {
+  estSmtpConfigure,
+  estImapConfigure,
+  relaverBoiteMail,
+  envoyerMail,
+  signatureMail,
+  adresseMailPole,
+  verifierConnexionSMTP,
+} from "./mail.js";
 import {
   trouverOuCreerUtilisateur,
   trouverUtilisateurParId,
@@ -127,7 +135,7 @@ function trouverEntrepriseParEmail(adresse) {
 // identifiants avant de verrouiller l'accès à toute l'application.
 
 app.get("/api/auth/config", (req, res) => {
-  res.json({ mailConfigure: estMailConfigure(), googleConfigure: googleConfigure(), googleClientId: process.env.GOOGLE_CLIENT_ID || null });
+  res.json({ mailConfigure: estSmtpConfigure(), googleConfigure: googleConfigure(), googleClientId: process.env.GOOGLE_CLIENT_ID || null });
 });
 
 app.post("/api/auth/demander-lien", async (req, res) => {
@@ -508,7 +516,7 @@ app.post("/api/entreprises/:id/telephone-invalide", async (req, res) => {
 // Boîte mail connectée (IMAP/SMTP) : indique si elle est configurée, et
 // l'adresse du pôle pour l'affichage côté frontend.
 app.get("/api/emails/statut", (req, res) => {
-  res.json({ configuree: estMailConfigure(), adresse: adresseMailPole(), signature: signatureMail() });
+  res.json({ configuree: estSmtpConfigure(), adresse: adresseMailPole(), signature: signatureMail() });
 });
 
 // Notification globale (nombre de mails non lus par entreprise), pour
@@ -608,7 +616,9 @@ async function relevePeriodiqueBoiteMail() {
   }
 }
 
-if (estMailConfigure()) {
+// Envoi (SMTP) et réception (IMAP) sont vérifiés et activés indépendamment —
+// voir mail.js pour le détail des noms de variables acceptés.
+if (estSmtpConfigure()) {
   // Vérifie immédiatement l'authentification SMTP au démarrage — le moyen le
   // plus rapide de voir dans les logs Render si le mot de passe OVH est
   // accepté, sans attendre qu'un agent déclenche un envoi.
@@ -621,16 +631,22 @@ if (estMailConfigure()) {
           `${resultat.code ? ` [code: ${resultat.code}]` : ""}`
       );
       console.error(
-        "[mail] Vérifiez MAIL_USER / MAIL_PASSWORD / MAIL_SMTP_HOST / MAIL_SMTP_PORT dans les variables d'environnement."
+        "[mail] Vérifiez MAIL_USER / MAIL_PASSWORD / MAIL_SMTP_HOST (ou MAIL_HOST) / MAIL_SMTP_PORT (ou MAIL_PORT)."
       );
     }
   });
+} else {
+  console.log(
+    "[mail] Envoi non configuré (renseignez MAIL_SMTP_HOST ou MAIL_HOST, MAIL_USER, MAIL_PASSWORD) — lien magique et mails agents désactivés."
+  );
+}
 
+if (estImapConfigure()) {
   relevePeriodiqueBoiteMail();
   setInterval(relevePeriodiqueBoiteMail, 60_000);
-  console.log("Boîte mail connectée : relève automatique toutes les 60 secondes.");
+  console.log("[mail] Boîte de réception connectée : relève automatique toutes les 60 secondes.");
 } else {
-  console.log("Boîte mail non configurée (variables MAIL_* absentes de server/.env) — fonctionnalité désactivée.");
+  console.log("[mail] Réception non configurée (MAIL_IMAP_HOST absent) — pas de relève automatique du courrier entrant.");
 }
 
 // Sert le frontend React buildé et gère le routage côté client (React
