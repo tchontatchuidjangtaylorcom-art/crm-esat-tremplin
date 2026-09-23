@@ -50,6 +50,18 @@ export const CATEGORIES = {
     argumentaire:
       "Activité tertiaire légère : l'embauche directe ou le recours à un ESAT pour des prestations (numérisation, façonnage) fonctionnent bien.",
   },
+  construction: {
+    label: "Construction",
+    motsCles: ["construction", "bâtiment", "btp", "travaux", "maçonnerie", "gros œuvre", "second œuvre", "chantier"],
+    argumentaire:
+      "Postes de chantier physiquement exigeants et soumis à des normes de sécurité strictes : embauche directe souvent limitée aux postes support (administratif, logistique de chantier) → la sous-traitance à un ESAT/EA (nettoyage, conditionnement, espaces verts annexes) reste la solution la plus rapide.",
+  },
+  securite: {
+    label: "Sécurité",
+    motsCles: ["sécurité", "surveillance", "gardiennage", "sûreté", "vigile", "télésurveillance"],
+    argumentaire:
+      "Les postes de terrain (agent de sécurité, rondier) exigent souvent des certifications physiques (SSIAP, carte professionnelle) limitant l'embauche directe pour certains handicaps ; les postes de télésurveillance/PC sécurité ou le recours à un ESAT pour des prestations annexes (accueil, contrôle d'accès) sont à privilégier.",
+  },
 };
 
 const CATEGORIE_PAR_DEFAUT = {
