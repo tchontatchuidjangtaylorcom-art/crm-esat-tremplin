@@ -1,10 +1,16 @@
 // Authentification sans mot de passe (lien magique par mail + Google en
 // option) avec validation des comptes par un administrateur.
 //
-// Bootstrap : le tout premier compte jamais créé devient automatiquement
-// administrateur validé — sinon personne ne pourrait jamais valider le
-// premier administrateur. Tous les comptes suivants restent "en_attente"
-// jusqu'à validation manuelle par un administrateur existant.
+// Deux façons de devenir admin :
+//  1. ADMIN_EMAILS (server/.env) : liste blanche explicite et déterministe —
+//     ces adresses sont TOUJOURS admin+validées, y compris si le compte
+//     existait déjà en "en_attente" (auto-guérison : plus besoin de manip en
+//     base si l'adresse était restée bloquée avant que la variable ne soit
+//     configurée).
+//  2. À défaut, le tout premier compte jamais créé devient automatiquement
+//     administrateur (bootstrap) — sinon personne ne pourrait jamais valider
+//     le premier administrateur.
+// Tous les autres comptes restent "en_attente" jusqu'à validation manuelle.
 import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
 import db from "./db.js";
@@ -19,6 +25,13 @@ function normaliserEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+function emailsAdminForces() {
+  return (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => normaliserEmail(e))
+    .filter(Boolean);
+}
+
 export function trouverUtilisateurParEmail(email) {
   const cherche = normaliserEmail(email);
   return db.data.utilisateurs.find((u) => u.email === cherche) || null;
@@ -30,22 +43,35 @@ export function trouverUtilisateurParId(id) {
 
 export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" } = {}) {
   const propre = normaliserEmail(email);
+  const estAdminForce = emailsAdminForces().includes(propre);
   const existant = trouverUtilisateurParEmail(propre);
-  if (existant) return existant;
+
+  if (existant) {
+    if (estAdminForce && (existant.role !== "admin" || existant.statut !== "valide")) {
+      existant.role = "admin";
+      existant.statut = "valide";
+      existant.dateValidation = existant.dateValidation || new Date().toISOString();
+      await db.write();
+      console.log(`[auth] ${propre} promu administrateur (listé dans ADMIN_EMAILS).`);
+    }
+    return existant;
+  }
 
   const premierCompte = db.data.utilisateurs.length === 0;
+  const admin = estAdminForce || premierCompte;
   const utilisateur = {
     id: nanoid(),
     email: propre,
     prenom,
     nom,
-    role: premierCompte ? "admin" : "agent",
-    statut: premierCompte ? "valide" : "en_attente",
+    role: admin ? "admin" : "agent",
+    statut: admin ? "valide" : "en_attente",
     dateCreation: new Date().toISOString(),
-    dateValidation: premierCompte ? new Date().toISOString() : null,
+    dateValidation: admin ? new Date().toISOString() : null,
   };
   db.data.utilisateurs.push(utilisateur);
   await db.write();
+  console.log(`[auth] Nouveau compte ${propre} (${utilisateur.role}, ${utilisateur.statut}).`);
   return utilisateur;
 }
 
@@ -81,12 +107,19 @@ export function optionsCookie() {
 // configurée dans mail.js — mêmes identifiants OVH que le reste du CRM).
 export async function envoyerLienMagique(utilisateur, appUrl) {
   const lien = genererLienMagique(utilisateur, appUrl);
-  await envoyerMail({
-    to: utilisateur.email,
-    subject: "Votre lien de connexion — CRM OETH/AGEFIPH",
-    text: `Bonjour,\n\nCliquez sur ce lien pour vous connecter (valable ${DUREE_LIEN_MINUTES} minutes) :\n\n${lien}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\nPôle OETH / AGEFIPH`,
-    fromName: "Pôle OETH / AGEFIPH",
-  });
+  console.log(`[auth] Envoi du lien de connexion à ${utilisateur.email}…`);
+  try {
+    await envoyerMail({
+      to: utilisateur.email,
+      subject: "Votre lien de connexion — CRM OETH/AGEFIPH",
+      text: `Bonjour,\n\nCliquez sur ce lien pour vous connecter (valable ${DUREE_LIEN_MINUTES} minutes) :\n\n${lien}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\nPôle OETH / AGEFIPH`,
+      fromName: "Pôle OETH / AGEFIPH",
+    });
+    console.log(`[auth] Lien de connexion envoyé avec succès à ${utilisateur.email}.`);
+  } catch (e) {
+    console.error(`[auth] ÉCHEC d'envoi du lien de connexion à ${utilisateur.email} : ${e.message}`);
+    throw e;
+  }
 }
 
 // Vérifie un jeton de lien magique et retourne l'utilisateur correspondant

@@ -13,7 +13,7 @@ import { estSirenValide, rechercherEntrepriseParSiren } from "./insee.js";
 import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
 import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
-import { estMailConfigure, relaverBoiteMail, envoyerMail, signatureMail, adresseMailPole } from "./mail.js";
+import { estMailConfigure, relaverBoiteMail, envoyerMail, signatureMail, adresseMailPole, verifierConnexionSMTP } from "./mail.js";
 import {
   trouverOuCreerUtilisateur,
   trouverUtilisateurParId,
@@ -609,6 +609,23 @@ async function relevePeriodiqueBoiteMail() {
 }
 
 if (estMailConfigure()) {
+  // Vérifie immédiatement l'authentification SMTP au démarrage — le moyen le
+  // plus rapide de voir dans les logs Render si le mot de passe OVH est
+  // accepté, sans attendre qu'un agent déclenche un envoi.
+  verifierConnexionSMTP().then((resultat) => {
+    if (resultat.ok) {
+      console.log(`[mail] Connexion SMTP vérifiée avec succès pour ${adresseMailPole()}.`);
+    } else {
+      console.error(
+        `[mail] ÉCHEC de connexion SMTP pour ${adresseMailPole()} : ${resultat.raison}` +
+          `${resultat.code ? ` [code: ${resultat.code}]` : ""}`
+      );
+      console.error(
+        "[mail] Vérifiez MAIL_USER / MAIL_PASSWORD / MAIL_SMTP_HOST / MAIL_SMTP_PORT dans les variables d'environnement."
+      );
+    }
+  });
+
   relevePeriodiqueBoiteMail();
   setInterval(relevePeriodiqueBoiteMail, 60_000);
   console.log("Boîte mail connectée : relève automatique toutes les 60 secondes.");

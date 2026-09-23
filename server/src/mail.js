@@ -44,6 +44,19 @@ function getTransporteur() {
   return transporteur;
 }
 
+// Vérifie la connexion/authentification SMTP sans envoyer de mail (utile au
+// démarrage du serveur pour savoir immédiatement, dans les logs, si le mot
+// de passe OVH est accepté).
+export async function verifierConnexionSMTP() {
+  if (!estMailConfigure()) return { ok: false, raison: "non_configure" };
+  try {
+    await getTransporteur().verify();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, raison: e.message, code: e.code, reponse: e.response };
+  }
+}
+
 // Envoie un mail réel au nom de la boîte du pôle. `fromName` personnalise le
 // nom d'expéditeur affiché (ex: "Pôle FIPHFP" pour un contact public, "Pôle
 // OETH / AGEFIPH" pour le privé) sans changer l'adresse réelle de la boîte.
@@ -56,13 +69,24 @@ export async function envoyerMail({ to, subject, text, inReplyTo, fromName }) {
     throw erreur;
   }
   const c = config();
-  await getTransporteur().sendMail({
-    from: fromName ? { name: fromName, address: c.user } : c.user,
-    to,
-    subject,
-    text,
-    ...(inReplyTo ? { inReplyTo, references: inReplyTo } : {}),
-  });
+  try {
+    const info = await getTransporteur().sendMail({
+      from: fromName ? { name: fromName, address: c.user } : c.user,
+      to,
+      subject,
+      text,
+      ...(inReplyTo ? { inReplyTo, references: inReplyTo } : {}),
+    });
+    console.log(`[mail] Envoyé à ${to} via ${c.smtpHost}:${c.smtpPort} (messageId: ${info.messageId}).`);
+    return info;
+  } catch (e) {
+    console.error(
+      `[mail] ÉCHEC SMTP vers ${to} via ${c.smtpHost}:${c.smtpPort} (utilisateur ${c.user}) — ${e.message}` +
+        `${e.code ? ` [code: ${e.code}]` : ""}${e.responseCode ? ` [SMTP ${e.responseCode}]` : ""}`
+    );
+    if (e.response) console.error(`[mail] Réponse du serveur SMTP : ${e.response}`);
+    throw e;
+  }
 }
 
 // Relève les messages non lus de la boîte de réception, appelle `onMessage`
