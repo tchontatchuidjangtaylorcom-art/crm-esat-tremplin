@@ -4,8 +4,9 @@ import Header from "../components/Header.jsx";
 import StatCard from "../components/StatCard.jsx";
 import EntrepriseTable from "../components/EntrepriseTable.jsx";
 import RechercheSiren from "../components/RechercheSiren.jsx";
-import ImportLot from "../components/ImportLot.jsx";
+import DialerPanel from "../components/DialerPanel.jsx";
 import UserMenu from "../components/UserMenu.jsx";
+import Sidebar from "../components/Sidebar.jsx";
 import { useTheme } from "../useTheme.js";
 import { ORDRE_STATUTS } from "../constants.js";
 
@@ -66,6 +67,23 @@ export default function Dashboard() {
     return c;
   }, [entreprises]);
 
+  const compteursCategorie = useMemo(() => {
+    const c = {};
+    for (const e of entreprises) {
+      const cle = e.categorie?.cle;
+      if (cle) c[cle] = (c[cle] || 0) + 1;
+    }
+    return c;
+  }, [entreprises]);
+
+  const compteursLot = useMemo(() => {
+    const c = {};
+    for (const e of entreprises) {
+      if (e.lot) c[e.lot] = (c[e.lot] || 0) + 1;
+    }
+    return c;
+  }, [entreprises]);
+
   const nbPrioritaires = useMemo(() => entreprises.filter((e) => e.oeth?.assujetti).length, [entreprises]);
 
   const entreprisesFiltrees = useMemo(() => {
@@ -87,7 +105,7 @@ export default function Dashboard() {
   }, [entreprises, filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche]);
 
   return (
-    <div className="min-h-screen p-6 max-w-7xl mx-auto">
+    <div className="min-h-screen p-6 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <Header prenom="Philippe" />
         <UserMenu theme={theme} onBasculerTheme={basculer} />
@@ -99,100 +117,91 @@ export default function Dashboard() {
         </div>
       )}
 
-      <RechercheSiren
-        onEntreprise={(entreprise, existant, archive) => {
-          if (archive) {
-            setNbArchivees((n) => n + (existant ? 0 : 1));
-            return;
-          }
-          setEntreprises((prev) => {
-            const dejaPresente = prev.some((e) => e.id === entreprise.id);
-            if (dejaPresente) return prev.map((e) => (e.id === entreprise.id ? entreprise : e));
-            return existant ? prev : [entreprise, ...prev];
-          });
-        }}
-      />
+      <div className="flex flex-col lg:flex-row gap-6">
+        <Sidebar
+          categories={categories}
+          compteursCategorie={compteursCategorie}
+          filtreCategorie={filtreCategorie}
+          onFiltreCategorie={setFiltreCategorie}
+          lots={lots}
+          compteursLot={compteursLot}
+          filtreLot={filtreLot}
+          onFiltreLot={setFiltreLot}
+          onImporte={charger}
+        />
 
-      <ImportLot onImporte={charger} />
-
-      <div className="flex flex-wrap gap-3 mb-6">
-        {ORDRE_STATUTS.map((statut) => (
-          <StatCard
-            key={statut}
-            statut={statut}
-            count={compteurs[statut]}
-            active={filtreStatut === statut}
-            onClick={() => setFiltreStatut(filtreStatut === statut ? null : statut)}
+        <div className="flex-1 min-w-0">
+          <RechercheSiren
+            onEntreprise={(entreprise, existant, archive) => {
+              if (archive) {
+                setNbArchivees((n) => n + (existant ? 0 : 1));
+                return;
+              }
+              setEntreprises((prev) => {
+                const dejaPresente = prev.some((e) => e.id === entreprise.id);
+                if (dejaPresente) return prev.map((e) => (e.id === entreprise.id ? entreprise : e));
+                return existant ? prev : [entreprise, ...prev];
+              });
+            }}
           />
-        ))}
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-          Entreprises {filtreStatut ? `— filtre : ${filtreStatut}` : ""}
-        </h2>
+          <DialerPanel entreprises={entreprisesFiltrees} />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 select-none">
-            <input
-              type="checkbox"
-              checked={prioritairesUniquement}
-              onChange={(e) => setPrioritairesUniquement(e.target.checked)}
-              className="rounded border-slate-300"
-            />
-            Prioritaires uniquement (effectif ≥ 20) — {nbPrioritaires}/{entreprises.length}
-          </label>
-
-          <select
-            value={filtreCategorie}
-            onChange={(e) => setFiltreCategorie(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm"
-          >
-            <option value="">Toutes catégories</option>
-            {categories.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
+          <div className="flex flex-wrap gap-3 mb-6">
+            {ORDRE_STATUTS.map((statut) => (
+              <StatCard
+                key={statut}
+                statut={statut}
+                count={compteurs[statut]}
+                active={filtreStatut === statut}
+                onClick={() => setFiltreStatut(filtreStatut === statut ? null : statut)}
+              />
             ))}
-          </select>
+          </div>
 
-          {lots.length > 0 && (
-            <select
-              value={filtreLot}
-              onChange={(e) => setFiltreLot(e.target.value)}
-              className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="">Toutes les vagues</option>
-              {lots.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+              Entreprises
+              {filtreStatut ? ` — statut : ${filtreStatut}` : ""}
+              {filtreCategorie ? ` — secteur filtré` : ""}
+              {filtreLot ? ` — ${filtreLot}` : ""}
+            </h2>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 select-none">
+                <input
+                  type="checkbox"
+                  checked={prioritairesUniquement}
+                  onChange={(e) => setPrioritairesUniquement(e.target.checked)}
+                  className="rounded border-slate-300"
+                />
+                Prioritaires uniquement (effectif ≥ 20) — {nbPrioritaires}/{entreprises.length}
+              </label>
+
+              <span
+                className="text-sm text-slate-400 dark:text-slate-500"
+                title="Dossiers 'mort'/'refus' archivés automatiquement, hors pipeline actif"
+              >
+                Archivées : {nbArchivees}
+              </span>
+
+              <input
+                type="text"
+                placeholder="Rechercher (société, SIRET, code postal)…"
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+                className="w-72 max-w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="text-slate-400 dark:text-slate-500 text-sm">Chargement…</div>
+          ) : (
+            <EntrepriseTable entreprises={entreprisesFiltrees} />
           )}
-
-          <span
-            className="text-sm text-slate-400 dark:text-slate-500"
-            title="Dossiers 'mort' archivés automatiquement, hors pipeline actif"
-          >
-            Archivées : {nbArchivees}
-          </span>
-
-          <input
-            type="text"
-            placeholder="Rechercher (société, SIRET, code postal)…"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-            className="w-72 max-w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
-          />
         </div>
       </div>
-
-      {loading ? (
-        <div className="text-slate-400 dark:text-slate-500 text-sm">Chargement…</div>
-      ) : (
-        <EntrepriseTable entreprises={entreprisesFiltrees} />
-      )}
     </div>
   );
 }

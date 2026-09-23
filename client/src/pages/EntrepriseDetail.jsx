@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
+import ArgumentaireContenu from "../components/ArgumentaireContenu.jsx";
+import { useArgumentaireAgefiph } from "../useArgumentaireAgefiph.js";
 import { useTelephonie } from "../telephony/CallContext.jsx";
 import {
   ISSUES_APPEL,
@@ -42,6 +44,7 @@ export default function EntrepriseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { startCall } = useTelephonie();
+  const { data: argumentaire } = useArgumentaireAgefiph();
   const [entreprise, setEntreprise] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
@@ -628,6 +631,33 @@ export default function EntrepriseDetail() {
 
         {/* Colonne module AGIR + messagerie */}
         <section className="lg:col-span-2 space-y-6">
+          {/* Argumentaire AGEFIPH contextuel : la ligne de barème correspondant
+              à cette entreprise est mise en évidence, pour l'avoir sous les
+              yeux pendant l'appel sans quitter la fiche. */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-slate-800 dark:text-slate-100">Argumentaire AGEFIPH</h2>
+              <button
+                onClick={() => window.dispatchEvent(new Event("argumentaire:ouvrir"))}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+              >
+                Voir tout l'aide-mémoire →
+              </button>
+            </div>
+            {entreprise.ligneBareme ? (
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+                Avec <strong>{entreprise.effectif}</strong> salariés, cette entreprise doit compter{" "}
+                <strong>{entreprise.ligneBareme.unitesBeneficiaires} unité{entreprise.ligneBareme.unitesBeneficiaires > 1 ? "s" : ""} bénéficiaire{entreprise.ligneBareme.unitesBeneficiaires > 1 ? "s" : ""}</strong>{" "}
+                (tranche {entreprise.ligneBareme.effectifMin}–{entreprise.ligneBareme.effectifMax ?? "+"}).
+              </p>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+                Effectif &lt; 20 : non assujettie à l'OETH, hors barème.
+              </p>
+            )}
+            <ArgumentaireContenu data={argumentaire} ligneSurlignee={entreprise.ligneBareme} compact />
+          </div>
+
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Module AGIR</h2>
 

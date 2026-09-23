@@ -1,5 +1,6 @@
 // Statuts possibles d'un dossier, avec libellé et style du badge.
 export const STATUTS = {
+  nouveau: { label: "Nouveau", badge: "bg-sky-100 text-sky-700 border border-sky-300" },
   a_relancer: { label: "À relancer", badge: "bg-orange-100 text-orange-700 border border-orange-300" },
   nrp: { label: "NRP", badge: "bg-red-100 text-red-700 border border-red-300" },
   me_rappelle: { label: "Me rappelle", badge: "bg-purple-100 text-purple-700 border border-purple-300" },
@@ -9,14 +10,22 @@ export const STATUTS = {
   autre: { label: "Autre", badge: "bg-gray-100 text-gray-700 border border-gray-300" },
   fiche: { label: "Fiche", badge: "bg-teal-100 text-teal-700 border border-teal-300" },
   fiche_one_shot: { label: "Fiche one-shot", badge: "bg-indigo-100 text-indigo-700 border border-indigo-300" },
+  refus: { label: "Refus", badge: "bg-rose-100 text-rose-700 border border-rose-300" },
   mort: { label: "Mort", badge: "bg-neutral-800 text-white border border-neutral-900" },
 };
 
-// Ordre d'affichage des compteurs sur le tableau de bord. "mort" en est
-// délibérément absent : ces dossiers sont archivés automatiquement dès le
-// passage du statut (voir la purge côté serveur), donc ce compteur resterait
-// toujours à 0 dans la liste active — remplacé par l'indicateur "Archivées".
+// Statuts qui font quitter le pipeline actif (archivage automatique côté
+// serveur dès la sortie de dossier) : utile au frontend pour ne pas les
+// compter dans les indicateurs de la file active.
+export const STATUTS_ARCHIVES = ["refus", "mort"];
+
+// Ordre d'affichage des compteurs sur le tableau de bord. "refus"/"mort" en
+// sont délibérément absents : ces dossiers sont archivés automatiquement dès
+// le passage du statut (voir la purge côté serveur), donc ce compteur
+// resterait toujours à 0 dans la liste active — remplacé par l'indicateur
+// "Archivées".
 export const ORDRE_STATUTS = [
+  "nouveau",
   "a_relancer",
   "nrp",
   "me_rappelle",
@@ -27,6 +36,11 @@ export const ORDRE_STATUTS = [
   "fiche",
   "fiche_one_shot",
 ];
+
+// Profils ciblés par défaut par le dialer automatique : prospects jamais
+// contactés ou injoignables la dernière fois — les meilleurs candidats pour
+// un enchaînement d'appels sortants.
+export const SEGMENTS_DIALER_PAR_DEFAUT = ["nouveau", "nrp"];
 
 // Menu "NOUVELLE ISSUE D'APPEL" du module AGIR.
 export const ISSUES_APPEL = [
@@ -42,6 +56,7 @@ export const ISSUES_APPEL = [
 export const SORTIES_DOSSIER = [
   { value: "fiche", label: "Fiche → atelier" },
   { value: "fiche_one_shot", label: "Fiche one-shot → atelier" },
+  { value: "refus", label: "Refus (dossier clos)" },
   { value: "mort", label: "Mort (dossier clos)" },
 ];
 

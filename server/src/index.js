@@ -8,6 +8,7 @@ import db, { initDb } from "./db.js";
 import { calculerObligationOeth } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur } from "./secteurs.js";
 import { estSirenValide, rechercherEntrepriseParSiren } from "./insee.js";
+import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -34,8 +35,14 @@ const ISSUES_APPEL = {
 const SORTIES_DOSSIER = {
   fiche: "Fiche → atelier",
   fiche_one_shot: "Fiche one-shot → atelier",
+  refus: "Refus (dossier clos)",
   mort: "Mort (dossier clos)",
 };
+
+// Sorties qui font quitter le pipeline actif : le dossier est archivé
+// automatiquement (voir `archiver()`), qu'il s'agisse d'un refus explicite du
+// prospect ou d'une entreprise injoignable/radiée.
+const SORTIES_ARCHIVANTES = new Set(["refus", "mort"]);
 
 // Cherche dans les dossiers actifs puis dans les archives, pour que les
 // fiches archivées (dossiers "mort") restent consultables via les mêmes
@@ -68,6 +75,7 @@ function enrichir(entreprise) {
     oeth: calculerObligationOeth(entreprise),
     categorie: classifierSecteur(entreprise.secteurActivite, { secteurPublic: entreprise.secteurPublic }),
     collecteur: determinerCollecteur(entreprise),
+    ligneBareme: trouverLigneBareme(entreprise.effectif),
   };
 }
 
@@ -75,6 +83,13 @@ function enrichir(entreprise) {
 
 app.get("/api/categories", (req, res) => {
   res.json(listerCategories());
+});
+
+// Aide-mémoire agent (affiche officielle du pôle AGEFIPH) : argumentaire,
+// dates clés et barème des unités bénéficiaires — contenu statique partagé
+// par le tiroir d'aide et la fiche entreprise.
+app.get("/api/argumentaire-agefiph", (req, res) => {
+  res.json(getArgumentaireAgefiph());
 });
 
 app.get("/api/entreprises", (req, res) => {
@@ -131,7 +146,7 @@ async function creerLeadDepuisSiren(siren, { lot = null } = {}) {
     effectifBeneficiaire: 0,
     typeContrat: "-",
     esatAssocie: "-",
-    statut: donnees.actif ? "a_relancer" : "mort",
+    statut: donnees.actif ? "nouveau" : "mort",
     lot,
     partManquant: null,
     partDebutOp: null,
@@ -284,7 +299,7 @@ app.post("/api/entreprises/:id/sortie", async (req, res) => {
 
   // Purge automatique du pipeline actif : un dossier "mort" est déplacé vers
   // les archives plutôt que laissé dans la liste active des entreprises.
-  const archive = sortie === "mort";
+  const archive = SORTIES_ARCHIVANTES.has(sortie);
   if (archive) archiver(entreprise);
 
   await db.write();
