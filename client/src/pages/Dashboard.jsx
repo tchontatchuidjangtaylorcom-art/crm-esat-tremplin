@@ -36,6 +36,7 @@ export default function Dashboard() {
   const [categories, setCategories] = useState([]);
   const [lots, setLots] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [archives, setArchives] = useState([]);
   const [nbArchivees, setNbArchivees] = useState(0);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState(null);
@@ -55,6 +56,7 @@ export default function Dashboard() {
         setEntreprises(e);
         setCategories(c);
         setLots(l);
+        setArchives(a);
         setNbArchivees(a.length);
         if (u) setAgents(u.filter((util) => util.statut === "valide"));
         setErreur(null);
@@ -82,6 +84,7 @@ export default function Dashboard() {
     }
     function onArchive(ev) {
       setEntreprises((prev) => prev.filter((e) => e.id !== ev.detail.id));
+      setArchives((prev) => [ev.detail, ...prev]);
       setNbArchivees((n) => n + 1);
     }
     window.addEventListener("entreprise:maj", onMaj);
@@ -134,6 +137,23 @@ export default function Dashboard() {
     return c;
   }, [entreprises, prioritairesUniquement, filtreStatut, filtreCategorie, recherche]);
 
+  // Fiches qualifiées ce mois-ci : une sortie "fiche"/"fiche one-shot"/
+  // "conforme" journalisée dans le mois courant, comptée une seule fois par
+  // entreprise même si plusieurs sorties qualifiées s'y sont enchaînées.
+  const nbQualifieesCeMois = useMemo(() => {
+    const maintenant = new Date();
+    let n = 0;
+    for (const e of [...entreprises, ...archives]) {
+      const aUneSortieQualifieeCeMois = (e.historiqueAppels || []).some((h) => {
+        if (h.type !== "sortie" || !STATUTS_QUALIFIES.has(h.issue)) return false;
+        const d = new Date(h.date);
+        return d.getFullYear() === maintenant.getFullYear() && d.getMonth() === maintenant.getMonth();
+      });
+      if (aUneSortieQualifieeCeMois) n++;
+    }
+    return n;
+  }, [entreprises, archives]);
+
   const nbPrioritaires = useMemo(() => entreprises.filter((e) => e.oeth?.assujetti).length, [entreprises]);
 
   const nbSansTelephone = useMemo(() => entreprises.filter((e) => !e.contact?.telephone).length, [entreprises]);
@@ -171,11 +191,13 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen p-6 max-w-[1600px] mx-auto">
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+    <div className="min-h-screen p-4 sm:p-6 max-w-[1600px] mx-auto">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-3">
         <Header />
         <UserMenu theme={theme} onBasculerTheme={basculer} />
       </div>
+
+      <KpiObjectifMensuel valeur={nbQualifieesCeMois} min={OBJECTIF_MENSUEL_MIN} max={OBJECTIF_MENSUEL_MAX} />
 
       {erreur && (
         <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
@@ -189,7 +211,7 @@ export default function Dashboard() {
           bloquer le défilement général de la page. Réservé aux admins :
           l'import en masse est une décision de constitution de pipeline. */}
       {estAdmin && (
-        <div className="mb-6">
+        <div className="mb-4">
           <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
           <ImportLot categories={categories} agents={agents} onImporte={charger} />
         </div>
@@ -224,7 +246,7 @@ export default function Dashboard() {
 
           <DialerPanel entreprises={entreprisesFiltrees} />
 
-          <div className="flex flex-wrap gap-3 mb-6">
+          <div className="flex flex-wrap gap-2 mb-3">
             {ORDRE_STATUTS.map((statut) => (
               <StatCard
                 key={statut}
@@ -236,8 +258,8 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
               Entreprises
               {filtreStatut ? ` — statut : ${filtreStatut}` : ""}
               {filtreCategorie ? ` — secteur filtré` : ""}
@@ -267,7 +289,7 @@ export default function Dashboard() {
                 placeholder="Rechercher (société, SIRET, code postal)…"
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                className="w-72 max-w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                className="w-72 max-w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
               />
             </div>
           </div>
