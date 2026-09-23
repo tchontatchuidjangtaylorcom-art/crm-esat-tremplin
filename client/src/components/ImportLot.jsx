@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api.js";
 
 // Import d'une vague de prospection (Lot 1, Lot 2…), soit à partir d'une
@@ -8,11 +8,12 @@ import { api } from "../api.js";
 // server/src/insee.js sur pourquoi ce n'est pas un modèle de langage qui
 // choisit les entreprises). Replié par défaut pour ne pas surcharger le
 // tableau de bord.
-export default function ImportLot({ categories, onImporte }) {
+export default function ImportLot({ categories, agents, onImporte }) {
   const [ouvert, setOuvert] = useState(false);
   const [mode, setMode] = useState("siren");
   const [lot, setLot] = useState("");
   const [sirensTexte, setSirensTexte] = useState("");
+  const [assigneA, setAssigneA] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [resultat, setResultat] = useState(null);
   const [erreur, setErreur] = useState(null);
@@ -37,7 +38,7 @@ export default function ImportLot({ categories, onImporte }) {
     setErreur(null);
     setResultat(null);
     try {
-      const reponse = await api.importerLot(lot.trim(), sirens);
+      const reponse = await api.importerLot(lot.trim(), sirens, assigneA || null);
       setResultat(reponse.resultats);
       onImporte?.();
       setSirensTexte("");
@@ -64,89 +65,117 @@ export default function ImportLot({ categories, onImporte }) {
       </button>
 
       {ouvert && (
-        <div className="px-4 pb-1 flex gap-1 text-xs">
-          <button
-            onClick={() => setMode("siren")}
-            className={`px-3 py-1.5 rounded-t-lg font-medium ${
-              mode === "siren"
-                ? "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100"
-                : "text-slate-400 dark:text-slate-500 hover:text-slate-600"
-            }`}
-          >
-            Par liste de SIREN
-          </button>
-          <button
-            onClick={() => setMode("secteur")}
-            className={`px-3 py-1.5 rounded-t-lg font-medium ${
-              mode === "secteur"
-                ? "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100"
-                : "text-slate-400 dark:text-slate-500 hover:text-slate-600"
-            }`}
-          >
-            🔎 Générer par secteur
-          </button>
-        </div>
-      )}
+        // Conteneur défilable indépendant : même avec un aperçu de vague
+        // long ou beaucoup de résultats, ce bloc scrolle en interne au lieu
+        // de pousser indéfiniment la hauteur de la page (et n'est plus
+        // imbriqué dans la barre latérale "sticky", qui bloquait le défilement).
+        <div className="max-h-[70vh] overflow-y-auto">
+          <div className="px-4 pb-1 flex gap-1 text-xs">
+            <button
+              onClick={() => setMode("siren")}
+              className={`px-3 py-1.5 rounded-t-lg font-medium ${
+                mode === "siren"
+                  ? "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100"
+                  : "text-slate-400 dark:text-slate-500 hover:text-slate-600"
+              }`}
+            >
+              Par liste de SIREN
+            </button>
+            <button
+              onClick={() => setMode("secteur")}
+              className={`px-3 py-1.5 rounded-t-lg font-medium ${
+                mode === "secteur"
+                  ? "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100"
+                  : "text-slate-400 dark:text-slate-500 hover:text-slate-600"
+              }`}
+            >
+              🔎 Générer par secteur
+            </button>
+          </div>
 
-      {ouvert && mode === "secteur" && <GenererVagueSecteur categories={categories} onImporte={onImporte} />}
-
-      {ouvert && mode === "siren" && (
-        <form onSubmit={soumettre} className="px-4 pb-4 space-y-3">
-          <label className="block text-xs text-slate-500 dark:text-slate-400">
-            Nom du lot
-            <input
-              type="text"
-              placeholder="Ex : Lot 3 — Octobre"
-              value={lot}
-              onChange={(e) => setLot(e.target.value)}
-              className="mt-1 w-full max-w-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
-            />
-          </label>
-
-          <label className="block text-xs text-slate-500 dark:text-slate-400">
-            Liste de SIREN (un par ligne, jusqu'à 100)
-            <textarea
-              value={sirensTexte}
-              onChange={(e) => setSirensTexte(e.target.value)}
-              placeholder={"552100554\n214401093\n..."}
-              rows={5}
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm font-mono"
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={enCours}
-            className="rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
-          >
-            {enCours ? "Import en cours…" : "Importer le lot"}
-          </button>
-
-          {erreur && <p className="text-sm text-red-600 dark:text-red-400">{erreur}</p>}
-
-          {resultat && (
-            <div className="text-sm text-slate-600 dark:text-slate-300 space-y-2">
-              <p>
-                {compteurs.cree || 0} créé{(compteurs.cree || 0) > 1 ? "s" : ""} ·{" "}
-                {compteurs.existant || 0} déjà existant{(compteurs.existant || 0) > 1 ? "s" : ""} ·{" "}
-                {compteurs.radiee || 0} radié{(compteurs.radiee || 0) > 1 ? "s" : ""} (archivé
-                {(compteurs.radiee || 0) > 1 ? "s" : ""}) · {compteurs.erreur || 0} erreur
-                {(compteurs.erreur || 0) > 1 ? "s" : ""}
-              </p>
-              {compteurs.erreur > 0 && (
-                <ul className="text-xs text-red-600 dark:text-red-400 list-disc list-inside">
-                  {resultat
-                    .filter((r) => r.statut === "erreur")
-                    .map((r) => (
-                      <li key={r.siren}>
-                        {r.siren} : {r.erreur}
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
+          {mode === "secteur" && (
+            <GenererVagueSecteur categories={categories} agents={agents} onImporte={onImporte} />
           )}
-        </form>
+
+          {mode === "siren" && (
+            <form onSubmit={soumettre} className="px-4 pb-4 space-y-3">
+              <div className="flex flex-wrap gap-3">
+                <label className="block text-xs text-slate-500 dark:text-slate-400">
+                  Nom du lot
+                  <input
+                    type="text"
+                    placeholder="Ex : Lot 3 — Octobre"
+                    value={lot}
+                    onChange={(e) => setLot(e.target.value)}
+                    className="mt-1 w-full max-w-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+                  />
+                </label>
+
+                {agents?.length > 0 && (
+                  <label className="block text-xs text-slate-500 dark:text-slate-400">
+                    Assigner à (optionnel)
+                    <select
+                      value={assigneA}
+                      onChange={(e) => setAssigneA(e.target.value)}
+                      className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+                    >
+                      <option value="">Non assigné (à distribuer plus tard)</option>
+                      {agents.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.prenom || a.email}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+
+              <label className="block text-xs text-slate-500 dark:text-slate-400">
+                Liste de SIREN (un par ligne, jusqu'à 100)
+                <textarea
+                  value={sirensTexte}
+                  onChange={(e) => setSirensTexte(e.target.value)}
+                  placeholder={"552100554\n214401093\n..."}
+                  rows={5}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm font-mono"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={enCours}
+                className="rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
+              >
+                {enCours ? "Import en cours…" : "Importer le lot"}
+              </button>
+
+              {erreur && <p className="text-sm text-red-600 dark:text-red-400">{erreur}</p>}
+
+              {resultat && (
+                <div className="text-sm text-slate-600 dark:text-slate-300 space-y-2">
+                  <p>
+                    {compteurs.cree || 0} créé{(compteurs.cree || 0) > 1 ? "s" : ""} ·{" "}
+                    {compteurs.existant || 0} déjà existant{(compteurs.existant || 0) > 1 ? "s" : ""} ·{" "}
+                    {compteurs.radiee || 0} radié{(compteurs.radiee || 0) > 1 ? "s" : ""} (archivé
+                    {(compteurs.radiee || 0) > 1 ? "s" : ""}) · {compteurs.erreur || 0} erreur
+                    {(compteurs.erreur || 0) > 1 ? "s" : ""}
+                  </p>
+                  {compteurs.erreur > 0 && (
+                    <ul className="text-xs text-red-600 dark:text-red-400 list-disc list-inside">
+                      {resultat
+                        .filter((r) => r.statut === "erreur")
+                        .map((r) => (
+                          <li key={r.siren}>
+                            {r.siren} : {r.erreur}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </form>
+          )}
+        </div>
       )}
     </div>
   );
@@ -159,11 +188,14 @@ const TAILLE_MAX_APPEL = 100; // même limite anti-abus que l'import manuel (voi
 // server/src/insee.js pour le détail (délibérément pas une liste inventée
 // par un modèle de langage). Prévisualisation obligatoire avant import :
 // l'agent voit le nombre et un échantillon avant de créer quoi que ce soit.
-function GenererVagueSecteur({ categories, onImporte }) {
+function GenererVagueSecteur({ categories, agents, onImporte }) {
   const [categorie, setCategorie] = useState("");
   const [departement, setDepartement] = useState("");
   const [quantite, setQuantite] = useState(100);
   const [lot, setLot] = useState("");
+  const [assigneA, setAssigneA] = useState("");
+  const [rechercheTelephoneIA, setRechercheTelephoneIA] = useState(true);
+  const [iaConfiguree, setIaConfiguree] = useState(null);
 
   const [enRecherche, setEnRecherche] = useState(false);
   const [apercu, setApercu] = useState(null);
@@ -172,8 +204,16 @@ function GenererVagueSecteur({ categories, onImporte }) {
   const [enImport, setEnImport] = useState(false);
   const [progressionImport, setProgressionImport] = useState(null);
   const [resultatImport, setResultatImport] = useState(null);
+  const [dernierImportAvecIa, setDernierImportAvecIa] = useState(false);
 
   const categoriesChoisissables = (categories || []).filter((c) => c.value !== "autre");
+
+  useEffect(() => {
+    api
+      .getStatutIA()
+      .then((r) => setIaConfiguree(r.configuree))
+      .catch(() => setIaConfiguree(false));
+  }, []);
 
   async function rechercher(ev) {
     ev.preventDefault();
@@ -207,12 +247,20 @@ function GenererVagueSecteur({ categories, onImporte }) {
 
     const sirens = apercu.entreprises.map((e) => e.siren);
     const tousResultats = [];
+    let avecIa = false;
     for (let i = 0; i < sirens.length; i += TAILLE_MAX_APPEL) {
       const morceau = sirens.slice(i, i + TAILLE_MAX_APPEL);
       setProgressionImport(`${tousResultats.length} / ${sirens.length}…`);
       try {
-        const reponse = await api.importerProspectsParSecteur(categorie, lot.trim(), morceau);
+        const reponse = await api.importerProspectsParSecteur(
+          categorie,
+          lot.trim(),
+          morceau,
+          assigneA || null,
+          rechercheTelephoneIA
+        );
         tousResultats.push(...reponse.resultats);
+        avecIa = avecIa || reponse.enrichissementTelephoneIA;
       } catch (e) {
         setErreur(e.message);
         break;
@@ -220,6 +268,7 @@ function GenererVagueSecteur({ categories, onImporte }) {
     }
     setProgressionImport(null);
     setResultatImport(tousResultats);
+    setDernierImportAvecIa(avecIa);
     setApercu(null);
     onImporte?.();
     setEnImport(false);
@@ -304,6 +353,27 @@ function GenererVagueSecteur({ categories, onImporte }) {
                 {apercu.total > 15 && <li>… et {apercu.total - 15} de plus.</li>}
               </ul>
 
+              <label
+                className={`flex items-center gap-2 text-xs ${
+                  iaConfiguree === false ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-300"
+                }`}
+                title={
+                  iaConfiguree === false
+                    ? "Recherche IA non configurée côté serveur (GEMINI_API_KEY manquante)."
+                    : undefined
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={rechercheTelephoneIA && iaConfiguree !== false}
+                  disabled={iaConfiguree === false}
+                  onChange={(e) => setRechercheTelephoneIA(e.target.checked)}
+                  className="rounded border-slate-300 dark:border-slate-600"
+                />
+                🤖 Rechercher automatiquement le téléphone officiel de chaque entreprise via IA (Gemini) après
+                l'import, pour des fiches prêtes au Power Dialer
+              </label>
+
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="text"
@@ -312,6 +382,20 @@ function GenererVagueSecteur({ categories, onImporte }) {
                   onChange={(e) => setLot(e.target.value)}
                   className="flex-1 min-w-[220px] rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
                 />
+                {agents?.length > 0 && (
+                  <select
+                    value={assigneA}
+                    onChange={(e) => setAssigneA(e.target.value)}
+                    className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-2 text-sm"
+                  >
+                    <option value="">Non assigné</option>
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.prenom || a.email}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <button
                   onClick={importer}
                   disabled={enImport || !lot.trim()}
@@ -332,6 +416,12 @@ function GenererVagueSecteur({ categories, onImporte }) {
           {compteursImport.radiee || 0} radié{(compteursImport.radiee || 0) > 1 ? "s" : ""} ·{" "}
           {compteursImport.erreur || 0} erreur{(compteursImport.erreur || 0) > 1 ? "s" : ""} — catégorie assignée
           automatiquement, à vérifier au premier appel.
+          {dernierImportAvecIa && (
+            <>
+              {" "}🤖 Recherche des numéros de téléphone via IA lancée en arrière-plan — les fiches se complètent
+              progressivement, actualisez la liste dans quelques instants.
+            </>
+          )}
         </p>
       )}
     </div>

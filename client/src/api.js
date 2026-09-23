@@ -13,6 +13,8 @@ export const api = {
 
   listCategories: () => fetch(`${BASE}/categories`).then(handle),
 
+  getStatutIA: () => fetch(`${BASE}/ia/statut`).then(handle),
+
   getEntreprise: (id) => fetch(`${BASE}/entreprises/${id}`).then(handle),
 
   patchEntreprise: (id, data) =>
@@ -50,11 +52,11 @@ export const api = {
       body: JSON.stringify({ siren, lot: lot || null }),
     }).then(handle),
 
-  importerLot: (lot, sirens) =>
+  importerLot: (lot, sirens, assigneA) =>
     fetch(`${BASE}/leads/siren/lot`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lot, sirens }),
+      body: JSON.stringify({ lot, sirens, assigneA: assigneA || null }),
     }).then(handle),
 
   rechercherProspectsParSecteur: (categorie, { departement, limite } = {}) =>
@@ -64,16 +66,30 @@ export const api = {
       body: JSON.stringify({ categorie, departement: departement || null, limite }),
     }).then(handle),
 
-  importerProspectsParSecteur: (categorie, lot, sirens) =>
+  importerProspectsParSecteur: (categorie, lot, sirens, assigneA, rechercheTelephoneIA = true) =>
     fetch(`${BASE}/leads/secteur/importer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categorie, lot, sirens }),
+      body: JSON.stringify({ categorie, lot, sirens, assigneA: assigneA || null, rechercheTelephoneIA }),
     }).then(handle),
 
   listLots: () => fetch(`${BASE}/lots`).then(handle),
 
   listArchives: () => fetch(`${BASE}/archives`).then(handle),
+
+  assignerEntreprise: (id, utilisateurId) =>
+    fetch(`${BASE}/entreprises/${id}/assigner`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ utilisateurId: utilisateurId || null }),
+    }).then(handle),
+
+  assignerLot: (lot, utilisateurId) =>
+    fetch(`${BASE}/lots/${encodeURIComponent(lot)}/assigner`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ utilisateurId: utilisateurId || null }),
+    }).then(handle),
 
   signalerTelephoneInvalide: (id) =>
     fetch(`${BASE}/entreprises/${id}/telephone-invalide`, { method: "POST" }).then(handle),

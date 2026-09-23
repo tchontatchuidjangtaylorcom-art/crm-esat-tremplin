@@ -111,6 +111,7 @@ function archiver(entreprise) {
 // Ajoute les champs calculés (obligation OETH, catégorie de secteur) sans les
 // persister : ils sont toujours recalculés à partir des données brutes.
 function enrichir(entreprise) {
+  const assigne = entreprise.assigneA ? trouverUtilisateurParId(entreprise.assigneA) : null;
   return {
     ...entreprise,
     emails: entreprise.emails || [],
@@ -121,7 +122,27 @@ function enrichir(entreprise) {
     }),
     collecteur: determinerCollecteur(entreprise),
     ligneBareme: trouverLigneBareme(entreprise.effectif),
+    assigneANom: assigne ? assigne.prenom || assigne.email : null,
   };
+}
+
+// Un agent ne voit/traite que les dossiers qui lui sont assignés ;
+// l'administrateur garde une vue et un accès globaux sur tout le pipeline.
+function estVisiblePar(entreprise, utilisateur) {
+  return utilisateur.role === "admin" || entreprise.assigneA === utilisateur.id;
+}
+
+// Attache req.entreprise si elle existe ET est visible par l'utilisateur
+// connecté, sinon répond 404 (dossier introuvable) ou 403 (existe mais pas
+// assigné à cet agent) — utilisé par toutes les routes /api/entreprises/:id/*.
+function chargerEntrepriseAutorisee(req, res, next) {
+  const entreprise = findEntreprise(req.params.id);
+  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+  if (!estVisiblePar(entreprise, req.utilisateur)) {
+    return res.status(403).json({ error: "Ce dossier est assigné à un autre agent." });
+  }
+  req.entreprise = entreprise;
+  next();
 }
 
 // Retrouve l'entreprise (active ou archivée) dont l'adresse mail de contact
@@ -247,6 +268,13 @@ app.get("/api/categories", (req, res) => {
   res.json(listerCategories());
 });
 
+// Indique si la recherche IA (Gemini) est configurée, pour afficher/masquer
+// côté frontend l'option d'enrichissement automatique du téléphone à
+// l'import par secteur (voir plus bas) et l'espace IA de la fiche entreprise.
+app.get("/api/ia/statut", (req, res) => {
+  res.json({ configuree: estRechercheIaConfiguree() });
+});
+
 // Aide-mémoire agent (affiche officielle du pôle AGEFIPH) : argumentaire,
 // dates clés et barème des unités bénéficiaires — contenu statique partagé
 // par le tiroir d'aide et la fiche entreprise.
@@ -264,24 +292,28 @@ app.get("/api/modeles-mails", (req, res) => {
   res.json(getModelesMails());
 });
 
-app.get("/api/entreprises", (req, res) => {
-  res.json(db.data.entreprises.map(enrichir));
+// Vue filtrée par rôle : un agent ne reçoit que ses dossiers assignés,
+// l'administrateur reçoit tout le pipeline (voir estVisiblePar ci-dessus).
+app.get("/api/entreprises", exigerAuth, (req, res) => {
+  const visibles = db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur));
+  res.json(visibles.map(enrichir));
 });
 
-app.get("/api/entreprises/:id", (req, res) => {
-  const entreprise = findEntreprise(req.params.id);
-  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
-  res.json(enrichir(entreprise));
+app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, (req, res) => {
+  res.json(enrichir(req.entreprise));
 });
 
 // Dossiers "mort" archivés automatiquement (consultation seule, hors pipeline actif).
-app.get("/api/archives", (req, res) => {
-  res.json(db.data.archives.map(enrichir));
+app.get("/api/archives", exigerAuth, (req, res) => {
+  const visibles = db.data.archives.filter((e) => estVisiblePar(e, req.utilisateur));
+  res.json(visibles.map(enrichir));
 });
 
-// Vagues de prospection (lots) déjà utilisées, pour alimenter le filtre du tableau de bord.
-app.get("/api/lots", (req, res) => {
-  const lots = new Set(db.data.entreprises.map((e) => e.lot).filter(Boolean));
+// Vagues de prospection (lots) déjà utilisées, pour alimenter le filtre du
+// tableau de bord — limité aux dossiers visibles par l'utilisateur connecté.
+app.get("/api/lots", exigerAuth, (req, res) => {
+  const visibles = db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur));
+  const lots = new Set(visibles.map((e) => e.lot).filter(Boolean));
   res.json([...lots].sort());
 });
 
@@ -289,7 +321,7 @@ app.get("/api/lots", (req, res) => {
 // enrichissement INSEE, classification public/privé, et purge immédiate en
 // archives si l'entreprise est déjà radiée. Réutilisée par la recherche unitaire
 // et par l'import par lot.
-async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null } = {}) {
+async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null, assigneA = null, utilisateur } = {}) {
   if (!estSirenValide(siren)) {
     const erreur = new Error("SIREN invalide (9 chiffres attendus, clé de contrôle incorrecte).");
     erreur.code = "SIREN_INVALIDE";
@@ -298,6 +330,12 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null 
 
   const existante = estDejaConnu(siren);
   if (existante) {
+    // Le SIREN existe déjà dans le CRM mais est assigné à un autre agent :
+    // on confirme juste la duplication, sans exposer ses données (contact,
+    // historique...) à quelqu'un qui n'y a pas accès.
+    if (utilisateur && !estVisiblePar(existante, utilisateur)) {
+      return { existant: true, archive: !db.data.entreprises.includes(existante), entreprise: null };
+    }
     return { existant: true, archive: !db.data.entreprises.includes(existante), entreprise: enrichir(existante) };
   }
 
@@ -314,6 +352,7 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null 
     secteurActivite: donnees.secteurActivite,
     secteurPublic: donnees.secteurPublic,
     categorieForcee,
+    assigneA,
     dateCreation: null,
     effectif: donnees.effectifEstime,
     effectifBeneficiaire: 0,
@@ -354,10 +393,16 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null 
 
 // Module d'automatisation des leads par SIREN : déduplication, puis
 // enrichissement + qualification automatique via le répertoire Sirene (INSEE).
-app.post("/api/leads/siren", async (req, res) => {
+// Recherche ponctuelle et personnelle (l'agent est en train de qualifier ce
+// prospect) : assignée directement à qui la déclenche, admin ou agent.
+app.post("/api/leads/siren", exigerAuth, async (req, res) => {
   const siren = String(req.body.siren || "").replace(/\s/g, "");
   try {
-    const resultat = await creerLeadDepuisSiren(siren, { lot: req.body.lot || null });
+    const resultat = await creerLeadDepuisSiren(siren, {
+      lot: req.body.lot || null,
+      assigneA: req.utilisateur.id,
+      utilisateur: req.utilisateur,
+    });
     res.status(resultat.existant ? 200 : 201).json(resultat);
   } catch (e) {
     const statutHttp = e.code === "SIREN_INVALIDE" ? 400 : e.code === "SIREN_INTROUVABLE" ? 404 : 502;
@@ -366,10 +411,15 @@ app.post("/api/leads/siren", async (req, res) => {
 });
 
 // Import d'une vague (lot) de SIREN en une fois, pour alimenter la
-// prospection en continu sans surcharger le tableau de bord.
-app.post("/api/leads/siren/lot", async (req, res) => {
+// prospection en continu sans surcharger le tableau de bord. Réservé aux
+// administrateurs : c'est une action de constitution de pipeline, pas une
+// qualification individuelle — les fiches restent non assignées (visibles
+// seulement des admins) jusqu'à distribution explicite à un agent, sauf si
+// `assigneA` est fourni pour assigner la vague dès l'import.
+app.post("/api/leads/siren/lot", exigerAdmin, async (req, res) => {
   const sirens = Array.isArray(req.body.sirens) ? req.body.sirens : [];
   const lot = String(req.body.lot || "").trim();
+  const assigneA = req.body.assigneA || null;
   if (!lot) return res.status(400).json({ error: "Le nom du lot est requis." });
   if (sirens.length === 0) return res.status(400).json({ error: "Aucun SIREN fourni." });
   if (sirens.length > 100) return res.status(400).json({ error: "100 SIREN maximum par lot (limite anti-abus de l'API publique)." });
@@ -379,8 +429,8 @@ app.post("/api/leads/siren/lot", async (req, res) => {
     const siren = String(brut || "").replace(/\s/g, "");
     if (!siren) continue;
     try {
-      const { existant, archive, entreprise } = await creerLeadDepuisSiren(siren, { lot });
-      resultats.push({ siren, statut: existant ? "existant" : archive ? "radiee" : "cree", nom: entreprise.nom });
+      const { existant, archive, entreprise } = await creerLeadDepuisSiren(siren, { lot, assigneA, utilisateur: req.utilisateur });
+      resultats.push({ siren, statut: existant ? "existant" : archive ? "radiee" : "cree", nom: entreprise?.nom || "(déjà assigné à un autre agent)" });
     } catch (e) {
       resultats.push({ siren, statut: "erreur", erreur: e.message });
     }
@@ -391,6 +441,46 @@ app.post("/api/leads/siren/lot", async (req, res) => {
   res.status(201).json({ lot, resultats });
 });
 
+// Enrichissement automatique du téléphone via Gemini (recherche web), pour
+// les fiches fraîchement créées par un import par secteur : l'API Sirene ne
+// fournit aucun contact, ce qui laisse jusqu'ici les fiches inexploitables au
+// Power Dialer tant qu'un agent ne les complète pas à la main. Lancé APRÈS
+// l'envoi de la réponse HTTP (voir /api/leads/secteur/importer), sans
+// attendre sa fin : un lot de 100 SIREN à raison de plusieurs secondes par
+// appel Gemini dépasserait largement les délais des proxys si on bloquait la
+// requête d'import dessus. Meilleur effort volontairement silencieux côté
+// résultat d'import : une fiche non enrichie (échec IA, rien trouvé) reste
+// simplement à compléter manuellement comme avant cette fonctionnalité — pas
+// d'écriture de numéro halluciné, rechercherContactAlternatif renvoie déjà
+// null plutôt qu'inventer une valeur.
+async function enrichirTelephonesViaIA(entreprises) {
+  for (const entreprise of entreprises) {
+    try {
+      const resultat = await rechercherContactAlternatif(entreprise);
+      if (resultat.telephone) {
+        entreprise.contact.telephone = resultat.telephone;
+        entreprise.commentaires.unshift({
+          id: nanoid(),
+          date: new Date().toISOString(),
+          auteur: "Assistant IA",
+          texte:
+            `Numéro de téléphone trouvé automatiquement via recherche IA (confiance ${resultat.confiance}` +
+            `${resultat.source ? `, source : ${resultat.source}` : ""})` +
+            `${resultat.contact ? ` — contact suggéré : ${resultat.contact}` : ""}. À vérifier au premier appel.`,
+        });
+        await db.write();
+      }
+    } catch (e) {
+      console.error(
+        `[ia] Échec de recherche automatique de téléphone pour ${entreprise.nom} :`,
+        JSON.stringify(detailErreurIa(e))
+      );
+    }
+    // Petite pause polie entre deux appels à l'API Gemini.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+}
+
 // Génération d'une vague de prospects par secteur : recherche de candidats
 // RÉELS dans le répertoire Sirene (INSEE), filtrés par code NAF (précis —
 // voir la note dans insee.js sur pourquoi une recherche par mots-clés a été
@@ -400,7 +490,7 @@ app.post("/api/leads/siren/lot", async (req, res) => {
 // fictifs utilisés ensuite pour de vrais appels commerciaux. Étape de
 // PRÉVISUALISATION seulement : rien n'est créé en base, voir
 // /api/leads/secteur/importer.
-app.post("/api/leads/secteur/rechercher", async (req, res) => {
+app.post("/api/leads/secteur/rechercher", exigerAdmin, async (req, res) => {
   const cle = String(req.body.categorie || "");
   const categorie = CATEGORIES[cle];
   if (!categorie) return res.status(400).json({ error: "Catégorie inconnue." });
@@ -424,26 +514,40 @@ app.post("/api/leads/secteur/rechercher", async (req, res) => {
 // Importe la vague prévisualisée ci-dessus (liste de SIREN déjà filtrée côté
 // frontend) et assigne directement la catégorie choisie à chaque fiche créée
 // (categorieForcee) — même limite anti-abus que l'import manuel par lot.
-app.post("/api/leads/secteur/importer", async (req, res) => {
+// Réservé aux administrateurs (constitution de pipeline, pas qualification
+// individuelle) ; `assigneA` optionnel pour distribuer la vague dès l'import.
+app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
   const cle = String(req.body.categorie || "");
   const categorie = CATEGORIES[cle];
   if (!categorie) return res.status(400).json({ error: "Catégorie inconnue." });
 
   const sirens = Array.isArray(req.body.sirens) ? req.body.sirens : [];
   const lot = String(req.body.lot || "").trim();
+  const assigneA = req.body.assigneA || null;
   if (!lot) return res.status(400).json({ error: "Le nom du lot est requis." });
   if (sirens.length === 0) return res.status(400).json({ error: "Aucun SIREN fourni." });
   if (sirens.length > 100) {
     return res.status(400).json({ error: "100 SIREN maximum par vague (limite anti-abus de l'API publique)." });
   }
 
+  // rechercheTelephoneIA : option activée par défaut (voir ImportLot.jsx) —
+  // l'agent peut la décocher pour un import purement Sirene, plus rapide.
+  const rechercheTelephoneIA = req.body.rechercheTelephoneIA !== false;
+
   const resultats = [];
+  const creeesPourIa = [];
   for (const brut of sirens) {
     const siren = String(brut || "").replace(/\s/g, "");
     if (!siren) continue;
     try {
-      const { existant, archive, entreprise } = await creerLeadDepuisSiren(siren, { lot, categorieForcee: cle });
-      resultats.push({ siren, statut: existant ? "existant" : archive ? "radiee" : "cree", nom: entreprise.nom });
+      const { existant, archive, entreprise } = await creerLeadDepuisSiren(siren, {
+        lot,
+        categorieForcee: cle,
+        assigneA,
+        utilisateur: req.utilisateur,
+      });
+      resultats.push({ siren, statut: existant ? "existant" : archive ? "radiee" : "cree", nom: entreprise?.nom || "(déjà assigné à un autre agent)" });
+      if (!existant && !archive && entreprise) creeesPourIa.push(entreprise);
     } catch (e) {
       resultats.push({ siren, statut: "erreur", erreur: e.message });
     }
@@ -451,12 +555,20 @@ app.post("/api/leads/secteur/importer", async (req, res) => {
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
-  res.status(201).json({ lot, categorie: cle, resultats });
+  const enrichissementTelephoneIA = rechercheTelephoneIA && estRechercheIaConfiguree() && creeesPourIa.length > 0;
+  res.status(201).json({ lot, categorie: cle, resultats, enrichissementTelephoneIA });
+
+  // Volontairement après res.json ci-dessus et sans await : voir
+  // enrichirTelephonesViaIA pour le détail (ne doit pas bloquer la réponse).
+  if (enrichissementTelephoneIA) {
+    enrichirTelephonesViaIA(creeesPourIa).catch((e) =>
+      console.error("[ia] Échec de l'enrichissement téléphone en lot :", e.message)
+    );
+  }
 });
 
-app.patch("/api/entreprises/:id", async (req, res) => {
-  const entreprise = findEntreprise(req.params.id);
-  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
 
   const champsAutorises = [
     "statut",
@@ -481,10 +593,48 @@ app.patch("/api/entreprises/:id", async (req, res) => {
   res.json(enrichir(entreprise));
 });
 
-// Enregistre une nouvelle issue d'appel (module AGIR) et met à jour le statut
-app.post("/api/entreprises/:id/appels", async (req, res) => {
+// Assignation d'un dossier à un agent — réservé aux administrateurs (une
+// route dédiée plutôt qu'un champ PATCH ouvert : c'est une décision de
+// répartition du pipeline, pas une correction de fiche par l'agent qui la
+// traite). `utilisateurId: null` retire l'assignation ; le dossier redevient
+// alors visible uniquement des admins, en attente de redistribution.
+app.post("/api/entreprises/:id/assigner", exigerAdmin, async (req, res) => {
   const entreprise = findEntreprise(req.params.id);
   if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+
+  const utilisateurId = req.body.utilisateurId || null;
+  if (utilisateurId) {
+    const cible = trouverUtilisateurParId(utilisateurId);
+    if (!cible || cible.statut !== "valide") {
+      return res.status(400).json({ error: "Agent introuvable ou compte non validé." });
+    }
+  }
+  entreprise.assigneA = utilisateurId;
+  await db.write();
+  res.json(enrichir(entreprise));
+});
+
+// Assignation en masse de toute une vague (lot) de prospection à un agent —
+// réservé aux administrateurs. Le nom du lot arrive encodé dans l'URL (les
+// noms de lot contiennent souvent des espaces/tirets).
+app.post("/api/lots/:lot/assigner", exigerAdmin, async (req, res) => {
+  const lot = req.params.lot; // déjà décodé par Express (routing sur path-to-regexp)
+  const utilisateurId = req.body.utilisateurId || null;
+  if (utilisateurId) {
+    const cible = trouverUtilisateurParId(utilisateurId);
+    if (!cible || cible.statut !== "valide") {
+      return res.status(400).json({ error: "Agent introuvable ou compte non validé." });
+    }
+  }
+  const cibles = db.data.entreprises.filter((e) => e.lot === lot);
+  for (const e of cibles) e.assigneA = utilisateurId;
+  await db.write();
+  res.json({ lot, nbAssignees: cibles.length, entreprises: cibles.map(enrichir) });
+});
+
+// Enregistre une nouvelle issue d'appel (module AGIR) et met à jour le statut
+app.post("/api/entreprises/:id/appels", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
 
   const { issue, date, details, dureeSecondes } = req.body;
   if (!ISSUES_APPEL[issue]) {
@@ -512,9 +662,8 @@ app.post("/api/entreprises/:id/appels", async (req, res) => {
 });
 
 // Enregistre une sortie de dossier (Fiche / Fiche one-shot / Mort)
-app.post("/api/entreprises/:id/sortie", async (req, res) => {
-  const entreprise = findEntreprise(req.params.id);
-  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+app.post("/api/entreprises/:id/sortie", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
 
   const { sortie, details, dureeSecondes } = req.body;
   if (!SORTIES_DOSSIER[sortie]) {
@@ -545,9 +694,8 @@ app.post("/api/entreprises/:id/sortie", async (req, res) => {
 });
 
 // Ajoute un commentaire libre (messagerie / historique)
-app.post("/api/entreprises/:id/commentaires", async (req, res) => {
-  const entreprise = findEntreprise(req.params.id);
-  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+app.post("/api/entreprises/:id/commentaires", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
 
   const { texte, auteur } = req.body;
   if (!texte || !texte.trim()) {
@@ -571,9 +719,8 @@ app.post("/api/entreprises/:id/commentaires", async (req, res) => {
 // configurée, l'assistant ne devine pas un numéro : il flague le contact et
 // journalise l'anomalie, pendant que le frontend propose des pistes de
 // recherche externes prêtes à cliquer.
-app.post("/api/entreprises/:id/telephone-invalide", async (req, res) => {
-  const entreprise = findEntreprise(req.params.id);
-  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+app.post("/api/entreprises/:id/telephone-invalide", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
 
   const ancienNumero = entreprise.contact?.telephone || "(aucun)";
   entreprise.contact = { ...entreprise.contact, telephoneInvalide: true };
@@ -598,9 +745,8 @@ app.post("/api/entreprises/:id/telephone-invalide", async (req, res) => {
 // écrit en base ici, l'agent doit valider via le formulaire existant
 // (numéro : POST .../telephone-invalide puis PATCH ; catégorie : PATCH
 // categorieForcee) avant que ça n'affecte la fiche.
-app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, async (req, res) => {
-  const entreprise = findEntreprise(req.params.id);
-  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
 
   if (!estRechercheIaConfiguree()) {
     return res.status(503).json({ error: "Recherche IA non configurée (renseignez GEMINI_API_KEY)." });
@@ -641,11 +787,13 @@ app.get("/api/emails/statut", (req, res) => {
 });
 
 // Notification globale (nombre de mails non lus par entreprise), pour
-// afficher un badge/pop-up dans le CRM sans avoir à ouvrir chaque fiche.
-app.get("/api/emails/non-lus", (req, res) => {
+// afficher un badge/pop-up dans le CRM sans avoir à ouvrir chaque fiche —
+// limitée aux dossiers visibles par l'utilisateur connecté.
+app.get("/api/emails/non-lus", exigerAuth, (req, res) => {
   const parEntreprise = [];
   let total = 0;
   for (const e of db.data.entreprises) {
+    if (!estVisiblePar(e, req.utilisateur)) continue;
     const nonLus = (e.emails || []).filter((m) => m.direction === "recu" && !m.lu).length;
     if (nonLus > 0) {
       parEntreprise.push({ id: e.id, nom: e.nom, count: nonLus });
@@ -656,9 +804,8 @@ app.get("/api/emails/non-lus", (req, res) => {
 });
 
 // Marque comme lus tous les mails reçus d'une entreprise (à l'ouverture du fil).
-app.post("/api/entreprises/:id/emails/lu", async (req, res) => {
-  const entreprise = findEntreprise(req.params.id);
-  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
   for (const m of entreprise.emails || []) {
     if (m.direction === "recu") m.lu = true;
   }
@@ -668,9 +815,8 @@ app.post("/api/entreprises/:id/emails/lu", async (req, res) => {
 
 // Envoie un mail réel au contact de l'entreprise (signé Pôle OETH/AGEFIPH) et
 // journalise l'envoi dans son fil de messagerie.
-app.post("/api/entreprises/:id/emails/envoyer", async (req, res) => {
-  const entreprise = findEntreprise(req.params.id);
-  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
 
   const { objet, corps } = req.body;
   if (!objet?.trim() || !corps?.trim()) {
