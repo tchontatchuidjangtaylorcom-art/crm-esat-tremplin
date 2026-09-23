@@ -85,7 +85,7 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
       <button
         onClick={lancer}
         disabled={statut?.enCours}
-        className="rounded-lg bg-purple-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
+        className="rounded-lg bg-marine-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
       >
         {statut?.enCours ? "Enrichissement…" : "🤖 Lancer l'enrichissement Gemini des numéros manquants"}
       </button>

@@ -1,7 +1,7 @@
 function itemClasse(actif) {
   return `w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-sm text-left transition ${
     actif
-      ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-medium"
+      ? "bg-marine-800 dark:bg-marine-100 text-white dark:text-marine-900 font-medium"
       : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
   }`;
 }

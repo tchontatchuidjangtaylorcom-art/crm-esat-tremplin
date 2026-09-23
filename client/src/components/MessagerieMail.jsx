@@ -85,7 +85,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           <span>{toastEnvoi}</span>
         </div>
       )}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
       <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Boîte mail — Pôle OETH/AGEFIPH</h2>
       <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
         {entreprise.contact?.email
@@ -107,7 +107,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             className={`rounded-lg p-3 text-sm ${
               m.direction === "recu"
                 ? "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
-                : "bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40"
+                : "bg-marine-50 dark:bg-marine-950/30 border border-marine-100 dark:border-marine-900/40"
             }`}
           >
             <div className="flex items-center justify-between mb-1">
@@ -133,7 +133,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       </ul>
 
       {entreprise.contact?.email && (
-        <form onSubmit={envoyer} className="space-y-2 pt-3 border-t border-purple-100 dark:border-purple-900/30">
+        <form onSubmit={envoyer} className="space-y-2 pt-3 border-t border-marine-100 dark:border-marine-900/30">
           {modeles?.modeles?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1">
               {modeles.modeles.map((m) => (
@@ -170,7 +170,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           <button
             type="submit"
             disabled={!objet.trim() || !corps.trim() || envoiEnCours || statutMail?.configuree === false}
-            className="rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
+            className="rounded-lg bg-marine-600 hover:bg-marine-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
             {envoiEnCours
               ? "Envoi…"

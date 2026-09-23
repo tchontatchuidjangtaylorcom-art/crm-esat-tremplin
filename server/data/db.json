@@ -262,5 +262,37 @@
     }
   ],
   "archives": [],
-  "utilisateurs": []
+  "utilisateurs": [
+    {
+      "id": "bL8lO_Erbdjbx7qRIzKIG",
+      "email": "pdf-test-admin@example.com",
+      "prenom": "",
+      "nom": "",
+      "role": "admin",
+      "statut": "refuse",
+      "dateCreation": "2026-09-23T18:08:40.280Z",
+      "dateValidation": "2026-09-23T18:08:40.280Z"
+    },
+    {
+      "id": "WbxIfsSKFjuAckJIwoijx",
+      "email": "fiche-test-admin@example.com",
+      "prenom": "",
+      "nom": "",
+      "role": "agent",
+      "statut": "en_attente",
+      "dateCreation": "2026-09-23T18:27:13.816Z",
+      "dateValidation": null
+    }
+  ],
+  "canaux": [
+    {
+      "id": "general",
+      "type": "general",
+      "nom": "Infos Générales",
+      "membres": null,
+      "createurId": null,
+      "dateCreation": "2026-09-23T18:19:19.271Z"
+    }
+  ],
+  "messages": []
 }

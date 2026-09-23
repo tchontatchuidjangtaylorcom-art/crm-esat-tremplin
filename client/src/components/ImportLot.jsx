@@ -326,7 +326,7 @@ function GenererVagueSecteur({ categories, agents, onImporte }) {
         <button
           type="submit"
           disabled={!categorie || enRecherche}
-          className="rounded-lg bg-purple-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
+          className="rounded-lg bg-marine-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
         >
           {enRecherche ? "Recherche…" : "Rechercher des candidats"}
         </button>
@@ -335,7 +335,7 @@ function GenererVagueSecteur({ categories, agents, onImporte }) {
       {erreur && <p className="text-sm text-red-600 dark:text-red-400">{erreur}</p>}
 
       {apercu && (
-        <div className="space-y-3 border border-purple-200 dark:border-purple-900/50 rounded-lg p-3">
+        <div className="space-y-3 border border-marine-200 dark:border-marine-900/50 rounded-lg p-3">
           <p className="text-sm text-slate-700 dark:text-slate-200">
             <strong>{apercu.total}</strong> entreprise{apercu.total > 1 ? "s" : ""} trouvée
             {apercu.total > 1 ? "s" : ""} pour « {apercu.categorieLabel} »

@@ -3,7 +3,7 @@
 // entreprise (mise en avant contextuelle selon l'effectif du prospect en
 // cours d'appel). Séparateurs violets (couleur associée à l'AGEFIPH) entre
 // les sections, pour bien les distinguer d'un coup d'œil.
-const SECTION = "py-4 first:pt-0 border-t border-purple-100 dark:border-purple-900/30 first:border-t-0";
+const SECTION = "py-4 first:pt-0 border-t border-marine-100 dark:border-marine-900/30 first:border-t-0";
 
 export default function ArgumentaireContenu({ data, ligneSurlignee, compact = false }) {
   if (!data) {
@@ -68,7 +68,7 @@ export default function ArgumentaireContenu({ data, ligneSurlignee, compact = fa
       {!compact && (
         <div className={SECTION}>
           <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Chronologie & dates clés</h3>
-          <ul className="space-y-2 border-l-2 border-purple-200 dark:border-purple-900 pl-3">
+          <ul className="space-y-2 border-l-2 border-marine-200 dark:border-marine-900 pl-3">
             {data.chronologie.map((c, i) => (
               <li key={i}>
                 <span className="inline-block text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 rounded px-1.5 py-0.5 mr-1.5">

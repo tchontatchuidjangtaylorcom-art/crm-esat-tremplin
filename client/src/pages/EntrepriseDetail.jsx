@@ -436,7 +436,7 @@ export default function EntrepriseDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Colonne informations structure */}
         <section className="lg:col-span-1 space-y-6 h-fit">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Informations structure</h2>
             <dl className="space-y-3 text-sm">
               <Info label="SIRET" value={entreprise.siret} />
@@ -461,7 +461,7 @@ export default function EntrepriseDetail() {
               />
             </dl>
 
-            <div className="mt-4 pt-4 border-t border-purple-100 dark:border-purple-900/30">
+            <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
               <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
                 Échéance / prochaine relance
               </p>
@@ -494,7 +494,7 @@ export default function EntrepriseDetail() {
               </form>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-purple-100 dark:border-purple-900/30">
+            <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
               <label className="block text-xs text-slate-500 dark:text-slate-400 mb-2">
                 Secteur public (relève du FIPHFP) ?
                 <select
@@ -518,7 +518,7 @@ export default function EntrepriseDetail() {
               </span>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-purple-100 dark:border-purple-900/30">
+            <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
               <form onSubmit={soumettreDateCreation} className="flex items-end gap-2 mb-3">
                 <label className="text-xs text-slate-500 dark:text-slate-400 flex-1">
                   Date de création
@@ -558,7 +558,7 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Classification secteur + argumentaire */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Catégorie & argumentaire</h2>
             <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 mb-3">
               {categorie?.label}
@@ -574,7 +574,7 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Obligation OETH */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Obligation OETH</h2>
 
             <form onSubmit={soumettreEffectifs} className="grid grid-cols-2 gap-3 mb-4">
@@ -746,7 +746,7 @@ export default function EntrepriseDetail() {
                     )}
                   </div>
                 )}
-                <div className="pt-2 border-t border-purple-100 dark:border-purple-900/30">
+                <div className="pt-2 border-t border-marine-100 dark:border-marine-900/30">
                   <Info label="Montant estimé" value={<strong>{formatMontant(oeth.montantEstime)}</strong>} />
                 </div>
               </dl>
@@ -756,7 +756,7 @@ export default function EntrepriseDetail() {
 
         {/* Colonne module AGIR + messagerie */}
         <section className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Module AGIR</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -842,7 +842,7 @@ export default function EntrepriseDetail() {
           </div>
 
           {/* Espace IA : contact alternatif en cas de numéro invalide */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Espace IA — Contact alternatif</h2>
 
             {!entreprise.contact?.telephoneInvalide ? (
@@ -869,7 +869,7 @@ export default function EntrepriseDetail() {
                   <button
                     onClick={rechercherContactIa}
                     disabled={rechercheIaEnCours}
-                    className="rounded-lg bg-purple-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
+                    className="rounded-lg bg-marine-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
                   >
                     {rechercheIaEnCours ? "Recherche en cours…" : "🔎 Rechercher via IA"}
                   </button>
@@ -985,7 +985,7 @@ export default function EntrepriseDetail() {
           <MessagerieMail entreprise={entreprise} onMaj={setEntreprise} />
 
           {/* Messagerie / historique */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Messagerie & historique</h2>
 
             <form onSubmit={soumettreCommentaire} className="flex gap-2 mb-4">

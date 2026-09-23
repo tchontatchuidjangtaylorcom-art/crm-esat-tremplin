@@ -95,11 +95,20 @@ export default function Connexion() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 p-6">
-      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 space-y-6">
-        <div className="text-center">
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">CRM OETH / AGEFIPH</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Lien de connexion ou mot de passe</p>
+      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="bandeau-tricolore">
+          <span className="bg-marine-800" />
+          <span className="bg-white" />
+          <span className="bg-red-700" />
         </div>
+        <div className="p-8 space-y-6">
+          <div className="text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-marine-700 dark:text-marine-300 mb-1">
+              Portail Opérationnel OETH
+            </p>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">CRM OETH / AGEFIPH</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Lien de connexion ou mot de passe</p>
+          </div>
 
         {erreur && (
           <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg p-3">
@@ -158,7 +167,7 @@ export default function Connexion() {
           <button
             type="submit"
             disabled={envoiEnCours || !email.trim()}
-            className="w-full rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium py-2.5 disabled:opacity-40"
+            className="w-full rounded-lg bg-marine-800 hover:bg-marine-900 dark:bg-marine-200 dark:hover:bg-marine-300 dark:text-marine-900 text-white text-sm font-medium py-2.5 disabled:opacity-40 transition"
           >
             {envoiEnCours ? "Connexion…" : motDePasse ? "Se connecter" : "Recevoir un lien de connexion"}
           </button>
@@ -175,9 +184,10 @@ export default function Connexion() {
           </>
         )}
 
-        <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
-          Premier accès ? Votre demande sera transmise à l'administrateur pour validation.
-        </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
+            Premier accès ? Votre demande sera transmise à l'administrateur pour validation.
+          </p>
+        </div>
       </div>
     </div>
   );

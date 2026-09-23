@@ -36,7 +36,7 @@ export default function ScriptVenteContenu() {
               ) : (
                 <p
                   key={i}
-                  className="text-slate-700 dark:text-slate-200 leading-relaxed bg-slate-50 dark:bg-slate-900 border-l-2 border-purple-300 dark:border-purple-800 rounded-r-md px-3 py-2"
+                  className="text-slate-700 dark:text-slate-200 leading-relaxed bg-slate-50 dark:bg-slate-900 border-l-2 border-marine-300 dark:border-marine-800 rounded-r-md px-3 py-2"
                 >
                   {personnaliser(l.texte)}
                 </p>

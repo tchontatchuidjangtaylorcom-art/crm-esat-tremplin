@@ -34,11 +34,16 @@ export default function OutilsVenteLayout({ children }) {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <div className="bandeau-tricolore">
+        <span className="bg-marine-800" />
+        <span className="bg-white" />
+        <span className="bg-red-700" />
+      </div>
       <BarreOutilsVente outilActif={outil} onSelect={selectionner} />
       <div className="flex flex-1 flex-col lg:flex-row items-stretch">
         <div className="flex-1 min-w-0">{children}</div>
         {outil && (
-          <aside className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l-2 border-purple-200 dark:border-purple-900/50 bg-white dark:bg-slate-900 overflow-y-auto">
+          <aside className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l-2 border-marine-200 dark:border-marine-800/60 bg-white dark:bg-slate-900 overflow-y-auto">
             <PanelOutilsVente outil={outil} onFermer={() => setOutil(null)} />
           </aside>
         )}

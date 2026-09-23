@@ -309,7 +309,7 @@ export default function Dashboard() {
           </div>
 
           {estAdmin && filtreLot && (
-            <div className="flex flex-wrap items-center gap-2 mb-3 text-sm bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/50 rounded-lg px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 mb-3 text-sm bg-marine-50 dark:bg-marine-950/30 border border-marine-200 dark:border-marine-900/50 rounded-lg px-3 py-2">
               <span className="text-slate-600 dark:text-slate-300">
                 Assigner toute la vague « {filtreLot} » à :
               </span>

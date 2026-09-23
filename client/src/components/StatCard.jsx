@@ -8,7 +8,7 @@ export default function StatCard({ statut, count, active, onClick }) {
       className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition
         ${
           active
-            ? "border-slate-900 dark:border-slate-100 shadow-md bg-white dark:bg-slate-800"
+            ? "border-marine-700 dark:border-marine-300 shadow-md bg-white dark:bg-slate-800"
             : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm"
         }`}
     >

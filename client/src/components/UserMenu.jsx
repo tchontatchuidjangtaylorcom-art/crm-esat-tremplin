@@ -51,7 +51,7 @@ export default function UserMenu({ theme, onBasculerTheme }) {
             title="Mode Manager : consulter le tableau de bord d'un agent"
             className="text-sm rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-1.5 max-w-[180px]"
           >
-            <option value="">👁 Voir le compte de…</option>
+            <option value="">Voir le compte de…</option>
             {agents.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.prenom || a.email}
@@ -62,9 +62,12 @@ export default function UserMenu({ theme, onBasculerTheme }) {
           <Link
             to="/admin/utilisateurs"
             title="Gérer les accès agents/administrateurs"
-            className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+            className="flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
           >
-            👤 Gestion des accès
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5 shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+            </svg>
+            Gestion des accès
           </Link>
         </>
       )}
@@ -80,8 +83,14 @@ export default function UserMenu({ theme, onBasculerTheme }) {
       </button>
 
       <div className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-        <div className="w-8 h-8 rounded-full bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center text-xs font-bold shrink-0">
-          {initiales}
+        <div className="relative shrink-0">
+          <div className="w-8 h-8 rounded-full bg-marine-800 dark:bg-marine-200 text-white dark:text-marine-900 flex items-center justify-center text-xs font-bold">
+            {initiales}
+          </div>
+          <span
+            title="En ligne"
+            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-800"
+          />
         </div>
         <div className="leading-tight text-left hidden sm:block">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">

@@ -3,5 +3,19 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors;
+  @apply bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors font-sans;
+}
+
+@layer components {
+  /* Fin liseré tricolore repère "France" en tête de portail — un simple
+     repère visuel institutionnel, jamais un emblème d'État (pas de Marianne,
+     pas de mention RF/officielle) : le pôle OETH/AGEFIPH n'est pas un
+     service de l'État. Même logique que le bandeau du PDF de synthèse
+     (server/src/pdfSynthese.js), pour une identité cohérente écran/PDF. */
+  .bandeau-tricolore {
+    @apply flex h-1 w-full shrink-0;
+  }
+  .bandeau-tricolore > span {
+    @apply flex-1;
+  }
 }
