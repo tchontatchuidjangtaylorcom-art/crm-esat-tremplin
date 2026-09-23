@@ -117,13 +117,27 @@ export default function AdminUtilisateurs() {
   }
 
   return (
-    <div className="min-h-screen p-6 max-w-4xl mx-auto">
-      <Link to="/" className="text-sm text-blue-600 hover:underline">
-        &larr; Retour au tableau de bord
-      </Link>
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-3 mb-6">Gestion des accès</h1>
+    <div className="min-h-screen">
+      <div className="bandeau-tricolore">
+        <span className="bg-marine-800" />
+        <span className="bg-white" />
+        <span className="bg-red-700" />
+      </div>
+      <div className="p-6 max-w-4xl mx-auto">
+        <Link to="/" className="text-sm text-marine-700 dark:text-marine-300 hover:underline">
+          &larr; Retour au tableau de bord
+        </Link>
+        <div className="flex items-center gap-2 mt-3 mb-1">
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Gestion des accès</h1>
+        </div>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-6 flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5 shrink-0">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+          </svg>
+          Accès réservé aux administrateurs — mots de passe chiffrés, actions journalisées.
+        </p>
 
-      {erreur && (
+        {erreur && (
         <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
           {erreur}
         </div>
@@ -185,7 +199,7 @@ export default function AdminUtilisateurs() {
           <button
             type="submit"
             disabled={creation || !email.trim() || (motDePasse.trim().length > 0 && motDePasse.trim().length < 8)}
-            className="rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
+            className="rounded-lg bg-marine-800 hover:bg-marine-900 dark:bg-marine-200 dark:hover:bg-marine-300 text-white dark:text-marine-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
             {creation ? "Création…" : "Créer l'accès"}
           </button>
@@ -264,7 +278,7 @@ export default function AdminUtilisateurs() {
                       {u.statut === "valide" && u.role !== "admin" && (
                         <button
                           onClick={() => valider(u.id, "admin")}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline mr-3"
+                          className="text-xs text-marine-700 dark:text-marine-300 hover:underline mr-3"
                         >
                           Passer admin
                         </button>
@@ -295,7 +309,7 @@ export default function AdminUtilisateurs() {
                           <button
                             onClick={() => enregistrerMotDePasse(u.id)}
                             disabled={enregistrementMotDePasse || editionMotDePasse.valeur.trim().length < 8}
-                            className="rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40"
+                            className="rounded-lg bg-marine-800 hover:bg-marine-900 dark:bg-marine-200 dark:hover:bg-marine-300 text-white dark:text-marine-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40"
                           >
                             Enregistrer
                           </button>
@@ -332,6 +346,7 @@ export default function AdminUtilisateurs() {
           </table>
         </div>
       )}
+      </div>
     </div>
   );
 }

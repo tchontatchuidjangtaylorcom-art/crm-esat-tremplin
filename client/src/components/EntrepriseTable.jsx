@@ -97,7 +97,7 @@ export default function EntrepriseTable({ entreprises, estAdmin, agents, onAssig
                     href={`/entreprise/${e.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline hover:text-blue-700 dark:hover:text-blue-400"
+                    className="hover:underline hover:text-marine-700 dark:hover:text-marine-300"
                     title="Ouvrir la fiche dans un nouvel onglet"
                   >
                     {e.nom}
