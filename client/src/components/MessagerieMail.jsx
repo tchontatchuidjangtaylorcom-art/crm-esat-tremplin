@@ -33,11 +33,15 @@ export default function MessagerieMail({ entreprise, onMaj }) {
 
   // Bloc de signature adapté au collecteur réel de l'entreprise : privé
   // (AGEFIPH) ou public (FIPHFP, avec mention de la mise en relation ESAT).
+  // Utilise la vraie adresse de la boîte connectée quand elle est configurée,
+  // plutôt qu'un domaine fictif en dur.
   function signaturePourEntreprise() {
+    const ligneEmail = statutMail?.adresse ? `\n✉️ ${statutMail.adresse}` : "";
+    const ligneTelephone = "\n📞 [Numéro du pôle]";
     if (entreprise.collecteur === "FIPHFP") {
-      return "Pôle FIPHFP\nN'hésitez pas à nous solliciter pour une mise en relation avec un ESAT partenaire.\n[Signature]";
+      return `Pôle FIPHFP\nN'hésitez pas à nous solliciter pour une mise en relation avec un ESAT partenaire.\n[Signature]${ligneEmail}${ligneTelephone}`;
     }
-    return "Pôle OETH / AGEFIPH\n[Signature]";
+    return `Pôle OETH / AGEFIPH\n[Signature]${ligneEmail}${ligneTelephone}`;
   }
 
   function inserer(modele) {
