@@ -2,7 +2,18 @@ services:
   - type: web
     name: crm-oeth-agefip
     env: node
-    plan: free
+    # Plan Starter minimum : les disques persistants (ci-dessous) ne sont pas
+    # disponibles sur le plan Free — sans disque, /var/data serait recréé
+    # vide à chaque déploiement et db.json y reperdrait toutes les données
+    # réelles (entreprises, contacts, téléphones) à chaque redémarrage.
+    plan: starter
     rootDir: .
     buildCommand: npm run build
     startCommand: npm start
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
