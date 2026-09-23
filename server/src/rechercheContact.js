@@ -1,23 +1,35 @@
-// Recherche IA d'un contact/téléphone alternatif via l'API Anthropic (Claude)
-// et son outil de recherche web intégré — déclenchée depuis une fiche
-// entreprise quand l'agent signale un numéro invalide/non attribué (voir
-// EntrepriseDetail.jsx, section "Espace IA — Contact alternatif").
+// Recherche IA d'un contact/téléphone alternatif + suggestion de secteur, via
+// l'API Google Gemini et son outil de recherche Google (grounding) —
+// déclenchée depuis une fiche entreprise quand l'agent signale un numéro
+// invalide/non attribué (voir EntrepriseDetail.jsx, section
+// "Espace IA — Contact alternatif").
 //
-// Fonctionnalité optionnelle : nécessite ANTHROPIC_API_KEY (clé payante,
-// facturée à l'usage par Anthropic). Sans base de téléphonie payante dédiée
-// (Pappers Pro, Societe.com Pro...), la recherche web via un modèle reste la
-// seule source disponible ici — le résultat est une PROPOSITION à valider
-// par l'agent (pré-remplit le champ existant, jamais appliqué automatiquement) :
-// un numéro halluciné ou périmé utilisé pour un vrai appel commercial serait
-// pire que l'absence de numéro.
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS) || 20000;
+// Fonctionnalité optionnelle : nécessite GEMINI_API_KEY (alias accepté :
+// GOOGLE_API_KEY), gratuite à générer sur Google AI Studio (quota gratuit).
+// Sans base de téléphonie payante dédiée (Pappers Pro, Societe.com Pro...),
+// la recherche web via un modèle reste la seule source disponible ici — le
+// résultat est une PROPOSITION à valider par l'agent (pré-remplit les champs
+// existants, jamais appliqué automatiquement) : un numéro ou une catégorie
+// hallucinés seraient pires qu'une fiche laissée à corriger manuellement.
+import { CATEGORIES, listerCategories } from "./secteurs.js";
 
-export function estRechercheIaConfiguree() {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+// Modèle configurable : la nomenclature des modèles Gemini change avec le
+// temps (générations 1.5 / 2.0 / 2.5 / ultérieures) — vérifiez le nom exact
+// disponible pour votre clé sur https://aistudio.google.com/ et ajustez
+// GEMINI_MODEL si besoin. Valeur par défaut : un modèle "Flash" (rapide, bon
+// marché) de la génération la plus récente connue au moment de l'écriture.
+const MODELE_PAR_DEFAUT = "gemini-2.5-flash";
+const TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 20000;
+
+function cleApi() {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
 }
 
-function detailErreur(e) {
+export function estRechercheIaConfiguree() {
+  return Boolean(cleApi());
+}
+
+export function detailErreur(e) {
   return {
     message: e.message,
     code: e.code,
@@ -36,20 +48,25 @@ function construirePrompt(entreprise) {
     .filter(Boolean)
     .join(", ");
 
+  const listeCategories = listerCategories()
+    .map((c) => `${c.value} = ${c.label}`)
+    .join(" ; ");
+
   return (
-    `Tu aides un télé-prospecteur français à retrouver un numéro de téléphone professionnel à jour et, si possible, un contact officiel (nom + fonction) pour cette entreprise : ${identite}.\n` +
+    `Tu aides un télé-prospecteur français à mettre à jour la fiche de cette entreprise : ${identite}.\n` +
     `Le numéro actuellement enregistré (${entreprise.contact?.telephone || "aucun"}) est invalide ou non attribué.\n` +
-    `Cherche sur le web (site officiel de l'entreprise, PagesJaunes, Societe.com, Verif.com, Infogreffe, LinkedIn) un numéro de standard ou un contact plus fiable.\n` +
+    `Cherche sur le web (site officiel de l'entreprise, PagesJaunes, Societe.com, Verif.com, Infogreffe, LinkedIn) un numéro de standard ou un contact (nom + fonction) plus fiable.\n` +
+    `Détermine aussi, à partir de l'activité réelle de cette entreprise, la catégorie la plus pertinente EXCLUSIVEMENT parmi cette liste officielle (utilise la clé, pas le libellé) : ${listeCategories}.\n` +
     `Termine IMPÉRATIVEMENT ta réponse par une seule ligne contenant uniquement un objet JSON strict, sans texte autour, exactement au format :\n` +
-    `{"telephone": "<numéro ou null>", "contact": "<nom et fonction ou null>", "source": "<url ou null>", "confiance": "haute|moyenne|faible"}\n` +
-    `Si tu ne trouves rien de fiable, mets telephone à null plutôt que d'inventer un numéro — une mauvaise info est pire qu'aucune info ici.`
+    `{"telephone": "<numéro ou null>", "contact": "<nom et fonction ou null>", "secteurCategorie": "<une des clés ci-dessus ou null>", "source": "<url ou null>", "confiance": "haute|moyenne|faible"}\n` +
+    `Si tu ne trouves rien de fiable pour un champ, mets-le à null plutôt que d'inventer une valeur — une mauvaise info est pire qu'aucune info ici.`
   );
 }
 
 function extraireResultat(corpsReponse) {
-  const texte = (corpsReponse.content || [])
-    .filter((bloc) => bloc.type === "text")
-    .map((bloc) => bloc.text)
+  const texte = (corpsReponse.candidates || [])
+    .flatMap((candidat) => candidat.content?.parts || [])
+    .map((partie) => partie.text || "")
     .join("\n");
 
   const correspondance = texte.match(/\{[^{}]*"telephone"[^{}]*\}/s);
@@ -71,37 +88,42 @@ function extraireResultat(corpsReponse) {
   }
 
   const nettoie = (v) => (v && v !== "null" ? v : null);
+  // Défense contre une clé de catégorie hallucinée/inconnue : on ignore
+  // plutôt que de laisser une clé invalide se propager jusqu'à classifierSecteur.
+  const cleCategorie = nettoie(resultat.secteurCategorie);
+  const categorieValide = cleCategorie && CATEGORIES[cleCategorie] ? cleCategorie : null;
+
   return {
     telephone: nettoie(resultat.telephone),
     contact: nettoie(resultat.contact),
     source: nettoie(resultat.source),
     confiance: resultat.confiance || "faible",
+    secteurCategorie: categorieValide,
+    secteurCategorieLabel: categorieValide ? CATEGORIES[categorieValide].label : null,
   };
 }
 
 export async function rechercherContactAlternatif(entreprise) {
-  if (!estRechercheIaConfiguree()) {
-    const erreur = new Error("Recherche IA non configurée (renseignez ANTHROPIC_API_KEY).");
+  const cle = cleApi();
+  if (!cle) {
+    const erreur = new Error("Recherche IA non configurée (renseignez GEMINI_API_KEY).");
     erreur.code = "IA_NON_CONFIGUREE";
     throw erreur;
   }
+
+  const modele = process.env.GEMINI_MODEL || MODELE_PAR_DEFAUT;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modele}:generateContent?key=${cle}`;
 
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
   try {
-    reponse = await fetch(ANTHROPIC_API_URL, {
+    reponse = await fetch(url, {
       method: "POST",
-      headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
-        max_tokens: 1024,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
-        messages: [{ role: "user", content: construirePrompt(entreprise) }],
+        contents: [{ role: "user", parts: [{ text: construirePrompt(entreprise) }] }],
+        tools: [{ google_search: {} }],
       }),
       signal: controleur.signal,
     });
@@ -118,8 +140,10 @@ export async function rechercherContactAlternatif(entreprise) {
 
   const corps = await reponse.json().catch(() => ({}));
   if (!reponse.ok) {
-    const erreur = new Error(corps.error?.message || `L'API Anthropic a répondu ${reponse.status}.`);
-    erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    const erreur = new Error(
+      corps.error?.message || `L'API Gemini a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+    );
+    erreur.code = corps.error?.status || `HTTP_${reponse.status}`;
     erreur.responseCode = reponse.status;
     erreur.response = JSON.stringify(corps).slice(0, 500);
     throw erreur;
@@ -127,5 +151,3 @@ export async function rechercherContactAlternatif(entreprise) {
 
   return extraireResultat(corps);
 }
-
-export { detailErreur };

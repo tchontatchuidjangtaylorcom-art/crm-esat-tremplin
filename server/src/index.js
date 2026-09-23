@@ -8,8 +8,8 @@ import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
 import db, { initDb } from "./db.js";
 import { calculerObligationOeth } from "./oeth.js";
-import { classifierSecteur, listerCategories, determinerCollecteur } from "./secteurs.js";
-import { estSirenValide, rechercherEntrepriseParSiren } from "./insee.js";
+import { classifierSecteur, listerCategories, determinerCollecteur, CATEGORIES } from "./secteurs.js";
+import { estSirenValide, rechercherEntrepriseParSiren, rechercherEntreprisesParSecteur } from "./insee.js";
 import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
 import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
@@ -115,7 +115,10 @@ function enrichir(entreprise) {
     ...entreprise,
     emails: entreprise.emails || [],
     oeth: calculerObligationOeth(entreprise),
-    categorie: classifierSecteur(entreprise.secteurActivite, { secteurPublic: entreprise.secteurPublic }),
+    categorie: classifierSecteur(entreprise.secteurActivite, {
+      secteurPublic: entreprise.secteurPublic,
+      categorieForcee: entreprise.categorieForcee,
+    }),
     collecteur: determinerCollecteur(entreprise),
     ligneBareme: trouverLigneBareme(entreprise.effectif),
   };
@@ -286,7 +289,7 @@ app.get("/api/lots", (req, res) => {
 // enrichissement INSEE, classification public/privé, et purge immédiate en
 // archives si l'entreprise est déjà radiée. Réutilisée par la recherche unitaire
 // et par l'import par lot.
-async function creerLeadDepuisSiren(siren, { lot = null } = {}) {
+async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null } = {}) {
   if (!estSirenValide(siren)) {
     const erreur = new Error("SIREN invalide (9 chiffres attendus, clé de contrôle incorrecte).");
     erreur.code = "SIREN_INVALIDE";
@@ -310,6 +313,7 @@ async function creerLeadDepuisSiren(siren, { lot = null } = {}) {
     ville: donnees.ville,
     secteurActivite: donnees.secteurActivite,
     secteurPublic: donnees.secteurPublic,
+    categorieForcee,
     dateCreation: null,
     effectif: donnees.effectifEstime,
     effectifBeneficiaire: 0,
@@ -331,7 +335,7 @@ async function creerLeadDepuisSiren(siren, { lot = null } = {}) {
         texte: donnees.actif
           ? `Lead créé automatiquement par SIREN (source : répertoire Sirene INSEE)${
               lot ? ` — ${lot}` : ""
-            }. Effectif indicatif : ${donnees.trancheEffectifLabel} — à confirmer avec le client. Coordonnées de contact non fournies par l'INSEE : à compléter manuellement.`
+            }${categorieForcee && CATEGORIES[categorieForcee] ? `, catégorie assignée : ${CATEGORIES[categorieForcee].label}` : ""}. Effectif indicatif : ${donnees.trancheEffectifLabel} — à confirmer avec le client. Coordonnées de contact non fournies par l'INSEE : à compléter manuellement.`
           : `Entreprise radiée d'après le répertoire Sirene (fermeture le ${donnees.dateFermeture || "date inconnue"}) — dossier archivé automatiquement, aucune action requise.`,
       },
     ],
@@ -387,6 +391,69 @@ app.post("/api/leads/siren/lot", async (req, res) => {
   res.status(201).json({ lot, resultats });
 });
 
+// Génération d'une vague de prospects par secteur : recherche de candidats
+// RÉELS dans le répertoire Sirene (INSEE), filtrés par code NAF (précis —
+// voir la note dans insee.js sur pourquoi une recherche par mots-clés a été
+// écartée) — délibérément PAS de génération par un modèle de langage ici :
+// un LLM invente des identifiants d'entreprise à l'échelle (SIREN,
+// adresses...) au lieu de les retrouver, ce qui pollue le CRM de leads
+// fictifs utilisés ensuite pour de vrais appels commerciaux. Étape de
+// PRÉVISUALISATION seulement : rien n'est créé en base, voir
+// /api/leads/secteur/importer.
+app.post("/api/leads/secteur/rechercher", async (req, res) => {
+  const cle = String(req.body.categorie || "");
+  const categorie = CATEGORIES[cle];
+  if (!categorie) return res.status(400).json({ error: "Catégorie inconnue." });
+
+  const departement = req.body.departement ? String(req.body.departement).trim() : null;
+  const limite = Math.min(Number(req.body.limite) || 100, 300);
+
+  try {
+    const candidats = await rechercherEntreprisesParSecteur(
+      { nafCodes: categorie.nafCodes, estAdministration: categorie.estAdministration },
+      { departement, limite }
+    );
+    const connus = new Set([...db.data.entreprises, ...db.data.archives].map((e) => e.siren));
+    const nouveaux = candidats.filter((c) => !connus.has(c.siren));
+    res.json({ categorie: cle, categorieLabel: categorie.label, total: nouveaux.length, entreprises: nouveaux });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// Importe la vague prévisualisée ci-dessus (liste de SIREN déjà filtrée côté
+// frontend) et assigne directement la catégorie choisie à chaque fiche créée
+// (categorieForcee) — même limite anti-abus que l'import manuel par lot.
+app.post("/api/leads/secteur/importer", async (req, res) => {
+  const cle = String(req.body.categorie || "");
+  const categorie = CATEGORIES[cle];
+  if (!categorie) return res.status(400).json({ error: "Catégorie inconnue." });
+
+  const sirens = Array.isArray(req.body.sirens) ? req.body.sirens : [];
+  const lot = String(req.body.lot || "").trim();
+  if (!lot) return res.status(400).json({ error: "Le nom du lot est requis." });
+  if (sirens.length === 0) return res.status(400).json({ error: "Aucun SIREN fourni." });
+  if (sirens.length > 100) {
+    return res.status(400).json({ error: "100 SIREN maximum par vague (limite anti-abus de l'API publique)." });
+  }
+
+  const resultats = [];
+  for (const brut of sirens) {
+    const siren = String(brut || "").replace(/\s/g, "");
+    if (!siren) continue;
+    try {
+      const { existant, archive, entreprise } = await creerLeadDepuisSiren(siren, { lot, categorieForcee: cle });
+      resultats.push({ siren, statut: existant ? "existant" : archive ? "radiee" : "cree", nom: entreprise.nom });
+    } catch (e) {
+      resultats.push({ siren, statut: "erreur", erreur: e.message });
+    }
+    // Petite pause polie entre deux appels à l'API publique Sirene.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+
+  res.status(201).json({ lot, categorie: cle, resultats });
+});
+
 app.patch("/api/entreprises/:id", async (req, res) => {
   const entreprise = findEntreprise(req.params.id);
   if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
@@ -404,6 +471,7 @@ app.patch("/api/entreprises/:id", async (req, res) => {
     "dateCreation",
     "secteurPublic",
     "lot",
+    "categorieForcee",
   ];
   for (const champ of champsAutorises) {
     if (champ in req.body) entreprise[champ] = req.body[champ];
@@ -520,31 +588,42 @@ app.post("/api/entreprises/:id/telephone-invalide", async (req, res) => {
   res.json(enrichir(entreprise));
 });
 
-// Recherche IA (Claude + recherche web) d'un numéro/contact alternatif quand
-// le numéro enregistré a été signalé invalide. Optionnelle (ANTHROPIC_API_KEY)
-// et protégée par une session valide même si les autres routes /api/entreprises
-// ne le sont pas ici : chaque appel déclenche un appel facturé à l'API
-// Anthropic, à ne pas laisser accessible sans authentification.
-// Renvoie une PROPOSITION seulement — voir rechercheContact.js : le numéro
-// n'est jamais écrit en base ici, l'agent doit valider via le formulaire
-// existant (POST /entreprises/:id qui gère déjà la correction manuelle).
+// Recherche IA (Gemini + recherche Google) d'un numéro/contact alternatif ET
+// d'une catégorie de secteur suggérée, quand le numéro enregistré a été
+// signalé invalide. Optionnelle (GEMINI_API_KEY/GOOGLE_API_KEY) et protégée
+// par une session valide même si les autres routes /api/entreprises ne le
+// sont pas ici : chaque appel déclenche un appel (potentiellement facturé) à
+// l'API Gemini, à ne pas laisser accessible sans authentification.
+// Renvoie une PROPOSITION seulement — voir rechercheContact.js : rien n'est
+// écrit en base ici, l'agent doit valider via le formulaire existant
+// (numéro : POST .../telephone-invalide puis PATCH ; catégorie : PATCH
+// categorieForcee) avant que ça n'affecte la fiche.
 app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, async (req, res) => {
   const entreprise = findEntreprise(req.params.id);
   if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
 
   if (!estRechercheIaConfiguree()) {
-    return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez GEMINI_API_KEY)." });
   }
 
   try {
     const resultat = await rechercherContactAlternatif(entreprise);
+    const morceaux = [];
+    if (resultat.telephone) {
+      morceaux.push(
+        `numéro proposé ${resultat.telephone}${resultat.contact ? ` (contact : ${resultat.contact})` : ""} — confiance ${resultat.confiance}${resultat.source ? `, source : ${resultat.source}` : ""}`
+      );
+    }
+    if (resultat.secteurCategorieLabel) {
+      morceaux.push(`catégorie suggérée : ${resultat.secteurCategorieLabel}`);
+    }
     entreprise.commentaires.unshift({
       id: nanoid(),
       date: new Date().toISOString(),
       auteur: "Assistant IA",
-      texte: resultat.telephone
-        ? `Recherche IA : numéro proposé ${resultat.telephone}${resultat.contact ? ` (contact : ${resultat.contact})` : ""} — confiance ${resultat.confiance}${resultat.source ? `, source : ${resultat.source}` : ""}. À valider avant application.`
-        : `Recherche IA : aucun numéro fiable trouvé.`,
+      texte: morceaux.length
+        ? `Recherche IA : ${morceaux.join(" ; ")}. À valider avant application.`
+        : "Recherche IA : aucune information fiable trouvée.",
     });
     await db.write();
     res.json(resultat);

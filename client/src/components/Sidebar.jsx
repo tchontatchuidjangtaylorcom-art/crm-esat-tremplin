@@ -65,7 +65,7 @@ export default function Sidebar({
         </div>
       )}
 
-      <ImportLot onImporte={onImporte} />
+      <ImportLot categories={categories} onImporte={onImporte} />
     </aside>
   );
 }

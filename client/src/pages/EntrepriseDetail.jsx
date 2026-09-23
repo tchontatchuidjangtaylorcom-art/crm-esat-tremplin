@@ -51,6 +51,7 @@ export default function EntrepriseDetail() {
   const [rechercheIaEnCours, setRechercheIaEnCours] = useState(false);
   const [propositionIa, setPropositionIa] = useState(null);
   const [erreurRechercheIa, setErreurRechercheIa] = useState(null);
+  const [appliquerCategorieSuggeree, setAppliquerCategorieSuggeree] = useState(true);
 
   const [issueChoisie, setIssueChoisie] = useState("");
   const [dateIssue, setDateIssue] = useState("");
@@ -255,15 +256,17 @@ export default function EntrepriseDetail() {
     }
   }
 
-  // Recherche IA (Claude + recherche web) : propose un numéro/contact
-  // alternatif SANS l'écrire en base — pré-remplit juste le champ de
-  // correction manuel existant, que l'agent doit vérifier et valider
-  // lui-même avant "Enregistrer" (un numéro halluciné utilisé pour un
-  // vrai appel commercial serait pire que l'absence de numéro).
+  // Recherche IA (Gemini + recherche Google) : propose un numéro/contact et
+  // une catégorie de secteur alternatifs SANS rien écrire en base — pré-remplit
+  // juste le champ de correction manuel existant, que l'agent doit vérifier
+  // et valider lui-même avant "Enregistrer" (un numéro ou une catégorie
+  // hallucinés utilisés pour un vrai appel commercial seraient pires que
+  // l'absence d'info).
   async function rechercherContactIa() {
     setRechercheIaEnCours(true);
     setErreurRechercheIa(null);
     setPropositionIa(null);
+    setAppliquerCategorieSuggeree(true);
     try {
       const resultat = await api.rechercherContactAlternatif(id);
       setPropositionIa(resultat);
@@ -279,18 +282,25 @@ export default function EntrepriseDetail() {
 
   async function corrigerTelephone(ev) {
     ev.preventDefault();
-    if (!nouveauTelephone.trim()) return;
+    const nouveauNumero = nouveauTelephone.trim();
+    const appliqueCategorie = appliquerCategorieSuggeree && propositionIa?.secteurCategorie;
+    if (!nouveauNumero && !appliqueCategorie) return;
     setEnregistrementTelephone(true);
     try {
-      await api.patchEntreprise(id, {
-        contact: { ...entreprise.contact, telephone: nouveauTelephone.trim(), telephoneInvalide: false },
-      });
+      const patch = {};
+      if (nouveauNumero) patch.contact = { ...entreprise.contact, telephone: nouveauNumero, telephoneInvalide: false };
+      if (appliqueCategorie) patch.categorieForcee = propositionIa.secteurCategorie;
+      await api.patchEntreprise(id, patch);
+      const morceauxTexte = [];
+      if (nouveauNumero) morceauxTexte.push(`Numéro corrigé manuellement : ${nouveauNumero} (ancien numéro signalé invalide).`);
+      if (appliqueCategorie) morceauxTexte.push(`Catégorie mise à jour : ${propositionIa.secteurCategorieLabel}.`);
       const updated = await api.ajouterCommentaire(id, {
-        texte: `Numéro corrigé manuellement : ${nouveauTelephone.trim()} (ancien numéro signalé invalide).`,
+        texte: morceauxTexte.join(" "),
         auteur: AGENT_ACTUEL.prenom,
       });
       setEntreprise(updated);
       setNouveauTelephone("");
+      setPropositionIa(null);
       setErreur(null);
     } catch (e) {
       setErreur(e.message);
@@ -800,6 +810,17 @@ export default function EntrepriseDetail() {
                     </p>
                   )}
                 </div>
+                {propositionIa?.secteurCategorieLabel && (
+                  <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={appliquerCategorieSuggeree}
+                      onChange={(e) => setAppliquerCategorieSuggeree(e.target.checked)}
+                    />
+                    Catégorie suggérée par l'IA : <strong>{propositionIa.secteurCategorieLabel}</strong> — l'appliquer
+                    en cliquant sur Enregistrer
+                  </label>
+                )}
                 {erreurRechercheIa && (
                   <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg p-3">
                     {erreurRechercheIa}
@@ -857,7 +878,10 @@ export default function EntrepriseDetail() {
                   />
                   <button
                     type="submit"
-                    disabled={!nouveauTelephone.trim() || enregistrementTelephone}
+                    disabled={
+                      (!nouveauTelephone.trim() && !(appliquerCategorieSuggeree && propositionIa?.secteurCategorie)) ||
+                      enregistrementTelephone
+                    }
                     className="rounded-lg bg-slate-900 text-white text-sm font-medium px-4 disabled:opacity-40"
                   >
                     Enregistrer

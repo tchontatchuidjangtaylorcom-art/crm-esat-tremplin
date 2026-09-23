@@ -136,6 +136,35 @@ function construireAdresse(siege = {}) {
   return rue || siege.adresse || "-";
 }
 
+// Normalise un résultat brut de l'API "Recherche d'entreprises" vers les
+// champs utilisés par la fiche entreprise du CRM — partagé par la recherche
+// unitaire (par SIREN) et la recherche multi-résultats (par secteur).
+function normaliserResultat(r) {
+  const siege = r.siege || {};
+  const tranche = trancheEffectif(r.tranche_effectif_salarie);
+  // Signal fort si présent (`est_administration`), sinon repli sur le préfixe
+  // "7" de la catégorie juridique (nomenclature INSEE des personnes morales
+  // de droit public administratif).
+  const secteurPublic = r.complements?.est_administration === true || /^7/.test(r.nature_juridique || "");
+  const actif = (r.etat_administratif || "A") === "A";
+
+  return {
+    siren: r.siren,
+    siret: siege.siret || `${r.siren}00000`,
+    nom: r.nom_complet,
+    adresse: construireAdresse(siege),
+    codePostal: siege.code_postal || "",
+    ville: siege.libelle_commune || "",
+    secteurActivite: libelleSecteurActivite(r.activite_principale),
+    formeJuridique: libelleFormeJuridique(r.nature_juridique),
+    trancheEffectifLabel: tranche.label,
+    effectifEstime: tranche.effectifEstime,
+    secteurPublic,
+    actif,
+    dateFermeture: r.date_fermeture || null,
+  };
+}
+
 // Interroge l'API publique "Recherche d'entreprises" et normalise la réponse
 // vers les champs utilisés par la fiche entreprise du CRM.
 export async function rechercherEntrepriseParSiren(siren) {
@@ -167,27 +196,75 @@ export async function rechercherEntrepriseParSiren(siren) {
     throw erreur;
   }
 
-  const siege = r.siege || {};
-  const tranche = trancheEffectif(r.tranche_effectif_salarie);
-  // Signal fort si présent (`est_administration`), sinon repli sur le préfixe
-  // "7" de la catégorie juridique (nomenclature INSEE des personnes morales
-  // de droit public administratif).
-  const secteurPublic = r.complements?.est_administration === true || /^7/.test(r.nature_juridique || "");
-  const actif = (r.etat_administratif || "A") === "A";
+  return normaliserResultat(r);
+}
 
-  return {
-    siren: r.siren,
-    siret: siege.siret || `${r.siren}00000`,
-    nom: r.nom_complet,
-    adresse: construireAdresse(siege),
-    codePostal: siege.code_postal || "",
-    ville: siege.libelle_commune || "",
-    secteurActivite: libelleSecteurActivite(r.activite_principale),
-    formeJuridique: libelleFormeJuridique(r.nature_juridique),
-    trancheEffectifLabel: tranche.label,
-    effectifEstime: tranche.effectifEstime,
-    secteurPublic,
-    actif,
-    dateFermeture: r.date_fermeture || null,
-  };
+// Recherche multi-résultats par secteur — sert la génération de vagues de
+// prospects par catégorie : de VRAIES entreprises du répertoire Sirene,
+// jamais une liste inventée par un modèle de langage (voir la note dans
+// index.js sur ce choix). Filtre PRÉCISÉMENT par code NAF (`nafCodes`) ou,
+// pour le service public, par le indicateur `est_administration` — une
+// recherche en texte libre sur des mots-clés a été testée et écartée : une
+// requête "construction bâtiment btp" remonte par exemple une compagnie
+// d'ASSURANCE du BTP (le nom matche, l'activité n'a rien à voir). `nafCodes`
+// et `estAdministration` viennent de CATEGORIES (secteurs.js) ; `departement`
+// (code INSEE à 2-3 chiffres) est optionnel — NB: l'API le documente comme un
+// filtre sur les établissements (une grande entreprise ayant une agence dans
+// ce département matchera même si son siège est ailleurs), donc un grand
+// groupe national peut apparaître même en filtrant sur un département donné.
+// Pagine jusqu'à `limite` résultats (25 par page, taille max acceptée par
+// l'API publique).
+export async function rechercherEntreprisesParSecteur(
+  { nafCodes, estAdministration } = {},
+  { departement, limite = 100 } = {}
+) {
+  const parPage = 25;
+  const resultats = [];
+  let page = 1;
+
+  while (resultats.length < limite) {
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: String(Math.min(parPage, limite - resultats.length)),
+      etat_administratif: "A",
+    });
+    if (estAdministration) {
+      params.set("est_administration", "true");
+    } else if (nafCodes?.length) {
+      params.set("activite_principale", nafCodes.join(","));
+    }
+    if (departement) params.set("departement", departement);
+
+    let reponse;
+    try {
+      reponse = await fetch(`${BASE_URL}?${params.toString()}`);
+    } catch {
+      const erreur = new Error(
+        "Impossible de contacter l'API publique Sirene (INSEE). Vérifiez la connexion et réessayez."
+      );
+      erreur.code = "INSEE_INDISPONIBLE";
+      throw erreur;
+    }
+    if (!reponse.ok) {
+      const erreur = new Error(`L'API Sirene a répondu une erreur (HTTP ${reponse.status}).`);
+      erreur.code = "INSEE_INDISPONIBLE";
+      throw erreur;
+    }
+
+    const donnees = await reponse.json();
+    const lot = (donnees.results || []).filter((r) => r.nom_complet);
+    if (lot.length === 0) break;
+
+    for (const r of lot) {
+      resultats.push(normaliserResultat(r));
+      if (resultats.length >= limite) break;
+    }
+
+    if (lot.length < parPage) break; // dernière page atteinte
+    page += 1;
+    // Petite pause polie entre deux appels à l'API publique Sirene.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+
+  return resultats;
 }

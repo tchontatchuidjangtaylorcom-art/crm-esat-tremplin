@@ -57,6 +57,20 @@ export const api = {
       body: JSON.stringify({ lot, sirens }),
     }).then(handle),
 
+  rechercherProspectsParSecteur: (categorie, { departement, limite } = {}) =>
+    fetch(`${BASE}/leads/secteur/rechercher`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categorie, departement: departement || null, limite }),
+    }).then(handle),
+
+  importerProspectsParSecteur: (categorie, lot, sirens) =>
+    fetch(`${BASE}/leads/secteur/importer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categorie, lot, sirens }),
+    }).then(handle),
+
   listLots: () => fetch(`${BASE}/lots`).then(handle),
 
   listArchives: () => fetch(`${BASE}/archives`).then(handle),
