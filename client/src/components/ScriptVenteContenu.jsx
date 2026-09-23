@@ -3,10 +3,10 @@ import { useContenuAide } from "../useContenuAide.js";
 import { AGENT_ACTUEL } from "../agent.js";
 
 // Trame d'appel type (ouverture → clôture), à garder sous les yeux pendant
-// l'appel. Contenu chargé depuis le serveur, mis en cache par useContenuAide.
-// Le prénom de l'agent connecté est injecté à la volée dans le "[Prénom]" du
-// script, pour qu'il soit directement lisible et pitchable mot pour mot —
-// "[Nom]" reste à la charge de l'agent (nom du prospect, propre à chaque appel).
+// l'appel. Chaque ligne est soit une instruction pour l'agent (italique,
+// couleur distincte, non lue au prospect), soit un texte à lire verbatim
+// (encadré, bien visible) — le "[Prénom]" y est remplacé par l'agent connecté
+// pour que ce soit directement pitchable mot pour mot.
 export default function ScriptVenteContenu() {
   const { data, erreur } = useContenuAide("script-vente", api.getScriptVente);
 
@@ -24,13 +24,23 @@ export default function ScriptVenteContenu() {
       </p>
       {data.sections.map((s) => (
         <div key={s.titre}>
-          <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-1.5">{s.titre}</h3>
-          <div className="space-y-1.5">
-            {s.lignes.map((l, i) => (
-              <p key={i} className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                {personnaliser(l)}
-              </p>
-            ))}
+          <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{s.titre}</h3>
+          <div className="space-y-2">
+            {s.lignes.map((l, i) =>
+              l.type === "instruction" ? (
+                <p key={i} className="text-xs italic text-amber-700 dark:text-amber-400 flex gap-1.5">
+                  <span aria-hidden>🎯</span>
+                  <span>{personnaliser(l.texte)}</span>
+                </p>
+              ) : (
+                <p
+                  key={i}
+                  className="text-slate-700 dark:text-slate-200 leading-relaxed bg-slate-50 dark:bg-slate-900 border-l-2 border-purple-300 dark:border-purple-800 rounded-r-md px-3 py-2"
+                >
+                  {personnaliser(l.texte)}
+                </p>
+              )
+            )}
           </div>
         </div>
       ))}
