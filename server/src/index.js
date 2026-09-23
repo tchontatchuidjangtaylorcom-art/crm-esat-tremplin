@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import path from "path";
@@ -11,6 +12,7 @@ import { estSirenValide, rechercherEntrepriseParSiren } from "./insee.js";
 import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
 import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
+import { estMailConfigure, relaverBoiteMail, envoyerMail, signatureMail, adresseMailPole } from "./mail.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -74,11 +76,24 @@ function archiver(entreprise) {
 function enrichir(entreprise) {
   return {
     ...entreprise,
+    emails: entreprise.emails || [],
     oeth: calculerObligationOeth(entreprise),
     categorie: classifierSecteur(entreprise.secteurActivite, { secteurPublic: entreprise.secteurPublic }),
     collecteur: determinerCollecteur(entreprise),
     ligneBareme: trouverLigneBareme(entreprise.effectif),
   };
+}
+
+// Retrouve l'entreprise (active ou archivée) dont l'adresse mail de contact
+// correspond à l'expéditeur d'un message reçu.
+function trouverEntrepriseParEmail(adresse) {
+  const cherche = (adresse || "").toLowerCase();
+  if (!cherche) return null;
+  return (
+    db.data.entreprises.find((e) => (e.contact?.email || "").toLowerCase() === cherche) ||
+    db.data.archives.find((e) => (e.contact?.email || "").toLowerCase() === cherche) ||
+    null
+  );
 }
 
 // ---- Routes ----
@@ -179,6 +194,7 @@ async function creerLeadDepuisSiren(siren, { lot = null } = {}) {
       },
     ],
     historiqueAppels: [],
+    emails: [],
   };
 
   if (donnees.actif) {
@@ -361,6 +377,113 @@ app.post("/api/entreprises/:id/telephone-invalide", async (req, res) => {
   await db.write();
   res.json(enrichir(entreprise));
 });
+
+// Boîte mail connectée (IMAP/SMTP) : indique si elle est configurée, et
+// l'adresse du pôle pour l'affichage côté frontend.
+app.get("/api/emails/statut", (req, res) => {
+  res.json({ configuree: estMailConfigure(), adresse: adresseMailPole(), signature: signatureMail() });
+});
+
+// Notification globale (nombre de mails non lus par entreprise), pour
+// afficher un badge/pop-up dans le CRM sans avoir à ouvrir chaque fiche.
+app.get("/api/emails/non-lus", (req, res) => {
+  const parEntreprise = [];
+  let total = 0;
+  for (const e of db.data.entreprises) {
+    const nonLus = (e.emails || []).filter((m) => m.direction === "recu" && !m.lu).length;
+    if (nonLus > 0) {
+      parEntreprise.push({ id: e.id, nom: e.nom, count: nonLus });
+      total += nonLus;
+    }
+  }
+  res.json({ total, parEntreprise });
+});
+
+// Marque comme lus tous les mails reçus d'une entreprise (à l'ouverture du fil).
+app.post("/api/entreprises/:id/emails/lu", async (req, res) => {
+  const entreprise = findEntreprise(req.params.id);
+  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+  for (const m of entreprise.emails || []) {
+    if (m.direction === "recu") m.lu = true;
+  }
+  await db.write();
+  res.json(enrichir(entreprise));
+});
+
+// Envoie un mail réel au contact de l'entreprise (signé Pôle OETH/AGEFIPH) et
+// journalise l'envoi dans son fil de messagerie.
+app.post("/api/entreprises/:id/emails/envoyer", async (req, res) => {
+  const entreprise = findEntreprise(req.params.id);
+  if (!entreprise) return res.status(404).json({ error: "Entreprise introuvable" });
+
+  const { objet, corps } = req.body;
+  if (!objet?.trim() || !corps?.trim()) {
+    return res.status(400).json({ error: "Objet et corps du mail requis." });
+  }
+  if (!entreprise.contact?.email) {
+    return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
+  }
+
+  try {
+    await envoyerMail({ to: entreprise.contact.email, subject: objet, text: corps });
+  } catch (e) {
+    const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
+    return res.status(statutHttp).json({ error: e.message });
+  }
+
+  entreprise.emails = entreprise.emails || [];
+  entreprise.emails.unshift({
+    id: nanoid(),
+    direction: "envoye",
+    de: adresseMailPole(),
+    objet,
+    corps,
+    date: new Date().toISOString(),
+    lu: true,
+  });
+
+  await db.write();
+  res.json(enrichir(entreprise));
+});
+
+// Relève périodique de la boîte mail du pôle (aucun effet si MAIL_* non
+// configuré dans server/.env — voir mail.js). Chaque mail reçu est rattaché
+// à l'entreprise dont l'adresse de contact correspond à l'expéditeur ; les
+// autres sont journalisés côté serveur mais ignorés (pas de boîte "non
+// triée" pour cette première version).
+async function relevePeriodiqueBoiteMail() {
+  try {
+    await relaverBoiteMail(async (mail) => {
+      const entreprise = trouverEntrepriseParEmail(mail.de);
+      if (!entreprise) {
+        console.log(`Mail reçu de ${mail.de} — aucune entreprise correspondante dans le CRM, ignoré.`);
+        return;
+      }
+      entreprise.emails = entreprise.emails || [];
+      entreprise.emails.unshift({
+        id: nanoid(),
+        direction: "recu",
+        de: mail.de,
+        objet: mail.objet,
+        corps: mail.texte,
+        date: mail.date,
+        lu: false,
+        messageId: mail.messageId,
+      });
+      await db.write();
+    });
+  } catch (e) {
+    console.error("Erreur lors de la relève de la boîte mail :", e.message);
+  }
+}
+
+if (estMailConfigure()) {
+  relevePeriodiqueBoiteMail();
+  setInterval(relevePeriodiqueBoiteMail, 60_000);
+  console.log("Boîte mail connectée : relève automatique toutes les 60 secondes.");
+} else {
+  console.log("Boîte mail non configurée (variables MAIL_* absentes de server/.env) — fonctionnalité désactivée.");
+}
 
 // Sert le frontend React buildé et gère le routage côté client (React
 // Router) : toute route qui n'est pas une route API renvoie index.html,

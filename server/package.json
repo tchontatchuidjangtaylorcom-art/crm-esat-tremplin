@@ -10,8 +10,12 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^18.0.3",
     "express": "^4.19.2",
+    "imapflow": "^2.0.6",
     "lowdb": "^7.0.1",
-    "nanoid": "^5.0.7"
+    "mailparser": "^3.9.28",
+    "nanoid": "^5.0.7",
+    "nodemailer": "^10.0.10"
   }
 }

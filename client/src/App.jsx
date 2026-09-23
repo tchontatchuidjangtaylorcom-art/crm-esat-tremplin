@@ -5,6 +5,7 @@ import { CallProvider } from "./telephony/CallContext.jsx";
 import { DialerProvider } from "./telephony/DialerContext.jsx";
 import CallPanel from "./telephony/CallPanel.jsx";
 import OutilsVenteLayout from "./components/OutilsVenteLayout.jsx";
+import NotificationsMail from "./components/NotificationsMail.jsx";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           </Routes>
         </OutilsVenteLayout>
         <CallPanel />
+        <NotificationsMail />
       </DialerProvider>
     </CallProvider>
   );

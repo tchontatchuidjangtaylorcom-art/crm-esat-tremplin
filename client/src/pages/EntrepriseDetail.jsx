@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
+import MessagerieMail from "../components/MessagerieMail.jsx";
 import { useTelephonie } from "../telephony/CallContext.jsx";
 import {
   ISSUES_APPEL,
@@ -798,6 +799,8 @@ export default function EntrepriseDetail() {
               </div>
             )}
           </div>
+
+          <MessagerieMail entreprise={entreprise} onMaj={setEntreprise} />
 
           {/* Messagerie / historique */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200/70 dark:border-purple-900/40 shadow-sm p-5">

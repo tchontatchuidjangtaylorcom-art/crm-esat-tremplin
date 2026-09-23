@@ -69,4 +69,17 @@ export const api = {
   getScriptVente: () => fetch(`${BASE}/script-vente`).then(handle),
 
   getModelesMails: () => fetch(`${BASE}/modeles-mails`).then(handle),
+
+  getStatutMail: () => fetch(`${BASE}/emails/statut`).then(handle),
+
+  getEmailsNonLus: () => fetch(`${BASE}/emails/non-lus`).then(handle),
+
+  marquerEmailsLus: (id) => fetch(`${BASE}/entreprises/${id}/emails/lu`, { method: "POST" }).then(handle),
+
+  envoyerEmail: (id, { objet, corps }) =>
+    fetch(`${BASE}/entreprises/${id}/emails/envoyer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ objet, corps }),
+    }).then(handle),
 };
