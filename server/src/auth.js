@@ -1,5 +1,10 @@
-// Authentification sans mot de passe (lien magique par mail + Google en
-// option) avec validation des comptes par un administrateur.
+// Authentification principalement sans mot de passe (lien magique par mail +
+// Google en option), avec validation des comptes par un administrateur. Un
+// mot de passe reste possible par compte, à la discrétion de l'admin (voir
+// definirMotDePasse ci-dessous) : utile pour les comptes qui ne veulent/
+// peuvent pas dépendre d'un mail à chaque connexion. Les deux méthodes
+// coexistent par compte — définir un mot de passe n'invalide jamais le lien
+// magique.
 //
 // Deux façons de devenir admin :
 //  1. ADMIN_EMAILS (server/.env) : liste blanche explicite et déterministe —
@@ -12,9 +17,13 @@
 //     le premier administrateur.
 // Tous les autres comptes restent "en_attente" jusqu'à validation manuelle.
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, estEnvoiConfigure } from "./mail.js";
+
+const TOURS_BCRYPT = 10;
+const LONGUEUR_MIN_MOT_DE_PASSE = 8;
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-non-securise-a-changer-en-production";
 const DUREE_LIEN_MINUTES = 15;
@@ -81,7 +90,7 @@ export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" }
 // "demander un lien", et qui crée un compte "en_attente" à valider), ici
 // c'est l'admin qui anticipe l'accès — le compte est donc créé directement
 // "valide", l'agent n'a plus qu'à se connecter avec cette adresse.
-export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", role = "agent", appUrl } = {}) {
+export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", role = "agent", appUrl, motDePasse } = {}) {
   const propre = normaliserEmail(email);
   if (!propre || !propre.includes("@")) {
     const erreur = new Error("Adresse mail invalide.");
@@ -96,6 +105,18 @@ export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", r
     throw erreur;
   }
 
+  // Optionnel : mot de passe défini dès la création, en plus du lien
+  // magique (voir definirMotDePasse — même validation de longueur).
+  let motDePasseHash = null;
+  if (motDePasse) {
+    if (motDePasse.length < LONGUEUR_MIN_MOT_DE_PASSE) {
+      const erreur = new Error(`Le mot de passe doit contenir au moins ${LONGUEUR_MIN_MOT_DE_PASSE} caractères.`);
+      erreur.code = "MOT_DE_PASSE_TROP_COURT";
+      throw erreur;
+    }
+    motDePasseHash = await bcrypt.hash(motDePasse, TOURS_BCRYPT);
+  }
+
   const utilisateur = {
     id: nanoid(),
     email: propre,
@@ -103,6 +124,7 @@ export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", r
     nom,
     role: role === "admin" ? "admin" : "agent",
     statut: "valide",
+    motDePasseHash,
     dateCreation: new Date().toISOString(),
     dateValidation: new Date().toISOString(),
   };
@@ -116,13 +138,20 @@ export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", r
   let mailEnvoye = false;
   if (appUrl && estEnvoiConfigure()) {
     try {
+      // Le mot de passe éventuel n'est jamais inclus dans ce mail (canal non
+      // sécurisé) : s'il en a été défini un, c'est à l'administrateur de le
+      // communiquer à l'agent par un moyen séparé (oral, message chiffré...).
       await envoyerMail({
         to: utilisateur.email,
         subject: "Votre accès au CRM OETH/AGEFIPH est prêt",
         text:
           `Bonjour,\n\nUn accès au CRM OETH/AGEFIPH vient d'être créé pour vous.\n\n` +
           `Pour vous connecter, rendez-vous sur ${appUrl} et indiquez cette adresse mail : ` +
-          `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.\n\nPôle OETH / AGEFIPH`,
+          `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.` +
+          (motDePasseHash
+            ? " Si un mot de passe vous a été communiqué par ailleurs, vous pouvez aussi l'utiliser directement."
+            : "") +
+          `\n\nPôle OETH / AGEFIPH`,
         fromName: "Pôle OETH / AGEFIPH",
       });
       mailEnvoye = true;
@@ -132,6 +161,73 @@ export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", r
   }
 
   return { utilisateur, mailEnvoye };
+}
+
+// Définit, change ou retire (motDePasse vide/null) le mot de passe d'un
+// compte existant — utilisé par l'interface admin "Gestion des accès" aussi
+// bien à la création qu'après coup. Ne touche à rien d'autre (rôle, statut) :
+// le mot de passe est une méthode de connexion additionnelle, pas une
+// validation de compte.
+export async function definirMotDePasse(utilisateurId, motDePasse) {
+  const utilisateur = trouverUtilisateurParId(utilisateurId);
+  if (!utilisateur) {
+    const erreur = new Error("Utilisateur introuvable.");
+    erreur.code = "UTILISATEUR_INTROUVABLE";
+    throw erreur;
+  }
+
+  if (!motDePasse) {
+    utilisateur.motDePasseHash = null;
+    await db.write();
+    console.log(`[auth] Mot de passe retiré pour ${utilisateur.email} (connexion par lien magique uniquement).`);
+    return utilisateur;
+  }
+
+  if (motDePasse.length < LONGUEUR_MIN_MOT_DE_PASSE) {
+    const erreur = new Error(`Le mot de passe doit contenir au moins ${LONGUEUR_MIN_MOT_DE_PASSE} caractères.`);
+    erreur.code = "MOT_DE_PASSE_TROP_COURT";
+    throw erreur;
+  }
+
+  utilisateur.motDePasseHash = await bcrypt.hash(motDePasse, TOURS_BCRYPT);
+  await db.write();
+  console.log(`[auth] Mot de passe défini pour ${utilisateur.email}.`);
+  return utilisateur;
+}
+
+// Connexion par e-mail + mot de passe — alternative au lien magique pour les
+// comptes qui en ont un (voir definirMotDePasse). Message d'erreur volontai-
+// rement générique entre "email inconnu" et "mot de passe incorrect" (évite
+// de confirmer l'existence d'un compte à qui tenterait plusieurs adresses),
+// mais distingue le cas "compte sans mot de passe défini" pour rediriger
+// l'utilisateur vers le lien magique plutôt que le laisser deviner.
+export async function verifierMotDePasse(email, motDePasse) {
+  const utilisateur = trouverUtilisateurParEmail(email);
+  if (!utilisateur || !utilisateur.motDePasseHash) {
+    if (utilisateur && !utilisateur.motDePasseHash) {
+      const erreur = new Error("Aucun mot de passe défini pour ce compte — utilisez le lien de connexion par mail.");
+      erreur.code = "MOT_DE_PASSE_NON_DEFINI";
+      throw erreur;
+    }
+    const erreur = new Error("Adresse mail ou mot de passe incorrect.");
+    erreur.code = "IDENTIFIANTS_INVALIDES";
+    throw erreur;
+  }
+
+  const valide = await bcrypt.compare(motDePasse || "", utilisateur.motDePasseHash);
+  if (!valide) {
+    const erreur = new Error("Adresse mail ou mot de passe incorrect.");
+    erreur.code = "IDENTIFIANTS_INVALIDES";
+    throw erreur;
+  }
+
+  if (utilisateur.statut !== "valide") {
+    const erreur = new Error("Compte introuvable ou non validé.");
+    erreur.code = "COMPTE_NON_VALIDE";
+    throw erreur;
+  }
+
+  return utilisateur;
 }
 
 function genererLienMagique(utilisateur, appUrl) {

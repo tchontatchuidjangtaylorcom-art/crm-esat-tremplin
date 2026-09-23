@@ -36,6 +36,8 @@ import {
   trouverOuCreerUtilisateur,
   trouverUtilisateurParId,
   creerUtilisateurParAdmin,
+  definirMotDePasse,
+  verifierMotDePasse,
   envoyerLienMagique,
   verifierLienMagique,
   creerCookieSession,
@@ -200,6 +202,29 @@ app.post("/api/auth/demander-lien", async (req, res) => {
   res.json({ statut: "lien_envoye", message: "Un lien de connexion vient de vous être envoyé par mail." });
 });
 
+// Connexion directe par e-mail + mot de passe — uniquement pour les comptes
+// où un administrateur en a défini un (voir /api/utilisateurs/:id/mot-de-passe
+// ci-dessous) ; les autres restent sur le lien magique.
+app.post("/api/auth/connexion-mot-de-passe", async (req, res) => {
+  const email = String(req.body.email || "").trim();
+  const motDePasse = String(req.body.motDePasse || "");
+  if (!email || !motDePasse) {
+    return res.status(400).json({ error: "Adresse mail et mot de passe requis." });
+  }
+
+  try {
+    const utilisateur = await verifierMotDePasse(email, motDePasse);
+    creerCookieSession(res, utilisateur);
+    res.json({
+      statut: "connecte",
+      utilisateur: { email: utilisateur.email, prenom: utilisateur.prenom, nom: utilisateur.nom, role: utilisateur.role },
+    });
+  } catch (e) {
+    const statutHttp = e.code === "MOT_DE_PASSE_NON_DEFINI" ? 400 : 401;
+    res.status(statutHttp).json({ error: e.message, code: e.code });
+  }
+});
+
 // Lien cliqué depuis le mail : vérifie le jeton, ouvre la session, puis
 // redirige vers l'application (jamais une réponse JSON, c'est une navigation
 // de navigateur).
@@ -243,15 +268,24 @@ app.post("/api/auth/deconnexion", (req, res) => {
   res.json({ ok: true });
 });
 
+// Ne renvoie jamais motDePasseHash au frontend — seul son existence (booléen)
+// est utile côté UI pour savoir si un mot de passe est déjà défini.
+function sansMotDePasse(utilisateur) {
+  const { motDePasseHash, ...reste } = utilisateur;
+  return { ...reste, aUnMotDePasse: Boolean(motDePasseHash) };
+}
+
 // Administration des accès (réservé aux comptes "admin")
 app.get("/api/utilisateurs", exigerAdmin, (req, res) => {
-  res.json(db.data.utilisateurs);
+  res.json(db.data.utilisateurs.map(sansMotDePasse));
 });
 
 // Création directe d'un accès agent par l'admin (voir creerUtilisateurParAdmin
 // dans auth.js) : contrairement à /valider ci-dessous qui traite une demande
 // déjà déposée par l'agent, ici il n'y a pas encore de demande — l'admin
-// crée le compte à l'avance, déjà validé, à partir du seul email.
+// crée le compte à l'avance, déjà validé, à partir du seul email. Un mot de
+// passe optionnel peut être défini dès la création (motDePasse) — sinon le
+// compte reste accessible uniquement par lien magique, comme avant.
 app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
   try {
     const { utilisateur, mailEnvoye } = await creerUtilisateurParAdmin(req.body.email, {
@@ -259,10 +293,27 @@ app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
       nom: String(req.body.nom || "").trim(),
       role: req.body.role === "admin" ? "admin" : "agent",
       appUrl: APP_URL,
+      motDePasse: req.body.motDePasse ? String(req.body.motDePasse) : null,
     });
-    res.status(201).json({ utilisateur, mailEnvoye });
+    res.status(201).json({ utilisateur: sansMotDePasse(utilisateur), mailEnvoye });
   } catch (e) {
-    const statutHttp = e.code === "EMAIL_INVALIDE" ? 400 : e.code === "COMPTE_EXISTANT" ? 409 : 500;
+    const statutHttp =
+      e.code === "EMAIL_INVALIDE" || e.code === "MOT_DE_PASSE_TROP_COURT" ? 400 : e.code === "COMPTE_EXISTANT" ? 409 : 500;
+    res.status(statutHttp).json({ error: e.message });
+  }
+});
+
+// Définit, change ou retire (motDePasse vide) le mot de passe d'un compte
+// existant, admin ou agent — même règle de longueur qu'à la création (voir
+// auth.js). Une chaîne vide/absente retire le mot de passe : le compte
+// retombe alors sur le lien magique uniquement.
+app.post("/api/utilisateurs/:id/mot-de-passe", exigerAdmin, async (req, res) => {
+  try {
+    const utilisateur = await definirMotDePasse(req.params.id, req.body.motDePasse ? String(req.body.motDePasse) : "");
+    res.json(sansMotDePasse(utilisateur));
+  } catch (e) {
+    const statutHttp =
+      e.code === "UTILISATEUR_INTROUVABLE" ? 404 : e.code === "MOT_DE_PASSE_TROP_COURT" ? 400 : 500;
     res.status(statutHttp).json({ error: e.message });
   }
 });
@@ -274,7 +325,7 @@ app.post("/api/utilisateurs/:id/valider", exigerAdmin, async (req, res) => {
   utilisateur.role = req.body.role === "admin" ? "admin" : "agent";
   utilisateur.dateValidation = new Date().toISOString();
   await db.write();
-  res.json(utilisateur);
+  res.json(sansMotDePasse(utilisateur));
 });
 
 app.post("/api/utilisateurs/:id/refuser", exigerAdmin, async (req, res) => {
@@ -282,7 +333,7 @@ app.post("/api/utilisateurs/:id/refuser", exigerAdmin, async (req, res) => {
   if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
   utilisateur.statut = "refuse";
   await db.write();
-  res.json(utilisateur);
+  res.json(sansMotDePasse(utilisateur));
 });
 
 // ---- Routes ----

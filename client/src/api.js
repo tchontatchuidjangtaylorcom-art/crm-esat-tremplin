@@ -130,6 +130,13 @@ export const api = {
       body: JSON.stringify({ email }),
     }).then(handle),
 
+  connexionMotDePasse: (email, motDePasse) =>
+    fetch(`${BASE}/auth/connexion-mot-de-passe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, motDePasse }),
+    }).then(handle),
+
   connexionGoogle: (idToken) =>
     fetch(`${BASE}/auth/google`, {
       method: "POST",
@@ -143,11 +150,18 @@ export const api = {
 
   listUtilisateurs: () => fetch(`${BASE}/utilisateurs`).then(handle),
 
-  creerUtilisateur: ({ email, prenom, nom, role }) =>
+  creerUtilisateur: ({ email, prenom, nom, role, motDePasse }) =>
     fetch(`${BASE}/utilisateurs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, prenom: prenom || "", nom: nom || "", role: role || "agent" }),
+      body: JSON.stringify({ email, prenom: prenom || "", nom: nom || "", role: role || "agent", motDePasse: motDePasse || "" }),
+    }).then(handle),
+
+  definirMotDePasse: (id, motDePasse) =>
+    fetch(`${BASE}/utilisateurs/${id}/mot-de-passe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motDePasse: motDePasse || "" }),
     }).then(handle),
 
   validerUtilisateur: (id, role) =>

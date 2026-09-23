@@ -3,13 +3,19 @@ import { useSearchParams, Navigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 
-// Connexion sans mot de passe : lien magique par mail, ou Google si
-// configuré côté serveur (bouton masqué sinon). Le premier compte jamais
-// créé devient automatiquement administrateur (voir server/src/auth.js).
+// Connexion principalement sans mot de passe : lien magique par mail, ou
+// Google si configuré côté serveur (bouton masqué sinon). Un mot de passe
+// reste possible par compte, à la discrétion de l'admin (voir
+// server/src/auth.js) : si le champ mot de passe est rempli ici, on tente
+// une connexion directe ; laissé vide, le comportement habituel (lien
+// magique) s'applique — inchangé pour tous les comptes qui n'ont pas de mot
+// de passe défini. Le premier compte jamais créé devient automatiquement
+// administrateur.
 export default function Connexion() {
   const { utilisateur, chargement } = useAuth();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [message, setMessage] = useState(null);
   const [erreur, setErreur] = useState(
@@ -66,6 +72,13 @@ export default function Connexion() {
     setErreur(null);
     setMessage(null);
     try {
+      if (motDePasse) {
+        // Mot de passe renseigné → connexion directe (compte avec mot de
+        // passe défini par l'admin) ; sinon on retombe sur le lien magique.
+        await api.connexionMotDePasse(email.trim(), motDePasse);
+        window.location.href = "/";
+        return;
+      }
       const resultat = await api.demanderLien(email.trim());
       setMessage(resultat.message);
     } catch (e) {
@@ -84,7 +97,7 @@ export default function Connexion() {
       <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 space-y-6">
         <div className="text-center">
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">CRM OETH / AGEFIPH</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connexion sans mot de passe</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Lien de connexion ou mot de passe</p>
         </div>
 
         {erreur && (
@@ -110,12 +123,23 @@ export default function Connexion() {
               className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
             />
           </label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            Mot de passe (si votre compte en a un — sinon laissez vide)
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={motDePasse}
+              onChange={(e) => setMotDePasse(e.target.value)}
+              placeholder="Laisser vide pour recevoir un lien"
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+            />
+          </label>
           <button
             type="submit"
             disabled={envoiEnCours || !email.trim()}
             className="w-full rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium py-2.5 disabled:opacity-40"
           >
-            {envoiEnCours ? "Envoi…" : "Recevoir un lien de connexion"}
+            {envoiEnCours ? "Connexion…" : motDePasse ? "Se connecter" : "Recevoir un lien de connexion"}
           </button>
         </form>
 
