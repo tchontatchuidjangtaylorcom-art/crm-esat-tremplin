@@ -375,7 +375,17 @@ export default function EntrepriseDetail() {
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
           </p>
         </div>
-        <StatusBadge statut={entreprise.statut} />
+        <div className="flex items-center gap-3">
+          <a
+            href={`/api/entreprises/${id}/rapport-pdf`}
+            download
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700"
+            title="Générer un PDF avec les indicateurs OETH et l'historique de prospection"
+          >
+            📄 Télécharger le rapport PDF
+          </a>
+          <StatusBadge statut={entreprise.statut} />
+        </div>
       </div>
 
       {erreur && (

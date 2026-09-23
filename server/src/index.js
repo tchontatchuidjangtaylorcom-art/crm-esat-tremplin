@@ -27,6 +27,7 @@ import {
   verifierConnexionSMTP,
 } from "./mail.js";
 import { genererSynthesePdf } from "./pdfSynthese.js";
+import { genererRapportPdf } from "./pdfRapport.js";
 import {
   estRechercheIaConfiguree,
   rechercherContactAlternatif,
@@ -961,6 +962,32 @@ app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepris
     console.error(`[ia] Échec de recherche de contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
     res.status(statutHttp).json({ error: e.message });
+  }
+});
+
+// Rapport PDF téléchargeable depuis la fiche entreprise (bouton "Télécharger
+// le rapport PDF") — indicateurs OETH + statut/historique de prospection.
+// Document DISTINCT du PDF joint aux mails (pdfSynthese.js) : celui-ci
+// contient un suivi interne (issues d'appel, notes) à ne jamais envoyer
+// automatiquement au prospect lui-même — voir la note en tête de
+// pdfRapport.js. Streamé directement, rien n'est stocké côté serveur.
+app.get("/api/entreprises/:id/rapport-pdf", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = enrichir(req.entreprise);
+  try {
+    const pdf = await genererRapportPdf({
+      entreprise,
+      oeth: entreprise.oeth,
+      categorie: entreprise.categorie,
+      poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
+      genereParNom: req.utilisateur.prenom || req.utilisateur.nom || req.utilisateur.email,
+    });
+    const nomFichier = `rapport-${(entreprise.nom || "entreprise").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${nomFichier}"`);
+    res.send(pdf);
+  } catch (e) {
+    console.error(`[pdf] Échec de génération du rapport pour ${entreprise.nom} :`, e.message);
+    res.status(500).json({ error: "Impossible de générer le rapport PDF." });
   }
 });
 
