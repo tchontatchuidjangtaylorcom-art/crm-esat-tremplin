@@ -8,7 +8,7 @@ export const STATUTS = {
   rdv: { label: "RDV", badge: "bg-green-100 text-green-700 border border-green-300" },
   mail: { label: "Mail", badge: "bg-cyan-100 text-cyan-700 border border-cyan-300" },
   autre: { label: "Autre", badge: "bg-gray-100 text-gray-700 border border-gray-300" },
-  fiche: { label: "Fiche", badge: "bg-teal-100 text-teal-700 border border-teal-300" },
+  fiche: { label: "Fiche Potentielle", badge: "bg-amber-100 text-amber-800 border border-amber-400 font-bold" },
   fiche_one_shot: { label: "Fiche one-shot", badge: "bg-indigo-100 text-indigo-700 border border-indigo-300" },
   conforme: { label: "Conforme", badge: "bg-emerald-100 text-emerald-700 border border-emerald-300" },
   refus: { label: "Refus", badge: "bg-rose-100 text-rose-700 border border-rose-300" },
@@ -56,7 +56,7 @@ export const ISSUES_APPEL = [
 
 // Menu "SORTIE DU DOSSIER" du module AGIR.
 export const SORTIES_DOSSIER = [
-  { value: "fiche", label: "Fiche → atelier" },
+  { value: "fiche", label: "Fiche Potentielle" },
   { value: "fiche_one_shot", label: "Fiche one-shot → atelier" },
   { value: "conforme", label: "Conforme — dossier réglé (archivé)" },
   { value: "refus", label: "Refus (dossier clos)" },

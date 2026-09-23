@@ -10,8 +10,10 @@ import Sidebar from "../components/Sidebar.jsx";
 import ImportLot from "../components/ImportLot.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import KpiObjectifMensuel from "../components/KpiObjectifMensuel.jsx";
+import BanniereSupervision from "../components/BanniereSupervision.jsx";
 import { useTheme } from "../useTheme.js";
 import { useAuth } from "../AuthContext.jsx";
+import { useSupervision } from "../SupervisionContext.jsx";
 import { ORDRE_STATUTS } from "../constants.js";
 
 const TAILLES_PAGE = [10, 20, 50];
@@ -31,7 +33,11 @@ function correspondRecherche(e, recherche) {
 export default function Dashboard() {
   const { theme, basculer } = useTheme();
   const { utilisateur } = useAuth();
+  const { agentSupervise } = useSupervision();
   const estAdmin = utilisateur?.role === "admin";
+  // Mode Manager : un admin consulte le pipeline "comme si" il était l'agent
+  // choisi (voir UserMenu > "Voir le compte de…") — jamais l'inverse.
+  const commeAgentId = estAdmin ? agentSupervise?.id : null;
   const [entreprises, setEntreprises] = useState([]);
   const [categories, setCategories] = useState([]);
   const [lots, setLots] = useState([]);
@@ -49,7 +55,12 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
 
   function charger() {
-    const appels = [api.listEntreprises(), api.listCategories(), api.listLots(), api.listArchives()];
+    const appels = [
+      api.listEntreprises(commeAgentId),
+      api.listCategories(),
+      api.listLots(),
+      api.listArchives(commeAgentId),
+    ];
     if (estAdmin) appels.push(api.listUtilisateurs());
     return Promise.all(appels)
       .then(([e, c, l, a, u]) => {
@@ -65,9 +76,10 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    setLoading(true);
     charger().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estAdmin]);
+  }, [estAdmin, commeAgentId]);
 
   // Revient à la première page dès qu'un filtre ou la taille de page change,
   // pour ne jamais rester bloqué sur une page qui n'a plus de résultats.
@@ -197,6 +209,8 @@ export default function Dashboard() {
         <UserMenu theme={theme} onBasculerTheme={basculer} />
       </div>
 
+      <BanniereSupervision />
+
       <KpiObjectifMensuel valeur={nbQualifieesCeMois} min={OBJECTIF_MENSUEL_MIN} max={OBJECTIF_MENSUEL_MAX} />
 
       {erreur && (
@@ -210,7 +224,7 @@ export default function Dashboard() {
           étroite — ses propres onglets/listes défilent au besoin sans jamais
           bloquer le défilement général de la page. Réservé aux admins :
           l'import en masse est une décision de constitution de pipeline. */}
-      {estAdmin && (
+      {estAdmin && !commeAgentId && (
         <div className="mb-4">
           <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
           <ImportLot categories={categories} agents={agents} onImporte={charger} />

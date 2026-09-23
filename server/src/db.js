@@ -37,7 +37,9 @@ console.log(
 );
 
 const adapter = new JSONFile(file);
-const db = new Low(adapter, { entreprises: [], archives: [], utilisateurs: [] });
+const db = new Low(adapter, { entreprises: [], archives: [], utilisateurs: [], canaux: [], messages: [] });
+
+export const CANAL_GENERAL_ID = "general";
 
 export async function initDb() {
   await db.read();
@@ -60,6 +62,27 @@ export async function initDb() {
   }
   if (!db.data.utilisateurs) {
     db.data.utilisateurs = [];
+    aEcrire = true;
+  }
+  if (!db.data.canaux) {
+    db.data.canaux = [];
+    aEcrire = true;
+  }
+  if (!db.data.messages) {
+    db.data.messages = [];
+    aEcrire = true;
+  }
+  // Canal "Infos Générales" : visible de tous implicitement (voir
+  // estMembreCanal côté index.js), pas besoin d'y lister chaque agent.
+  if (!db.data.canaux.some((c) => c.id === CANAL_GENERAL_ID)) {
+    db.data.canaux.push({
+      id: CANAL_GENERAL_ID,
+      type: "general",
+      nom: "Infos Générales",
+      membres: null,
+      createurId: null,
+      dateCreation: new Date().toISOString(),
+    });
     aEcrire = true;
   }
   if (aEcrire) await db.write();

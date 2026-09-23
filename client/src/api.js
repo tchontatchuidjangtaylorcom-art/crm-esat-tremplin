@@ -9,7 +9,8 @@ async function handle(res) {
 }
 
 export const api = {
-  listEntreprises: () => fetch(`${BASE}/entreprises`).then(handle),
+  listEntreprises: (commeAgentId) =>
+    fetch(`${BASE}/entreprises${commeAgentId ? `?commeAgentId=${commeAgentId}` : ""}`).then(handle),
 
   listCategories: () => fetch(`${BASE}/categories`).then(handle),
 
@@ -80,7 +81,8 @@ export const api = {
 
   listLots: () => fetch(`${BASE}/lots`).then(handle),
 
-  listArchives: () => fetch(`${BASE}/archives`).then(handle),
+  listArchives: (commeAgentId) =>
+    fetch(`${BASE}/archives${commeAgentId ? `?commeAgentId=${commeAgentId}` : ""}`).then(handle),
 
   assignerEntreprise: (id, utilisateurId) =>
     fetch(`${BASE}/entreprises/${id}/assigner`, {
@@ -119,6 +121,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ objet, corps, joindrePdf }),
+    }).then(handle),
+
+  soumettreFicheProspection: (id, donnees) =>
+    fetch(`${BASE}/entreprises/${id}/fiche-prospection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
     }).then(handle),
 
   getAuthConfig: () => fetch(`${BASE}/auth/config`).then(handle),
@@ -172,4 +181,36 @@ export const api = {
     }).then(handle),
 
   refuserUtilisateur: (id) => fetch(`${BASE}/utilisateurs/${id}/refuser`, { method: "POST" }).then(handle),
+
+  listCollegues: () => fetch(`${BASE}/utilisateurs/collegues`).then(handle),
+
+  listCanauxChat: () => fetch(`${BASE}/chat/canaux`).then(handle),
+
+  listMessagesChat: (canalId) => fetch(`${BASE}/chat/canaux/${canalId}/messages`).then(handle),
+
+  envoyerMessageChat: (canalId, texte) =>
+    fetch(`${BASE}/chat/canaux/${canalId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texte }),
+    }).then(handle),
+
+  marquerCanalLu: (canalId) => fetch(`${BASE}/chat/canaux/${canalId}/lu`, { method: "POST" }).then(handle),
+
+  creerGroupeChat: (nom, membres) =>
+    fetch(`${BASE}/chat/groupes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nom, membres }),
+    }).then(handle),
+
+  ouvrirConversationPrivee: (utilisateurId) =>
+    fetch(`${BASE}/chat/prive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ utilisateurId }),
+    }).then(handle),
+
+  getNotifications: (commeAgentId) =>
+    fetch(`${BASE}/notifications${commeAgentId ? `?commeAgentId=${commeAgentId}` : ""}`).then(handle),
 };

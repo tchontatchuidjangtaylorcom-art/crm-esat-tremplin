@@ -3,6 +3,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
 import Connexion from "./pages/Connexion.jsx";
 import AdminUtilisateurs from "./pages/AdminUtilisateurs.jsx";
+import Chat from "./pages/Chat.jsx";
 import { CallProvider } from "./telephony/CallContext.jsx";
 import { DialerProvider } from "./telephony/DialerContext.jsx";
 import CallPanel from "./telephony/CallPanel.jsx";
@@ -10,6 +11,9 @@ import OutilsVenteLayout from "./components/OutilsVenteLayout.jsx";
 import NotificationsMail from "./components/NotificationsMail.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import { AuthProvider } from "./AuthContext.jsx";
+import { ChatProvider } from "./chat/ChatContext.jsx";
+import ChatWidget from "./chat/ChatWidget.jsx";
+import { SupervisionProvider } from "./SupervisionContext.jsx";
 
 export default function App() {
   return (
@@ -32,12 +36,18 @@ export default function App() {
               path="/*"
               element={
                 <RequireAuth>
-                  <OutilsVenteLayout>
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/entreprise/:id" element={<EntrepriseDetail />} />
-                    </Routes>
-                  </OutilsVenteLayout>
+                  <ChatProvider>
+                    <SupervisionProvider>
+                      <OutilsVenteLayout>
+                        <Routes>
+                          <Route path="/" element={<Dashboard />} />
+                          <Route path="/entreprise/:id" element={<EntrepriseDetail />} />
+                          <Route path="/chat" element={<Chat />} />
+                        </Routes>
+                      </OutilsVenteLayout>
+                      <ChatWidget />
+                    </SupervisionProvider>
+                  </ChatProvider>
                 </RequireAuth>
               }
             />

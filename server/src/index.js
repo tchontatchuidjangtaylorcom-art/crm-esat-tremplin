@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
-import db, { initDb } from "./db.js";
+import db, { initDb, CANAL_GENERAL_ID } from "./db.js";
 import { calculerObligationOeth } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur, CATEGORIES } from "./secteurs.js";
 import { estSirenValide, rechercherEntrepriseParSiren, rechercherEntreprisesParSecteur } from "./insee.js";
@@ -77,7 +77,7 @@ const ISSUES_APPEL = {
 };
 
 const SORTIES_DOSSIER = {
-  fiche: "Fiche → atelier",
+  fiche: "Fiche Potentielle",
   fiche_one_shot: "Fiche one-shot → atelier",
   conforme: "Conforme — dossier réglé",
   refus: "Refus (dossier clos)",
@@ -367,20 +367,42 @@ app.get("/api/modeles-mails", (req, res) => {
   res.json(getModelesMails());
 });
 
+// Résout le filtre d'agent effectif pour une requête : normalement
+// l'utilisateur connecté (estVisiblePar), sauf si un admin consulte le
+// pipeline "comme si" il était un agent donné (Mode Manager — voir
+// commeAgentId, réservé à req.utilisateur.role === "admin" pour qu'un agent
+// ne puisse jamais usurper la vue d'un autre en devinant l'ID).
+function resoudreCibleSupervision(req) {
+  if (req.utilisateur.role !== "admin" || !req.query.commeAgentId) return null;
+  return trouverUtilisateurParId(req.query.commeAgentId);
+}
+
 // Vue filtrée par rôle : un agent ne reçoit que ses dossiers assignés,
 // l'administrateur reçoit tout le pipeline (voir estVisiblePar ci-dessus).
 app.get("/api/entreprises", exigerAuth, (req, res) => {
-  const visibles = db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur));
+  const cible = resoudreCibleSupervision(req);
+  const visibles = cible
+    ? db.data.entreprises.filter((e) => e.assigneA === cible.id)
+    : db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur));
   res.json(visibles.map(enrichir));
 });
 
-app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, (req, res) => {
+app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  // L'agent assigné "prend connaissance" du dossier en l'ouvrant — éteint
+  // l'alerte "nouveau lead assigné" du centre de notifications.
+  if (req.entreprise.assigneA === req.utilisateur.id && req.entreprise.assignationVue === false) {
+    req.entreprise.assignationVue = true;
+    await db.write();
+  }
   res.json(enrichir(req.entreprise));
 });
 
 // Dossiers "mort" archivés automatiquement (consultation seule, hors pipeline actif).
 app.get("/api/archives", exigerAuth, (req, res) => {
-  const visibles = db.data.archives.filter((e) => estVisiblePar(e, req.utilisateur));
+  const cible = resoudreCibleSupervision(req);
+  const visibles = cible
+    ? db.data.archives.filter((e) => e.assigneA === cible.id)
+    : db.data.archives.filter((e) => estVisiblePar(e, req.utilisateur));
   res.json(visibles.map(enrichir));
 });
 
@@ -428,6 +450,11 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null,
     secteurPublic: donnees.secteurPublic,
     categorieForcee,
     assigneA,
+    // Vu d'office si l'agent se l'assigne lui-même en le créant (recherche
+    // ponctuelle) — sinon (import en lot affecté par un admin à un autre
+    // agent) déclenche l'alerte "nouveau lead assigné" côté notifications.
+    assignationVue: !assigneA || assigneA === utilisateur?.id,
+    dateAssignation: assigneA ? new Date().toISOString() : null,
     dateCreation: null,
     effectif: donnees.effectifEstime,
     effectifBeneficiaire: 0,
@@ -794,6 +821,12 @@ app.post("/api/entreprises/:id/assigner", exigerAdmin, async (req, res) => {
       return res.status(400).json({ error: "Agent introuvable ou compte non validé." });
     }
   }
+  // Nouvelle affectation à un agent différent : déclenche l'alerte "nouveau
+  // lead assigné" (voir /api/notifications) jusqu'à ce qu'il ouvre la fiche.
+  if (utilisateurId && utilisateurId !== entreprise.assigneA) {
+    entreprise.assignationVue = false;
+    entreprise.dateAssignation = new Date().toISOString();
+  }
   entreprise.assigneA = utilisateurId;
   await db.write();
   res.json(enrichir(entreprise));
@@ -812,7 +845,13 @@ app.post("/api/lots/:lot/assigner", exigerAdmin, async (req, res) => {
     }
   }
   const cibles = db.data.entreprises.filter((e) => e.lot === lot);
-  for (const e of cibles) e.assigneA = utilisateurId;
+  for (const e of cibles) {
+    if (utilisateurId && utilisateurId !== e.assigneA) {
+      e.assignationVue = false;
+      e.dateAssignation = new Date().toISOString();
+    }
+    e.assigneA = utilisateurId;
+  }
   await db.write();
   res.json({ lot, nbAssignees: cibles.length, entreprises: cibles.map(enrichir) });
 });
@@ -876,6 +915,68 @@ app.post("/api/entreprises/:id/sortie", exigerAuth, chargerEntrepriseAutorisee, 
 
   await db.write();
   res.json({ archive, entreprise: enrichir(entreprise) });
+});
+
+// Numérisation de la "Fiche de Suivi Prospect" papier : soumise par l'agent
+// une fois le prospect qualifié comme prêt à finaliser. Fait basculer
+// automatiquement le dossier sur le statut "fiche" (réétiqueté "Fiche
+// Potentielle" — voir constants.js côté client et SORTIES_DOSSIER.fiche
+// ci-dessus, qui reprend un statut secondaire déjà existant plutôt que d'en
+// ajouter un nouveau). N'archive PAS le dossier (contrairement à "conforme/
+// refus/mort") : il doit rester visible dans le pipeline actif pour que
+// l'administrateur puisse encore agir dessus. La fiche complète est
+// conservée (fichesProspection) pour trace/consultation ultérieure.
+app.post("/api/entreprises/:id/fiche-prospection", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
+  const {
+    prenom,
+    date,
+    numeroDossier,
+    personneEnChargeNom,
+    personneEnChargeFonction,
+    nombreTravailleursHandicapes,
+    montantTaxesAnnonce,
+    montantAFaire,
+    remarques,
+  } = req.body;
+
+  const fiche = {
+    id: nanoid(),
+    dateCreation: new Date().toISOString(),
+    agentId: req.utilisateur.id,
+    agentNom: req.utilisateur.prenom || req.utilisateur.nom || req.utilisateur.email,
+    prenom: String(prenom || "").trim(),
+    date: date || new Date().toISOString(),
+    numeroDossier: String(numeroDossier || "").trim(),
+    personneEnChargeNom: String(personneEnChargeNom || "").trim(),
+    personneEnChargeFonction: String(personneEnChargeFonction || "").trim(),
+    nombreTravailleursHandicapes: Number(nombreTravailleursHandicapes) || 0,
+    montantTaxesAnnonce: Number(montantTaxesAnnonce) || 0,
+    montantAFaire: Number(montantAFaire) || 0,
+    remarques: String(remarques || "").trim(),
+  };
+
+  entreprise.fichesProspection = entreprise.fichesProspection || [];
+  entreprise.fichesProspection.unshift(fiche);
+  entreprise.statut = "fiche";
+
+  entreprise.historiqueAppels.unshift({
+    id: nanoid(),
+    date: new Date().toISOString(),
+    type: "sortie",
+    issue: "fiche",
+    issueLabel: SORTIES_DOSSIER.fiche,
+    details:
+      `Fiche Potentielle soumise par ${fiche.agentNom}` +
+      (fiche.numeroDossier ? ` (dossier n°${fiche.numeroDossier})` : "") +
+      ` — ${fiche.nombreTravailleursHandicapes} travailleur(s) handicapé(s), ${fiche.montantTaxesAnnonce} € annoncés.` +
+      (fiche.remarques ? ` Remarques : ${fiche.remarques}` : ""),
+    dateProgrammee: null,
+    dureeSecondes: null,
+  });
+
+  await db.write();
+  res.status(201).json(enrichir(entreprise));
 });
 
 // Ajoute un commentaire libre (messagerie / historique)
@@ -1113,6 +1214,225 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
 
   await db.write();
   res.json(enrichir(entreprise));
+});
+
+// ---- Chat interne (Groupes / Privés) + centre de notifications ----
+//
+// Un canal "général" (voir CANAL_GENERAL_ID, amorcé dans db.js) est visible
+// de tous implicitement. Les groupes d'équipe et les conversations privées
+// sont des canaux normaux avec une liste `membres` explicite. Par choix de
+// confidentialité : un administrateur ne devient PAS automatiquement membre
+// des groupes/privés des agents (il ne peut pas lire leurs messages) — le
+// "Mode Manager" ne lui donne accès qu'à des COMPTEURS (non-lus, leads,
+// RDV), jamais au contenu des conversations d'un agent qu'il superviserait.
+
+function estMembreCanal(canal, utilisateurId) {
+  return canal.type === "general" || (canal.membres || []).includes(utilisateurId);
+}
+
+function compterNonLus(canal, utilisateur) {
+  const dernierLu = utilisateur.lecturesChat?.[canal.id];
+  const msgs = db.data.messages.filter((m) => m.canalId === canal.id);
+  if (!dernierLu) return msgs.length;
+  return msgs.filter((m) => new Date(m.date) > new Date(dernierLu)).length;
+}
+
+// Pour un canal privé, affiche le nom de L'AUTRE participant plutôt qu'un
+// nom générique — chaque membre voit donc un nom différent pour le même canal.
+function nomAfficheCanal(canal, utilisateurId) {
+  if (canal.type !== "prive") return canal.nom;
+  const autreId = (canal.membres || []).find((id) => id !== utilisateurId);
+  const autre = autreId ? trouverUtilisateurParId(autreId) : null;
+  return autre ? autre.prenom || autre.email : "Conversation";
+}
+
+function enrichirCanal(canal, utilisateur) {
+  const msgs = db.data.messages
+    .filter((m) => m.canalId === canal.id)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const dernier = msgs[msgs.length - 1] || null;
+  return {
+    id: canal.id,
+    type: canal.type,
+    nom: nomAfficheCanal(canal, utilisateur.id),
+    membres: canal.membres || null,
+    dernierMessage: dernier ? { texte: dernier.texte, date: dernier.date, auteurId: dernier.auteurId } : null,
+    nonLus: compterNonLus(canal, utilisateur),
+  };
+}
+
+app.get("/api/chat/canaux", exigerAuth, (req, res) => {
+  const mesCanaux = db.data.canaux.filter((c) => estMembreCanal(c, req.utilisateur.id));
+  res.json(mesCanaux.map((c) => enrichirCanal(c, req.utilisateur)));
+});
+
+app.get("/api/chat/canaux/:id/messages", exigerAuth, (req, res) => {
+  const canal = db.data.canaux.find((c) => c.id === req.params.id);
+  if (!canal) return res.status(404).json({ error: "Canal introuvable." });
+  if (!estMembreCanal(canal, req.utilisateur.id)) {
+    return res.status(403).json({ error: "Vous n'êtes pas membre de ce canal." });
+  }
+  const msgs = db.data.messages
+    .filter((m) => m.canalId === canal.id)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .map((m) => {
+      const auteur = trouverUtilisateurParId(m.auteurId);
+      return { ...m, auteurNom: auteur ? auteur.prenom || auteur.email : "?" };
+    });
+  res.json(msgs);
+});
+
+app.post("/api/chat/canaux/:id/messages", exigerAuth, async (req, res) => {
+  const canal = db.data.canaux.find((c) => c.id === req.params.id);
+  if (!canal) return res.status(404).json({ error: "Canal introuvable." });
+  if (!estMembreCanal(canal, req.utilisateur.id)) {
+    return res.status(403).json({ error: "Vous n'êtes pas membre de ce canal." });
+  }
+  const texte = String(req.body.texte || "").trim();
+  if (!texte) return res.status(400).json({ error: "Le message ne peut pas être vide." });
+
+  const message = {
+    id: nanoid(),
+    canalId: canal.id,
+    auteurId: req.utilisateur.id,
+    texte,
+    date: new Date().toISOString(),
+  };
+  db.data.messages.push(message);
+  // L'auteur d'un message vient implicitement de lire son propre canal —
+  // évite qu'il se compte lui-même comme "non lu" après son propre envoi.
+  req.utilisateur.lecturesChat = req.utilisateur.lecturesChat || {};
+  req.utilisateur.lecturesChat[canal.id] = message.date;
+  await db.write();
+  res.status(201).json({ ...message, auteurNom: req.utilisateur.prenom || req.utilisateur.email });
+});
+
+app.post("/api/chat/canaux/:id/lu", exigerAuth, async (req, res) => {
+  const canal = db.data.canaux.find((c) => c.id === req.params.id);
+  if (!canal || !estMembreCanal(canal, req.utilisateur.id)) {
+    return res.status(404).json({ error: "Canal introuvable." });
+  }
+  req.utilisateur.lecturesChat = req.utilisateur.lecturesChat || {};
+  req.utilisateur.lecturesChat[canal.id] = new Date().toISOString();
+  await db.write();
+  res.json({ ok: true });
+});
+
+// Groupe d'équipe : accessible à tout agent (pas seulement un "team leader"
+// dédié — aucun rôle de ce type n'existe encore dans le modèle d'accès, voir
+// auth.js) ; le créateur choisit librement ses membres.
+app.post("/api/chat/groupes", exigerAuth, async (req, res) => {
+  const nom = String(req.body.nom || "").trim();
+  const membresChoisis = Array.isArray(req.body.membres) ? req.body.membres.filter(Boolean) : [];
+  if (!nom) return res.status(400).json({ error: "Le nom du groupe est requis." });
+
+  const membres = [...new Set([req.utilisateur.id, ...membresChoisis])];
+  const canal = {
+    id: nanoid(),
+    type: "groupe",
+    nom,
+    membres,
+    createurId: req.utilisateur.id,
+    dateCreation: new Date().toISOString(),
+  };
+  db.data.canaux.push(canal);
+  await db.write();
+  res.status(201).json(enrichirCanal(canal, req.utilisateur));
+});
+
+// Conversation privée : trouve-ou-crée, id déterministe (paire triée) pour
+// que deux agents qui s'écrivent pour la première fois retombent toujours
+// sur le même canal sans avoir à le chercher au préalable.
+app.post("/api/chat/prive", exigerAuth, async (req, res) => {
+  const autre = req.body.utilisateurId ? trouverUtilisateurParId(req.body.utilisateurId) : null;
+  if (!autre) return res.status(400).json({ error: "Destinataire introuvable." });
+  if (autre.id === req.utilisateur.id) {
+    return res.status(400).json({ error: "Impossible de démarrer une conversation avec soi-même." });
+  }
+
+  const idCanal = "prive:" + [req.utilisateur.id, autre.id].sort().join("_");
+  let canal = db.data.canaux.find((c) => c.id === idCanal);
+  if (!canal) {
+    canal = {
+      id: idCanal,
+      type: "prive",
+      nom: null,
+      membres: [req.utilisateur.id, autre.id],
+      createurId: req.utilisateur.id,
+      dateCreation: new Date().toISOString(),
+    };
+    db.data.canaux.push(canal);
+    await db.write();
+  }
+  res.json(enrichirCanal(canal, req.utilisateur));
+});
+
+// Annuaire minimal (prénom/nom/email), accessible à tout agent authentifié —
+// contrairement à /api/utilisateurs (liste complète + statuts de compte,
+// réservée aux admins) : sert juste à choisir un destinataire de message ou
+// un membre de groupe.
+app.get("/api/utilisateurs/collegues", exigerAuth, (req, res) => {
+  const collegues = db.data.utilisateurs
+    .filter((u) => u.statut === "valide" && u.id !== req.utilisateur.id)
+    .map((u) => ({ id: u.id, prenom: u.prenom, nom: u.nom, email: u.email, role: u.role }));
+  res.json(collegues);
+});
+
+// Centre de notifications : messages non lus (tous canaux dont je suis
+// membre), nouveaux leads qui me sont assignés (voir assignationVue plus
+// haut), et rendez-vous planifiés dans les prochaines 48h.
+const FENETRE_RDV_HEURES = 48;
+
+function calculerNotifications(utilisateur) {
+  const mesCanaux = db.data.canaux.filter((c) => estMembreCanal(c, utilisateur.id));
+  const messagesNonLus = mesCanaux.reduce((somme, c) => somme + compterNonLus(c, utilisateur), 0);
+
+  const mesEntreprises =
+    utilisateur.role === "admin"
+      ? db.data.entreprises
+      : db.data.entreprises.filter((e) => e.assigneA === utilisateur.id);
+
+  const nouveauxLeads = mesEntreprises
+    .filter((e) => e.assigneA === utilisateur.id && e.assignationVue === false)
+    .map((e) => ({ id: e.id, nom: e.nom, dateAssignation: e.dateAssignation }));
+
+  const maintenant = Date.now();
+  const limite = maintenant + FENETRE_RDV_HEURES * 3600 * 1000;
+  const rdvAVenir = mesEntreprises
+    .filter((e) => e.dateRdv && new Date(e.dateRdv).getTime() >= maintenant && new Date(e.dateRdv).getTime() <= limite)
+    .map((e) => ({ id: e.id, nom: e.nom, dateRdv: e.dateRdv }))
+    .sort((a, b) => new Date(a.dateRdv) - new Date(b.dateRdv));
+
+  // Alerte prioritaire : prospects "chauds" dont la Fiche de Suivi a été
+  // soumise par un agent et qui attendent un appel de finalisation. Reste
+  // visible tant que le statut n'a pas été changé (pas de flag "vu" séparé :
+  // le dossier sort naturellement de cette liste dès qu'il est traité).
+  // Pour un admin, mesEntreprises = tout le pipeline, donc cette liste couvre
+  // les fiches soumises par n'importe quel agent, pas seulement les siennes.
+  const fichesPotentielles = mesEntreprises
+    .filter((e) => e.statut === "fiche")
+    .map((e) => ({
+      id: e.id,
+      nom: e.nom,
+      dateFiche: e.fichesProspection?.[0]?.dateCreation || null,
+      soumisePar: e.fichesProspection?.[0]?.agentNom || null,
+    }))
+    .sort((a, b) => new Date(b.dateFiche || 0) - new Date(a.dateFiche || 0));
+
+  return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles };
+}
+
+// `commeAgentId` (admin uniquement) : calcule les notifications d'un AUTRE
+// agent pour le Mode Manager — uniquement des compteurs/listes de leads et
+// RDV, jamais le contenu d'un message privé (voir plus haut).
+app.get("/api/notifications", exigerAuth, (req, res) => {
+  let cible = req.utilisateur;
+  if (req.utilisateur.role === "admin" && req.query.commeAgentId) {
+    const agent = trouverUtilisateurParId(req.query.commeAgentId);
+    if (!agent) return res.status(404).json({ error: "Agent introuvable." });
+    cible = agent;
+  }
+  res.json(calculerNotifications(cible));
 });
 
 // Relève périodique de la boîte mail du pôle (aucun effet si MAIL_* non

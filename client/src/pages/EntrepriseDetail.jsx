@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import MessagerieMail from "../components/MessagerieMail.jsx";
+import FicheSuiviProspect from "../components/FicheSuiviProspect.jsx";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import {
@@ -52,6 +53,14 @@ export default function EntrepriseDetail() {
   const [propositionIa, setPropositionIa] = useState(null);
   const [erreurRechercheIa, setErreurRechercheIa] = useState(null);
   const [appliquerCategorieSuggeree, setAppliquerCategorieSuggeree] = useState(true);
+  const [ficheSuiviOuverte, setFicheSuiviOuverte] = useState(false);
+  const [toastFiche, setToastFiche] = useState(false);
+
+  useEffect(() => {
+    if (!toastFiche) return;
+    const idTimer = setTimeout(() => setToastFiche(false), 4000);
+    return () => clearTimeout(idTimer);
+  }, [toastFiche]);
 
   const [issueChoisie, setIssueChoisie] = useState("");
   const [dateIssue, setDateIssue] = useState("");
@@ -376,6 +385,13 @@ export default function EntrepriseDetail() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setFicheSuiviOuverte(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-sm font-medium px-3 py-2 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+            title="Numériser la fiche de suivi prospect papier"
+          >
+            📝 Fiche de suivi prospect
+          </button>
           <a
             href={`/api/entreprises/${id}/rapport-pdf`}
             download
@@ -387,6 +403,29 @@ export default function EntrepriseDetail() {
           <StatusBadge statut={entreprise.statut} />
         </div>
       </div>
+
+      {ficheSuiviOuverte && (
+        <FicheSuiviProspect
+          entreprise={entreprise}
+          prenomAgent={prenomAgent}
+          onFermer={() => setFicheSuiviOuverte(false)}
+          onValide={(updated) => {
+            setEntreprise(updated);
+            setFicheSuiviOuverte(false);
+            setToastFiche(true);
+          }}
+        />
+      )}
+
+      {toastFiche && (
+        <div
+          role="status"
+          className="fixed top-6 right-6 z-50 flex items-start gap-2.5 rounded-xl bg-amber-600 text-white text-sm font-medium px-4 py-3 shadow-lg"
+        >
+          <span className="text-lg leading-none">✓</span>
+          <span>Fiche validée — dossier passé en « Fiche Potentielle ».</span>
+        </div>
+      )}
 
       {erreur && (
         <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">

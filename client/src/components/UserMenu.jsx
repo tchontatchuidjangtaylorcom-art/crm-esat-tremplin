@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { useIdentiteActuelle } from "../identite.js";
+import { useSupervision } from "../SupervisionContext.jsx";
 import { api } from "../api.js";
+import NotificationCenter from "./NotificationCenter.jsx";
 
 // Widget de profil + bascule clair/sombre, en haut à droite du tableau de
 // bord. L'accès à cette page exige déjà une session valide (RequireAuth),
@@ -11,6 +14,16 @@ import { api } from "../api.js";
 export default function UserMenu({ theme, onBasculerTheme }) {
   const { utilisateur } = useAuth();
   const identite = useIdentiteActuelle();
+  const { agentSupervise, setAgentSupervise } = useSupervision();
+  const [agents, setAgents] = useState([]);
+
+  useEffect(() => {
+    if (utilisateur?.role !== "admin") return;
+    api
+      .listUtilisateurs()
+      .then((liste) => setAgents(liste.filter((u) => u.statut === "valide" && u.id !== utilisateur.id)))
+      .catch(() => {});
+  }, [utilisateur]);
 
   const initiales = `${identite.prenom?.[0] || "?"}${identite.nom?.[0] || ""}`.toUpperCase();
 
@@ -19,17 +32,44 @@ export default function UserMenu({ theme, onBasculerTheme }) {
     window.location.href = "/connexion";
   }
 
+  function choisirAgentSupervise(id) {
+    if (!id) {
+      setAgentSupervise(null);
+      return;
+    }
+    const agent = agents.find((a) => a.id === id);
+    if (agent) setAgentSupervise({ id: agent.id, prenom: agent.prenom, email: agent.email });
+  }
+
   return (
     <div className="flex items-center gap-3">
       {utilisateur?.role === "admin" && (
-        <Link
-          to="/admin/utilisateurs"
-          title="Gérer les accès agents/administrateurs"
-          className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
-        >
-          👤 Gestion des accès
-        </Link>
+        <>
+          <select
+            value={agentSupervise?.id || ""}
+            onChange={(e) => choisirAgentSupervise(e.target.value)}
+            title="Mode Manager : consulter le tableau de bord d'un agent"
+            className="text-sm rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-1.5 max-w-[180px]"
+          >
+            <option value="">👁 Voir le compte de…</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.prenom || a.email}
+              </option>
+            ))}
+          </select>
+
+          <Link
+            to="/admin/utilisateurs"
+            title="Gérer les accès agents/administrateurs"
+            className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            👤 Gestion des accès
+          </Link>
+        </>
       )}
+
+      <NotificationCenter />
 
       <button
         onClick={onBasculerTheme}
