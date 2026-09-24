@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
+import { useAuth } from "../AuthContext.jsx";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -10,7 +11,15 @@ function idUnique() {
 // d'alternatifs promouvables), pour que l'agent puisse enrichir la fiche
 // pendant un appel sans naviguer ailleurs : un standard donne souvent un nom
 // différent à chaque appel (accueil, RH, dirigeant...).
+//
+// Suppression réservée aux administrateurs : un agent peut ajouter/modifier
+// librement, mais seul un admin voit le bouton "×" qui retire une entrée —
+// restriction purement d'interface (même modèle de confiance que le reste de
+// ce CRM interne : pas d'application côté serveur, l'API PATCH accepte déjà
+// n'importe quelle modification du dossier par l'agent qui y a accès).
 export default function GestionContacts({ entreprise, onMaj }) {
+  const { utilisateur } = useAuth();
+  const estAdmin = utilisateur?.role === "admin";
   const [nomPrincipal, setNomPrincipal] = useState(entreprise.contact?.nom || "");
   const [fonctionPrincipal, setFonctionPrincipal] = useState(entreprise.contact?.fonction || "");
   const [nouveauNom, setNouveauNom] = useState("");
@@ -112,8 +121,6 @@ export default function GestionContacts({ entreprise, onMaj }) {
         </button>
       </form>
 
-      {erreur && <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>}
-
       {alternatifs.length > 0 && (
         <ul className="space-y-1">
           {alternatifs.map((c) =>
@@ -165,14 +172,16 @@ export default function GestionContacts({ entreprise, onMaj }) {
                   >
                     Principal
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => retirer(c)}
-                    className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-1"
-                    title="Retirer ce contact"
-                  >
-                    ×
-                  </button>
+                  {estAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => retirer(c)}
+                      className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-1"
+                      title="Retirer ce contact"
+                    >
+                      ×
+                    </button>
+                  )}
                 </span>
               </li>
             )
@@ -199,11 +208,17 @@ export default function GestionContacts({ entreprise, onMaj }) {
           type="button"
           onClick={ajouter}
           disabled={!nouveauNom.trim() || enCours}
-          className="rounded-lg bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40"
+          className="rounded-lg bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40 whitespace-nowrap"
         >
-          + Ajouter un contact
+          {enCours ? "Ajout…" : "+ Ajouter un contact"}
         </button>
       </div>
+
+      {erreur && (
+        <p className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg px-2.5 py-1.5">
+          {erreur}
+        </p>
+      )}
     </div>
   );
 }

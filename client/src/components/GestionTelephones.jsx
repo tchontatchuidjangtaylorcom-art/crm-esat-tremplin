@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
+import { useAuth } from "../AuthContext.jsx";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
 
 function idUnique() {
@@ -13,7 +14,12 @@ function idUnique() {
 // dialer ; les autres numéros obtenus pendant un appel (ex: via le standard)
 // sont gardés à part jusqu'à ce qu'un agent les promeuve — l'ancien numéro
 // principal n'est alors jamais perdu, juste redescendu en alternatif.
+// Suppression réservée aux administrateurs (restriction d'interface, voir la
+// même note dans GestionContacts.jsx) : un agent ajoute/promeut librement,
+// seul un admin voit le bouton "×".
 export default function GestionTelephones({ entreprise, onMaj, compact = false }) {
+  const { utilisateur } = useAuth();
+  const estAdmin = utilisateur?.role === "admin";
   const [nouveauNumero, setNouveauNumero] = useState("");
   const [nouvelleNote, setNouvelleNote] = useState("");
   const [enCours, setEnCours] = useState(false);
@@ -97,14 +103,16 @@ export default function GestionTelephones({ entreprise, onMaj, compact = false }
                 >
                   Prioritaire
                 </button>
-                <button
-                  type="button"
-                  onClick={() => retirer(alt)}
-                  className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-1"
-                  title="Retirer ce numéro"
-                >
-                  ×
-                </button>
+                {estAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => retirer(alt)}
+                    className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-1"
+                    title="Retirer ce numéro"
+                  >
+                    ×
+                  </button>
+                )}
               </span>
             </li>
           ))}

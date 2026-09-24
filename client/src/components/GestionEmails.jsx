@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
+import { useAuth } from "../AuthContext.jsx";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -11,7 +12,13 @@ function idUnique() {
 // "Secondaire"...). Le choix du destinataire pour un envoi donné se fait
 // dans le fil de messagerie (voir MessagerieMail.jsx) ; cette section gère
 // la liste elle-même.
+//
+// Suppression réservée aux administrateurs (restriction d'interface, voir
+// la même note dans GestionContacts.jsx) : un agent ajoute/modifie
+// librement, seul un admin voit le bouton "×".
 export default function GestionEmails({ entreprise, onMaj }) {
+  const { utilisateur } = useAuth();
+  const estAdmin = utilisateur?.role === "admin";
   const [emailPrincipal, setEmailPrincipal] = useState(entreprise.contact?.email || "");
   const [nouvelEmail, setNouvelEmail] = useState("");
   const [nouvelleNote, setNouvelleNote] = useState("");
@@ -93,8 +100,6 @@ export default function GestionEmails({ entreprise, onMaj }) {
         </button>
       </form>
 
-      {erreur && <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>}
-
       {alternatifs.length > 0 && (
         <ul className="space-y-1">
           {alternatifs.map((alt) => (
@@ -114,14 +119,16 @@ export default function GestionEmails({ entreprise, onMaj }) {
                 >
                   Principal
                 </button>
-                <button
-                  type="button"
-                  onClick={() => retirer(alt)}
-                  className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-1"
-                  title="Retirer cet e-mail"
-                >
-                  ×
-                </button>
+                {estAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => retirer(alt)}
+                    className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-1"
+                    title="Retirer cet e-mail"
+                  >
+                    ×
+                  </button>
+                )}
               </span>
             </li>
           ))}
@@ -147,11 +154,17 @@ export default function GestionEmails({ entreprise, onMaj }) {
           type="button"
           onClick={ajouter}
           disabled={!nouvelEmail.trim() || enCours}
-          className="rounded-lg bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40"
+          className="rounded-lg bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40 whitespace-nowrap"
         >
-          + Ajouter un e-mail
+          {enCours ? "Ajout…" : "+ Ajouter un e-mail"}
         </button>
       </div>
+
+      {erreur && (
+        <p className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg px-2.5 py-1.5">
+          {erreur}
+        </p>
+      )}
     </div>
   );
 }

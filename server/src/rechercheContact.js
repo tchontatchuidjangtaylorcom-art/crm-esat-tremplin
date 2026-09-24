@@ -1,100 +1,93 @@
 // Recherche IA d'un contact/téléphone alternatif + suggestion de secteur, via
-// l'API Google Gemini et son outil de recherche Google (grounding) —
-// déclenchée depuis une fiche entreprise quand l'agent signale un numéro
-// invalide/non attribué (voir EntrepriseDetail.jsx, section
-// "Espace IA — Contact alternatif").
+// l'API Anthropic (Claude) et son outil de recherche web — déclenchée depuis
+// une fiche entreprise quand l'agent signale un numéro invalide/non attribué
+// (voir EntrepriseDetail.jsx, section "Espace IA — Contact alternatif").
 //
-// Fonctionnalité optionnelle : nécessite GEMINI_API_KEY (alias accepté :
-// GOOGLE_API_KEY), gratuite à générer sur Google AI Studio (quota gratuit).
-// Sans base de téléphonie payante dédiée (Pappers Pro, Societe.com Pro...),
-// la recherche web via un modèle reste la seule source disponible ici — le
-// résultat est une PROPOSITION à valider par l'agent (pré-remplit les champs
-// existants, jamais appliqué automatiquement) : un numéro ou une catégorie
-// hallucinés seraient pires qu'une fiche laissée à corriger manuellement.
+// Remplace l'intégration Gemini précédente : le plan gratuit Google limitait
+// le débit à quelques requêtes/minute, ce qui faisait systématiquement
+// échouer un enrichissement en lot après une dizaine de fiches (429 en
+// boucle). L'API Anthropic est payante à l'usage mais sans ce plafond de
+// débit aussi restrictif, et évite l'instabilité des noms de modèles Gemini
+// (deux retraits de modèle déjà subis en production : gemini-1.5-flash puis
+// gemini-2.5-flash).
+//
+// Fonctionnalité optionnelle : nécessite ANTHROPIC_API_KEY (générée sur
+// https://console.anthropic.com). Sans base de téléphonie payante dédiée
+// (Pappers Pro, Societe.com Pro...), la recherche web via un modèle reste la
+// seule source disponible ici — le résultat est une PROPOSITION à valider
+// par l'agent (pré-remplit les champs existants, jamais appliqué
+// automatiquement) : un numéro ou une catégorie hallucinés seraient pires
+// qu'une fiche laissée à corriger manuellement.
 import { CATEGORIES, listerCategories } from "./secteurs.js";
 
-// Modèle configurable : la nomenclature des modèles Gemini change avec le
-// temps et Google retire régulièrement les anciennes générations (ex :
-// gemini-1.5-flash renvoie 404 depuis son arrêt complet ; gemini-2.5-flash,
-// utilisé ici jusqu'ici, a cessé de répondre après son propre arrêt le
-// 17/06/2026 — d'où l'échec en production) — vérifiez le nom exact
-// disponible pour votre clé sur https://aistudio.google.com/ et ajustez
-// GEMINI_MODEL (sans toucher au code) si ce modèle par défaut venait à son
-// tour à être retiré. Valeur par défaut : le modèle "Flash" généralement
-// disponible (GA, donc pas un aperçu susceptible d'être coupé sans préavis)
-// le plus récent connu au moment de l'écriture.
-const MODELE_PAR_DEFAUT = "gemini-3.8-flash";
-const TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 20000;
+const API_URL = "https://api.anthropic.com/v1/messages";
+const VERSION_API = "2023-06-01";
 
-// Le plan gratuit de l'API Gemini limite le débit à quelques requêtes par
-// minute (bien moins que l'API Sirene) : un enrichissement en lot sur
-// plusieurs dizaines de fiches y cogne systématiquement après les toutes
-// premières requêtes. Même parade que pour l'API Sirene (voir insee.js) —
-// retry/backoff dédié aux 429, en respectant le délai indiqué par Gemini.
+// Modèle configurable : "claude-sonnet-5" est le modèle Claude Sonnet actuel
+// au moment de l'écriture — ajustez ANTHROPIC_MODEL (sans toucher au code)
+// si Anthropic publie une version plus récente à privilégier.
+const MODELE_PAR_DEFAUT = "claude-sonnet-5";
+const TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS) || 20000;
+
+// Anthropic ne plafonne pas le débit aussi bas que le plan gratuit Gemini,
+// mais applique tout de même des limites de requêtes/minute selon le palier
+// de compte — retry/backoff dédié aux 429, en respectant le délai indiqué.
 const TENTATIVES_MAX_429 = 3;
 const ATTENTE_429_PLAFOND_MS = 65_000;
 
 function cleApi() {
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+  return process.env.ANTHROPIC_API_KEY || "";
 }
 
 function attendre(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Lit le délai d'attente conseillé par Gemini sur un 429 : d'abord l'en-tête
-// HTTP standard Retry-After, à défaut le champ RetryInfo.retryDelay que
-// l'API Gemini renvoie dans le corps de l'erreur (ex : "38s").
-function delaiAttenteConseille(reponse, corpsErreur) {
-  const enTete = reponse.headers.get("retry-after");
-  if (enTete) {
-    const secondes = Number(enTete);
-    if (!Number.isNaN(secondes)) return secondes * 1000;
-    const date = Date.parse(enTete);
-    if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
-  }
-  const retryInfo = (corpsErreur?.error?.details || []).find((d) =>
-    d["@type"]?.includes("RetryInfo")
-  );
-  if (retryInfo?.retryDelay) {
-    const secondes = Number(String(retryInfo.retryDelay).replace(/s$/, ""));
-    if (!Number.isNaN(secondes)) return secondes * 1000;
-  }
-  return null;
+function enTetes(cle) {
+  return {
+    "x-api-key": cle,
+    "anthropic-version": VERSION_API,
+    "content-type": "application/json",
+  };
+}
+
+// Lit le délai d'attente conseillé par Anthropic sur un 429 : l'en-tête HTTP
+// standard Retry-After (le seul renseigné par cette API pour le rate limit).
+function delaiAttenteConseille(reponse) {
+  const enTete = reponse?.headers?.get("retry-after");
+  if (!enTete) return null;
+  const secondes = Number(enTete);
+  if (!Number.isNaN(secondes)) return secondes * 1000;
+  const date = Date.parse(enTete);
+  return Number.isNaN(date) ? null : Math.max(0, date - Date.now());
 }
 
 export function estRechercheIaConfiguree() {
   return Boolean(cleApi());
 }
 
-// Diagnostic : interroge Gemini pour la vraie liste de modèles disponibles
-// pour CETTE clé et supportant generateContent — plutôt que de deviner un
-// nom de modèle à chaque retrait (déjà arrivé deux fois : gemini-1.5-flash
-// puis gemini-2.5-flash), on demande directement à l'API. Voir la route
-// GET /api/ia/modeles-disponibles (admin) dans index.js.
+// Diagnostic : interroge Anthropic pour la vraie liste de modèles
+// disponibles pour cette clé, au cas où ANTHROPIC_MODEL tomberait en erreur
+// "not found" après un retrait de modèle — voir GET /api/ia/modeles-disponibles
+// (admin) dans index.js.
 export async function listerModelesDisponibles() {
   const cle = cleApi();
   if (!cle) {
-    const erreur = new Error("Recherche IA non configurée (renseignez GEMINI_API_KEY).");
+    const erreur = new Error("Recherche IA non configurée (renseignez ANTHROPIC_API_KEY).");
     erreur.code = "IA_NON_CONFIGUREE";
     throw erreur;
   }
-  const reponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cle}`);
+  const reponse = await fetch("https://api.anthropic.com/v1/models", {
+    headers: enTetes(cle),
+  });
   const corps = await reponse.json().catch(() => ({}));
   if (!reponse.ok) {
-    const erreur = new Error(corps.error?.message || `L'API Gemini a répondu ${reponse.status}.`);
-    erreur.code = corps.error?.status || `HTTP_${reponse.status}`;
+    const erreur = new Error(corps.error?.message || `L'API Anthropic a répondu ${reponse.status}.`);
+    erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
     erreur.responseCode = reponse.status;
     throw erreur;
   }
-  return (corps.models || [])
-    .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
-    .map((m) => ({
-      // `m.name` arrive au format "models/gemini-x-y" — on retire le préfixe
-      // pour obtenir directement la valeur à mettre dans GEMINI_MODEL.
-      id: (m.name || "").replace(/^models\//, ""),
-      displayName: m.displayName || null,
-    }));
+  return (corps.data || []).map((m) => ({ id: m.id, displayName: m.display_name || null }));
 }
 
 export function detailErreur(e) {
@@ -131,12 +124,10 @@ function construirePrompt(entreprise) {
   );
 }
 
-// Extrait le premier objet JSON complet contenant "telephone" du texte —
-// par comptage d'accolades plutôt qu'une regex à profondeur fixe (qui
-// échouait dès que la réponse groundée par la recherche web contenait des
-// accolades imbriquées avant le JSON final, ex. citations/notes de l'outil
-// google_search), ce qui faisait systématiquement échouer l'extraction sur
-// certaines fiches.
+// Extrait le premier objet JSON complet contenant "telephone" du texte — par
+// comptage d'accolades plutôt qu'une regex à profondeur fixe (qui échouerait
+// dès que la réponse groundée par la recherche web contient des accolades
+// imbriquées avant le JSON final, ex. citations/notes de l'outil de recherche).
 function extraireBlocJson(texte) {
   const debutCle = texte.indexOf('"telephone"');
   if (debutCle === -1) return null;
@@ -155,9 +146,9 @@ function extraireBlocJson(texte) {
 }
 
 function extraireResultat(corpsReponse) {
-  const texte = (corpsReponse.candidates || [])
-    .flatMap((candidat) => candidat.content?.parts || [])
-    .map((partie) => partie.text || "")
+  const texte = (corpsReponse.content || [])
+    .filter((bloc) => bloc.type === "text")
+    .map((bloc) => bloc.text || "")
     .join("\n");
 
   const bloc = extraireBlocJson(texte);
@@ -194,19 +185,19 @@ function extraireResultat(corpsReponse) {
   };
 }
 
-async function appelerGemini(entreprise, cle, modele) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modele}:generateContent?key=${cle}`;
-
+async function appelerClaude(entreprise, cle, modele) {
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
   try {
-    reponse = await fetch(url, {
+    reponse = await fetch(API_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: enTetes(cle),
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: construirePrompt(entreprise) }] }],
-        tools: [{ google_search: {} }],
+        model: modele,
+        max_tokens: 1024,
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+        messages: [{ role: "user", content: construirePrompt(entreprise) }],
       }),
       signal: controleur.signal,
     });
@@ -224,13 +215,12 @@ async function appelerGemini(entreprise, cle, modele) {
   const corps = await reponse.json().catch(() => ({}));
   if (!reponse.ok) {
     const erreur = new Error(
-      corps.error?.message || `L'API Gemini a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
     );
-    erreur.code = corps.error?.status || `HTTP_${reponse.status}`;
+    erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
     erreur.responseCode = reponse.status;
     erreur.response = JSON.stringify(corps).slice(0, 500);
     erreur.reponseHttp = reponse;
-    erreur.corpsErreur = corps;
     throw erreur;
   }
 
@@ -240,28 +230,27 @@ async function appelerGemini(entreprise, cle, modele) {
 export async function rechercherContactAlternatif(entreprise) {
   const cle = cleApi();
   if (!cle) {
-    const erreur = new Error("Recherche IA non configurée (renseignez GEMINI_API_KEY).");
+    const erreur = new Error("Recherche IA non configurée (renseignez ANTHROPIC_API_KEY).");
     erreur.code = "IA_NON_CONFIGUREE";
     throw erreur;
   }
 
-  const modele = process.env.GEMINI_MODEL || MODELE_PAR_DEFAUT;
+  const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
 
   let derniereErreur;
   for (let tentative = 1; tentative <= TENTATIVES_MAX_429; tentative++) {
     try {
-      return await appelerGemini(entreprise, cle, modele);
+      return await appelerClaude(entreprise, cle, modele);
     } catch (e) {
-      // Seul le 429 (quota/débit dépassé — le cas courant sur le plan
-      // gratuit Gemini lors d'un enrichissement en lot) vaut la peine d'être
-      // réessayé : une clé invalide, un modèle inconnu ou un timeout
-      // donneront systématiquement la même erreur, autant échouer tout de
-      // suite plutôt que de perdre du temps à réessayer 3 fois par fiche.
+      // Seul le 429 (débit dépassé) vaut la peine d'être réessayé : une clé
+      // invalide, un modèle inconnu ou un timeout donneront systématiquement
+      // la même erreur, autant échouer tout de suite plutôt que de perdre du
+      // temps à réessayer 3 fois par fiche.
       if (e.responseCode !== 429 || tentative === TENTATIVES_MAX_429) throw e;
       derniereErreur = e;
-      const delaiMs = delaiAttenteConseille(e.reponseHttp, e.corpsErreur) ?? 5000 * tentative;
+      const delaiMs = delaiAttenteConseille(e.reponseHttp) ?? 5000 * tentative;
       console.warn(
-        `[ia] 429 Gemini pour ${entreprise.nom} — nouvelle tentative dans ${Math.round(
+        `[ia] 429 Anthropic pour ${entreprise.nom} — nouvelle tentative dans ${Math.round(
           Math.min(delaiMs, ATTENTE_429_PLAFOND_MS) / 1000
         )}s (${tentative}/${TENTATIVES_MAX_429}).`
       );

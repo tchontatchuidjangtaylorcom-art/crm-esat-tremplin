@@ -385,9 +385,10 @@ app.get("/api/categories", (req, res) => {
   res.json(listerCategories());
 });
 
-// Indique si la recherche IA (Gemini) est configurée, pour afficher/masquer
-// côté frontend l'option d'enrichissement automatique du téléphone à
-// l'import par secteur (voir plus bas) et l'espace IA de la fiche entreprise.
+// Indique si la recherche IA (Claude / Anthropic) est configurée, pour
+// afficher/masquer côté frontend l'option d'enrichissement automatique du
+// téléphone à l'import par secteur (voir plus bas) et l'espace IA de la
+// fiche entreprise.
 app.get("/api/ia/statut", (req, res) => {
   res.json({ configuree: estRechercheIaConfiguree() });
 });
@@ -650,31 +651,29 @@ app.post("/api/leads/siren/lot", exigerAdmin, async (req, res) => {
   res.status(201).json({ lot, resultats });
 });
 
-// Enrichissement automatique du téléphone via Gemini (recherche web), pour
-// les fiches fraîchement créées par un import par secteur : l'API Sirene ne
-// fournit aucun contact, ce qui laisse jusqu'ici les fiches inexploitables au
-// Power Dialer tant qu'un agent ne les complète pas à la main. Lancé APRÈS
-// l'envoi de la réponse HTTP (voir /api/leads/secteur/importer), sans
-// attendre sa fin : un lot de 100 SIREN à raison de plusieurs secondes par
-// appel Gemini dépasserait largement les délais des proxys si on bloquait la
-// requête d'import dessus. Meilleur effort volontairement silencieux côté
-// résultat d'import : une fiche non enrichie (échec IA, rien trouvé) reste
-// simplement à compléter manuellement comme avant cette fonctionnalité — pas
-// d'écriture de numéro halluciné, rechercherContactAlternatif renvoie déjà
-// null plutôt qu'inventer une valeur.
+// Enrichissement automatique du téléphone via Claude/Anthropic (recherche
+// web), pour les fiches fraîchement créées par un import par secteur : l'API
+// Sirene ne fournit aucun contact, ce qui laisse jusqu'ici les fiches
+// inexploitables au Power Dialer tant qu'un agent ne les complète pas à la
+// main. Lancé APRÈS l'envoi de la réponse HTTP (voir
+// /api/leads/secteur/importer), sans attendre sa fin : un lot de 100 SIREN à
+// raison de plusieurs secondes par appel IA dépasserait largement les délais
+// des proxys si on bloquait la requête d'import dessus. Meilleur effort
+// volontairement silencieux côté résultat d'import : une fiche non enrichie
+// (échec IA, rien trouvé) reste simplement à compléter manuellement comme
+// avant cette fonctionnalité — pas d'écriture de numéro halluciné,
+// rechercherContactAlternatif renvoie déjà null plutôt qu'inventer une valeur.
 //
-// Espacement des appels : le plan gratuit Gemini limite le débit à quelques
-// requêtes/minute (bien en dessous de l'API Sirene) — 300ms suffisait pour
-// enchaîner les appels mais faisait cogner le quota dès la dizaine de fiches
-// suivante, chaque appel échouant alors en 429 (voir le retry/backoff dédié
-// dans rechercheContact.js, qui absorbe les 429 isolés ; ce délai réduit
-// simplement la fréquence à laquelle on les déclenche).
-const DELAI_ENTRE_APPELS_IA_MS = Number(process.env.GEMINI_ENRICHISSEMENT_DELAI_MS) || 4000;
+// Espacement des appels : Anthropic applique des limites de débit selon le
+// palier de compte — ce délai réduit la fréquence des appels pour rester
+// large en dessous, le retry/backoff dédié dans rechercheContact.js absorbant
+// déjà les 429 isolés.
+const DELAI_ENTRE_APPELS_IA_MS = Number(process.env.ANTHROPIC_ENRICHISSEMENT_DELAI_MS) || 1000;
 // Au-delà de ce nombre d'échecs consécutifs, on arrête le lot plutôt que de
 // continuer à égrener silencieusement des échecs : ça sent l'erreur de
-// configuration (clé/modèle Gemini invalide, quota journalier épuisé) plutôt
-// qu'un raté ponctuel sur une fiche — mieux vaut le signaler clairement que
-// de laisser tourner un lot de 100 fiches pour zéro résultat.
+// configuration (clé/modèle Anthropic invalide, crédit épuisé) plutôt qu'un
+// raté ponctuel sur une fiche — mieux vaut le signaler clairement que de
+// laisser tourner un lot de 100 fiches pour zéro résultat.
 const ECHECS_CONSECUTIFS_MAX = 5;
 
 async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
@@ -711,7 +710,7 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
     onProgres?.({ trouve, erreur: erreurMessage });
 
     if (echecsConsecutifs >= ECHECS_CONSECUTIFS_MAX) {
-      interrompu = `Interrompu après ${echecsConsecutifs} échecs consécutifs (dernière erreur : ${erreurMessage}) — vérifiez la configuration Gemini (GEMINI_API_KEY / GEMINI_MODEL) ou le quota.`;
+      interrompu = `Interrompu après ${echecsConsecutifs} échecs consécutifs (dernière erreur : ${erreurMessage}) — vérifiez la configuration Anthropic (ANTHROPIC_API_KEY / ANTHROPIC_MODEL) ou le crédit disponible.`;
       console.error(`[ia] Enrichissement en lot interrompu : ${interrompu}`);
       break;
     }
@@ -744,12 +743,12 @@ let etatEnrichissementLot = {
 // l'import (voir /api/leads/secteur/importer), ou dont la recherche
 // automatique n'a rien trouvé à l'époque. Action admin explicite (bouton
 // dédié côté frontend) plutôt qu'automatique : elle peut déclencher des
-// dizaines/centaines d'appels Gemini sur tout le pipeline existant, à ne pas
+// dizaines/centaines d'appels IA sur tout le pipeline existant, à ne pas
 // lancer sans le vouloir. Tourne en arrière-plan comme l'enrichissement à
 // l'import (même raison : trop long pour bloquer une requête HTTP).
 app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
   if (!estRechercheIaConfiguree()) {
-    return res.status(503).json({ error: "Recherche IA non configurée (renseignez GEMINI_API_KEY)." });
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
   }
   if (etatEnrichissementLot.enCours) {
     return res.status(409).json({ error: "Un enrichissement est déjà en cours.", ...etatEnrichissementLot });
@@ -1217,12 +1216,12 @@ app.post("/api/entreprises/:id/telephone-invalide", exigerAuth, chargerEntrepris
   res.json(enrichir(entreprise));
 });
 
-// Recherche IA (Gemini + recherche Google) d'un numéro/contact alternatif ET
-// d'une catégorie de secteur suggérée, quand le numéro enregistré a été
-// signalé invalide. Optionnelle (GEMINI_API_KEY/GOOGLE_API_KEY) et protégée
-// par une session valide même si les autres routes /api/entreprises ne le
-// sont pas ici : chaque appel déclenche un appel (potentiellement facturé) à
-// l'API Gemini, à ne pas laisser accessible sans authentification.
+// Recherche IA (Claude / Anthropic + recherche web) d'un numéro/contact
+// alternatif ET d'une catégorie de secteur suggérée, quand le numéro
+// enregistré a été signalé invalide. Optionnelle (ANTHROPIC_API_KEY) et
+// protégée par une session valide même si les autres routes
+// /api/entreprises ne le sont pas ici : chaque appel déclenche un appel
+// facturé à l'API Anthropic, à ne pas laisser accessible sans authentification.
 // Renvoie une PROPOSITION seulement — voir rechercheContact.js : rien n'est
 // écrit en base ici, l'agent doit valider via le formulaire existant
 // (numéro : POST .../telephone-invalide puis PATCH ; catégorie : PATCH
@@ -1231,7 +1230,7 @@ app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepris
   const entreprise = req.entreprise;
 
   if (!estRechercheIaConfiguree()) {
-    return res.status(503).json({ error: "Recherche IA non configurée (renseignez GEMINI_API_KEY)." });
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
   }
 
   try {
@@ -1262,12 +1261,11 @@ app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepris
   }
 });
 
-// Diagnostic admin : la liste des modèles Gemini réellement disponibles pour
-// GEMINI_API_KEY et supportant generateContent. À utiliser quand
-// GEMINI_MODEL tombe en erreur "not found"/"not supported" (Google retire
-// des modèles sans préavis pour ce projet — déjà arrivé deux fois) : plutôt
-// que deviner un nouveau nom, on demande directement à l'API la valeur
-// exacte à mettre dans GEMINI_MODEL sur Render.
+// Diagnostic admin : la liste des modèles Anthropic réellement disponibles
+// pour ANTHROPIC_API_KEY. À utiliser si ANTHROPIC_MODEL tombe en erreur
+// "not found" après une dépréciation de modèle : plutôt que deviner un
+// nouveau nom, on demande directement à l'API la valeur exacte à mettre
+// dans ANTHROPIC_MODEL sur Render.
 app.get("/api/ia/modeles-disponibles", exigerAdmin, async (req, res) => {
   try {
     const modeles = await listerModelesDisponibles();

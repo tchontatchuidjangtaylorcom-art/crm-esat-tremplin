@@ -6,8 +6,8 @@ import { api } from "../api.js";
 // secteur avant l'ajout de la recherche automatique à l'import (voir
 // ImportLot.jsx), ou dont cette recherche automatique n'a rien trouvé à
 // l'époque. Action admin explicite (bouton) plutôt qu'automatique : elle peut
-// déclencher des dizaines/centaines d'appels Gemini sur tout le pipeline
-// existant, à ne pas lancer sans le vouloir. Le traitement tourne en
+// déclencher des dizaines/centaines d'appels Claude/Anthropic sur tout le
+// pipeline existant, à ne pas lancer sans le vouloir. Le traitement tourne en
 // arrière-plan côté serveur ; ce composant se contente d'interroger
 // périodiquement /api/leads/enrichir-telephones/statut pendant qu'il tourne.
 export default function EnrichissementTelephones({ manquants, onMaj }) {
@@ -57,9 +57,9 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
   }
 
   // Diagnostic pour l'erreur "model X is not found" : plutôt que deviner un
-  // nouveau nom de modèle Gemini (Google en retire régulièrement, sans lien
-  // avec ce qui est écrit dans le code — voir GEMINI_MODEL dans .env.example),
-  // interroge l'API pour la vraie liste disponible pour CETTE clé.
+  // nouveau nom de modèle Anthropic si celui configuré venait à être
+  // déprécié (voir ANTHROPIC_MODEL dans .env.example), interroge l'API pour
+  // la vraie liste disponible pour CETTE clé.
   async function verifierModelesDisponibles() {
     setChargementModeles(true);
     setErreurModeles(null);
