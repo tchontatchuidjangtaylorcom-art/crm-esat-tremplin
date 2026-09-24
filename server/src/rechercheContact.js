@@ -100,12 +100,16 @@ export function detailErreur(e) {
 }
 
 function construirePrompt(entreprise) {
-  const identite = [
-    entreprise.nom,
-    entreprise.adresse,
-    [entreprise.codePostal, entreprise.ville].filter(Boolean).join(" "),
-    entreprise.siret ? `SIRET ${entreprise.siret}` : null,
-  ]
+  const villeOuCp = [entreprise.codePostal, entreprise.ville].filter(Boolean).join(" ");
+  // Même requête que le lien manuel "Rechercher sur Google" déjà proposé à
+  // l'agent (voir EntrepriseDetail.jsx) — on demande au modèle de faire
+  // EXACTEMENT la recherche qu'un agent ferait lui-même à la main, plutôt
+  // qu'une formulation plus verbeuse qui disperse la recherche web sur des
+  // pages moins directement pertinentes.
+  const requetePrincipale = [entreprise.nom, villeOuCp, "téléphone"].filter(Boolean).join(" ");
+  const requeteSiret = entreprise.siret ? `${entreprise.nom} ${entreprise.siret}` : null;
+
+  const identite = [entreprise.nom, entreprise.adresse, villeOuCp, entreprise.siret ? `SIRET ${entreprise.siret}` : null]
     .filter(Boolean)
     .join(", ");
 
@@ -116,7 +120,16 @@ function construirePrompt(entreprise) {
   return (
     `Tu aides un télé-prospecteur français à mettre à jour la fiche de cette entreprise : ${identite}.\n` +
     `Le numéro actuellement enregistré (${entreprise.contact?.telephone || "aucun"}) est invalide ou non attribué.\n` +
-    `Cherche sur le web (site officiel de l'entreprise, PagesJaunes, Societe.com, Verif.com, Infogreffe, LinkedIn) un numéro de standard ou un contact (nom + fonction) plus fiable.\n` +
+    `Pour le retrouver, lance ta recherche web EXACTEMENT comme le ferait un agent qui tape lui-même dans Google — ` +
+    `pas une formulation plus longue ou plus explicative : requête "${requetePrincipale}"` +
+    (requeteSiret ? `, et si besoin en repli "${requeteSiret}"` : "") +
+    `.\n` +
+    `Priorité stricte à l'extraction directe : regarde D'ABORD si un numéro apparaît directement dans le bloc de ` +
+    `résultat Google lui-même (fiche d'établissement / pavé "Google Maps"/"Business Profile" affiché en tête de ` +
+    `page, avec le numéro de standard déjà visible) — c'est presque toujours la source la plus fiable et la plus ` +
+    `rapide, exactement ce qu'un agent verrait au premier coup d'œil sans avoir à cliquer plus loin. Ne creuse dans ` +
+    `des pages individuelles (site officiel, PagesJaunes, Societe.com, Verif.com, Infogreffe, LinkedIn) que si ce ` +
+    `bloc direct est absent ou ne donne pas de numéro exploitable.\n` +
     `Détermine aussi, à partir de l'activité réelle de cette entreprise, la catégorie la plus pertinente EXCLUSIVEMENT parmi cette liste officielle (utilise la clé, pas le libellé) : ${listeCategories}.\n` +
     `Termine IMPÉRATIVEMENT ta réponse par une seule ligne contenant uniquement un objet JSON strict, sans texte autour, exactement au format :\n` +
     `{"telephone": "<numéro ou null>", "contact": "<nom et fonction ou null>", "secteurCategorie": "<une des clés ci-dessus ou null>", "source": "<url ou null>", "confiance": "haute|moyenne|faible"}\n` +
