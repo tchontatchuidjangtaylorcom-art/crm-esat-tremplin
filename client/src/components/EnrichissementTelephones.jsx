@@ -108,7 +108,7 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
         disabled={statut?.enCours}
         className="rounded-lg bg-marine-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
       >
-        {statut?.enCours ? "Enrichissement…" : "🤖 Lancer l'enrichissement Gemini des numéros manquants"}
+        {statut?.enCours ? "Enrichissement…" : "🤖 Lancer l'enrichissement Claude des numéros manquants"}
       </button>
 
       {statut?.interrompu && (
@@ -119,17 +119,17 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
             disabled={chargementModeles}
             className="mt-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-40"
           >
-            {chargementModeles ? "Vérification…" : "Voir les modèles Gemini disponibles pour cette clé"}
+            {chargementModeles ? "Vérification…" : "Voir les modèles Anthropic disponibles pour cette clé"}
           </button>
           {erreurModeles && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erreurModeles}</p>}
           {modelesDisponibles && (
             <div className="mt-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
               {modelesDisponibles.length === 0 ? (
-                <p>Aucun modèle compatible generateContent trouvé pour cette clé.</p>
+                <p>Aucun modèle trouvé pour cette clé.</p>
               ) : (
                 <>
                   <p className="mb-1.5">
-                    Valeur à mettre dans <strong>GEMINI_MODEL</strong> (variable d'environnement Render du
+                    Valeur à mettre dans <strong>ANTHROPIC_MODEL</strong> (variable d'environnement Render du
                     service, pas ce fichier .env.example local) :
                   </p>
                   <ul className="space-y-0.5">

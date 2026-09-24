@@ -359,7 +359,7 @@ function GenererVagueSecteur({ categories, agents, onImporte }) {
                 }`}
                 title={
                   iaConfiguree === false
-                    ? "Recherche IA non configurée côté serveur (GEMINI_API_KEY manquante)."
+                    ? "Recherche IA non configurée côté serveur (ANTHROPIC_API_KEY manquante)."
                     : undefined
                 }
               >
@@ -370,7 +370,7 @@ function GenererVagueSecteur({ categories, agents, onImporte }) {
                   onChange={(e) => setRechercheTelephoneIA(e.target.checked)}
                   className="rounded border-slate-300 dark:border-slate-600"
                 />
-                🤖 Rechercher automatiquement le téléphone officiel de chaque entreprise via IA (Gemini) après
+                🤖 Rechercher automatiquement le téléphone officiel de chaque entreprise via IA (Claude) après
                 l'import, pour des fiches prêtes au Power Dialer
               </label>
 

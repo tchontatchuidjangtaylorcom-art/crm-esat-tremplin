@@ -340,7 +340,7 @@ export default function EntrepriseDetail() {
     }
   }
 
-  // Recherche IA (Gemini + recherche Google) : propose un numéro/contact et
+  // Recherche IA (Claude / Anthropic + recherche web) : propose un numéro/contact et
   // une catégorie de secteur alternatifs SANS rien écrire en base — pré-remplit
   // juste le champ de correction manuel existant, que l'agent doit vérifier
   // et valider lui-même avant "Enregistrer" (un numéro ou une catégorie
