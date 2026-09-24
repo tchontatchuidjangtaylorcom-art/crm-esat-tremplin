@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import Header from "../components/Header.jsx";
 import StatCard from "../components/StatCard.jsx";
 import EntrepriseTable from "../components/EntrepriseTable.jsx";
+import BarreActionsGroupees from "../components/BarreActionsGroupees.jsx";
 import RechercheSiren from "../components/RechercheSiren.jsx";
 import DialerPanel from "../components/DialerPanel.jsx";
 import UserMenu from "../components/UserMenu.jsx";
@@ -53,6 +54,7 @@ export default function Dashboard() {
   const [recherche, setRecherche] = useState("");
   const [tailleParPage, setTailleParPage] = useState(20);
   const [page, setPage] = useState(1);
+  const [selection, setSelection] = useState(() => new Set());
 
   function charger() {
     const appels = [
@@ -106,6 +108,19 @@ export default function Dashboard() {
       window.removeEventListener("entreprise:archivee", onArchive);
     };
   }, []);
+
+  // Retire de la sélection toute entreprise qui n'est plus dans la liste
+  // active (archivée, réassignée hors de vue en Mode Manager…) — la
+  // sélection elle-même survit sinon aux changements de page/filtre, pour
+  // permettre de cocher des lignes sur plusieurs pages avant d'agir dessus.
+  useEffect(() => {
+    setSelection((prev) => {
+      if (prev.size === 0) return prev;
+      const idsPresents = new Set(entreprises.map((e) => e.id));
+      const filtree = new Set([...prev].filter((id) => idsPresents.has(id)));
+      return filtree.size === prev.size ? prev : filtree;
+    });
+  }, [entreprises]);
 
   // Chaque compteur de facette (statut, catégorie, lot) s'appuie sur les
   // MÊMES filtres actifs que la liste, à l'exception de sa propre dimension —
@@ -200,6 +215,56 @@ export default function Dashboard() {
   function assignerLotEntier(utilisateurId) {
     if (!filtreLot) return;
     return api.assignerLot(filtreLot, utilisateurId).then(charger);
+  }
+
+  function basculerSelection(id) {
+    setSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Coche/décoche l'ensemble des lignes visibles (la page courante) —
+  // "Sélectionner les N résultats filtrés" dans la barre d'actions groupées
+  // couvre le cas de tout le filtre au-delà de la page affichée.
+  function basculerSelectionPage(idsPage) {
+    const tousCoches = idsPage.every((id) => selection.has(id));
+    setSelection((prev) => {
+      const next = new Set(prev);
+      idsPage.forEach((id) => (tousCoches ? next.delete(id) : next.add(id)));
+      return next;
+    });
+  }
+
+  function selectionnerToutFiltre() {
+    setSelection(new Set(entreprisesFiltrees.map((e) => e.id)));
+  }
+
+  function viderSelection() {
+    setSelection(new Set());
+  }
+
+  async function assignerSelectionGroupee(utilisateurId) {
+    const { entreprises: maj } = await api.assignerGroupe([...selection], utilisateurId);
+    const parId = new Map(maj.map((e) => [e.id, e]));
+    setEntreprises((prev) => prev.map((e) => parId.get(e.id) || e));
+    setSelection(new Set());
+  }
+
+  async function changerStatutSelectionGroupee(statut) {
+    const { archive, entreprises: maj } = await api.changerStatutGroupe([...selection], statut);
+    if (archive) {
+      const idsMaj = new Set(maj.map((e) => e.id));
+      setEntreprises((prev) => prev.filter((e) => !idsMaj.has(e.id)));
+      setArchives((prev) => [...maj, ...prev]);
+      setNbArchivees((n) => n + maj.length);
+    } else {
+      const parId = new Map(maj.map((e) => [e.id, e]));
+      setEntreprises((prev) => prev.map((e) => parId.get(e.id) || e));
+    }
+    setSelection(new Set());
   }
 
   return (
@@ -340,7 +405,26 @@ export default function Dashboard() {
             <div className="text-slate-400 dark:text-slate-500 text-sm">Chargement…</div>
           ) : (
             <>
-              <EntrepriseTable entreprises={entreprisesPage} estAdmin={estAdmin} agents={agents} onAssigner={assignerEntreprise} />
+              <BarreActionsGroupees
+                nbSelectionnes={selection.size}
+                nbFiltre={entreprisesFiltrees.length}
+                estAdmin={estAdmin}
+                agents={agents}
+                onAssigner={assignerSelectionGroupee}
+                onChangerStatut={changerStatutSelectionGroupee}
+                onSelectionnerToutFiltre={selectionnerToutFiltre}
+                onViderSelection={viderSelection}
+              />
+
+              <EntrepriseTable
+                entreprises={entreprisesPage}
+                estAdmin={estAdmin}
+                agents={agents}
+                onAssigner={assignerEntreprise}
+                selection={selection}
+                onToggleSelection={basculerSelection}
+                onToggleSelectionTout={basculerSelectionPage}
+              />
 
               <div className="flex flex-wrap items-center justify-between gap-3 mt-3 text-sm text-slate-500 dark:text-slate-400">
                 <label className="flex items-center gap-2">

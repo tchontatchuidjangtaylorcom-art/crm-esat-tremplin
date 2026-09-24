@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import StatusBadge from "./StatusBadge.jsx";
 import { formatMontant, formatDateHeure } from "../constants.js";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
@@ -67,13 +67,48 @@ function BoutonMarquerMort({ entreprise }) {
   );
 }
 
-export default function EntrepriseTable({ entreprises, estAdmin, agents, onAssigner }) {
-  const nbColonnes = estAdmin ? 11 : 10;
+// Case à cocher de l'en-tête : coche/décoche toutes les lignes affichées
+// (la page courante) et passe à l'état "indéterminé" (trait, ni coché ni
+// vide) quand certaines lignes seulement sont sélectionnées — signal visuel
+// standard pour "sélection partielle" qu'un simple `checked` ne rend pas.
+function CaseTout({ etat, onChange }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = etat === "partiel";
+  }, [etat]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={etat === "tout"}
+      onChange={onChange}
+      className="rounded border-slate-300"
+      aria-label="Tout sélectionner"
+    />
+  );
+}
+
+export default function EntrepriseTable({
+  entreprises,
+  estAdmin,
+  agents,
+  onAssigner,
+  selection,
+  onToggleSelection,
+  onToggleSelectionTout,
+}) {
+  const nbColonnes = (estAdmin ? 11 : 10) + 1;
+  const nbCochees = entreprises.filter((e) => selection.has(e.id)).length;
+  const etatToutCoche = entreprises.length > 0 && nbCochees === entreprises.length ? "tout" : nbCochees > 0 ? "partiel" : "aucun";
+
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
       <table className="min-w-full text-sm">
         <thead>
           <tr className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+            <th className="px-3 py-2 text-left w-8">
+              <CaseTout etat={etatToutCoche} onChange={() => onToggleSelectionTout(entreprises.map((e) => e.id))} />
+            </th>
             <th className="px-3 py-2 text-left">Société</th>
             <th className="px-3 py-2 text-left">Statut</th>
             <th className="px-3 py-2 text-left">Échéance</th>
@@ -90,8 +125,21 @@ export default function EntrepriseTable({ entreprises, estAdmin, agents, onAssig
         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
           {entreprises.map((e) => {
             const dernierCommentaire = e.commentaires?.[0]?.texte;
+            const coche = selection.has(e.id);
             return (
-              <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+              <tr
+                key={e.id}
+                className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 ${coche ? "bg-marine-50 dark:bg-marine-950/30" : ""}`}
+              >
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={coche}
+                    onChange={() => onToggleSelection(e.id)}
+                    className="rounded border-slate-300"
+                    aria-label={`Sélectionner ${e.nom}`}
+                  />
+                </td>
                 <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
                   <a
                     href={`/entreprise/${e.id}`}

@@ -988,6 +988,90 @@ app.post("/api/entreprises/:id/sortie", exigerAuth, chargerEntrepriseAutorisee, 
   res.json({ archive, entreprise: enrichir(entreprise) });
 });
 
+// ---- Actions groupées (sélection multiple dans le tableau de bord) ----
+
+// Assignation en masse d'une sélection LIBRE d'entreprises (contrairement à
+// /api/lots/:lot/assigner qui vise toute une vague) — réservée aux
+// administrateurs, même règle que l'assignation individuelle ci-dessus.
+app.post("/api/entreprises/assigner-groupe", exigerAdmin, async (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+  const utilisateurId = req.body.utilisateurId || null;
+  if (ids.length === 0) return res.status(400).json({ error: "Aucune entreprise sélectionnée." });
+  if (utilisateurId) {
+    const cible = trouverUtilisateurParId(utilisateurId);
+    if (!cible || cible.statut !== "valide") {
+      return res.status(400).json({ error: "Agent introuvable ou compte non validé." });
+    }
+  }
+
+  const cibles = db.data.entreprises.filter((e) => ids.includes(e.id));
+  for (const e of cibles) {
+    if (utilisateurId && utilisateurId !== e.assigneA) {
+      e.assignationVue = false;
+      e.dateAssignation = new Date().toISOString();
+    }
+    e.assigneA = utilisateurId;
+  }
+  await db.write();
+  res.json({ nbAssignees: cibles.length, entreprises: cibles.map(enrichir) });
+});
+
+// Statuts que le changement groupé accepte en plus des issues d'appel et
+// sorties de dossier ci-dessus : deux statuts "de repos" sans issue d'appel
+// dédiée, utiles pour remettre en masse un lot de dossiers en file d'attente
+// (ex. après une réorganisation d'équipe) sans forcer une fausse issue d'appel.
+const STATUTS_DIRECTS_AUTORISES = new Set(["nouveau", "a_relancer"]);
+
+function libelleStatutGroupe(statut) {
+  return ISSUES_APPEL[statut] || SORTIES_DOSSIER[statut] || (STATUTS_DIRECTS_AUTORISES.has(statut) ? statut : null);
+}
+
+// Changement de statut en masse sur une sélection libre — ouvert à tout agent
+// (pas juste l'admin) mais limité à ce qu'il peut déjà voir/traiter un par un
+// (estVisiblePar), donc sans élargir ses droits : juste plus rapide sur un
+// lot que de rouvrir chaque fiche. Une seule valeur de statut pour toute la
+// sélection ; si elle correspond à une sortie archivante (mort/refus/
+// conforme), TOUTE la sélection est archivée d'un coup (même logique que la
+// sortie individuelle ci-dessus).
+app.post("/api/entreprises/statut-groupe", exigerAuth, async (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+  const statut = String(req.body.statut || "");
+  const libelle = libelleStatutGroupe(statut);
+  if (!libelle) return res.status(400).json({ error: "Statut inconnu." });
+  if (ids.length === 0) return res.status(400).json({ error: "Aucune entreprise sélectionnée." });
+
+  const estIssueAppel = Boolean(ISSUES_APPEL[statut]);
+  const estSortie = Boolean(SORTIES_DOSSIER[statut]);
+  const archive = estSortie && SORTIES_ARCHIVANTES.has(statut);
+
+  const entreprisesTouchees = [];
+  for (const id of ids) {
+    const entreprise = db.data.entreprises.find((e) => e.id === id);
+    if (!entreprise || !estVisiblePar(entreprise, req.utilisateur)) continue;
+
+    entreprise.historiqueAppels.unshift({
+      id: nanoid(),
+      date: new Date().toISOString(),
+      type: estIssueAppel ? "appel" : estSortie ? "sortie" : "statut",
+      issue: statut,
+      issueLabel: `${libelle} (changement groupé)`,
+      details: null,
+      dateProgrammee: null,
+      dureeSecondes: null,
+    });
+    entreprise.statut = statut;
+    if (archive) archiver(entreprise);
+    entreprisesTouchees.push(enrichir(entreprise));
+  }
+
+  if (entreprisesTouchees.length === 0) {
+    return res.status(404).json({ error: "Aucune des entreprises sélectionnées n'est accessible." });
+  }
+
+  await db.write();
+  res.json({ nbTraitees: entreprisesTouchees.length, archive, entreprises: entreprisesTouchees });
+});
+
 // Numérisation de la "Fiche de Suivi Prospect" papier : soumise par l'agent
 // une fois le prospect qualifié comme prêt à finaliser. Fait basculer
 // automatiquement le dossier sur le statut "fiche" (réétiqueté "Fiche

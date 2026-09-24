@@ -93,6 +93,20 @@ export const api = {
       body: JSON.stringify({ utilisateurId: utilisateurId || null }),
     }).then(handle),
 
+  assignerGroupe: (ids, utilisateurId) =>
+    fetch(`${BASE}/entreprises/assigner-groupe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, utilisateurId: utilisateurId || null }),
+    }).then(handle),
+
+  changerStatutGroupe: (ids, statut) =>
+    fetch(`${BASE}/entreprises/statut-groupe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, statut }),
+    }).then(handle),
+
   assignerLot: (lot, utilisateurId) =>
     fetch(`${BASE}/lots/${encodeURIComponent(lot)}/assigner`, {
       method: "POST",
