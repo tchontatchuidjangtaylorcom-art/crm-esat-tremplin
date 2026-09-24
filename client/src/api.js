@@ -16,6 +16,8 @@ export const api = {
 
   getStatutIA: () => fetch(`${BASE}/ia/statut`).then(handle),
 
+  getModelesDisponiblesIA: () => fetch(`${BASE}/ia/modeles-disponibles`).then(handle),
+
   getEntreprise: (id) => fetch(`${BASE}/entreprises/${id}`).then(handle),
 
   patchEntreprise: (id, data) =>

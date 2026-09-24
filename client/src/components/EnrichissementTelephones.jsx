@@ -14,6 +14,9 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
   const [iaConfiguree, setIaConfiguree] = useState(null);
   const [statut, setStatut] = useState(null);
   const [erreur, setErreur] = useState(null);
+  const [modelesDisponibles, setModelesDisponibles] = useState(null);
+  const [erreurModeles, setErreurModeles] = useState(null);
+  const [chargementModeles, setChargementModeles] = useState(false);
 
   useEffect(() => {
     api
@@ -50,6 +53,24 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
       setStatut(reponse);
     } catch (e) {
       setErreur(e.message);
+    }
+  }
+
+  // Diagnostic pour l'erreur "model X is not found" : plutôt que deviner un
+  // nouveau nom de modèle Gemini (Google en retire régulièrement, sans lien
+  // avec ce qui est écrit dans le code — voir GEMINI_MODEL dans .env.example),
+  // interroge l'API pour la vraie liste disponible pour CETTE clé.
+  async function verifierModelesDisponibles() {
+    setChargementModeles(true);
+    setErreurModeles(null);
+    setModelesDisponibles(null);
+    try {
+      const { modeles } = await api.getModelesDisponiblesIA();
+      setModelesDisponibles(modeles);
+    } catch (e) {
+      setErreurModeles(e.message);
+    } finally {
+      setChargementModeles(false);
     }
   }
 
@@ -91,7 +112,41 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
       </button>
 
       {statut?.interrompu && (
-        <p className="text-sm text-amber-600 dark:text-amber-400 w-full">⚠️ {statut.interrompu}</p>
+        <div className="w-full">
+          <p className="text-sm text-amber-600 dark:text-amber-400">⚠️ {statut.interrompu}</p>
+          <button
+            onClick={verifierModelesDisponibles}
+            disabled={chargementModeles}
+            className="mt-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-40"
+          >
+            {chargementModeles ? "Vérification…" : "Voir les modèles Gemini disponibles pour cette clé"}
+          </button>
+          {erreurModeles && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erreurModeles}</p>}
+          {modelesDisponibles && (
+            <div className="mt-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+              {modelesDisponibles.length === 0 ? (
+                <p>Aucun modèle compatible generateContent trouvé pour cette clé.</p>
+              ) : (
+                <>
+                  <p className="mb-1.5">
+                    Valeur à mettre dans <strong>GEMINI_MODEL</strong> (variable d'environnement Render du
+                    service, pas ce fichier .env.example local) :
+                  </p>
+                  <ul className="space-y-0.5">
+                    {modelesDisponibles.map((m) => (
+                      <li key={m.id}>
+                        <code className="font-mono bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-1.5 py-0.5">
+                          {m.id}
+                        </code>
+                        {m.displayName ? ` — ${m.displayName}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       )}
       {!statut?.interrompu && !statut?.enCours && statut?.derniereErreur && (
         <p className="text-xs text-slate-400 dark:text-slate-500 w-full">
