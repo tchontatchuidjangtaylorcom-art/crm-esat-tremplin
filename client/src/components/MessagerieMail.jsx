@@ -197,8 +197,18 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         )}
       </ul>
 
-      {destinataires.length > 0 && (
-        <form onSubmit={envoyer} className="space-y-2 pt-3 border-t border-marine-100 dark:border-marine-900/30">
+      {/* Le formulaire de composition reste visible même sans destinataire connu :
+          la génération IA doit justement s'activer dans ce cas précis (contact
+          sans e-mail renseigné, ou qui ne répond pas) — seul "Envoyer" reste
+          désactivé tant qu'aucune adresse n'est disponible (voir le disabled
+          plus bas). */}
+      <form onSubmit={envoyer} className="space-y-2 pt-3 border-t border-marine-100 dark:border-marine-900/30">
+          {destinataires.length === 0 && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-lg p-2">
+              Aucun e-mail connu pour ce contact — générez un brouillon dès maintenant, puis ajoutez une adresse dans
+              "Informations structure" pour pouvoir l'envoyer.
+            </p>
+          )}
           {modeles?.modeles?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1">
               {modeles.modeles.map((m) => (
@@ -257,8 +267,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           >
             {envoiEnCours ? "Envoi…" : "Envoyer (signé Pôle OETH / AGEFIPH)"}
           </button>
-        </form>
-      )}
+      </form>
       </div>
     </>
   );
