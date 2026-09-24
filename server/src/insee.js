@@ -167,20 +167,27 @@ function libelleFormeJuridique(code) {
   return FORMES_JURIDIQUES[code] || `Forme juridique (code ${code})`;
 }
 
-// Validation du format SIREN : 9 chiffres + clé de Luhn (même algorithme que
-// pour un SIRET, appliqué ici sur les 9 chiffres de l'identifiant entreprise).
+// Nettoie une saisie agent (espaces, points, tirets copiés depuis un Kbis,
+// un mail, une fiche papier...) et tolère un SIRET complet (14 chiffres :
+// SIREN + code établissement) collé par erreur ou par habitude à la place
+// d'un SIREN — on ne garde alors que les 9 premiers chiffres, plutôt que de
+// rejeter l'entreprise. Utilisée avant toute validation/recherche par SIREN.
+export function normaliserSiren(entree) {
+  const chiffres = String(entree || "").replace(/\D/g, "");
+  return chiffres.length === 14 ? chiffres.slice(0, 9) : chiffres;
+}
+
+// Validation assouplie du SIREN : le seul critère bloquant est le format (9
+// chiffres, après normalisation ci-dessus — qui absorbe déjà le cas SIRET à
+// 14 chiffres). La clé de contrôle mathématique (Luhn) n'est plus exigée :
+// un SIREN mal recopié à un chiffre près échouerait quand même cette clé,
+// mais bloquer l'import sur ce seul critère alors que le format ressemble à
+// un identifiant valide freine l'agent sans bénéfice réel — la vraie
+// validation vient de toute façon juste après, de la recherche dans le
+// répertoire Sirene lui-même (un SIREN inexistant échoue proprement avec
+// SIREN_INTROUVABLE, voir rechercherEntrepriseParSiren).
 export function estSirenValide(siren) {
-  if (!/^\d{9}$/.test(siren)) return false;
-  let somme = 0;
-  for (let i = 0; i < 9; i++) {
-    let chiffre = Number(siren[i]);
-    if (i % 2 === 1) {
-      chiffre *= 2;
-      if (chiffre > 9) chiffre -= 9;
-    }
-    somme += chiffre;
-  }
-  return somme % 10 === 0;
+  return /^\d{9}$/.test(siren);
 }
 
 function construireAdresse(siege = {}) {

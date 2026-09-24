@@ -9,7 +9,7 @@ import { nanoid } from "nanoid";
 import db, { initDb, CANAL_GENERAL_ID } from "./db.js";
 import { calculerObligationOeth } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur, CATEGORIES } from "./secteurs.js";
-import { estSirenValide, rechercherEntrepriseParSiren, rechercherEntreprisesParSecteur } from "./insee.js";
+import { estSirenValide, normaliserSiren, rechercherEntrepriseParSiren, rechercherEntreprisesParSecteur } from "./insee.js";
 import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
 import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
@@ -481,8 +481,12 @@ app.get("/api/lots", exigerAuth, (req, res) => {
 // archives si l'entreprise est déjà radiée. Réutilisée par la recherche unitaire
 // et par l'import par lot.
 async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null, assigneA = null, utilisateur } = {}) {
+  // Tolère un SIRET (14 chiffres) collé à la place d'un SIREN : n'en garde
+  // que les 9 premiers chiffres plutôt que de rejeter l'entreprise (voir
+  // normaliserSiren dans insee.js).
+  siren = normaliserSiren(siren);
   if (!estSirenValide(siren)) {
-    const erreur = new Error("SIREN invalide (9 chiffres attendus, clé de contrôle incorrecte).");
+    const erreur = new Error("SIREN invalide (9 chiffres, ou 14 pour un SIRET, attendus).");
     erreur.code = "SIREN_INVALIDE";
     throw erreur;
   }
@@ -590,7 +594,7 @@ app.post("/api/leads/siren/lot", exigerAdmin, async (req, res) => {
 
   const resultats = [];
   for (const brut of sirens) {
-    const siren = String(brut || "").replace(/\s/g, "");
+    const siren = normaliserSiren(brut);
     if (!siren) continue;
     try {
       const { existant, archive, entreprise } = await creerLeadDepuisSiren(siren, { lot, assigneA, utilisateur: req.utilisateur });
@@ -811,7 +815,7 @@ app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
   const resultats = [];
   const creeesPourIa = [];
   for (const brut of sirens) {
-    const siren = String(brut || "").replace(/\s/g, "");
+    const siren = normaliserSiren(brut);
     if (!siren) continue;
     try {
       const { existant, archive, entreprise } = await creerLeadDepuisSiren(siren, {

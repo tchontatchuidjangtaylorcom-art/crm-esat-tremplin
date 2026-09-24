@@ -11,9 +11,14 @@ export default function RechercheSiren({ onEntreprise }) {
 
   async function soumettre(ev) {
     ev.preventDefault();
-    const propre = siren.replace(/\s/g, "");
+    // Tolère un SIRET complet (14 chiffres) collé à la place d'un SIREN, ainsi
+    // que les espaces/points/tirets copiés depuis un Kbis ou une signature de
+    // mail — n'importe quel caractère non numérique est simplement retiré
+    // avant validation (même logique que normaliserSiren côté serveur).
+    const chiffres = siren.replace(/\D/g, "");
+    const propre = chiffres.length === 14 ? chiffres.slice(0, 9) : chiffres;
     if (!/^\d{9}$/.test(propre)) {
-      setMessage({ type: "error", texte: "Le SIREN doit comporter exactement 9 chiffres." });
+      setMessage({ type: "error", texte: "Le SIREN doit comporter 9 chiffres (ou 14 pour un SIRET complet)." });
       return;
     }
 
@@ -49,10 +54,10 @@ export default function RechercheSiren({ onEntreprise }) {
         <input
           type="text"
           inputMode="numeric"
-          placeholder="9 chiffres, ex : 552100554"
+          placeholder="9 chiffres (SIREN) ou 14 (SIRET) — ex : 552100554"
           value={siren}
           onChange={(e) => setSiren(e.target.value)}
-          maxLength={11}
+          maxLength={20}
           className="mt-1 w-64 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
         />
       </label>
