@@ -1,9 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import StatusBadge from "./StatusBadge.jsx";
+import StatusSelect from "./StatusSelect.jsx";
+import CommentaireRapideModal from "./CommentaireRapideModal.jsx";
+import GenererEmailModal from "./GenererEmailModal.jsx";
 import { formatMontant, formatDateHeure } from "../constants.js";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { diffuserEntrepriseArchivee } from "../telephony/CallContext.jsx";
 import { api } from "../api.js";
+
+// Aucune adresse mail connue pour cette fiche (ni principale, ni alternative)
+// — la seule situation où le bouton "Générer un e-mail" a un sens dans le
+// tableau : sans destinataire, il n'y a rien à faire depuis la fiche
+// complète (MessagerieMail) que l'agent n'ait pas déjà sous les yeux ici.
+function sansEmailConnu(entreprise) {
+  return !entreprise.contact?.email && !(entreprise.contact?.emailsAlternatifs?.length > 0);
+}
 
 function OethCell({ oeth }) {
   if (!oeth?.assujetti) {
@@ -67,6 +77,22 @@ function BoutonMarquerMort({ entreprise }) {
   );
 }
 
+// Bouton "+" d'action rapide (commentaire) — ouvre la modale légère plutôt
+// qu'un popover positionné en absolu dans la cellule : dans un tableau qui
+// défile horizontalement (overflow-x-auto), un popover ancré à une ligne du
+// bas se ferait couper ; une modale centrée reste toujours entièrement visible.
+function BoutonCommentaireRapide({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Ajouter un commentaire rapide (sans ouvrir la fiche)"
+      className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-marine-100 hover:text-marine-700 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-marine-950 dark:hover:text-marine-300 transition"
+    >
+      +
+    </button>
+  );
+}
+
 // En-tête de colonne triable : flèche qui indique le sens actif, neutre
 // (double flèche discrète) quand ce n'est pas la colonne triée. Réutilisé
 // pour "Contact" (présence de numéro) et "Commentaire récent" (chronologie).
@@ -124,6 +150,8 @@ export default function EntrepriseTable({
   const nbColonnes = (estAdmin ? 11 : 10) + 1;
   const nbCochees = entreprises.filter((e) => selection.has(e.id)).length;
   const etatToutCoche = entreprises.length > 0 && nbCochees === entreprises.length ? "tout" : nbCochees > 0 ? "partiel" : "aucun";
+  const [commentaireOuvertPour, setCommentaireOuvertPour] = useState(null);
+  const [emailOuvertPour, setEmailOuvertPour] = useState(null);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
@@ -184,7 +212,7 @@ export default function EntrepriseTable({
                   </span>
                 </td>
                 <td className="px-3 py-2">
-                  <StatusBadge statut={e.statut} />
+                  <StatusSelect entreprise={e} />
                 </td>
                 <td className="px-3 py-2">
                   <EcheanceCell entreprise={e} />
@@ -199,6 +227,15 @@ export default function EntrepriseTable({
                 <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
                   {e.contact?.nom && e.contact.nom !== "-" && <span className="block">{e.contact.nom}</span>}
                   <BoutonAppel entreprise={e} variant="lien" />
+                  {sansEmailConnu(e) && (
+                    <button
+                      onClick={() => setEmailOuvertPour(e)}
+                      title="Aucune adresse mail connue — générer un e-mail avec l'IA"
+                      className="block mt-1 text-[11px] font-medium text-marine-700 dark:text-marine-300 hover:underline whitespace-nowrap"
+                    >
+                      ✨ Générer un e-mail
+                    </button>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{e.codePostal}</td>
                 <td
@@ -226,6 +263,7 @@ export default function EntrepriseTable({
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-1.5">
                     <BoutonAppel entreprise={e} variant="icone" />
+                    <BoutonCommentaireRapide onClick={() => setCommentaireOuvertPour(e)} />
                     <BoutonMarquerMort entreprise={e} />
                   </div>
                 </td>
@@ -241,6 +279,16 @@ export default function EntrepriseTable({
           )}
         </tbody>
       </table>
+
+      {commentaireOuvertPour && (
+        <CommentaireRapideModal
+          entreprise={commentaireOuvertPour}
+          onFermer={() => setCommentaireOuvertPour(null)}
+        />
+      )}
+      {emailOuvertPour && (
+        <GenererEmailModal entreprise={emailOuvertPour} onFermer={() => setEmailOuvertPour(null)} />
+      )}
     </div>
   );
 }
