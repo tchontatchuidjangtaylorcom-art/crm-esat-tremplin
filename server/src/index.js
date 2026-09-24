@@ -31,6 +31,7 @@ import { genererRapportPdf } from "./pdfRapport.js";
 import {
   estRechercheIaConfiguree,
   rechercherContactAlternatif,
+  listerModelesDisponibles,
   detailErreur as detailErreurIa,
 } from "./rechercheContact.js";
 import {
@@ -1125,6 +1126,22 @@ app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepris
   } catch (e) {
     console.error(`[ia] Échec de recherche de contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
+    res.status(statutHttp).json({ error: e.message });
+  }
+});
+
+// Diagnostic admin : la liste des modèles Gemini réellement disponibles pour
+// GEMINI_API_KEY et supportant generateContent. À utiliser quand
+// GEMINI_MODEL tombe en erreur "not found"/"not supported" (Google retire
+// des modèles sans préavis pour ce projet — déjà arrivé deux fois) : plutôt
+// que deviner un nouveau nom, on demande directement à l'API la valeur
+// exacte à mettre dans GEMINI_MODEL sur Render.
+app.get("/api/ia/modeles-disponibles", exigerAdmin, async (req, res) => {
+  try {
+    const modeles = await listerModelesDisponibles();
+    res.json({ modeles });
+  } catch (e) {
+    const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : 502;
     res.status(statutHttp).json({ error: e.message });
   }
 });

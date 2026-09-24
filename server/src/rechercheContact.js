@@ -67,6 +67,36 @@ export function estRechercheIaConfiguree() {
   return Boolean(cleApi());
 }
 
+// Diagnostic : interroge Gemini pour la vraie liste de modèles disponibles
+// pour CETTE clé et supportant generateContent — plutôt que de deviner un
+// nom de modèle à chaque retrait (déjà arrivé deux fois : gemini-1.5-flash
+// puis gemini-2.5-flash), on demande directement à l'API. Voir la route
+// GET /api/ia/modeles-disponibles (admin) dans index.js.
+export async function listerModelesDisponibles() {
+  const cle = cleApi();
+  if (!cle) {
+    const erreur = new Error("Recherche IA non configurée (renseignez GEMINI_API_KEY).");
+    erreur.code = "IA_NON_CONFIGUREE";
+    throw erreur;
+  }
+  const reponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cle}`);
+  const corps = await reponse.json().catch(() => ({}));
+  if (!reponse.ok) {
+    const erreur = new Error(corps.error?.message || `L'API Gemini a répondu ${reponse.status}.`);
+    erreur.code = corps.error?.status || `HTTP_${reponse.status}`;
+    erreur.responseCode = reponse.status;
+    throw erreur;
+  }
+  return (corps.models || [])
+    .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map((m) => ({
+      // `m.name` arrive au format "models/gemini-x-y" — on retire le préfixe
+      // pour obtenir directement la valeur à mettre dans GEMINI_MODEL.
+      id: (m.name || "").replace(/^models\//, ""),
+      displayName: m.displayName || null,
+    }));
+}
+
 export function detailErreur(e) {
   return {
     message: e.message,
