@@ -127,6 +127,8 @@ export const api = {
       body: JSON.stringify({ question }),
     }).then(handle),
 
+  genererEmailIA: (id) => fetch(`${BASE}/entreprises/${id}/generer-email`, { method: "POST" }).then(handle),
+
   getArgumentaireAgefiph: () => fetch(`${BASE}/argumentaire-agefiph`).then(handle),
 
   getScriptVente: () => fetch(`${BASE}/script-vente`).then(handle),

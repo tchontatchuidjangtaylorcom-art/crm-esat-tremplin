@@ -353,6 +353,142 @@ export async function poserQuestionContact(entreprise, question) {
   return avecRetry429(() => appelerClaudeQuestion(entreprise, question, cle, modele), entreprise.nom);
 }
 
+// Prompt d'analyse d'une dictée d'appel (dictaphone) : contrairement aux
+// deux fonctions ci-dessus (qui cherchent des infos EXTÉRIEURES à
+// l'entreprise via le web), ici on ne fait qu'analyser ce que l'agent
+// vient lui-même de dire — aucun outil de recherche web, pour ne jamais
+// chercher sur internet à partir du contenu d'un appel privé. Le seul
+// garde-fou anti-hallucination pertinent ici est inverse : ne jamais
+// AJOUTER une information que l'agent n'a pas dite, seulement reformuler.
+function construirePromptDictee(entreprise, transcription) {
+  const villeOuCp = [entreprise.codePostal, entreprise.ville].filter(Boolean).join(" ");
+  const identite = [entreprise.nom, villeOuCp].filter(Boolean).join(", ");
+
+  return (
+    `Tu aides un télé-prospecteur français (Pôle OETH/AGEFIPH) à rédiger le compte-rendu d'un appel qu'il vient de ` +
+    `terminer avec cette entreprise : ${identite}.\n` +
+    `Voici sa dictée brute, telle que transcrite automatiquement par reconnaissance vocale (peut contenir des ` +
+    `hésitations, du langage parlé, des répétitions, des fautes de transcription) :\n"${transcription}"\n\n` +
+    `Rédige un compte-rendu professionnel et concis (3 à 5 phrases maximum) à partir de cette dictée. Restitue ` +
+    `FIDÈLEMENT ce que l'agent a dit — ne complète JAMAIS avec une information qu'il n'a pas mentionnée, ne déduis ` +
+    `rien au-delà de ce qui est dit explicitement. Corrige seulement la forme (orthographe, ponctuation, tournures ` +
+    `orales), jamais le fond.\n` +
+    `Si la dictée mentionne un ou plusieurs contacts nominatifs (nom de personne + fonction, ex : "j'ai eu Madame ` +
+    `Dupont des RH"), extrais-les. Si elle mentionne aussi un numéro de téléphone ou une adresse mail dits à voix ` +
+    `haute, extrais-les, rattachés au bon contact si possible.\n` +
+    `Termine IMPÉRATIVEMENT ta réponse par une seule ligne contenant uniquement un objet JSON strict, sans texte ` +
+    `autour, exactement au format :\n` +
+    `{"resume": "<compte-rendu rédigé>", "contacts": [{"nom": "<nom ou null>", "role": "<fonction ou null>", "telephone": "<numéro ou null>", "email": "<email ou null>"}]}\n` +
+    `Si aucun contact nominatif n'est mentionné, renvoie "contacts": [].`
+  );
+}
+
+function extraireResultatDictee(corpsReponse) {
+  const texte = (corpsReponse.content || [])
+    .filter((bloc) => bloc.type === "text")
+    .map((bloc) => bloc.text || "")
+    .join("\n");
+
+  const bloc = extraireBlocJsonParCle(texte, "resume");
+  if (!bloc) {
+    const erreur = new Error("Réponse de l'IA illisible (pas de JSON de résultat trouvé).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = texte.slice(0, 500);
+    throw erreur;
+  }
+
+  let resultat;
+  try {
+    resultat = JSON.parse(bloc);
+  } catch {
+    const erreur = new Error("Réponse de l'IA illisible (JSON invalide).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = bloc;
+    throw erreur;
+  }
+
+  const nettoie = (v) => (v && v !== "null" ? v : null);
+  const resume = nettoie(resultat.resume);
+  if (!resume) {
+    const erreur = new Error("L'IA n'a renvoyé aucun compte-rendu exploitable.");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    throw erreur;
+  }
+
+  const contacts = Array.isArray(resultat.contacts)
+    ? resultat.contacts
+        .map((c) => ({
+          nom: nettoie(c?.nom),
+          role: nettoie(c?.role),
+          telephone: nettoie(c?.telephone),
+          email: nettoie(c?.email),
+        }))
+        .filter((c) => c.nom || c.role || c.telephone || c.email)
+    : [];
+
+  return { resume, contacts };
+}
+
+async function appelerClaudeDictee(entreprise, transcription, cle, modele) {
+  const controleur = new AbortController();
+  const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
+  let reponse;
+  try {
+    reponse = await fetch(API_URL, {
+      method: "POST",
+      headers: enTetes(cle),
+      body: JSON.stringify({
+        model: modele,
+        max_tokens: 1024,
+        // Pas d'outil de recherche web ici (voir le commentaire au-dessus de
+        // construirePromptDictee) : uniquement une reformulation/extraction à
+        // partir du texte fourni par l'agent lui-même.
+        messages: [{ role: "user", content: construirePromptDictee(entreprise, transcription) }],
+      }),
+      signal: controleur.signal,
+    });
+  } catch (e) {
+    if (e.name === "AbortError") {
+      const erreur = new Error(`Délai de recherche IA dépassé (${TIMEOUT_MS}ms).`);
+      erreur.code = "TIMEOUT_MANUEL";
+      throw erreur;
+    }
+    throw e;
+  } finally {
+    clearTimeout(idAbort);
+  }
+
+  const corps = await reponse.json().catch(() => ({}));
+  if (!reponse.ok) {
+    const erreur = new Error(
+      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+    );
+    erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    erreur.responseCode = reponse.status;
+    erreur.response = JSON.stringify(corps).slice(0, 500);
+    erreur.reponseHttp = reponse;
+    throw erreur;
+  }
+
+  return extraireResultatDictee(corps);
+}
+
+// Dictaphone IA : transcrit côté client (Web Speech API — voir
+// DicteeCommentaire.jsx), puis analysé ici pour produire un compte-rendu
+// propre + extraire d'éventuels contacts nominatifs cités pendant l'appel.
+// Ne persiste RIEN — l'agent valide et enregistre explicitement via les
+// routes /commentaires et PATCH existantes une fois satisfait du résultat.
+export async function analyserDictee(entreprise, transcription) {
+  const cle = cleApi();
+  if (!cle) {
+    const erreur = new Error("Recherche IA non configurée (renseignez ANTHROPIC_API_KEY).");
+    erreur.code = "IA_NON_CONFIGUREE";
+    throw erreur;
+  }
+  const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
+  return avecRetry429(() => appelerClaudeDictee(entreprise, transcription, cle, modele), entreprise.nom);
+}
+
 async function appelerClaude(entreprise, cle, modele) {
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);

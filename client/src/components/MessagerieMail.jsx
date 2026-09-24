@@ -28,6 +28,9 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
   const [toastEnvoi, setToastEnvoi] = useState(null);
+  const [iaConfiguree, setIaConfiguree] = useState(null);
+  const [generationEnCours, setGenerationEnCours] = useState(false);
+  const [erreurGeneration, setErreurGeneration] = useState(null);
   const destinataires = destinatairesDisponibles(entreprise);
   const [destinataire, setDestinataire] = useState(entreprise.contact?.email || destinataires[0]?.email || "");
 
@@ -55,6 +58,10 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       .getStatutMail()
       .then(setStatutMail)
       .catch(() => setStatutMail({ configuree: false }));
+    api
+      .getStatutIA()
+      .then((r) => setIaConfiguree(r.configuree))
+      .catch(() => setIaConfiguree(false));
   }, []);
 
   // Marque les mails reçus comme lus dès que ce fil est affiché (= la fiche
@@ -75,6 +82,26 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         construireSignature({ statutMail })
       )
     );
+  }
+
+  // Génération sur demande (jamais automatique) : l'agent déclenche
+  // explicitement la rédaction, l'IA s'appuie sur les données déjà connues
+  // du CRM (secteur, chiffres OETH, interlocuteur, historique d'échange —
+  // voir server/src/rechercheContact.js) pour proposer un brouillon
+  // personnalisé, qui ne fait que pré-remplir le formulaire comme un modèle
+  // classique : l'agent relit et clique lui-même sur "Envoyer".
+  async function genererEmail() {
+    setGenerationEnCours(true);
+    setErreurGeneration(null);
+    try {
+      const resultat = await api.genererEmailIA(entreprise.id);
+      setObjet(resultat.objet);
+      setCorps(resultat.corps.replaceAll("{{SIGNATURE}}", construireSignature({ statutMail })));
+    } catch (e) {
+      setErreurGeneration(e.message);
+    } finally {
+      setGenerationEnCours(false);
+    }
   }
 
   async function envoyer(ev) {
@@ -186,6 +213,24 @@ export default function MessagerieMail({ entreprise, onMaj }) {
               ))}
             </div>
           )}
+
+          {iaConfiguree !== false && (
+            <div className="mb-1">
+              <button
+                type="button"
+                onClick={genererEmail}
+                disabled={generationEnCours}
+                title="Particulièrement utile si ce contact n'a pas répondu à un e-mail précédent, ou si aucun e-mail n'était disponible jusqu'ici"
+                className="text-[11px] px-2.5 py-1.5 rounded-full bg-marine-100 dark:bg-marine-950/50 text-marine-800 dark:text-marine-300 hover:bg-marine-200 dark:hover:bg-marine-900 disabled:opacity-40 font-medium"
+              >
+                {generationEnCours ? "✨ Génération…" : "✨ Générer un e-mail de relance/proposition (IA)"}
+              </button>
+              {erreurGeneration && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erreurGeneration}</p>
+              )}
+            </div>
+          )}
+
           <input
             type="text"
             placeholder="Objet"

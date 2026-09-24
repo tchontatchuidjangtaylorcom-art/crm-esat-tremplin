@@ -67,6 +67,28 @@ function BoutonMarquerMort({ entreprise }) {
   );
 }
 
+// En-tête de colonne triable : flèche qui indique le sens actif, neutre
+// (double flèche discrète) quand ce n'est pas la colonne triée. Réutilisé
+// pour "Contact" (présence de numéro) et "Commentaire récent" (chronologie).
+function EnTeteTriable({ colonne, label, tri, onTrier }) {
+  const actif = tri?.colonne === colonne;
+  return (
+    <button
+      type="button"
+      onClick={() => onTrier(colonne)}
+      className={`flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 ${
+        actif ? "text-slate-700 dark:text-slate-200" : ""
+      }`}
+      title={`Trier par ${label.toLowerCase()}`}
+    >
+      {label}
+      <span aria-hidden className="text-[10px] leading-none">
+        {actif ? (tri.direction === "desc" ? "▼" : "▲") : "⇅"}
+      </span>
+    </button>
+  );
+}
+
 // Case à cocher de l'en-tête : coche/décoche toutes les lignes affichées
 // (la page courante) et passe à l'état "indéterminé" (trait, ni coché ni
 // vide) quand certaines lignes seulement sont sélectionnées — signal visuel
@@ -96,6 +118,8 @@ export default function EntrepriseTable({
   selection,
   onToggleSelection,
   onToggleSelectionTout,
+  tri,
+  onTrier,
 }) {
   const nbColonnes = (estAdmin ? 11 : 10) + 1;
   const nbCochees = entreprises.filter((e) => selection.has(e.id)).length;
@@ -115,9 +139,13 @@ export default function EntrepriseTable({
             <th className="px-3 py-2 text-left">Secteur</th>
             <th className="px-3 py-2 text-left">Obligation OETH</th>
             <th className="px-3 py-2 text-left">Montant estimé</th>
-            <th className="px-3 py-2 text-left">Contact</th>
+            <th className="px-3 py-2 text-left">
+              <EnTeteTriable colonne="contact" label="Contact" tri={tri} onTrier={onTrier} />
+            </th>
             <th className="px-3 py-2 text-left">CP</th>
-            <th className="px-3 py-2 text-left">Commentaire récent</th>
+            <th className="px-3 py-2 text-left">
+              <EnTeteTriable colonne="commentaire" label="Commentaire récent" tri={tri} onTrier={onTrier} />
+            </th>
             {estAdmin && <th className="px-3 py-2 text-left">Assigné à</th>}
             <th className="px-3 py-2 text-left">Actions</th>
           </tr>

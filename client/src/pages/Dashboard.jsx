@@ -31,6 +31,30 @@ function correspondRecherche(e, recherche) {
   return e.nom.toLowerCase().includes(q) || e.siret.includes(q) || e.codePostal.includes(q);
 }
 
+// Tri par en-tête de colonne (voir EntrepriseTable) : "contact" trie sur la
+// présence d'un numéro de téléphone, "commentaire" sur la date du dernier
+// commentaire (toujours en tête du tableau, voir ajouterCommentaire côté
+// serveur qui l'unshift). Les dossiers sans commentaire n'ont pas de date à
+// comparer : ils restent en fin de liste quel que soit le sens du tri plutôt
+// que de se mêler arbitrairement aux dossiers datés.
+function valeurTri(e, colonne) {
+  if (colonne === "contact") return e.contact?.telephone ? 1 : 0;
+  if (colonne === "commentaire") {
+    const date = e.commentaires?.[0]?.date;
+    return date ? new Date(date).getTime() : null;
+  }
+  return 0;
+}
+
+function comparerTri(a, b, tri) {
+  const va = valeurTri(a, tri.colonne);
+  const vb = valeurTri(b, tri.colonne);
+  if (va === null && vb === null) return 0;
+  if (va === null) return 1;
+  if (vb === null) return -1;
+  return tri.direction === "desc" ? vb - va : va - vb;
+}
+
 export default function Dashboard() {
   const { theme, basculer } = useTheme();
   const { utilisateur } = useAuth();
@@ -55,6 +79,19 @@ export default function Dashboard() {
   const [tailleParPage, setTailleParPage] = useState(20);
   const [page, setPage] = useState(1);
   const [selection, setSelection] = useState(() => new Set());
+  // Tri actif sur une colonne du tableau ({ colonne, direction }) — null tant
+  // qu'aucun en-tête n'a été cliqué, auquel cas le tri par défaut (priorité
+  // au déficit d'UB) s'applique, voir entreprisesFiltrees ci-dessous.
+  const [tri, setTri] = useState(null);
+
+  // Premier clic sur une colonne : ordre "le plus pertinent en premier"
+  // (avec numéro / commentaire le plus récent). Un second clic sur la même
+  // colonne inverse le sens ; cliquer une autre colonne repart à "desc".
+  function basculerTri(colonne) {
+    setTri((actuel) =>
+      actuel?.colonne === colonne ? { colonne, direction: actuel.direction === "desc" ? "asc" : "desc" } : { colonne, direction: "desc" }
+    );
+  }
 
   function charger() {
     const appels = [
@@ -87,7 +124,7 @@ export default function Dashboard() {
   // pour ne jamais rester bloqué sur une page qui n'a plus de résultats.
   useEffect(() => {
     setPage(1);
-  }, [filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche, tailleParPage]);
+  }, [filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche, tailleParPage, tri]);
 
   // Reçoit les mises à jour émises par le panneau d'appel (module AGIR / VoIP)
   // sans avoir à tout recharger depuis l'API.
@@ -194,10 +231,11 @@ export default function Dashboard() {
       return correspondRecherche(e, recherche);
     });
 
-    // Priorité : déficit d'unités bénéficiaires le plus élevé en tête.
-    liste = [...liste].sort((a, b) => (b.oeth?.deficit || 0) - (a.oeth?.deficit || 0));
+    // Tri actif sur une colonne (voir basculerTri) sinon, par défaut,
+    // priorité au déficit d'unités bénéficiaires le plus élevé en tête.
+    liste = [...liste].sort((a, b) => (tri ? comparerTri(a, b, tri) : (b.oeth?.deficit || 0) - (a.oeth?.deficit || 0)));
     return liste;
-  }, [entreprises, filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche]);
+  }, [entreprises, filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche, tri]);
 
   const nbPages = Math.max(1, Math.ceil(entreprisesFiltrees.length / tailleParPage));
   const pageCourante = Math.min(page, nbPages);
@@ -424,6 +462,8 @@ export default function Dashboard() {
                 selection={selection}
                 onToggleSelection={basculerSelection}
                 onToggleSelectionTout={basculerSelectionPage}
+                tri={tri}
+                onTrier={basculerTri}
               />
 
               <div className="flex flex-wrap items-center justify-between gap-3 mt-3 text-sm text-slate-500 dark:text-slate-400">
