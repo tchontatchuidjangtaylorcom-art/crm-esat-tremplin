@@ -679,185 +679,6 @@ export default function EntrepriseDetail() {
             )}
           </div>
 
-          {/* Obligation OETH */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Obligation OETH</h2>
-
-            <form onSubmit={soumettreEffectifs} className="grid grid-cols-2 gap-3 mb-4">
-              <label className="text-xs text-slate-500 dark:text-slate-400">
-                Effectif total
-                <input
-                  type="number"
-                  min="0"
-                  value={effectifSaisi}
-                  onChange={(e) => setEffectifSaisi(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
-                />
-              </label>
-              <label className="text-xs text-slate-500 dark:text-slate-400">
-                Bénéficiaires recrutés
-                <input
-                  type="number"
-                  min="1"
-                  value={effectifBeneficiaireSaisi}
-                  onChange={(e) => setEffectifBeneficiaireSaisi(e.target.value)}
-                  disabled={Number(effectifBeneficiaireSaisi) === 0}
-                  title={
-                    Number(effectifBeneficiaireSaisi) === 0
-                      ? "Sélectionnez « Oui » ci-dessous pour saisir un nombre de bénéficiaires"
-                      : undefined
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={enregistrementEffectifs}
-                className="col-span-2 rounded-lg bg-slate-900 text-white text-xs font-medium py-1.5 disabled:opacity-40"
-              >
-                Mettre à jour les effectifs
-              </button>
-            </form>
-
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-4">
-              L'entreprise a-t-elle au moins un travailleur handicapé (bénéficiaire) ?
-              <select
-                value={Number(effectifBeneficiaireSaisi) > 0 ? "oui" : "non"}
-                onChange={(e) => changerPresenceBeneficiaire(e.target.value)}
-                disabled={enregistrementEffectifs}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm disabled:opacity-40"
-              >
-                <option value="non">Non — 0 recruté (surcontribution forcée)</option>
-                <option value="oui">Oui — au moins 1 recruté (contribution classique)</option>
-              </select>
-            </label>
-
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Mode appliqué :</span>
-              {oeth?.neutralisation?.neutralise ? (
-                <span
-                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                    libelleNeutralisation(oeth.neutralisation).className
-                  }`}
-                >
-                  {libelleNeutralisation(oeth.neutralisation).label}
-                </span>
-              ) : (
-                <span
-                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                    !oeth?.assujetti
-                      ? "bg-slate-100 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600"
-                      : oeth.surcontribution
-                      ? "bg-red-100 text-red-700 border-red-300"
-                      : "bg-blue-100 text-blue-700 border-blue-300"
-                  }`}
-                >
-                  {!oeth?.assujetti
-                    ? "Non assujetti"
-                    : oeth.surcontribution
-                    ? "Surcontribution — coefficient 1500"
-                    : `Contribution classique — coefficient ${oeth.coefficient ?? "—"}`}
-                </span>
-              )}
-            </div>
-
-            {oeth?.neutralisation?.neutralise ? (
-              <div className="space-y-3">
-                <p
-                  className={`text-sm rounded-lg border p-3 ${
-                    oeth.neutralisation.alerteAnticipation
-                      ? "bg-amber-50 border-amber-200 text-amber-800"
-                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
-                  }`}
-                >
-                  {oeth.neutralisation.alerteAnticipation
-                    ? `An ${oeth.neutralisation.ancienneteAnnees} : dernière année de la période de neutralisation légale. Taxe estimée à 0 € pour l'instant, mais l'assujettissement complet à l'OETH s'appliquera dans un an.`
-                    : `Entreprise créée il y a ${oeth.neutralisation.ancienneteAnnees} an${
-                        oeth.neutralisation.ancienneteAnnees > 1 ? "s" : ""
-                      } : période de neutralisation légale (< 5 ans). Taxe estimée à 0 € — l'entreprise n'a pas à s'inquiéter pour le moment.`}
-                </p>
-                {oeth.neutralisation.alerteAnticipation && oeth.projectionSiAssujetti && !oeth.projectionSiAssujetti.conforme && (
-                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
-                    <p className="font-semibold uppercase tracking-wide">Anticipation recommandée — ESAT Tremplin</p>
-                    <p>
-                      À effectif constant, la taxe représenterait environ{" "}
-                      <strong>{formatMontant(oeth.projectionSiAssujetti.montantEstime)}</strong> (
-                      {oeth.projectionSiAssujetti.deficit} UB manquante
-                      {oeth.projectionSiAssujetti.deficit > 1 ? "s" : ""}) dès la levée de la neutralisation.
-                      Recommandez dès maintenant l'ESAT Tremplin pour préparer le recrutement et éviter le mur de la
-                      surcontribution.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : !oeth?.assujetti ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-                Non assujetti à l'OETH (effectif &lt; {oeth?.seuilAssujettissement}).
-              </p>
-            ) : (
-              <dl className="space-y-2 text-sm">
-                <Info label="Unités bénéficiaires requises" value={oeth.unitesRequises} />
-                <Info label="Bénéficiaires recrutés" value={oeth.beneficiairesRecrutes} />
-                <Info
-                  label="Déficit"
-                  value={
-                    oeth.conforme ? (
-                      <span className="text-green-700 font-semibold">0 — conforme</span>
-                    ) : (
-                      <span className={oeth.surcontribution ? "text-red-700 font-semibold" : "text-orange-700 font-semibold"}>
-                        {oeth.deficit} UB
-                      </span>
-                    )
-                  }
-                />
-                {!oeth.conforme && (
-                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Décomposition du calcul
-                    </p>
-                    <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                      <span className="px-2 py-1 rounded-md bg-white border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200">
-                        {oeth.deficit} UB manquante{oeth.deficit > 1 ? "s" : ""}
-                      </span>
-                      <span className="text-slate-400 dark:text-slate-500">×</span>
-                      <span
-                        className={`px-2 py-1 rounded-md bg-white border font-semibold ${
-                          oeth.surcontribution ? "border-red-300 text-red-700" : "border-orange-300 text-orange-700"
-                        }`}
-                      >
-                        {oeth.coefficient}
-                      </span>
-                      <span className="text-slate-400 dark:text-slate-500">×</span>
-                      <span className="px-2 py-1 rounded-md bg-white border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200">
-                        {oeth.tauxHoraireSmic} € (SMIC horaire)
-                      </span>
-                      <span className="text-slate-400 dark:text-slate-500">=</span>
-                      <span className="px-2 py-1 rounded-md bg-slate-900 text-white font-bold">
-                        {formatMontant(oeth.montantEstime)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {oeth.deficit} unité{oeth.deficit > 1 ? "s" : ""} bénéficiaire{oeth.deficit > 1 ? "s" : ""}{" "}
-                      manquante{oeth.deficit > 1 ? "s" : ""} × coefficient <strong>{oeth.coefficient}</strong>{" "}
-                      {oeth.surcontribution
-                        ? "(surcontribution — aucun bénéficiaire recruté)"
-                        : `(tranche ${oeth.tranche} salariés)`}{" "}
-                      × <strong>{oeth.tauxHoraireSmic} €</strong> de taux horaire SMIC ={" "}
-                      <strong>{formatMontant(oeth.montantEstime)}</strong> dus au titre de l'obligation d'emploi.
-                    </p>
-                    {oeth.surcontribution && (
-                      <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
-                        Surcontribution maximale : aucun travailleur handicapé recruté en interne.
-                      </p>
-                    )}
-                  </div>
-                )}
-                <div className="pt-2 border-t border-marine-100 dark:border-marine-900/30">
-                  <Info label="Montant estimé" value={<strong>{formatMontant(oeth.montantEstime)}</strong>} />
-                </div>
-              </dl>
-            )}
-          </div>
         </section>
 
         {/* Colonne module AGIR + messagerie */}
@@ -1196,6 +1017,192 @@ export default function EntrepriseDetail() {
           </div>
         </section>
       </div>
+
+      {/* Obligation OETH — bloc horizontal compact, en bas de fiche (point
+          final de la page, plutôt que dans la colonne de gauche) : les
+          chiffres clés s'étalent sur une bande horizontale plutôt qu'une
+          liste verticale, pour exploiter la largeur plutôt que la hauteur. */}
+      <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h2 className="font-semibold text-slate-800 dark:text-slate-100">Obligation OETH</h2>
+          {oeth?.neutralisation?.neutralise ? (
+            <span
+              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                libelleNeutralisation(oeth.neutralisation).className
+              }`}
+            >
+              {libelleNeutralisation(oeth.neutralisation).label}
+            </span>
+          ) : (
+            <span
+              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                !oeth?.assujetti
+                  ? "bg-slate-100 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600"
+                  : oeth.surcontribution
+                  ? "bg-red-100 text-red-700 border-red-300"
+                  : "bg-blue-100 text-blue-700 border-blue-300"
+              }`}
+            >
+              {!oeth?.assujetti
+                ? "Non assujetti"
+                : oeth.surcontribution
+                ? "Surcontribution — coefficient 1500"
+                : `Contribution classique — coefficient ${oeth.coefficient ?? "—"}`}
+            </span>
+          )}
+        </div>
+
+        {/* Ligne 1 : saisie des effectifs, en ligne plutôt qu'en grille 2 colonnes */}
+        <form
+          onSubmit={soumettreEffectifs}
+          className="flex flex-wrap items-end gap-3 pb-4 mb-4 border-b border-marine-100 dark:border-marine-900/30"
+        >
+          <label className="text-xs text-slate-500 dark:text-slate-400 w-36">
+            Effectif total
+            <input
+              type="number"
+              min="0"
+              value={effectifSaisi}
+              onChange={(e) => setEffectifSaisi(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
+            />
+          </label>
+          <label className="text-xs text-slate-500 dark:text-slate-400 w-40">
+            Bénéficiaires recrutés
+            <input
+              type="number"
+              min="1"
+              value={effectifBeneficiaireSaisi}
+              onChange={(e) => setEffectifBeneficiaireSaisi(e.target.value)}
+              disabled={Number(effectifBeneficiaireSaisi) === 0}
+              title={
+                Number(effectifBeneficiaireSaisi) === 0
+                  ? "Sélectionnez « Oui » ci-dessous pour saisir un nombre de bénéficiaires"
+                  : undefined
+              }
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500"
+            />
+          </label>
+          <label className="text-xs text-slate-500 dark:text-slate-400 flex-1 min-w-[240px]">
+            Au moins un travailleur handicapé (bénéficiaire) ?
+            <select
+              value={Number(effectifBeneficiaireSaisi) > 0 ? "oui" : "non"}
+              onChange={(e) => changerPresenceBeneficiaire(e.target.value)}
+              disabled={enregistrementEffectifs}
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm disabled:opacity-40"
+            >
+              <option value="non">Non — 0 recruté (surcontribution forcée)</option>
+              <option value="oui">Oui — au moins 1 recruté (contribution classique)</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={enregistrementEffectifs}
+            className="rounded-lg bg-slate-900 text-white text-xs font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
+          >
+            Mettre à jour les effectifs
+          </button>
+        </form>
+
+        {/* Ligne 2 : résultat du calcul — messages conditionnels ou bande de chiffres clés */}
+        {oeth?.neutralisation?.neutralise ? (
+          <div className="flex flex-wrap items-start gap-3">
+            <p
+              className={`flex-1 min-w-[280px] text-sm rounded-lg border p-3 ${
+                oeth.neutralisation.alerteAnticipation
+                  ? "bg-amber-50 border-amber-200 text-amber-800"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
+              }`}
+            >
+              {oeth.neutralisation.alerteAnticipation
+                ? `An ${oeth.neutralisation.ancienneteAnnees} : dernière année de la période de neutralisation légale. Taxe estimée à 0 € pour l'instant, mais l'assujettissement complet à l'OETH s'appliquera dans un an.`
+                : `Entreprise créée il y a ${oeth.neutralisation.ancienneteAnnees} an${
+                    oeth.neutralisation.ancienneteAnnees > 1 ? "s" : ""
+                  } : période de neutralisation légale (< 5 ans). Taxe estimée à 0 € — l'entreprise n'a pas à s'inquiéter pour le moment.`}
+            </p>
+            {oeth.neutralisation.alerteAnticipation && oeth.projectionSiAssujetti && !oeth.projectionSiAssujetti.conforme && (
+              <div className="flex-1 min-w-[280px] rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
+                <p className="font-semibold uppercase tracking-wide">Anticipation recommandée — ESAT Tremplin</p>
+                <p>
+                  À effectif constant, la taxe représenterait environ{" "}
+                  <strong>{formatMontant(oeth.projectionSiAssujetti.montantEstime)}</strong> (
+                  {oeth.projectionSiAssujetti.deficit} UB manquante
+                  {oeth.projectionSiAssujetti.deficit > 1 ? "s" : ""}) dès la levée de la neutralisation. Recommandez
+                  dès maintenant l'ESAT Tremplin pour préparer le recrutement et éviter le mur de la surcontribution.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : !oeth?.assujetti ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+            Non assujetti à l'OETH (effectif &lt; {oeth?.seuilAssujettissement}).
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <dl className="flex flex-wrap gap-x-8 gap-y-3">
+              <StatChip label="Unités requises" value={oeth.unitesRequises} />
+              <StatChip label="Bénéficiaires recrutés" value={oeth.beneficiairesRecrutes} />
+              <StatChip
+                label="Déficit"
+                accent
+                value={
+                  oeth.conforme ? (
+                    <span className="text-green-700 dark:text-green-400">0 — conforme</span>
+                  ) : (
+                    <span className={oeth.surcontribution ? "text-red-700 dark:text-red-400" : "text-orange-700 dark:text-orange-400"}>
+                      {oeth.deficit} UB
+                    </span>
+                  )
+                }
+              />
+              <StatChip label="Montant estimé" accent value={formatMontant(oeth.montantEstime)} />
+            </dl>
+
+            {!oeth.conforme && (
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Décomposition du calcul
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                  <span className="px-2 py-1 rounded-md bg-white border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200">
+                    {oeth.deficit} UB manquante{oeth.deficit > 1 ? "s" : ""}
+                  </span>
+                  <span className="text-slate-400 dark:text-slate-500">×</span>
+                  <span
+                    className={`px-2 py-1 rounded-md bg-white border font-semibold ${
+                      oeth.surcontribution ? "border-red-300 text-red-700" : "border-orange-300 text-orange-700"
+                    }`}
+                  >
+                    {oeth.coefficient}
+                  </span>
+                  <span className="text-slate-400 dark:text-slate-500">×</span>
+                  <span className="px-2 py-1 rounded-md bg-white border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200">
+                    {oeth.tauxHoraireSmic} € (SMIC horaire)
+                  </span>
+                  <span className="text-slate-400 dark:text-slate-500">=</span>
+                  <span className="px-2 py-1 rounded-md bg-slate-900 text-white font-bold">
+                    {formatMontant(oeth.montantEstime)}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {oeth.deficit} unité{oeth.deficit > 1 ? "s" : ""} bénéficiaire{oeth.deficit > 1 ? "s" : ""} manquante
+                  {oeth.deficit > 1 ? "s" : ""} × coefficient <strong>{oeth.coefficient}</strong>{" "}
+                  {oeth.surcontribution
+                    ? "(surcontribution — aucun bénéficiaire recruté)"
+                    : `(tranche ${oeth.tranche} salariés)`}{" "}
+                  × <strong>{oeth.tauxHoraireSmic} €</strong> de taux horaire SMIC ={" "}
+                  <strong>{formatMontant(oeth.montantEstime)}</strong> dus au titre de l'obligation d'emploi.
+                </p>
+                {oeth.surcontribution && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+                    Surcontribution maximale : aucun travailleur handicapé recruté en interne.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1205,6 +1212,21 @@ function Info({ label, value }) {
     <div className="flex justify-between gap-3">
       <dt className="text-slate-400 dark:text-slate-500">{label}</dt>
       <dd className="text-slate-700 dark:text-slate-200 font-medium text-right">{value}</dd>
+    </div>
+  );
+}
+
+// Bloc de statistique compact pour une disposition horizontale (voir le
+// bandeau "Obligation OETH" en bas de fiche) — label au-dessus, valeur en
+// gros en dessous, plutôt que la paire label/valeur alignée horizontalement
+// d'Info (pensée pour une liste verticale, pas pour s'étaler côte à côte).
+function StatChip({ label, value, accent = false }) {
+  return (
+    <div className="min-w-[120px]">
+      <dt className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</dt>
+      <dd className={`text-lg font-bold ${accent ? "text-marine-800 dark:text-marine-200" : "text-slate-800 dark:text-slate-100"}`}>
+        {value}
+      </dd>
     </div>
   );
 }
