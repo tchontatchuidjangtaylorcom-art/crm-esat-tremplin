@@ -320,6 +320,26 @@ app.post("/api/utilisateurs/:id/mot-de-passe", exigerAdmin, async (req, res) => 
   }
 });
 
+// Renvoie manuellement le lien de connexion (mail) à un compte déjà validé —
+// utile quand l'agent l'a perdu/pas reçu, sans attendre qu'il le redemande
+// lui-même depuis /connexion. Si l'envoi échoue (Brevo suspendu, quota...),
+// l'admin le voit ici et peut basculer sur le mot de passe temporaire
+// (POST /api/utilisateurs/:id/mot-de-passe) comme filet de secours.
+app.post("/api/utilisateurs/:id/renvoyer-lien", exigerAdmin, async (req, res) => {
+  const utilisateur = trouverUtilisateurParId(req.params.id);
+  if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
+  if (utilisateur.statut !== "valide") {
+    return res.status(400).json({ error: "Ce compte n'est pas encore validé — validez-le d'abord." });
+  }
+  try {
+    await envoyerLienMagique(utilisateur, APP_URL);
+    res.json({ ok: true });
+  } catch (e) {
+    const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
+    res.status(statutHttp).json({ error: e.message });
+  }
+});
+
 app.post("/api/utilisateurs/:id/valider", exigerAdmin, async (req, res) => {
   const utilisateur = trouverUtilisateurParId(req.params.id);
   if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });

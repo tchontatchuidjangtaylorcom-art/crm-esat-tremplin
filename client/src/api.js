@@ -192,6 +192,8 @@ export const api = {
       body: JSON.stringify({ motDePasse: motDePasse || "" }),
     }).then(handle),
 
+  renvoyerLien: (id) => fetch(`${BASE}/utilisateurs/${id}/renvoyer-lien`, { method: "POST" }).then(handle),
+
   validerUtilisateur: (id, role) =>
     fetch(`${BASE}/utilisateurs/${id}/valider`, {
       method: "POST",

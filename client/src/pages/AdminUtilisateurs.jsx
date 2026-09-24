@@ -9,6 +9,25 @@ const LIBELLES_STATUT = {
   refuse: { label: "Refusé", classe: "bg-red-100 text-red-700 border-red-300" },
 };
 
+// Alphabet sans caractères ambigus à l'oral/à l'écran (pas de 0/O, 1/l/I) —
+// ce mot de passe est destiné à être lu ou dicté au téléphone à un agent.
+const ALPHABET_MOT_DE_PASSE = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function genererMotDePasseAleatoire(longueur = 12) {
+  const valeurs = new Uint32Array(longueur);
+  crypto.getRandomValues(valeurs);
+  return Array.from(valeurs, (v) => ALPHABET_MOT_DE_PASSE[v % ALPHABET_MOT_DE_PASSE.length]).join("");
+}
+
+async function copierPressePapier(texte) {
+  try {
+    await navigator.clipboard.writeText(texte);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Validation des comptes agents par un administrateur — l'API sous-jacente
 // (exigerAdmin) refuse déjà l'accès à qui n'est pas admin ; cette page se
 // contente d'afficher l'erreur renvoyée le cas échéant.
@@ -28,6 +47,16 @@ export default function AdminUtilisateurs() {
   const [editionMotDePasse, setEditionMotDePasse] = useState(null);
   const [erreurMotDePasse, setErreurMotDePasse] = useState(null);
   const [enregistrementMotDePasse, setEnregistrementMotDePasse] = useState(false);
+  // Confirmation affichée juste après l'enregistrement : { id, valeur, copie }
+  // — le mot de passe en clair n'existe que côté client (jamais renvoyé par
+  // le serveur, qui ne stocke que le hash) et seulement le temps de le
+  // communiquer à l'agent ; il n'est plus récupérable une fois cette
+  // confirmation fermée.
+  const [motDePasseConfirme, setMotDePasseConfirme] = useState(null);
+
+  // Renvoi manuel du lien de connexion : feedback par utilisateur ({ id: message|erreur }).
+  const [renvoiEnCours, setRenvoiEnCours] = useState(null);
+  const [renvoiResultat, setRenvoiResultat] = useState({});
 
   function charger() {
     api
@@ -71,16 +100,40 @@ export default function AdminUtilisateurs() {
   }
 
   async function enregistrerMotDePasse(id) {
+    const valeur = editionMotDePasse.valeur.trim();
     setEnregistrementMotDePasse(true);
     setErreurMotDePasse(null);
     try {
-      await api.definirMotDePasse(id, editionMotDePasse.valeur.trim());
+      await api.definirMotDePasse(id, valeur);
       setEditionMotDePasse(null);
+      // Affiche le mot de passe en clair une dernière fois pour que l'admin
+      // puisse le communiquer/copier — le serveur ne le renverra plus jamais
+      // (seul le hash est stocké), donc c'est la seule occasion de le voir.
+      setMotDePasseConfirme({ id, valeur, copie: false });
       charger();
     } catch (e) {
       setErreurMotDePasse(e.message);
     } finally {
       setEnregistrementMotDePasse(false);
+    }
+  }
+
+  async function copierMotDePasseConfirme() {
+    if (!motDePasseConfirme) return;
+    const ok = await copierPressePapier(motDePasseConfirme.valeur);
+    if (ok) setMotDePasseConfirme((c) => (c ? { ...c, copie: true } : c));
+  }
+
+  async function renvoyerLien(id) {
+    setRenvoiEnCours(id);
+    setRenvoiResultat((r) => ({ ...r, [id]: null }));
+    try {
+      await api.renvoyerLien(id);
+      setRenvoiResultat((r) => ({ ...r, [id]: { ok: true, message: "Lien de connexion envoyé." } }));
+    } catch (e) {
+      setRenvoiResultat((r) => ({ ...r, [id]: { ok: false, message: e.message } }));
+    } finally {
+      setRenvoiEnCours(null);
     }
   }
 
@@ -258,12 +311,33 @@ export default function AdminUtilisateurs() {
                       <button
                         onClick={() => {
                           setErreurMotDePasse(null);
+                          setMotDePasseConfirme(null);
                           setEditionMotDePasse({ id: u.id, valeur: "" });
                         }}
                         className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                       >
                         {u.aUnMotDePasse ? "Changer" : "Définir"}
                       </button>
+                      {u.statut === "valide" && (
+                        <button
+                          onClick={() => renvoyerLien(u.id)}
+                          disabled={renvoiEnCours === u.id}
+                          title="Renvoyer le mail avec le lien de connexion"
+                          className="ml-2 text-xs text-slate-500 dark:text-slate-400 hover:underline disabled:opacity-40"
+                        >
+                          {renvoiEnCours === u.id ? "Envoi…" : "Renvoyer le lien"}
+                        </button>
+                      )}
+                      {renvoiResultat[u.id] && (
+                        <p
+                          className={`text-[11px] mt-1 ${
+                            renvoiResultat[u.id].ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {renvoiResultat[u.id].message}
+                          {!renvoiResultat[u.id].ok && " — utilisez plutôt le mot de passe temporaire ci-contre."}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-400 dark:text-slate-500">{formatDate(u.dateCreation)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -298,14 +372,22 @@ export default function AdminUtilisateurs() {
                             Nouveau mot de passe pour {u.email} :
                           </span>
                           <input
-                            type="password"
+                            type="text"
                             autoComplete="new-password"
                             autoFocus
                             placeholder="Au moins 8 caractères"
                             value={editionMotDePasse.valeur}
                             onChange={(e) => setEditionMotDePasse({ id: u.id, valeur: e.target.value })}
-                            className="w-56 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm"
+                            className="w-56 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm font-mono"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setEditionMotDePasse({ id: u.id, valeur: genererMotDePasseAleatoire() })}
+                            title="Générer un mot de passe temporaire aléatoire"
+                            className="text-xs text-marine-700 dark:text-marine-300 hover:underline"
+                          >
+                            Générer
+                          </button>
                           <button
                             onClick={() => enregistrerMotDePasse(u.id)}
                             disabled={enregistrementMotDePasse || editionMotDePasse.valeur.trim().length < 8}
@@ -330,6 +412,35 @@ export default function AdminUtilisateurs() {
                           </button>
                         </div>
                         {erreurMotDePasse && <p className="text-xs text-red-600 dark:text-red-400 mt-1.5">{erreurMotDePasse}</p>}
+                      </td>
+                    </tr>
+                  )}
+                  {motDePasseConfirme?.id === u.id && (
+                    <tr key={`${u.id}-mdp-confirme`} className="bg-emerald-50 dark:bg-emerald-950/30">
+                      <td colSpan={7} className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                            Mot de passe enregistré pour {u.email} — communiquez-le maintenant :
+                          </span>
+                          <code className="rounded-lg border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-mono text-slate-800 dark:text-slate-100 select-all">
+                            {motDePasseConfirme.valeur}
+                          </code>
+                          <button
+                            onClick={copierMotDePasseConfirme}
+                            className="text-xs text-marine-700 dark:text-marine-300 hover:underline"
+                          >
+                            {motDePasseConfirme.copie ? "Copié !" : "Copier"}
+                          </button>
+                          <button
+                            onClick={() => setMotDePasseConfirme(null)}
+                            className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
+                          >
+                            Fermer
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-1.5">
+                          Il ne sera plus jamais affiché ni récupérable ensuite (seul un hash est conservé) — notez-le ou copiez-le avant de fermer.
+                        </p>
                       </td>
                     </tr>
                   )}
