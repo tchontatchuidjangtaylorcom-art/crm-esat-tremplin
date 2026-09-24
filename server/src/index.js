@@ -1317,24 +1317,21 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
 
-  // Nom d'expéditeur : coordonnées uniques du pôle (adresse d'envoi
-  // contact@oeth-fiph.fr, inchangée), mais nom affiché personnalisé avec
-  // l'agent connecté + le collecteur réel de l'entreprise (privé → AGEFIPH,
-  // public → FIPHFP) — l'agent est identifiable sans multiplier les boîtes mail.
-  const agentNom = req.utilisateur.prenom || req.utilisateur.nom || req.utilisateur.email;
-  const libellePole = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
-  const nomExpediteur = `${agentNom} — ${libellePole}`;
+  // Nom d'expéditeur normalisé et uniforme sur tous les envois : uniquement
+  // l'identité générale du pôle, jamais le nom de l'agent (voir mailSignature.js
+  // côté client pour le même bloc dans le corps du mail) — l'adresse d'envoi
+  // reste de toute façon la boîte unique du pôle (contact@oeth-fiph.fr).
+  const nomExpediteur = "Pôle OETH / AGEFIPH";
 
-  // PDF de synthèse OETH personnalisé, joint automatiquement (voir
-  // pdfSynthese.js) — désactivable ponctuellement par l'agent (ex: mail de
-  // confirmation de RDV où la synthèse chiffrée n'a pas sa place).
+  // PDF de synthèse OETH, joint automatiquement (voir pdfSynthese.js) —
+  // désactivable ponctuellement par l'agent (ex: mail de confirmation de RDV
+  // où la synthèse chiffrée n'a pas sa place).
   let piecesJointes = [];
   let attachmentsBrevo;
   if (joindrePdf) {
     const pdf = await genererSynthesePdf({
       entreprise,
       oeth: calculerObligationOeth(entreprise),
-      agentNom,
       poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
     });
     const nomFichier = `synthese-oeth-${(entreprise.nom || "entreprise").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;

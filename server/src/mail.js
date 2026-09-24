@@ -139,8 +139,14 @@ export function signatureMail() {
   return process.env.MAIL_SIGNATURE || "Pôle OETH / AGEFIPH";
 }
 
+// Adresse de contact générale affichée dans la signature normalisée (jamais
+// une adresse liée à un agent individuel) et journalisée comme expéditeur des
+// mails envoyés. Un repli fixe garantit que la signature reste complète et
+// identique même en environnement local/de démo où MAIL_USER/MAIL_FROM ne
+// sont pas renseignés — la vraie configuration d'envoi (Brevo/SMTP) est
+// vérifiée séparément par estEnvoiConfigure(), pas par cette valeur d'affichage.
 export function adresseMailPole() {
-  return config().from || null;
+  return config().from || "contact@oeth-fiph.fr";
 }
 
 // Coordonnées réelles du pôle affichées en signature des mails et sur le PDF

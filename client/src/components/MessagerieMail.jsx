@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
-import { useAuth } from "../AuthContext.jsx";
 import { useContenuAide } from "../useContenuAide.js";
 import { formatDateHeure } from "../constants.js";
 import { construireSignature } from "../mailSignature.js";
@@ -9,7 +8,6 @@ import { construireSignature } from "../mailSignature.js";
 // du pôle — voir server/src/mail.js). Reste utilisable même sans boîte
 // connectée : affiche juste un message explicatif et masque l'envoi.
 export default function MessagerieMail({ entreprise, onMaj }) {
-  const { utilisateur } = useAuth();
   const [statutMail, setStatutMail] = useState(null);
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
@@ -59,7 +57,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     setCorps(
       modele.corps.replaceAll(
         "{{SIGNATURE}}",
-        construireSignature({ utilisateur, statutMail, collecteur: entreprise.collecteur })
+        construireSignature({ statutMail })
       )
     );
   }
@@ -215,11 +213,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             disabled={!objet.trim() || !corps.trim() || envoiEnCours || statutMail?.configuree === false}
             className="rounded-lg bg-marine-600 hover:bg-marine-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
-            {envoiEnCours
-              ? "Envoi…"
-              : `Envoyer (signé ${utilisateur?.prenom || utilisateur?.nom || "vous"} — ${
-                  entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH"
-                })`}
+            {envoiEnCours ? "Envoi…" : "Envoyer (signé Pôle OETH / AGEFIPH)"}
           </button>
         </form>
       )}

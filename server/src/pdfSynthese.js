@@ -33,9 +33,11 @@ function formatDateFr(iso) {
 }
 
 // `entreprise` : fiche brute (nom, adresse, effectif...). `oeth` : résultat
-// de calculerObligationOeth() pour cette entreprise. `agentNom` : nom affiché
-// de l'agent connecté (signature). `poleInfo` : { email, telephone, adressePostale }.
-export function genererSynthesePdf({ entreprise, oeth, agentNom, poleInfo }) {
+// de calculerObligationOeth() pour cette entreprise. `poleInfo` : { email,
+// telephone, adressePostale }. Signature de pied de page normalisée et
+// uniforme (identité générale du pôle uniquement) — jamais de nom d'agent
+// individuel, même logique que client/src/mailSignature.js côté mail.
+export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
     const chunks = [];
@@ -184,7 +186,7 @@ export function genererSynthesePdf({ entreprise, oeth, agentNom, poleInfo }) {
         { width: largeurUtile }
       );
 
-    // Pied de page — signature de l'agent.
+    // Pied de page — signature normalisée du pôle (pas de nom d'agent).
     const yPied = doc.page.height - 90;
     doc
       .moveTo(50, yPied)
@@ -196,7 +198,7 @@ export function genererSynthesePdf({ entreprise, oeth, agentNom, poleInfo }) {
       .font("Helvetica-Bold")
       .fontSize(9.5)
       .fillColor(GRIS_TEXTE)
-      .text(`${agentNom} — Pôle OETH / AGEFIPH`, 50, yPied + 10);
+      .text("— Pôle OETH / AGEFIPH", 50, yPied + 10);
     doc
       .font("Helvetica")
       .fontSize(8.5)
