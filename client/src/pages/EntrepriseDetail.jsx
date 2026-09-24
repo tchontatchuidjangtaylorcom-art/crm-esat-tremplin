@@ -454,6 +454,7 @@ export default function EntrepriseDetail() {
         <FicheSuiviProspect
           entreprise={entreprise}
           prenomAgent={prenomAgent}
+          onMaj={setEntreprise}
           onFermer={() => setFicheSuiviOuverte(false)}
           onValide={(updated) => {
             setEntreprise(updated);
