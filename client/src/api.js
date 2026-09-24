@@ -120,6 +120,13 @@ export const api = {
   rechercherContactAlternatif: (id) =>
     fetch(`${BASE}/entreprises/${id}/rechercher-contact`, { method: "POST" }).then(handle),
 
+  poserQuestionContactIA: (id, question) =>
+    fetch(`${BASE}/entreprises/${id}/question-contact-ia`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    }).then(handle),
+
   getArgumentaireAgefiph: () => fetch(`${BASE}/argumentaire-agefiph`).then(handle),
 
   getScriptVente: () => fetch(`${BASE}/script-vente`).then(handle),

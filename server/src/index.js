@@ -31,6 +31,8 @@ import { genererRapportPdf } from "./pdfRapport.js";
 import {
   estRechercheIaConfiguree,
   rechercherContactAlternatif,
+  poserQuestionContact,
+  genererEmailProspection,
   listerModelesDisponibles,
   detailErreur as detailErreurIa,
 } from "./rechercheContact.js";
@@ -1256,6 +1258,58 @@ app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepris
     res.json(resultat);
   } catch (e) {
     console.error(`[ia] Échec de recherche de contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
+    const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
+    res.status(statutHttp).json({ error: e.message });
+  }
+});
+
+// Assistant conversationnel "Contact nominatif" (chatbot de l'Espace IA) :
+// l'agent pose une question libre ("Qui contacter pour la comptabilité ?")
+// et reçoit une réponse nominative si une source fiable en confirme une.
+// Ne persiste RIEN ici — voir poserQuestionContact : c'est une simple
+// consultation, l'enregistrement (commentaire + association du contact) se
+// fait via les routes existantes /commentaires et PATCH une fois l'agent
+// satisfait de la réponse, pour ne jamais écrire une identité non validée.
+app.post("/api/entreprises/:id/question-contact-ia", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
+  const question = String(req.body.question || "").trim();
+  if (!question) return res.status(400).json({ error: "Question vide." });
+  if (question.length > 500) return res.status(400).json({ error: "Question trop longue (500 caractères maximum)." });
+
+  if (!estRechercheIaConfiguree()) {
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
+  }
+
+  try {
+    const resultat = await poserQuestionContact(entreprise, question);
+    res.json(resultat);
+  } catch (e) {
+    console.error(`[ia] Échec de la question contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
+    const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
+    res.status(statutHttp).json({ error: e.message });
+  }
+});
+
+// Génération d'un e-mail de relance/prospection sur demande explicite de
+// l'agent (bouton dédié dans MessagerieMail.jsx) — jamais automatique.
+// Personnalise le brouillon avec les données déjà connues du CRM (secteur,
+// chiffres OETH, interlocuteur, historique d'échange) : pas d'appel à
+// l'outil de recherche web ici, voir rechercheContact.js. Renvoie une
+// PROPOSITION (objet + corps) qui pré-remplit le formulaire d'envoi
+// existant côté client ; rien n'est envoyé ni journalisé par cette route,
+// l'agent relit et clique lui-même sur "Envoyer".
+app.post("/api/entreprises/:id/generer-email", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = enrichir(req.entreprise);
+
+  if (!estRechercheIaConfiguree()) {
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
+  }
+
+  try {
+    const resultat = await genererEmailProspection(entreprise);
+    res.json(resultat);
+  } catch (e) {
+    console.error(`[ia] Échec de génération d'e-mail pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
     res.status(statutHttp).json({ error: e.message });
   }

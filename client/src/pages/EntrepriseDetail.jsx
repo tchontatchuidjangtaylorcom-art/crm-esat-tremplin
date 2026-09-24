@@ -7,6 +7,7 @@ import FicheSuiviProspect from "../components/FicheSuiviProspect.jsx";
 import GestionTelephones from "../components/GestionTelephones.jsx";
 import GestionContacts from "../components/GestionContacts.jsx";
 import GestionEmails from "../components/GestionEmails.jsx";
+import AssistantContactIA from "../components/AssistantContactIA.jsx";
 import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
@@ -907,6 +908,8 @@ export default function EntrepriseDetail() {
                 </form>
               </div>
             )}
+
+            <AssistantContactIA entreprise={entreprise} onMaj={setEntreprise} prenomAgent={prenomAgent} />
           </div>
 
           <MessagerieMail entreprise={entreprise} onMaj={setEntreprise} />

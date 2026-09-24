@@ -137,12 +137,14 @@ function construirePrompt(entreprise) {
   );
 }
 
-// Extrait le premier objet JSON complet contenant "telephone" du texte — par
-// comptage d'accolades plutôt qu'une regex à profondeur fixe (qui échouerait
-// dès que la réponse groundée par la recherche web contient des accolades
-// imbriquées avant le JSON final, ex. citations/notes de l'outil de recherche).
-function extraireBlocJson(texte) {
-  const debutCle = texte.indexOf('"telephone"');
+// Extrait le premier objet JSON complet contenant la clé donnée du texte —
+// par comptage d'accolades plutôt qu'une regex à profondeur fixe (qui
+// échouerait dès que la réponse groundée par la recherche web contient des
+// accolades imbriquées avant le JSON final, ex. citations/notes de l'outil
+// de recherche). Généralisée par clé pour servir les deux formats de réponse
+// (recherche de téléphone : "telephone" ; assistant conversationnel : "reponse").
+function extraireBlocJsonParCle(texte, cle) {
+  const debutCle = texte.indexOf(`"${cle}"`);
   if (debutCle === -1) return null;
   const debutObjet = texte.lastIndexOf("{", debutCle);
   if (debutObjet === -1) return null;
@@ -164,7 +166,7 @@ function extraireResultat(corpsReponse) {
     .map((bloc) => bloc.text || "")
     .join("\n");
 
-  const bloc = extraireBlocJson(texte);
+  const bloc = extraireBlocJsonParCle(texte, "telephone");
   if (!bloc) {
     const erreur = new Error("Réponse de l'IA illisible (pas de JSON de résultat trouvé).");
     erreur.code = "REPONSE_IA_INVALIDE";
@@ -196,6 +198,159 @@ function extraireResultat(corpsReponse) {
     secteurCategorie: categorieValide,
     secteurCategorieLabel: categorieValide ? CATEGORIES[categorieValide].label : null,
   };
+}
+
+// Prompt de l'assistant conversationnel "Contact nominatif" : contrairement à
+// la recherche de téléphone ci-dessus (qui cherche UN numéro), ici l'agent
+// pose une question libre (ex: "Qui contacter pour la comptabilité ?") et
+// attend une réponse nominative — un nom et une fonction, pas juste "le
+// service RH". Même garde-fou anti-hallucination : si aucune source fiable
+// ne confirme l'existence de la personne, le contact structuré reste null
+// (seule la réponse texte, qui peut rester générale, est renvoyée).
+function construirePromptQuestion(entreprise, question) {
+  const villeOuCp = [entreprise.codePostal, entreprise.ville].filter(Boolean).join(" ");
+  const identite = [entreprise.nom, entreprise.adresse, villeOuCp, entreprise.siret ? `SIRET ${entreprise.siret}` : null]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    `Tu es un assistant qui aide un télé-prospecteur français (Pôle OETH/AGEFIPH) à identifier la bonne personne à ` +
+    `contacter dans une entreprise.\n` +
+    `Entreprise : ${identite}.\n` +
+    `Question de l'agent : "${question}"\n` +
+    `Utilise la recherche web (site officiel, LinkedIn, Societe.com, annuaires professionnels, presse locale) pour ` +
+    `trouver le NOM et la FONCTION d'une personne précise correspondant à la demande (ex : Responsable RH, DRH, ` +
+    `Responsable comptable/paie, Dirigeant, Gérant) — un simple renvoi vers "le service RH" sans nom ne répond pas ` +
+    `vraiment à la question posée.\n` +
+    `Réponds d'abord en français, en 2 à 4 phrases maximum, directement utilisable au téléphone ` +
+    `(ex : "Demandez à parler à Untel, responsable RH — c'est elle qui gère ce type de dossier.").\n` +
+    `Termine IMPÉRATIVEMENT ta réponse par une seule ligne contenant uniquement un objet JSON strict, sans texte ` +
+    `autour, exactement au format :\n` +
+    `{"reponse": "<texte à afficher tel quel>", "contact": {"nom": "<nom complet ou null>", "role": "<fonction ou null>", "telephone": "<numéro direct ou null>", "email": "<email ou null>"}, "source": "<url ou null>", "confiance": "haute|moyenne|faible"}\n` +
+    `Si l'existence réelle de cette personne n'est pas confirmée par une source fiable, mets "contact" entièrement à ` +
+    `null (ou ses champs internes à null) plutôt que d'inventer un nom — une identité inventée utilisée lors d'un ` +
+    `vrai appel commercial serait pire qu'une absence d'info.`
+  );
+}
+
+function extraireResultatQuestion(corpsReponse) {
+  const texte = (corpsReponse.content || [])
+    .filter((bloc) => bloc.type === "text")
+    .map((bloc) => bloc.text || "")
+    .join("\n");
+
+  const bloc = extraireBlocJsonParCle(texte, "reponse");
+  if (!bloc) {
+    const erreur = new Error("Réponse de l'IA illisible (pas de JSON de résultat trouvé).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = texte.slice(0, 500);
+    throw erreur;
+  }
+
+  let resultat;
+  try {
+    resultat = JSON.parse(bloc);
+  } catch {
+    const erreur = new Error("Réponse de l'IA illisible (JSON invalide).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = bloc;
+    throw erreur;
+  }
+
+  const nettoie = (v) => (v && v !== "null" ? v : null);
+  const c = resultat.contact;
+  const contact =
+    c && (nettoie(c.nom) || nettoie(c.role))
+      ? { nom: nettoie(c.nom), role: nettoie(c.role), telephone: nettoie(c.telephone), email: nettoie(c.email) }
+      : null;
+
+  return {
+    reponse: nettoie(resultat.reponse) || "Aucune réponse exploitable.",
+    contact,
+    source: nettoie(resultat.source),
+    confiance: resultat.confiance || "faible",
+  };
+}
+
+async function appelerClaudeQuestion(entreprise, question, cle, modele) {
+  const controleur = new AbortController();
+  const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
+  let reponse;
+  try {
+    reponse = await fetch(API_URL, {
+      method: "POST",
+      headers: enTetes(cle),
+      body: JSON.stringify({
+        model: modele,
+        max_tokens: 1024,
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
+        messages: [{ role: "user", content: construirePromptQuestion(entreprise, question) }],
+      }),
+      signal: controleur.signal,
+    });
+  } catch (e) {
+    if (e.name === "AbortError") {
+      const erreur = new Error(`Délai de recherche IA dépassé (${TIMEOUT_MS}ms).`);
+      erreur.code = "TIMEOUT_MANUEL";
+      throw erreur;
+    }
+    throw e;
+  } finally {
+    clearTimeout(idAbort);
+  }
+
+  const corps = await reponse.json().catch(() => ({}));
+  if (!reponse.ok) {
+    const erreur = new Error(
+      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+    );
+    erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    erreur.responseCode = reponse.status;
+    erreur.response = JSON.stringify(corps).slice(0, 500);
+    erreur.reponseHttp = reponse;
+    throw erreur;
+  }
+
+  return extraireResultatQuestion(corps);
+}
+
+// Réessai commun sur 429 (débit dépassé) — seul cas qui vaut la peine d'être
+// retenté : une clé invalide, un modèle inconnu ou un timeout donneraient
+// systématiquement la même erreur.
+async function avecRetry429(appelFn, nomEntreprise) {
+  let derniereErreur;
+  for (let tentative = 1; tentative <= TENTATIVES_MAX_429; tentative++) {
+    try {
+      return await appelFn();
+    } catch (e) {
+      if (e.responseCode !== 429 || tentative === TENTATIVES_MAX_429) throw e;
+      derniereErreur = e;
+      const delaiMs = delaiAttenteConseille(e.reponseHttp) ?? 5000 * tentative;
+      console.warn(
+        `[ia] 429 Anthropic pour ${nomEntreprise} — nouvelle tentative dans ${Math.round(
+          Math.min(delaiMs, ATTENTE_429_PLAFOND_MS) / 1000
+        )}s (${tentative}/${TENTATIVES_MAX_429}).`
+      );
+      await attendre(Math.min(delaiMs, ATTENTE_429_PLAFOND_MS));
+    }
+  }
+  throw derniereErreur;
+}
+
+// Assistant conversationnel "Contact nominatif" : l'agent pose une question
+// libre (ex : "Qui contacter pour la comptabilité ?") et reçoit une réponse
+// nominative si une source fiable en confirme une — jamais écrit en base ici
+// (voir index.js / EntrepriseDetail.jsx : c'est une PROPOSITION, l'agent
+// valide explicitement avant que ça n'affecte la fiche).
+export async function poserQuestionContact(entreprise, question) {
+  const cle = cleApi();
+  if (!cle) {
+    const erreur = new Error("Recherche IA non configurée (renseignez ANTHROPIC_API_KEY).");
+    erreur.code = "IA_NON_CONFIGUREE";
+    throw erreur;
+  }
+  const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
+  return avecRetry429(() => appelerClaudeQuestion(entreprise, question, cle, modele), entreprise.nom);
 }
 
 async function appelerClaude(entreprise, cle, modele) {
@@ -247,28 +402,159 @@ export async function rechercherContactAlternatif(entreprise) {
     erreur.code = "IA_NON_CONFIGUREE";
     throw erreur;
   }
-
   const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
+  return avecRetry429(() => appelerClaude(entreprise, cle, modele), entreprise.nom);
+}
 
-  let derniereErreur;
-  for (let tentative = 1; tentative <= TENTATIVES_MAX_429; tentative++) {
-    try {
-      return await appelerClaude(entreprise, cle, modele);
-    } catch (e) {
-      // Seul le 429 (débit dépassé) vaut la peine d'être réessayé : une clé
-      // invalide, un modèle inconnu ou un timeout donneront systématiquement
-      // la même erreur, autant échouer tout de suite plutôt que de perdre du
-      // temps à réessayer 3 fois par fiche.
-      if (e.responseCode !== 429 || tentative === TENTATIVES_MAX_429) throw e;
-      derniereErreur = e;
-      const delaiMs = delaiAttenteConseille(e.reponseHttp) ?? 5000 * tentative;
-      console.warn(
-        `[ia] 429 Anthropic pour ${entreprise.nom} — nouvelle tentative dans ${Math.round(
-          Math.min(delaiMs, ATTENTE_429_PLAFOND_MS) / 1000
-        )}s (${tentative}/${TENTATIVES_MAX_429}).`
-      );
-      await attendre(Math.min(delaiMs, ATTENTE_429_PLAFOND_MS));
-    }
+// Prompt de génération d'e-mail de relance/prospection — s'appuie
+// UNIQUEMENT sur les données déjà connues du CRM (pas de recherche web ici,
+// contrairement aux deux fonctions ci-dessus) : secteur, chiffres OETH,
+// interlocuteur identifié, et historique d'échange pour adapter
+// automatiquement le ton (premier contact vs. relance sans réponse).
+// `entreprise` doit être la version ENRICHIE (avec .oeth et .categorie
+// calculés — voir enrichir() dans index.js), pas la fiche brute.
+function construirePromptEmail(entreprise) {
+  const villeOuCp = [entreprise.codePostal, entreprise.ville].filter(Boolean).join(" ");
+  const identite = [entreprise.nom, villeOuCp].filter(Boolean).join(", ");
+  const secteurLabel = entreprise.categorie?.label || entreprise.secteurActivite || null;
+
+  const contact = entreprise.contact || {};
+  const interlocuteur =
+    contact.nom && contact.nom !== "-"
+      ? `${contact.nom}${contact.fonction && contact.fonction !== "-" ? ` (${contact.fonction})` : ""}`
+      : null;
+
+  const oeth = entreprise.oeth || {};
+  const oethResume = !oeth.assujetti
+    ? `non assujettie à l'obligation OETH (effectif ${entreprise.effectif ?? "?"} salariés, sous le seuil de 20) — pas d'angle réglementaire pertinent ici, privilégier une prise de contact générale sur l'inclusion du handicap`
+    : oeth.conforme
+      ? `assujettie à l'obligation OETH mais déjà conforme (${oeth.beneficiairesRecrutes}/${oeth.unitesRequises} unités bénéficiaires) — l'angle est une proposition de service (ESAT Tremplin), pas une alerte de non-conformité`
+      : `assujettie à l'obligation OETH avec un déficit de ${oeth.deficit} unité(s) bénéficiaire(s) sur ${oeth.unitesRequises} requises (effectif ${entreprise.effectif ?? "?"} salariés)`;
+
+  const emails = entreprise.emails || [];
+  const dernierEnvoye = [...emails].reverse().find((m) => m.direction === "envoye");
+  const aRepondu =
+    dernierEnvoye && emails.some((m) => m.direction === "recu" && new Date(m.date) > new Date(dernierEnvoye.date));
+  let contexte;
+  if (dernierEnvoye && !aRepondu) {
+    contexte =
+      `un e-mail a déjà été envoyé le ${new Date(dernierEnvoye.date).toLocaleDateString("fr-FR")} ` +
+      `(objet : "${dernierEnvoye.objet}") et est resté sans réponse à ce jour — rédige une RELANCE courtoise qui ` +
+      `fait brièvement référence à ce premier message sans être insistante ni redondante`;
+  } else {
+    contexte = `aucun échange préalable exploitable — rédige un PREMIER message de prise de contact/prospection`;
   }
-  throw derniereErreur;
+
+  return (
+    `Tu rédiges, au nom du Pôle OETH/AGEFIPH, un e-mail professionnel en français pour l'entreprise ${identite}` +
+    `${secteurLabel ? ` (secteur : ${secteurLabel})` : ""}.\n` +
+    `Interlocuteur identifié : ${interlocuteur || "aucun nom précis connu — adresse-toi génériquement au service RH ou à la direction, sans inventer de nom"}.\n` +
+    `Situation OETH de l'entreprise : ${oethResume}.\n` +
+    `Contexte de cet envoi : ${contexte}.\n` +
+    `Règles impératives, à ne jamais enfreindre :\n` +
+    `- Le pôle est un relais en lien avec l'AGEFIPH, jamais l'AGEFIPH ou l'URSSAF elles-mêmes : ne jamais prétendre parler en leur nom ni employer leur identité.\n` +
+    `- Ne jamais affirmer qu'un contrôle ou une procédure URSSAF a déjà individuellement visé cette entreprise sans preuve réelle.\n` +
+    `- Ne jamais menacer d'une pénalité, majoration ou sanction que le pôle appliquerait lui-même — seule l'URSSAF en a le pouvoir.\n` +
+    `- Rester strictement factuel sur les chiffres OETH donnés ci-dessus ; ne rien inventer si une donnée manque.\n` +
+    `Ton : professionnel, direct, consultatif — jamais commercial agressif. 120 à 180 mots pour le corps. Termine le ` +
+    `corps par le jeton littéral {{SIGNATURE}} seul sur sa dernière ligne (il sera remplacé automatiquement par la ` +
+    `vraie signature — ne l'explique pas, n'écris rien après).\n` +
+    `Termine ta réponse par une seule ligne contenant uniquement un objet JSON strict, sans texte autour, exactement au format :\n` +
+    `{"objet": "<objet du mail>", "corps": "<corps du mail, avec de vrais retours à la ligne entre les paragraphes>"}`
+  );
+}
+
+function extraireResultatEmail(corpsReponse) {
+  const texte = (corpsReponse.content || [])
+    .filter((bloc) => bloc.type === "text")
+    .map((bloc) => bloc.text || "")
+    .join("\n");
+
+  const bloc = extraireBlocJsonParCle(texte, "objet");
+  if (!bloc) {
+    const erreur = new Error("Réponse de l'IA illisible (pas de JSON de résultat trouvé).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = texte.slice(0, 500);
+    throw erreur;
+  }
+
+  let resultat;
+  try {
+    resultat = JSON.parse(bloc);
+  } catch {
+    const erreur = new Error("Réponse de l'IA illisible (JSON invalide).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = bloc;
+    throw erreur;
+  }
+
+  if (!resultat.objet || !resultat.corps) {
+    const erreur = new Error("Réponse de l'IA incomplète (objet ou corps manquant).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = bloc;
+    throw erreur;
+  }
+
+  return { objet: String(resultat.objet), corps: String(resultat.corps) };
+}
+
+async function appelerClaudeEmail(entreprise, cle, modele) {
+  const controleur = new AbortController();
+  const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
+  let reponse;
+  try {
+    reponse = await fetch(API_URL, {
+      method: "POST",
+      headers: enTetes(cle),
+      // Pas d'outil de recherche web ici : contrairement à la recherche de
+      // contact, la génération d'e-mail s'appuie uniquement sur les données
+      // déjà présentes dans le prompt (secteur, OETH, historique).
+      body: JSON.stringify({
+        model: modele,
+        max_tokens: 1024,
+        messages: [{ role: "user", content: construirePromptEmail(entreprise) }],
+      }),
+      signal: controleur.signal,
+    });
+  } catch (e) {
+    if (e.name === "AbortError") {
+      const erreur = new Error(`Délai de génération IA dépassé (${TIMEOUT_MS}ms).`);
+      erreur.code = "TIMEOUT_MANUEL";
+      throw erreur;
+    }
+    throw e;
+  } finally {
+    clearTimeout(idAbort);
+  }
+
+  const corps = await reponse.json().catch(() => ({}));
+  if (!reponse.ok) {
+    const erreur = new Error(
+      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+    );
+    erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    erreur.responseCode = reponse.status;
+    erreur.response = JSON.stringify(corps).slice(0, 500);
+    erreur.reponseHttp = reponse;
+    throw erreur;
+  }
+
+  return extraireResultatEmail(corps);
+}
+
+// Génère un e-mail de relance/prospection personnalisé — déclenché
+// EXPLICITEMENT par l'agent (bouton dédié dans MessagerieMail.jsx), jamais
+// automatiquement. Renvoie une PROPOSITION (objet + corps) qui ne fait que
+// pré-remplir le formulaire d'envoi existant côté client : l'agent relit,
+// ajuste si besoin, et clique lui-même sur "Envoyer" — rien n'est expédié
+// directement par cette fonction.
+export async function genererEmailProspection(entreprise) {
+  const cle = cleApi();
+  if (!cle) {
+    const erreur = new Error("Recherche IA non configurée (renseignez ANTHROPIC_API_KEY).");
+    erreur.code = "IA_NON_CONFIGUREE";
+    throw erreur;
+  }
+  const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
+  return avecRetry429(() => appelerClaudeEmail(entreprise, cle, modele), entreprise.nom);
 }
