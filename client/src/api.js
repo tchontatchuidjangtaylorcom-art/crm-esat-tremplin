@@ -129,6 +129,13 @@ export const api = {
 
   genererEmailIA: (id) => fetch(`${BASE}/entreprises/${id}/generer-email`, { method: "POST" }).then(handle),
 
+  analyserDicteeIA: (id, transcription) =>
+    fetch(`${BASE}/entreprises/${id}/dictee-ia`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcription }),
+    }).then(handle),
+
   getArgumentaireAgefiph: () => fetch(`${BASE}/argumentaire-agefiph`).then(handle),
 
   getScriptVente: () => fetch(`${BASE}/script-vente`).then(handle),

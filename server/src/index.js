@@ -32,6 +32,7 @@ import {
   estRechercheIaConfiguree,
   rechercherContactAlternatif,
   poserQuestionContact,
+  analyserDictee,
   genererEmailProspection,
   listerModelesDisponibles,
   detailErreur as detailErreurIa,
@@ -1285,6 +1286,36 @@ app.post("/api/entreprises/:id/question-contact-ia", exigerAuth, chargerEntrepri
     res.json(resultat);
   } catch (e) {
     console.error(`[ia] Échec de la question contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
+    const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
+    res.status(statutHttp).json({ error: e.message });
+  }
+});
+
+// Dictaphone IA (compte-rendu d'appel) : la transcription est faite côté
+// client (Web Speech API, voir DicteeCommentaire.jsx) — cette route ne fait
+// qu'analyser le TEXTE déjà transcrit pour en tirer un compte-rendu propre
+// et d'éventuels contacts nominatifs cités pendant l'appel. Aucun outil de
+// recherche web (voir analyserDictee) : jamais de recherche internet à
+// partir du contenu d'un appel privé. Ne persiste RIEN — l'agent valide et
+// enregistre explicitement (commentaire + association du contact) via les
+// routes existantes une fois satisfait du résultat.
+app.post("/api/entreprises/:id/dictee-ia", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
+  const transcription = String(req.body.transcription || "").trim();
+  if (!transcription) return res.status(400).json({ error: "Dictée vide." });
+  if (transcription.length > 4000) {
+    return res.status(400).json({ error: "Dictée trop longue (4000 caractères maximum)." });
+  }
+
+  if (!estRechercheIaConfiguree()) {
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
+  }
+
+  try {
+    const resultat = await analyserDictee(entreprise, transcription);
+    res.json(resultat);
+  } catch (e) {
+    console.error(`[ia] Échec d'analyse de dictée pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
     res.status(statutHttp).json({ error: e.message });
   }
