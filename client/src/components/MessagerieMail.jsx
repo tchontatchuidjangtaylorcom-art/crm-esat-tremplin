@@ -17,6 +17,16 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
   const [toastEnvoi, setToastEnvoi] = useState(null);
+  const [emailSaisi, setEmailSaisi] = useState(entreprise.contact?.email || "");
+  const [enregistrementEmail, setEnregistrementEmail] = useState(false);
+
+  // Garde le champ synchronisé si l'e-mail change ailleurs (fiche rechargée,
+  // mise à jour reçue par un autre onglet/agent) sans écraser une saisie en
+  // cours de l'agent sur CE fil.
+  useEffect(() => {
+    setEmailSaisi(entreprise.contact?.email || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entreprise.id, entreprise.contact?.email]);
 
   // Le toast se referme tout seul après quelques secondes — pas besoin d'une
   // action de l'agent pour le faire disparaître.
@@ -72,6 +82,28 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     }
   }
 
+  // Saisie manuelle de l'e-mail (ajout ou correction) directement depuis le
+  // fil de messagerie — typiquement quand l'agent l'obtient au téléphone et
+  // veut pouvoir envoyer un document dans la foulée. `contact` est remplacé
+  // en bloc côté serveur (pas de fusion), donc on renvoie l'objet complet
+  // avec uniquement l'email modifié, pour ne pas écraser nom/fonction/téléphone.
+  async function enregistrerEmail(ev) {
+    ev.preventDefault();
+    const valeur = emailSaisi.trim();
+    setEnregistrementEmail(true);
+    setErreur(null);
+    try {
+      const updated = await api.patchEntreprise(entreprise.id, {
+        contact: { ...(entreprise.contact || {}), email: valeur || null },
+      });
+      onMaj(updated);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnregistrementEmail(false);
+    }
+  }
+
   const emails = entreprise.emails || [];
 
   return (
@@ -87,11 +119,22 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       )}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
       <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Boîte mail — Pôle OETH/AGEFIPH</h2>
-      <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-        {entreprise.contact?.email
-          ? `Contact : ${entreprise.contact.email}`
-          : "Aucune adresse mail connue pour ce contact."}
-      </p>
+      <form onSubmit={enregistrerEmail} className="flex items-center gap-2 mb-4">
+        <input
+          type="email"
+          placeholder="Adresse e-mail du contact"
+          value={emailSaisi}
+          onChange={(e) => setEmailSaisi(e.target.value)}
+          className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
+        />
+        <button
+          type="submit"
+          disabled={enregistrementEmail || emailSaisi.trim() === (entreprise.contact?.email || "")}
+          className="rounded-lg bg-marine-800 hover:bg-marine-900 text-white text-xs font-medium px-3 py-1.5 disabled:opacity-40 whitespace-nowrap"
+        >
+          {enregistrementEmail ? "…" : "Enregistrer"}
+        </button>
+      </form>
 
       {statutMail && !statutMail.configuree && (
         <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-lg p-2 mb-4">

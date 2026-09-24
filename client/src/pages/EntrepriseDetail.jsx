@@ -528,23 +528,6 @@ export default function EntrepriseDetail() {
                 }
               />
               <Info label="Email" value={entreprise.contact?.email || "-"} />
-              <Info
-                label="Site web"
-                value={
-                  entreprise.siteWeb ? (
-                    <a
-                      href={entreprise.siteWeb}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-marine-700 dark:text-marine-300 hover:underline"
-                    >
-                      {entreprise.siteWeb.replace(/^https?:\/\//i, "").replace(/\/$/, "")}
-                    </a>
-                  ) : (
-                    "-"
-                  )
-                }
-              />
               <Info label="Type de contrat" value={entreprise.typeContrat} />
               <Info label="ESAT associé" value={entreprise.esatAssocie} />
               <Info label="Part. manquant" value={entreprise.partManquant ?? "-"} />
@@ -592,46 +575,6 @@ export default function EntrepriseDetail() {
                   Enregistrer l'échéance
                 </button>
               </form>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
-              <form onSubmit={soumettreSiteWeb} className="flex items-end gap-2">
-                <label className="text-xs text-slate-500 dark:text-slate-400 flex-1">
-                  Site web officiel
-                  <input
-                    type="text"
-                    placeholder="www.entreprise.fr"
-                    value={siteWebSaisi}
-                    onChange={(e) => setSiteWebSaisi(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
-                  />
-                </label>
-                <button
-                  type="submit"
-                  disabled={enregistrementSiteWeb}
-                  className="rounded-lg bg-marine-800 hover:bg-marine-900 text-white text-xs font-medium px-3 py-[7px] disabled:opacity-40"
-                >
-                  Enregistrer
-                </button>
-              </form>
-
-              {oeth?.conforme && (
-                <label className="flex items-start gap-2 mt-3 text-xs text-slate-500 dark:text-slate-400">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(entreprise.consentementAffichagePublic)}
-                    onChange={(e) => changerConsentementPublic(e.target.checked)}
-                    disabled={enregistrementConsentement}
-                    className="mt-0.5 rounded border-slate-300"
-                  />
-                  <span>
-                    Afficher nommément sur le site vitrine public (nom, ville, site web)
-                    <span className="block text-[11px] text-slate-400 dark:text-slate-500">
-                      Nécessite l'accord de l'entreprise — n'active que si elle a explicitement consenti à être citée.
-                    </span>
-                  </span>
-                </label>
-              )}
             </div>
 
             <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
@@ -1123,6 +1066,56 @@ export default function EntrepriseDetail() {
           </div>
 
           <MessagerieMail entreprise={entreprise} onMaj={setEntreprise} />
+
+          {/* Vitrine publique — déplacé hors de la colonne "Informations
+              structure" (données utiles à la prospection) : le site web et
+              le consentement de citation publique ne concernent que la
+              landing page marketing, pas l'appel/l'envoi de mail. Affiché
+              seulement une fois l'entreprise en conformité, seul cas où la
+              vitrine publique (voir /vitrine) a un intérêt. */}
+          {oeth?.conforme && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
+              <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Vitrine publique</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
+                Site web et accord pour citer cette entreprise nommément sur la landing page publique du pôle.
+              </p>
+              <form onSubmit={soumettreSiteWeb} className="flex items-end gap-2">
+                <label className="text-xs text-slate-500 dark:text-slate-400 flex-1">
+                  Site web officiel
+                  <input
+                    type="text"
+                    placeholder="www.entreprise.fr"
+                    value={siteWebSaisi}
+                    onChange={(e) => setSiteWebSaisi(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={enregistrementSiteWeb}
+                  className="rounded-lg bg-marine-800 hover:bg-marine-900 text-white text-xs font-medium px-3 py-[7px] disabled:opacity-40"
+                >
+                  Enregistrer
+                </button>
+              </form>
+
+              <label className="flex items-start gap-2 mt-3 text-xs text-slate-500 dark:text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={Boolean(entreprise.consentementAffichagePublic)}
+                  onChange={(e) => changerConsentementPublic(e.target.checked)}
+                  disabled={enregistrementConsentement}
+                  className="mt-0.5 rounded border-slate-300"
+                />
+                <span>
+                  Afficher nommément sur le site vitrine public (nom, ville, site web)
+                  <span className="block text-[11px] text-slate-400 dark:text-slate-500">
+                    Nécessite l'accord de l'entreprise — n'active que si elle a explicitement consenti à être citée.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
 
           {/* Messagerie / historique */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
