@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { api } from "../api.js";
+import GestionTelephones from "./GestionTelephones.jsx";
 
 function aujourdHui() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function idUnique() {
-  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 // Numérisation de la "Fiche de Suivi Prospect" papier — modale ouverte
@@ -40,9 +37,6 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
   const [contactFonctionSaisie, setContactFonctionSaisie] = useState(
     entreprise.contact?.fonction && entreprise.contact.fonction !== "-" ? entreprise.contact.fonction : ""
   );
-
-  const [nouveauTelNumero, setNouveauTelNumero] = useState("");
-  const [nouveauTelNote, setNouveauTelNote] = useState("");
 
   const [enregistrementChamp, setEnregistrementChamp] = useState(false);
   const [erreurChamp, setErreurChamp] = useState(null);
@@ -82,43 +76,11 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
     return sauvegarderChamp({ contact: { ...entrepriseCourante.contact, ...partiel } });
   }
 
-  function ajouterTelephone(ev) {
-    ev.preventDefault();
-    if (!nouveauTelNumero.trim()) return;
-    const alternatesActuels = entrepriseCourante.contact?.telephonesAlternatifs || [];
-    const nouvelleEntree = {
-      id: idUnique(),
-      numero: nouveauTelNumero.trim(),
-      note: nouveauTelNote.trim(),
-      dateAjout: new Date().toISOString(),
-    };
-    sauvegarderContact({ telephonesAlternatifs: [...alternatesActuels, nouvelleEntree] });
-    setNouveauTelNumero("");
-    setNouveauTelNote("");
-  }
-
-  // Le numéro promu devient LE numéro utilisé partout dans le CRM (appel,
-  // relances) ; l'ancien numéro principal est conservé dans les alternatifs
-  // plutôt que perdu, au cas où celui obtenu au standard soit lui-même
-  // remis en cause plus tard.
-  function definirCommePrioritaire(alt) {
-    const contact = entrepriseCourante.contact || {};
-    const ancienPrincipal = contact.telephone;
-    const autresAlternates = (contact.telephonesAlternatifs || []).filter((a) => a.id !== alt.id);
-    if (ancienPrincipal && ancienPrincipal !== alt.numero) {
-      autresAlternates.push({
-        id: idUnique(),
-        numero: ancienPrincipal,
-        note: "Ancien numéro principal",
-        dateAjout: new Date().toISOString(),
-      });
-    }
-    sauvegarderContact({ telephone: alt.numero, telephoneInvalide: false, telephonesAlternatifs: autresAlternates });
-  }
-
-  function retirerTelephoneAlternatif(alt) {
-    const autresAlternates = (entrepriseCourante.contact?.telephonesAlternatifs || []).filter((a) => a.id !== alt.id);
-    sauvegarderContact({ telephonesAlternatifs: autresAlternates });
+  // Passée à <GestionTelephones> : garde la fiche ET la page entreprise
+  // synchronisées après un ajout/promotion/retrait de numéro.
+  function majEntreprise(updated) {
+    setEntrepriseCourante(updated);
+    onMaj?.(updated);
   }
 
   async function soumettre(ev) {
@@ -145,7 +107,6 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
   }
 
   const oeth = entrepriseCourante.oeth;
-  const alternates = entrepriseCourante.contact?.telephonesAlternatifs || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onFermer}>
@@ -295,73 +256,8 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
               </label>
             </div>
 
-            {/* Gestion dynamique des numéros de téléphone */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Numéro principal (utilisé pour les appels) :{" "}
-                <strong className="text-slate-700 dark:text-slate-200">
-                  {entrepriseCourante.contact?.telephone || "aucun"}
-                </strong>
-              </p>
-
-              {alternates.length > 0 && (
-                <ul className="space-y-1">
-                  {alternates.map((alt) => (
-                    <li
-                      key={alt.id}
-                      className="flex items-center justify-between gap-2 text-xs bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5"
-                    >
-                      <span className="text-slate-600 dark:text-slate-300">
-                        {alt.numero}
-                        {alt.note ? ` — ${alt.note}` : ""}
-                      </span>
-                      <span className="flex gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => definirCommePrioritaire(alt)}
-                          className="rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 px-2 py-0.5 hover:bg-amber-200 dark:hover:bg-amber-900"
-                        >
-                          Définir comme prioritaire
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => retirerTelephoneAlternatif(alt)}
-                          className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-1"
-                          title="Retirer ce numéro"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <div className="flex flex-wrap gap-2 pt-1">
-                <input
-                  type="text"
-                  placeholder="Nouveau numéro (ex : obtenu via le standard)"
-                  value={nouveauTelNumero}
-                  onChange={(e) => setNouveauTelNumero(e.target.value)}
-                  className="flex-1 min-w-[160px] rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs"
-                />
-                <input
-                  type="text"
-                  placeholder="Note (optionnel)"
-                  value={nouveauTelNote}
-                  onChange={(e) => setNouveauTelNote(e.target.value)}
-                  className="w-40 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={ajouterTelephone}
-                  disabled={!nouveauTelNumero.trim()}
-                  className="rounded-lg bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40"
-                >
-                  + Ajouter
-                </button>
-              </div>
-            </div>
+            {/* Gestion dynamique des numéros de téléphone (composant partagé avec la fiche entreprise) */}
+            <GestionTelephones entreprise={entrepriseCourante} onMaj={majEntreprise} />
           </div>
 
           {/* Champs propres à la fiche papier — enregistrés à la validation */}

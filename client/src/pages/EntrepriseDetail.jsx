@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import MessagerieMail from "../components/MessagerieMail.jsx";
 import FicheSuiviProspect from "../components/FicheSuiviProspect.jsx";
+import GestionTelephones from "../components/GestionTelephones.jsx";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import {
@@ -450,6 +451,35 @@ export default function EntrepriseDetail() {
         </div>
       </div>
 
+      {/* Bandeau "coup d'œil" : numéro principal + écart de conformité,
+          toujours visibles sans avoir à chercher plus bas dans la page. */}
+      <div className="flex flex-wrap items-center gap-4 mb-6 px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-2">
+          <span className="text-xl" aria-hidden>
+            ☎
+          </span>
+          <span className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+            <BoutonAppel entreprise={entreprise} variant="lien" />
+          </span>
+        </div>
+        {oeth?.assujetti && (
+          <>
+            <div className="hidden sm:block h-6 w-px bg-slate-300 dark:bg-slate-600" />
+            <span
+              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                oeth.deficit > 0
+                  ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+              }`}
+            >
+              {oeth.deficit > 0
+                ? `${oeth.deficit} travailleur${oeth.deficit > 1 ? "s" : ""} handicapé${oeth.deficit > 1 ? "s" : ""} manquant${oeth.deficit > 1 ? "s" : ""} (sur ${oeth.unitesRequises})`
+                : "Conforme — quota atteint"}
+            </span>
+          </>
+        )}
+      </div>
+
       {ficheSuiviOuverte && (
         <FicheSuiviProspect
           entreprise={entreprise}
@@ -489,7 +519,6 @@ export default function EntrepriseDetail() {
               <Info label="SIRET" value={entreprise.siret} />
               <Info label="Forme juridique" value={entreprise.formeJuridique} />
               <Info label="Secteur d'activité" value={entreprise.secteurActivite} />
-              <Info label="Téléphone" value={<BoutonAppel entreprise={entreprise} variant="lien" />} />
               <Info
                 label="Contact"
                 value={
@@ -524,6 +553,13 @@ export default function EntrepriseDetail() {
                 value={`${formatDate(entreprise.partDebutOp)} → ${formatDate(entreprise.partFinOp)}`}
               />
             </dl>
+
+            <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
+              <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
+                Numéros de téléphone
+              </p>
+              <GestionTelephones entreprise={entreprise} onMaj={setEntreprise} compact />
+            </div>
 
             <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
               <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
