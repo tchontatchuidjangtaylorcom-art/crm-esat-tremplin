@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
+import { jouerSonConfirmation } from "../sonConfirmation.js";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -34,6 +35,7 @@ export default function GestionTelephones({ entreprise, onMaj, compact = false }
     try {
       const updated = await api.patchEntreprise(entreprise.id, { contact: { ...contact, ...partiel } });
       onMaj?.(updated);
+      jouerSonConfirmation();
     } catch (e) {
       setErreur(e.message);
     } finally {

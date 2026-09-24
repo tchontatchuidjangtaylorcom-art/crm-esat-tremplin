@@ -3,8 +3,12 @@ import { useTelephonie } from "./CallContext.jsx";
 const STYLE_ICONE = "inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition";
 const STYLE_LIEN = "text-blue-600 hover:underline font-medium";
 
-// Numéro nettoyé pour un lien tel: valide (garde un éventuel "+", retire le reste).
-function versLienTel(numero) {
+// Numéro nettoyé pour un lien tel: valide (garde un éventuel "+", retire le
+// reste) — exporté pour le bandeau "coup d'œil" de la fiche entreprise, qui a
+// besoin d'un vrai lien tel: garanti (agent sur le terrain, téléphone
+// natif) plutôt que du bouton ci-dessous, qui bascule vers le dialer VoIP
+// interne selon le mode de téléphonie choisi.
+export function versLienTel(numero) {
   return "tel:" + numero.replace(/[^\d+]/g, "");
 }
 

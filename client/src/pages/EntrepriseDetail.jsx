@@ -7,8 +7,9 @@ import FicheSuiviProspect from "../components/FicheSuiviProspect.jsx";
 import GestionTelephones from "../components/GestionTelephones.jsx";
 import GestionContacts from "../components/GestionContacts.jsx";
 import GestionEmails from "../components/GestionEmails.jsx";
-import BoutonAppel from "../telephony/BoutonAppel.jsx";
+import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
+import { jouerSonConfirmation } from "../sonConfirmation.js";
 import {
   ISSUES_APPEL,
   SORTIES_DOSSIER,
@@ -386,6 +387,7 @@ export default function EntrepriseDetail() {
       setNouveauTelephone("");
       setPropositionIa(null);
       setErreur(null);
+      if (nouveauNumero) jouerSonConfirmation();
     } catch (e) {
       setErreur(e.message);
     } finally {
@@ -454,15 +456,29 @@ export default function EntrepriseDetail() {
       </div>
 
       {/* Bandeau "coup d'œil" : numéro principal + écart de conformité,
-          toujours visibles sans avoir à chercher plus bas dans la page. */}
+          toujours visibles sans avoir à chercher plus bas dans la page. Lien
+          tel: garanti (pas le bouton BoutonAppel, qui bascule vers le dialer
+          VoIP interne selon le mode choisi) : ici l'agent est censé pouvoir
+          taper sur son téléphone natif en un geste, y compris sur le terrain
+          sans le dialer CRM actif. Se met à jour immédiatement dès qu'un
+          numéro devient principal (voir GestionTelephones) puisqu'il ne fait
+          que refléter l'état `entreprise` déjà tenu à jour par le parent. */}
       <div className="flex flex-wrap items-center gap-4 mb-6 px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-2">
           <span className="text-xl" aria-hidden>
             ☎
           </span>
-          <span className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-            <BoutonAppel entreprise={entreprise} variant="lien" />
-          </span>
+          {entreprise.contact?.telephone ? (
+            <a
+              href={versLienTel(entreprise.contact.telephone)}
+              className="text-lg font-semibold text-blue-700 dark:text-blue-400 hover:underline"
+              title={`Appeler ${entreprise.contact.telephone}`}
+            >
+              {entreprise.contact.telephone}
+            </a>
+          ) : (
+            <span className="text-lg font-semibold text-slate-400 dark:text-slate-500">Aucun numéro renseigné</span>
+          )}
         </div>
         {oeth?.assujetti && (
           <>
