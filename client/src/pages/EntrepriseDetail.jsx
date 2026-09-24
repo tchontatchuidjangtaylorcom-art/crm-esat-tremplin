@@ -5,6 +5,8 @@ import StatusBadge from "../components/StatusBadge.jsx";
 import MessagerieMail from "../components/MessagerieMail.jsx";
 import FicheSuiviProspect from "../components/FicheSuiviProspect.jsx";
 import GestionTelephones from "../components/GestionTelephones.jsx";
+import GestionContacts from "../components/GestionContacts.jsx";
+import GestionEmails from "../components/GestionEmails.jsx";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import {
@@ -519,15 +521,6 @@ export default function EntrepriseDetail() {
               <Info label="SIRET" value={entreprise.siret} />
               <Info label="Forme juridique" value={entreprise.formeJuridique} />
               <Info label="Secteur d'activité" value={entreprise.secteurActivite} />
-              <Info
-                label="Contact"
-                value={
-                  entreprise.contact
-                    ? `${entreprise.contact.nom}${entreprise.contact.fonction ? " — " + entreprise.contact.fonction : ""}`
-                    : "-"
-                }
-              />
-              <Info label="Email" value={entreprise.contact?.email || "-"} />
               <Info label="Type de contrat" value={entreprise.typeContrat} />
               <Info label="ESAT associé" value={entreprise.esatAssocie} />
               <Info label="Part. manquant" value={entreprise.partManquant ?? "-"} />
@@ -536,6 +529,20 @@ export default function EntrepriseDetail() {
                 value={`${formatDate(entreprise.partDebutOp)} → ${formatDate(entreprise.partFinOp)}`}
               />
             </dl>
+
+            <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
+              <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
+                Contacts
+              </p>
+              <GestionContacts entreprise={entreprise} onMaj={setEntreprise} />
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
+              <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
+                Adresses e-mail
+              </p>
+              <GestionEmails entreprise={entreprise} onMaj={setEntreprise} />
+            </div>
 
             <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
               <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">

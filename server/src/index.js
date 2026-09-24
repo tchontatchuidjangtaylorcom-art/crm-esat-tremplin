@@ -1350,11 +1350,21 @@ app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorise
 app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
-  const { objet, corps, joindrePdf = true } = req.body;
+  const { objet, corps, joindrePdf = true, destinataire } = req.body;
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
-  if (!entreprise.contact?.email) {
+
+  // Le destinataire choisi côté agent (voir le sélecteur dans MessagerieMail.jsx)
+  // doit être une adresse réellement connue pour cette entreprise — principale
+  // ou parmi les alternatifs gérés dans "Informations structure" (voir
+  // GestionEmails.jsx) — jamais une adresse arbitraire non liée au dossier.
+  const emailsConnus = [
+    entreprise.contact?.email,
+    ...(entreprise.contact?.emailsAlternatifs || []).map((a) => a.email),
+  ].filter(Boolean);
+  const destinataireFinal = destinataire && emailsConnus.includes(destinataire) ? destinataire : entreprise.contact?.email;
+  if (!destinataireFinal) {
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
 
@@ -1382,7 +1392,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
 
   try {
     await envoyerMail({
-      to: entreprise.contact.email,
+      to: destinataireFinal,
       subject: objet,
       text: corps,
       fromName: nomExpediteur,
@@ -1402,6 +1412,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     id: nanoid(),
     direction: "envoye",
     de: adresseMailPole(),
+    a: destinataireFinal,
     objet,
     corps,
     piecesJointes,

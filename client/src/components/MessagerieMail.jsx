@@ -7,6 +7,19 @@ import { construireSignature } from "../mailSignature.js";
 // Fil de messagerie mail réel avec le contact de l'entreprise (boîte IMAP/SMTP
 // du pôle — voir server/src/mail.js). Reste utilisable même sans boîte
 // connectée : affiche juste un message explicatif et masque l'envoi.
+// Toutes les adresses connues pour cette entreprise (principale + alternatifs
+// gérés dans "Informations structure" — voir GestionEmails.jsx), pour le
+// sélecteur de destinataire ci-dessous.
+function destinatairesDisponibles(entreprise) {
+  const contact = entreprise.contact || {};
+  const liste = [];
+  if (contact.email) liste.push({ email: contact.email, label: "Principal" });
+  for (const alt of contact.emailsAlternatifs || []) {
+    if (alt.email) liste.push({ email: alt.email, label: alt.note || "Autre" });
+  }
+  return liste;
+}
+
 export default function MessagerieMail({ entreprise, onMaj }) {
   const [statutMail, setStatutMail] = useState(null);
   const [objet, setObjet] = useState("");
@@ -15,16 +28,18 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
   const [toastEnvoi, setToastEnvoi] = useState(null);
-  const [emailSaisi, setEmailSaisi] = useState(entreprise.contact?.email || "");
-  const [enregistrementEmail, setEnregistrementEmail] = useState(false);
+  const destinataires = destinatairesDisponibles(entreprise);
+  const [destinataire, setDestinataire] = useState(entreprise.contact?.email || destinataires[0]?.email || "");
 
-  // Garde le champ synchronisé si l'e-mail change ailleurs (fiche rechargée,
-  // mise à jour reçue par un autre onglet/agent) sans écraser une saisie en
-  // cours de l'agent sur CE fil.
+  // Reste sur l'adresse choisie tant qu'elle existe toujours dans la liste ;
+  // ne revient sur la principale que si elle a disparu (fiche changée,
+  // adresse retirée dans "Informations structure" pendant que ce fil est ouvert).
   useEffect(() => {
-    setEmailSaisi(entreprise.contact?.email || "");
+    if (!destinataires.some((d) => d.email === destinataire)) {
+      setDestinataire(entreprise.contact?.email || destinataires[0]?.email || "");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entreprise.id, entreprise.contact?.email]);
+  }, [entreprise.id, entreprise.contact?.email, entreprise.contact?.emailsAlternatifs]);
 
   // Le toast se referme tout seul après quelques secondes — pas besoin d'une
   // action de l'agent pour le faire disparaître.
@@ -64,41 +79,19 @@ export default function MessagerieMail({ entreprise, onMaj }) {
 
   async function envoyer(ev) {
     ev.preventDefault();
-    if (!objet.trim() || !corps.trim()) return;
+    if (!objet.trim() || !corps.trim() || !destinataire) return;
     setEnvoiEnCours(true);
     setErreur(null);
     try {
-      const updated = await api.envoyerEmail(entreprise.id, { objet, corps, joindrePdf });
+      const updated = await api.envoyerEmail(entreprise.id, { objet, corps, joindrePdf, destinataire });
       onMaj(updated);
-      setToastEnvoi(`E-mail envoyé à ${entreprise.contact.email}.`);
+      setToastEnvoi(`E-mail envoyé à ${destinataire}.`);
       setObjet("");
       setCorps("");
     } catch (e) {
       setErreur(e.message);
     } finally {
       setEnvoiEnCours(false);
-    }
-  }
-
-  // Saisie manuelle de l'e-mail (ajout ou correction) directement depuis le
-  // fil de messagerie — typiquement quand l'agent l'obtient au téléphone et
-  // veut pouvoir envoyer un document dans la foulée. `contact` est remplacé
-  // en bloc côté serveur (pas de fusion), donc on renvoie l'objet complet
-  // avec uniquement l'email modifié, pour ne pas écraser nom/fonction/téléphone.
-  async function enregistrerEmail(ev) {
-    ev.preventDefault();
-    const valeur = emailSaisi.trim();
-    setEnregistrementEmail(true);
-    setErreur(null);
-    try {
-      const updated = await api.patchEntreprise(entreprise.id, {
-        contact: { ...(entreprise.contact || {}), email: valeur || null },
-      });
-      onMaj(updated);
-    } catch (e) {
-      setErreur(e.message);
-    } finally {
-      setEnregistrementEmail(false);
     }
   }
 
@@ -117,22 +110,26 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       )}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
       <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Boîte mail — Pôle OETH/AGEFIPH</h2>
-      <form onSubmit={enregistrerEmail} className="flex items-center gap-2 mb-4">
-        <input
-          type="email"
-          placeholder="Adresse e-mail du contact"
-          value={emailSaisi}
-          onChange={(e) => setEmailSaisi(e.target.value)}
-          className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
-        />
-        <button
-          type="submit"
-          disabled={enregistrementEmail || emailSaisi.trim() === (entreprise.contact?.email || "")}
-          className="rounded-lg bg-marine-800 hover:bg-marine-900 text-white text-xs font-medium px-3 py-1.5 disabled:opacity-40 whitespace-nowrap"
-        >
-          {enregistrementEmail ? "…" : "Enregistrer"}
-        </button>
-      </form>
+      {destinataires.length > 0 ? (
+        <label className="flex items-center gap-2 mb-4 text-xs text-slate-500 dark:text-slate-400">
+          Destinataire
+          <select
+            value={destinataire}
+            onChange={(e) => setDestinataire(e.target.value)}
+            className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
+          >
+            {destinataires.map((d) => (
+              <option key={d.email} value={d.email}>
+                {d.email} — {d.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
+          Aucune adresse mail connue — ajoutez-en une dans "Informations structure".
+        </p>
+      )}
 
       {statutMail && !statutMail.configuree && (
         <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-lg p-2 mb-4">
@@ -153,7 +150,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           >
             <div className="flex items-center justify-between mb-1">
               <span className="font-medium text-slate-700 dark:text-slate-200">
-                {m.direction === "recu" ? `De : ${m.de}` : "Envoyé par le pôle"}
+                {m.direction === "recu" ? `De : ${m.de}` : `Envoyé à ${m.a || entreprise.contact?.email || "?"}`}
               </span>
               <span className="text-xs text-slate-400 dark:text-slate-500">{formatDateHeure(m.date)}</span>
             </div>
@@ -173,7 +170,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         )}
       </ul>
 
-      {entreprise.contact?.email && (
+      {destinataires.length > 0 && (
         <form onSubmit={envoyer} className="space-y-2 pt-3 border-t border-marine-100 dark:border-marine-900/30">
           {modeles?.modeles?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1">
@@ -210,7 +207,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           {erreur && <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>}
           <button
             type="submit"
-            disabled={!objet.trim() || !corps.trim() || envoiEnCours || statutMail?.configuree === false}
+            disabled={!objet.trim() || !corps.trim() || !destinataire || envoiEnCours || statutMail?.configuree === false}
             className="rounded-lg bg-marine-600 hover:bg-marine-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
             {envoiEnCours ? "Envoi…" : "Envoyer (signé Pôle OETH / AGEFIPH)"}

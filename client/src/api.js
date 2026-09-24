@@ -135,11 +135,11 @@ export const api = {
 
   marquerEmailsLus: (id) => fetch(`${BASE}/entreprises/${id}/emails/lu`, { method: "POST" }).then(handle),
 
-  envoyerEmail: (id, { objet, corps, joindrePdf = true }) =>
+  envoyerEmail: (id, { objet, corps, joindrePdf = true, destinataire }) =>
     fetch(`${BASE}/entreprises/${id}/emails/envoyer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ objet, corps, joindrePdf }),
+      body: JSON.stringify({ objet, corps, joindrePdf, destinataire }),
     }).then(handle),
 
   soumettreFicheProspection: (id, donnees) =>
