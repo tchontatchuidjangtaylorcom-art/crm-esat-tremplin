@@ -358,6 +358,27 @@ app.post("/api/utilisateurs/:id/refuser", exigerAdmin, async (req, res) => {
   res.json(sansMotDePasse(utilisateur));
 });
 
+// Suppression définitive d'un compte — distincte de "Refuser" (qui bloque
+// l'accès mais garde une trace). Un admin ne peut pas se supprimer
+// lui-même : ça évite un verrouillage accidentel du seul compte connecté
+// capable d'administrer les accès (déjà vécu par le passé avec le bootstrap
+// "premier compte = admin", voir ADMIN_EMAILS dans auth.js). Les dossiers
+// encore assignés à ce compte sont libérés plutôt que laissés orphelins.
+app.delete("/api/utilisateurs/:id", exigerAdmin, async (req, res) => {
+  if (req.params.id === req.utilisateur.id) {
+    return res.status(400).json({ error: "Vous ne pouvez pas supprimer votre propre compte." });
+  }
+  const index = db.data.utilisateurs.findIndex((u) => u.id === req.params.id);
+  if (index === -1) return res.status(404).json({ error: "Utilisateur introuvable." });
+
+  db.data.utilisateurs.splice(index, 1);
+  for (const entreprise of db.data.entreprises) {
+    if (entreprise.assigneA === req.params.id) entreprise.assigneA = null;
+  }
+  await db.write();
+  res.json({ ok: true });
+});
+
 // ---- Routes ----
 
 app.get("/api/categories", (req, res) => {

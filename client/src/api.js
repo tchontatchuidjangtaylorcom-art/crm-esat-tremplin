@@ -203,6 +203,8 @@ export const api = {
 
   refuserUtilisateur: (id) => fetch(`${BASE}/utilisateurs/${id}/refuser`, { method: "POST" }).then(handle),
 
+  supprimerUtilisateur: (id) => fetch(`${BASE}/utilisateurs/${id}`, { method: "DELETE" }).then(handle),
+
   listCollegues: () => fetch(`${BASE}/utilisateurs/collegues`).then(handle),
 
   listCanauxChat: () => fetch(`${BASE}/chat/canaux`).then(handle),
