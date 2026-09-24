@@ -256,8 +256,8 @@ export default function EntrepriseDetail() {
   // Site officiel de l'entreprise : saisie manuelle par l'agent (aucune API
   // publique fiable ne fournit cette donnée — Sirene/recherche-entreprises
   // ne renseigne que des informations légales, pas d'URL commerciale).
-  // Alimente notamment le clic sur les cartes du flux "Entreprises en règle"
-  // du tableau de bord (voir FluxConformite.jsx).
+  // Alimente notamment le lien cliquable des cartes "Ils sont en règle" de
+  // la landing page publique (voir components/vitrine/ToastActivite.jsx).
   async function soumettreSiteWeb(ev) {
     ev.preventDefault();
     setEnregistrementSiteWeb(true);

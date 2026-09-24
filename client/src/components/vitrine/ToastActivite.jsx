@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 
 const INTERVALLE_MS = 6000;
 
-// Même règle que côté CRM (voir client/src/components/FluxConformite.jsx) :
-// aucune API publique fiable ne fournit l'URL du site d'une entreprise, donc
-// on ouvre son site s'il a été renseigné sur la fiche, sinon une recherche
-// ciblée plutôt qu'un domaine deviné.
+// Aucune API publique fiable ne fournit l'URL du site d'une entreprise, donc
+// on ouvre son site s'il a été renseigné sur la fiche (voir EntrepriseDetail.jsx),
+// sinon une recherche ciblée plutôt qu'un domaine deviné.
 function urlCible(entreprise) {
   if (entreprise.siteWeb) return entreprise.siteWeb;
   const requete = `${entreprise.nom} ${entreprise.ville || ""} site officiel`.trim();
