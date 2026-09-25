@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import TickerImpact from "../components/vitrine/TickerImpact.jsx";
 import ToastActivite from "../components/vitrine/ToastActivite.jsx";
 import CompteurAnime from "../components/vitrine/CompteurAnime.jsx";
 import RevelerAuScroll from "../components/vitrine/RevelerAuScroll.jsx";
-import FondEtoile from "../components/vitrine/FondEtoile.jsx";
 import SimulateurOeth from "../components/vitrine/SimulateurOeth.jsx";
+import RecitImmersif from "../components/vitrine/RecitImmersif.jsx";
 
 const LIENS_NAV = [
   { label: "Notre démarche", href: "#manifeste" },
@@ -28,21 +28,6 @@ const RESSOURCES = [
   },
 ];
 
-const PILIERS = [
-  {
-    titre: "La compétence avant tout",
-    texte: "Un poste confié pour ce que la personne sait faire, pas pour combler un quota : la meilleure base d'une intégration qui dure.",
-  },
-  {
-    titre: "L'épanouissement et la fierté",
-    texte: "Un salaire, une équipe, une progression : le travail direct ouvre un accès concret à l'autonomie et à la reconnaissance sociale du métier exercé.",
-  },
-  {
-    titre: "Une richesse pour l'entreprise",
-    texte: "Diversifier ses équipes, c'est gagner en agilité, en créativité et en cohésion — l'inclusion profite à tout le collectif de travail.",
-  },
-];
-
 function formatMontant(n) {
   return `${Math.round(n || 0).toLocaleString("fr-FR")} €`;
 }
@@ -52,19 +37,23 @@ export default function SiteVitrine() {
   const [contactPole, setContactPole] = useState(null);
   const [defile, setDefile] = useState(false);
   const [simulateurOuvert, setSimulateurOuvert] = useState(false);
+  const recitRef = useRef(null);
 
   useEffect(() => {
     api.getVitrine().then(setVitrine).catch(() => setVitrine({ statistiques: {}, entreprises: [] }));
     api.getStatutMail().then(setContactPole).catch(() => {});
   }, []);
 
-  // Nav transparente sur le hero sombre, qui se solidifie une fois le hero
-  // dépassé (fond clair en dessous) — évite un texte blanc illisible sur
-  // fond blanc plus bas dans la page.
+  // Nav transparente sur le récit sombre (400vh, voir RecitImmersif), qui se
+  // solidifie seulement une fois ce bloc entièrement dépassé (fond clair en
+  // dessous) — mesuré sur sa vraie hauteur plutôt qu'un seuil fixe en vh,
+  // pour rester correct quel que soit le nombre d'étapes du récit.
   useEffect(() => {
     function onScroll() {
-      setDefile(window.scrollY > window.innerHeight * 0.75);
+      const bas = recitRef.current?.getBoundingClientRect().bottom ?? 0;
+      setDefile(bas <= 0);
     }
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -130,113 +119,22 @@ export default function SiteVitrine() {
 
       {simulateurOuvert && <SimulateurOeth onClose={() => setSimulateurOuvert(false)} />}
 
-      {/* Hero — univers étoilé, plein écran. */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-marine-950 via-marine-900 to-marine-950">
-        <div className="bandeau-tricolore absolute top-0 inset-x-0 z-20">
-          <span className="bg-marine-400" />
-          <span className="bg-white" />
-          <span className="bg-red-600" />
-        </div>
+      {/* Récit immersif au scroll (hero + convictions + citation), voir
+          RecitImmersif.jsx — remplace l'ancien hero + manifeste statiques. */}
+      <div ref={recitRef} id="manifeste">
+        <RecitImmersif onOuvrirSimulateur={() => setSimulateurOuvert(true)} />
+      </div>
 
-        {/* Nébuleuses douces, dérive lente — purement décoratif. */}
-        <div
-          aria-hidden="true"
-          className="absolute -top-1/4 -left-1/4 w-[70vw] h-[70vw] rounded-full bg-marine-600/25 blur-[120px] animate-flotter"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute -bottom-1/4 -right-1/4 w-[65vw] h-[65vw] rounded-full bg-indigo-500/15 blur-[120px] animate-flotter-inverse"
-        />
-        <FondEtoile />
-
-        <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
-          <RevelerAuScroll>
-            <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.25em] text-marine-300 mb-6">
-              Portail Opérationnel OETH
-            </p>
-          </RevelerAuScroll>
-          <RevelerAuScroll delai={100}>
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white leading-[1.05] tracking-tight">
-              L'inclusion n'est pas
-              <br />
-              une case à cocher.
-            </h1>
-          </RevelerAuScroll>
-          <RevelerAuScroll delai={250}>
-            <p className="text-marine-200/80 text-lg sm:text-xl max-w-xl mx-auto mt-7 leading-relaxed">
-              Le Pôle OETH / AGEFIPH accompagne les entreprises vers la conformité légale — et vers un recrutement
-              direct qui change durablement une trajectoire professionnelle.
-            </p>
-          </RevelerAuScroll>
-          <RevelerAuScroll delai={400}>
-            <div className="flex flex-wrap items-center justify-center gap-4 mt-10">
-              <button
-                onClick={() => setSimulateurOuvert(true)}
-                className="rounded-full bg-white text-marine-900 text-sm font-semibold px-7 py-3.5 hover:bg-marine-100 transition"
-              >
-                Estimer vos obligations
-              </button>
-              <a
-                href="#manifeste"
-                className="rounded-full border border-white/25 text-white text-sm font-semibold px-7 py-3.5 hover:bg-white/10 transition"
-              >
-                Découvrir la démarche
-              </a>
-            </div>
-          </RevelerAuScroll>
-
-          {vitrine && (
-            <RevelerAuScroll delai={550}>
-              <div className="mt-14 max-w-xl mx-auto">
-                <TickerImpact statistiques={stats} entreprises={entreprises} verre />
-              </div>
-            </RevelerAuScroll>
-          )}
-        </div>
-
-        <a
-          href="#manifeste"
-          aria-label="Défiler vers le contenu"
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/50 hover:text-white transition animate-fleche-rebond"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-          </svg>
-        </a>
-      </section>
-
-      {/* Manifeste — au cœur de la page, juste après le hero. */}
-      <section id="manifeste" className="bg-marine-950 text-white py-28 sm:py-36">
-        <div className="max-w-4xl mx-auto px-6">
-          <RevelerAuScroll>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-marine-400 mb-6 text-center">
-              Notre conviction
-            </p>
-            <h2 className="text-3xl sm:text-5xl font-bold text-center leading-tight max-w-3xl mx-auto">
-              Le recrutement direct change une vie professionnelle —{" "}
-              <span className="text-marine-300">pas seulement un chiffre de conformité.</span>
-            </h2>
-          </RevelerAuScroll>
-
-          <div className="grid sm:grid-cols-3 gap-10 mt-20">
-            {PILIERS.map((bloc, i) => (
-              <RevelerAuScroll key={bloc.titre} delai={i * 130}>
-                <span className="block text-marine-500 text-3xl font-bold mb-3">0{i + 1}</span>
-                <h3 className="font-semibold text-lg mb-2.5">{bloc.titre}</h3>
-                <p className="text-sm text-marine-200/80 leading-relaxed">{bloc.texte}</p>
-              </RevelerAuScroll>
-            ))}
+      {/* Bandeau de transition — chiffres en un coup d'œil avant la section
+          détaillée, sur un fond encore sombre pour ne pas casser l'ambiance
+          du récit qui vient de se terminer. */}
+      {vitrine && (
+        <div className="bg-marine-950 py-8">
+          <div className="max-w-xl mx-auto px-6">
+            <TickerImpact statistiques={stats} entreprises={entreprises} verre />
           </div>
-
-          <RevelerAuScroll delai={450}>
-            <p className="text-xs text-marine-400/70 text-center mt-20 max-w-2xl mx-auto leading-relaxed">
-              Le recrutement direct reste la voie la plus durable vers l'inclusion ; l'accompagnement Cap Emploi et les
-              solutions ESAT/EA demeurent des leviers complémentaires précieux, en particulier pour les parcours qui
-              ont besoin d'un cadre plus soutenant.
-            </p>
-          </RevelerAuScroll>
         </div>
-      </section>
+      )}
 
       {/* Compteurs animés — données réelles. */}
       <section id="impact" className="py-24 sm:py-28 border-b border-slate-100 dark:border-slate-800">
