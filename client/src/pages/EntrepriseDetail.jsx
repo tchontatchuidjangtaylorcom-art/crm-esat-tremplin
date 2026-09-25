@@ -328,14 +328,19 @@ export default function EntrepriseDetail() {
   }
 
   // Espace IA : signale un numéro non attribué/invalide (journalisé + flaggé
-  // côté serveur) puis, une fois un numéro alternatif trouvé (recherche IA ou
-  // pistes manuelles) et vérifié par l'agent, l'enregistre pour lever le signalement.
+  // côté serveur, statut de dossier basculé sur "Numéro invalide") puis, une
+  // fois un numéro alternatif trouvé (recherche IA déclenchée automatiquement
+  // ci-dessous, ou pistes manuelles) et vérifié par l'agent, l'enregistre pour
+  // lever le signalement.
   async function signalerTelephoneInvalide() {
     setEnregistrementTelephone(true);
     try {
       const updated = await api.signalerTelephoneInvalide(id);
       setEntreprise(updated);
       setErreur(null);
+      // Recherche de substitution lancée automatiquement — reste une simple
+      // proposition (voir rechercherContactIa) : l'agent vérifie et valide.
+      rechercherContactIa();
     } catch (e) {
       setErreur(e.message);
     } finally {
@@ -775,7 +780,7 @@ export default function EntrepriseDetail() {
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Espace IA — Contact alternatif</h2>
 
             {!entreprise.contact?.telephoneInvalide ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   Numéro {entreprise.contact?.telephone || "(aucun renseigné)"} non attribué ou injoignable ?
                 </p>
@@ -788,19 +793,66 @@ export default function EntrepriseDetail() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  Numéro signalé invalide. Lancez une recherche IA ci-dessous, ou utilisez les pistes de recherche
-                  manuelles — dans tous les cas, vérifiez le résultat avant de l'enregistrer.
-                </p>
+              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                Numéro signalé invalide — statut du dossier passé à « Numéro invalide ». Une recherche IA de
+                substitution a été lancée automatiquement ci-dessous ; vérifiez toujours le résultat avant de
+                l'enregistrer.
+              </p>
+            )}
 
+            {/* Pistes de recherche manuelles : affichées en permanence, juste
+                sous le statut, pour une vérification rapide en un clic —
+                sans attendre d'avoir d'abord signalé le numéro invalide. */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              <a
+                href={`https://www.google.com/search?q=${encodeURIComponent(
+                  `${entreprise.nom} ${entreprise.ville} téléphone`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
+              >
+                Rechercher sur Google
+              </a>
+              <a
+                href={`https://www.societe.com/cgi-bin/search?champs=${encodeURIComponent(
+                  entreprise.siret?.slice(0, 9) || entreprise.nom
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
+              >
+                Fiche Societe.com
+              </a>
+              <a
+                href={`https://www.pagesjaunes.fr/recherche/${encodeURIComponent(entreprise.nom)}/${encodeURIComponent(
+                  entreprise.ville || ""
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
+              >
+                PagesJaunes
+              </a>
+              <a
+                href={`https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(entreprise.nom)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
+              >
+                LinkedIn
+              </a>
+            </div>
+
+            {entreprise.contact?.telephoneInvalide && (
+              <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={rechercherContactIa}
                     disabled={rechercheIaEnCours}
                     className="rounded-lg bg-marine-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
                   >
-                    {rechercheIaEnCours ? "Recherche en cours…" : "🔎 Rechercher via IA"}
+                    {rechercheIaEnCours ? "Recherche en cours…" : "🔎 Relancer la recherche IA"}
                   </button>
                   {propositionIa && (
                     <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -846,47 +898,6 @@ export default function EntrepriseDetail() {
                     {erreurRechercheIa}
                   </p>
                 )}
-
-                <div className="flex flex-wrap gap-2">
-                  <a
-                    href={`https://www.google.com/search?q=${encodeURIComponent(
-                      `${entreprise.nom} ${entreprise.ville} téléphone`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
-                  >
-                    Rechercher sur Google
-                  </a>
-                  <a
-                    href={`https://www.societe.com/cgi-bin/search?champs=${encodeURIComponent(
-                      entreprise.siret?.slice(0, 9) || entreprise.nom
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
-                  >
-                    Fiche Societe.com
-                  </a>
-                  <a
-                    href={`https://www.pagesjaunes.fr/recherche/${encodeURIComponent(entreprise.nom)}/${encodeURIComponent(
-                      entreprise.ville || ""
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
-                  >
-                    PagesJaunes
-                  </a>
-                  <a
-                    href={`https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(entreprise.nom)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-200"
-                  >
-                    LinkedIn
-                  </a>
-                </div>
 
                 <form onSubmit={corrigerTelephone} className="flex gap-2">
                   <input

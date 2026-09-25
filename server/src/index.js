@@ -1063,7 +1063,11 @@ app.post("/api/entreprises/assigner-groupe", exigerAdmin, async (req, res) => {
 // sorties de dossier ci-dessus : deux statuts "de repos" sans issue d'appel
 // dédiée, utiles pour remettre en masse un lot de dossiers en file d'attente
 // (ex. après une réorganisation d'équipe) sans forcer une fausse issue d'appel.
-const STATUTS_DIRECTS_AUTORISES = new Set(["nouveau", "a_relancer"]);
+// "numero_invalide" est normalement posé automatiquement par
+// /telephone-invalide, mais reste sélectionnable ici (badge de statut
+// cliquable, changement groupé) pour qu'un agent puisse aussi le lever/poser
+// manuellement sans repasser par le bouton dédié.
+const STATUTS_DIRECTS_AUTORISES = new Set(["nouveau", "a_relancer", "numero_invalide"]);
 
 function libelleStatutGroupe(statut) {
   return ISSUES_APPEL[statut] || SORTIES_DOSSIER[statut] || (STATUTS_DIRECTS_AUTORISES.has(statut) ? statut : null);
@@ -1200,14 +1204,27 @@ app.post("/api/entreprises/:id/commentaires", exigerAuth, chargerEntrepriseAutor
 
 // Espace IA (assistant de correction de contact) : un agent signale un
 // numéro non attribué/invalide. Faute d'API de téléphonie payante (Pappers)
-// configurée, l'assistant ne devine pas un numéro : il flague le contact et
-// journalise l'anomalie, pendant que le frontend propose des pistes de
-// recherche externes prêtes à cliquer.
+// configurée, l'assistant ne devine pas un numéro : il flague le contact,
+// bascule le statut du dossier sur "numero_invalide" (visible immédiatement
+// dans le tableau — voir STATUTS côté client) et journalise l'anomalie dans
+// l'historique, pendant que le frontend déclenche une recherche IA de
+// substitution et propose des pistes de recherche externes prêtes à cliquer.
 app.post("/api/entreprises/:id/telephone-invalide", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
   const ancienNumero = entreprise.contact?.telephone || "(aucun)";
   entreprise.contact = { ...entreprise.contact, telephoneInvalide: true };
+  entreprise.statut = "numero_invalide";
+  entreprise.historiqueAppels.unshift({
+    id: nanoid(),
+    date: new Date().toISOString(),
+    type: "statut",
+    issue: "numero_invalide",
+    issueLabel: "Numéro invalide",
+    details: `Numéro signalé non attribué/invalide (${ancienNumero}).`,
+    dateProgrammee: null,
+    dureeSecondes: null,
+  });
   entreprise.commentaires.unshift({
     id: nanoid(),
     date: new Date().toISOString(),
