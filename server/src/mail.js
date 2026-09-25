@@ -6,35 +6,38 @@
 // seul était parfaitement fonctionnel.
 //
 // ENVOI — deux méthodes possibles :
-//  1. API HTTP Brevo (BREVO_API_KEY) — RECOMMANDÉ sur Render : Render (comme
-//     la plupart des hébergeurs PaaS : Railway, Heroku, Fly...) bloque le
-//     trafic SMTP sortant (ports 25/465/587) au niveau réseau, quel que soit
-//     le plan payant — ce n'est pas une histoire de compte gratuit vs payant,
-//     et ça ne se contourne pas en payant. L'API Brevo passe en HTTPS
-//     (port 443), jamais bloqué. Utilisée en priorité si configurée.
+//  1. API HTTP Resend (RESEND_API_KEY) — RECOMMANDÉ sur Render : Render
+//     (comme la plupart des hébergeurs PaaS : Railway, Heroku, Fly...)
+//     bloque le trafic SMTP sortant (ports 25/465/587) au niveau réseau,
+//     quel que soit le plan payant — ce n'est pas une histoire de compte
+//     gratuit vs payant, et ça ne se contourne pas en payant. L'API Resend
+//     passe en HTTPS (port 443), jamais bloqué. Utilisée en priorité si
+//     configurée. Remplace l'intégration Brevo précédente (même rôle, même
+//     contrainte de domaine expéditeur vérifié côté fournisseur).
 //  2. SMTP direct (nodemailer) — fonctionne en local/sur un hébergeur qui
 //     n'a pas cette restriction, mais échouera systématiquement (ETIMEDOUT)
 //     depuis Render. Conservée comme repli pour le développement local.
 //
 // Noms de variables acceptés (le premier qui existe est utilisé) :
-//   Brevo : BREVO_API_KEY
-//   SMTP  : MAIL_SMTP_HOST / MAIL_HOST,  MAIL_SMTP_PORT / MAIL_PORT
-//   IMAP  : MAIL_IMAP_HOST,              MAIL_IMAP_PORT
-//   Commun: MAIL_USER, MAIL_PASSWORD,    MAIL_FROM (optionnel, sinon MAIL_USER)
+//   Resend : RESEND_API_KEY
+//   SMTP   : MAIL_SMTP_HOST / MAIL_HOST,  MAIL_SMTP_PORT / MAIL_PORT
+//   IMAP   : MAIL_IMAP_HOST,              MAIL_IMAP_PORT
+//   Commun : MAIL_USER, MAIL_PASSWORD,    MAIL_FROM (optionnel, sinon MAIL_USER)
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
 
-const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+const RESEND_API_URL = "https://api.resend.com/emails";
 
 // ---- Délivrabilité : en-têtes propres + alternative HTML ----
 //
 // Ce qui suit ne remplace PAS une authentification de domaine correcte
 // (SPF/DKIM/DMARC alignés sur le domaine d'envoi) : c'est le facteur qui
 // pèse le plus lourd sur l'atterrissage en spam, et il se configure côté
-// DNS/fournisseur (Brevo affiche les enregistrements exacts à publier une
-// fois BREVO_API_KEY renseignée), pas dans ce fichier. Ici, on soigne ce qui
+// DNS/fournisseur (Resend affiche les enregistrements exacts à publier dans
+// Dashboard > Domains une fois le domaine d'envoi ajouté), pas dans ce
+// fichier. Ici, on soigne ce qui
 // relève du code : un Reply-To cohérent, un Message-ID sur le bon domaine,
 // un en-tête List-Unsubscribe pour les mails de prospection (attendu par
 // Gmail/Yahoo pour tout envoi qui ressemble à du démarchage en nombre), et
@@ -109,10 +112,10 @@ function config() {
   };
 }
 
-// Envoi via l'API HTTP Brevo — fonctionne depuis Render (voir note en tête
+// Envoi via l'API HTTP Resend — fonctionne depuis Render (voir note en tête
 // de fichier). Prioritaire sur le SMTP direct dès qu'elle est configurée.
-export function estBrevoConfigure() {
-  return Boolean(process.env.BREVO_API_KEY && config().from);
+export function estResendConfigure() {
+  return Boolean(process.env.RESEND_API_KEY && config().from);
 }
 
 // Envoi via SMTP direct (nodemailer) — repli pour le développement local ;
@@ -126,7 +129,7 @@ export function estSmtpConfigure() {
 // l'interface (bandeau de config, page de connexion) doit vérifier, peu
 // importe laquelle des deux est réellement active.
 export function estEnvoiConfigure() {
-  return estBrevoConfigure() || estSmtpConfigure();
+  return estResendConfigure() || estSmtpConfigure();
 }
 
 // Nécessaire en plus pour la relève automatique de la boîte de réception.
@@ -143,7 +146,7 @@ export function signatureMail() {
 // une adresse liée à un agent individuel) et journalisée comme expéditeur des
 // mails envoyés. Un repli fixe garantit que la signature reste complète et
 // identique même en environnement local/de démo où MAIL_USER/MAIL_FROM ne
-// sont pas renseignés — la vraie configuration d'envoi (Brevo/SMTP) est
+// sont pas renseignés — la vraie configuration d'envoi (Resend/SMTP) est
 // vérifiée séparément par estEnvoiConfigure(), pas par cette valeur d'affichage.
 export function adresseMailPole() {
   return config().from || "contact@oeth-fiph.fr";
@@ -241,41 +244,43 @@ export async function verifierConnexionSMTP() {
   }
 }
 
-// Envoie via l'API HTTP Brevo (https://api.brevo.com). `fetch` est global
+// Envoie via l'API HTTP Resend (https://api.resend.com). `fetch` est global
 // depuis Node 18. Utilise AbortController pour appliquer le même timeout
 // court que le chemin SMTP (voir avecTimeout) plutôt que de compter
 // uniquement sur celui de `avecTimeout`, au cas où `fetch` lui-même ignore
 // le rejet de la promesse "course" et garde la requête réseau ouverte.
-async function envoyerViaBrevo({ to, subject, text, html, fromName, replyTo, attachments, entetes }) {
+// Le nom d'expéditeur affiché se pose dans `from` lui-même côté Resend
+// (pas de champ `sender.name` séparé comme chez Brevo) : "Nom <adresse>".
+async function envoyerViaResend({ to, subject, text, html, fromName, replyTo, attachments, entetes }) {
   const c = config();
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
   try {
-    reponse = await fetch(BREVO_API_URL, {
+    reponse = await fetch(RESEND_API_URL, {
       method: "POST",
       headers: {
-        "api-key": process.env.BREVO_API_KEY,
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
       body: JSON.stringify({
-        sender: { email: c.from, name: fromName || signatureMail() },
-        to: [{ email: to }],
-        replyTo: { email: replyTo || c.from },
+        from: `"${(fromName || signatureMail()).replace(/"/g, "'")}" <${c.from}>`,
+        to: [to],
+        reply_to: replyTo || c.from,
         subject,
-        textContent: text,
-        htmlContent: html,
+        text,
+        html,
         ...(entetes && Object.keys(entetes).length ? { headers: entetes } : {}),
         ...(attachments?.length
-          ? { attachment: attachments.map((a) => ({ content: a.content.toString("base64"), name: a.filename })) }
+          ? { attachments: attachments.map((a) => ({ content: a.content.toString("base64"), filename: a.filename })) }
           : {}),
       }),
       signal: controleur.signal,
     });
   } catch (e) {
     if (e.name === "AbortError") {
-      const erreur = new Error(`Délai d'appel à l'API Brevo dépassé (${TIMEOUT_MS}ms).`);
+      const erreur = new Error(`Délai d'appel à l'API Resend dépassé (${TIMEOUT_MS}ms).`);
       erreur.code = "TIMEOUT_MANUEL";
       throw erreur;
     }
@@ -285,13 +290,16 @@ async function envoyerViaBrevo({ to, subject, text, html, fromName, replyTo, att
   }
   const corps = await reponse.json().catch(() => ({}));
   if (!reponse.ok) {
-    const erreur = new Error(corps.message || `L'API Brevo a répondu ${reponse.status}.`);
-    erreur.code = corps.code || `HTTP_${reponse.status}`;
+    // Resend renvoie { statusCode, message, name } sur erreur — `name` est un
+    // code machine utile (ex: "validation_error", "missing_api_key",
+    // "restricted_api_key") qu'on garde à côté du message lisible.
+    const erreur = new Error(corps.message || `L'API Resend a répondu ${reponse.status}.`);
+    erreur.code = corps.name || `HTTP_${reponse.status}`;
     erreur.responseCode = reponse.status;
     erreur.response = JSON.stringify(corps);
     throw erreur;
   }
-  return { messageId: corps.messageId || null };
+  return { messageId: corps.id || null };
 }
 
 // Envoie un mail réel au nom de la boîte du pôle. `fromName` personnalise le
@@ -299,7 +307,7 @@ async function envoyerViaBrevo({ to, subject, text, html, fromName, replyTo, att
 // OETH / AGEFIPH" pour le privé) sans changer l'adresse réelle de la boîte.
 // `inReplyTo` (Message-ID du mail reçu) garde le fil de discussion dans le
 // client mail du destinataire — uniquement pris en compte par le chemin
-// SMTP (l'API Brevo transactionnelle ne gère pas l'en-tête In-Reply-To).
+// SMTP (l'API Resend transactionnelle ne gère pas l'en-tête In-Reply-To).
 // `replyTo` : adresse de réponse, par défaut la même boîte que l'envoi (la
 // boîte relevée par IMAP) — surchargeable via MAIL_REPLY_TO si les réponses
 // doivent atterrir ailleurs. `html` : alternative HTML explicite ; à défaut,
@@ -325,11 +333,11 @@ export async function envoyerMail({
   const contenuHtml = html || texteVersHtml(text);
   const entetesSupplementaires = listeDiffusion ? entetesDesinscription(c.from) : {};
 
-  if (estBrevoConfigure()) {
-    console.log(`[mail] Tentative d'envoi (API Brevo) à ${to} (expéditeur ${config().from})…`);
+  if (estResendConfigure()) {
+    console.log(`[mail] Tentative d'envoi (API Resend) à ${to} (expéditeur ${config().from})…`);
     try {
       const info = await avecTimeout(
-        envoyerViaBrevo({
+        envoyerViaResend({
           to,
           subject: sujetPropre,
           text,
@@ -340,25 +348,25 @@ export async function envoyerMail({
           entetes: entetesSupplementaires,
         }),
         TIMEOUT_MS + 2000,
-        `Délai d'envoi via l'API Brevo dépassé (${TIMEOUT_MS + 2000}ms).`
+        `Délai d'envoi via l'API Resend dépassé (${TIMEOUT_MS + 2000}ms).`
       );
-      // Brevo répond "OK" (2xx + messageId) dès que le mail est ACCEPTÉ pour
+      // Resend répond "OK" (2xx + id) dès que le mail est ACCEPTÉ pour
       // traitement — pas dès qu'il est réellement délivré en boîte. Un 2xx
       // ici n'exclut donc pas un blocage/spam en aval (SPF, filtre du
-      // destinataire...). Le messageId loggué permet de retrouver le statut
-      // réel de délivrance dans Brevo > Transactionnel > Journal des emails.
-      console.log(`[mail] Accepté par Brevo pour ${to} (messageId: ${info.messageId}) — vérifiez le statut de délivrance dans Brevo > Transactionnel > Journal des emails.`);
+      // destinataire...). L'id loggué permet de retrouver le statut réel de
+      // délivrance dans Resend > Emails.
+      console.log(`[mail] Accepté par Resend pour ${to} (messageId: ${info.messageId}) — vérifiez le statut de délivrance dans Resend > Emails.`);
       return info;
     } catch (e) {
       const detail = detailErreur(e);
-      console.error(`[mail] ÉCHEC Brevo vers ${to} :`, JSON.stringify(detail));
+      console.error(`[mail] ÉCHEC Resend vers ${to} :`, JSON.stringify(detail));
       throw e;
     }
   }
 
   if (!estSmtpConfigure()) {
     const erreur = new Error(
-      "Envoi de mail non configuré (renseignez BREVO_API_KEY, ou à défaut MAIL_SMTP_HOST/MAIL_HOST + MAIL_USER + MAIL_PASSWORD)."
+      "Envoi de mail non configuré (renseignez RESEND_API_KEY, ou à défaut MAIL_SMTP_HOST/MAIL_HOST + MAIL_USER + MAIL_PASSWORD)."
     );
     erreur.code = "MAIL_NON_CONFIGURE";
     throw erreur;

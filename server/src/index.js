@@ -15,7 +15,7 @@ import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
 import {
   estSmtpConfigure,
-  estBrevoConfigure,
+  estResendConfigure,
   estEnvoiConfigure,
   estImapConfigure,
   relaverBoiteMail,
@@ -325,7 +325,7 @@ app.post("/api/utilisateurs/:id/mot-de-passe", exigerAdmin, async (req, res) => 
 
 // Renvoie manuellement le lien de connexion (mail) à un compte déjà validé —
 // utile quand l'agent l'a perdu/pas reçu, sans attendre qu'il le redemande
-// lui-même depuis /connexion. Si l'envoi échoue (Brevo suspendu, quota...),
+// lui-même depuis /connexion. Si l'envoi échoue (Resend suspendu, quota...),
 // l'admin le voit ici et peut basculer sur le mot de passe temporaire
 // (POST /api/utilisateurs/:id/mot-de-passe) comme filet de secours.
 app.post("/api/utilisateurs/:id/renvoyer-lien", exigerAdmin, async (req, res) => {
@@ -1478,7 +1478,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   // désactivable ponctuellement par l'agent (ex: mail de confirmation de RDV
   // où la synthèse chiffrée n'a pas sa place).
   let piecesJointes = [];
-  let attachmentsBrevo;
+  let piecesJointesEnvoi;
   if (joindrePdf) {
     const pdf = await genererSynthesePdf({
       entreprise,
@@ -1486,7 +1486,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
     });
     const nomFichier = `synthese-oeth-${(entreprise.nom || "entreprise").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
-    attachmentsBrevo = [{ filename: nomFichier, content: pdf, contentType: "application/pdf" }];
+    piecesJointesEnvoi = [{ filename: nomFichier, content: pdf, contentType: "application/pdf" }];
     piecesJointes = [{ nom: nomFichier, taille: pdf.length }];
   }
 
@@ -1496,7 +1496,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       subject: objet,
       text: corps,
       fromName: nomExpediteur,
-      attachments: attachmentsBrevo,
+      attachments: piecesJointesEnvoi,
       // Mail de prospection vers une entreprise externe (pas un mail
       // transactionnel de compte) : ajoute l'en-tête List-Unsubscribe
       // attendu par Gmail/Yahoo pour ce type d'envoi (voir mail.js).
@@ -1792,10 +1792,10 @@ async function relevePeriodiqueBoiteMail() {
 
 // Envoi et réception (IMAP) sont vérifiés et activés indépendamment — voir
 // mail.js pour le détail des noms de variables acceptés. L'envoi via l'API
-// Brevo est prioritaire sur le SMTP direct : Render (et la plupart des PaaS)
+// Resend est prioritaire sur le SMTP direct : Render (et la plupart des PaaS)
 // bloque le trafic SMTP sortant au niveau réseau, quel que soit le plan.
-if (estBrevoConfigure()) {
-  console.log(`[mail] Envoi via l'API Brevo activé pour ${adresseMailPole()}.`);
+if (estResendConfigure()) {
+  console.log(`[mail] Envoi via l'API Resend activé pour ${adresseMailPole()}.`);
 } else if (estSmtpConfigure()) {
   // Vérifie immédiatement l'authentification SMTP au démarrage — le moyen le
   // plus rapide de voir dans les logs Render si le mot de passe OVH est
@@ -1810,13 +1810,13 @@ if (estBrevoConfigure()) {
       );
       console.error(
         "[mail] Si l'erreur est un ETIMEDOUT/ECONNREFUSED : l'hébergeur bloque le port SMTP en sortie " +
-          "(cas fréquent sur Render, même en payant) — configurez BREVO_API_KEY pour envoyer via API HTTP à la place."
+          "(cas fréquent sur Render, même en payant) — configurez RESEND_API_KEY pour envoyer via API HTTP à la place."
       );
     }
   });
 } else {
   console.log(
-    "[mail] Envoi non configuré (renseignez BREVO_API_KEY, ou à défaut MAIL_SMTP_HOST/MAIL_HOST + MAIL_USER + MAIL_PASSWORD) — lien magique et mails agents désactivés."
+    "[mail] Envoi non configuré (renseignez RESEND_API_KEY, ou à défaut MAIL_SMTP_HOST/MAIL_HOST + MAIL_USER + MAIL_PASSWORD) — lien magique et mails agents désactivés."
   );
 }
 
