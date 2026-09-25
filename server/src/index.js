@@ -9,7 +9,13 @@ import { nanoid } from "nanoid";
 import db, { initDb, CANAL_GENERAL_ID } from "./db.js";
 import { calculerObligationOeth } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur, CATEGORIES } from "./secteurs.js";
-import { estSirenValide, normaliserSiren, rechercherEntrepriseParSiren, rechercherEntreprisesParSecteur } from "./insee.js";
+import {
+  estSirenValide,
+  normaliserSiren,
+  rechercherEntrepriseParSiren,
+  rechercherEntreprisesParSecteur,
+  rechercherEntreprises,
+} from "./insee.js";
 import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
 import { getScriptVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
@@ -519,6 +525,88 @@ app.get("/api/vitrine", (req, res) => {
     },
     entreprises: entreprisesPubliques,
   });
+});
+
+// Simulateur public d'obligations OETH (module "Estimer vos obligations" de
+// la landing page) : un visiteur tape un nom d'entreprise ou un SIREN, on
+// interroge le répertoire Sirene (public, gratuit) et on calcule l'obligation
+// pour chaque résultat avec le même moteur que le CRM (calculerObligationOeth)
+// — mais en lecture seule : rien n'est créé/stocké, aucune donnée du CRM
+// n'est exposée ni consultée. Faute de connaître le nombre réel de
+// travailleurs handicapés déjà employés, le calcul suppose 0 (scénario
+// indicatif le plus défavorable, clairement annoncé côté client) : un agent
+// affine ensuite le vrai chiffre au téléphone.
+app.get("/api/vitrine/simulation", async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q || q.length < 2) {
+    return res.status(400).json({ error: "Indiquez un nom d'entreprise ou un SIREN (2 caractères minimum)." });
+  }
+
+  try {
+    const resultats = await rechercherEntreprises(q, { limite: 5 });
+    res.json({
+      resultats: resultats.map((r) => {
+        const oeth = calculerObligationOeth({
+          effectif: r.effectifEstime,
+          effectifBeneficiaire: 0,
+          dateCreation: r.dateCreation,
+        });
+        return {
+          siren: r.siren,
+          nom: r.nom,
+          ville: r.ville,
+          codePostal: r.codePostal,
+          secteurActivite: r.secteurActivite,
+          trancheEffectifLabel: r.trancheEffectifLabel,
+          actif: r.actif,
+          oeth,
+        };
+      }),
+    });
+  } catch (e) {
+    res.status(e.code === "INSEE_INDISPONIBLE" ? 502 : 500).json({ error: e.message });
+  }
+});
+
+// Prise de contact publique depuis la landing page (bouton "Contacter un
+// conseiller" du simulateur, ou tout autre formulaire de contact vitrine) :
+// envoie simplement un mail à la boîte du pôle déjà configurée (aucune
+// écriture en base, aucune création de lead automatique — un conseiller
+// qualifie ensuite manuellement, comme n'importe quelle demande entrante).
+app.post("/api/vitrine/contact", async (req, res) => {
+  const nom = String(req.body.nom || "").trim();
+  const email = String(req.body.email || "").trim();
+  const telephone = String(req.body.telephone || "").trim();
+  const entreprise = String(req.body.entreprise || "").trim();
+  const message = String(req.body.message || "").trim();
+
+  if (!nom || !email || !email.includes("@")) {
+    return res.status(400).json({ error: "Nom et adresse mail valide requis." });
+  }
+  if (!estEnvoiConfigure()) {
+    return res.status(503).json({
+      error: `Prise de contact indisponible pour le moment — écrivez-nous directement à ${adresseMailPole() || "l'adresse du pôle"}${telephonePole() ? ` ou au ${telephonePole()}` : ""}.`,
+    });
+  }
+
+  try {
+    await envoyerMail({
+      to: adresseMailPole(),
+      subject: `Nouvelle demande de contact — simulateur OETH (${entreprise || nom})`,
+      text:
+        `Nouvelle demande de contact via le simulateur OETH de la landing page publique.\n\n` +
+        `Nom : ${nom}\n` +
+        `Entreprise : ${entreprise || "-"}\n` +
+        `E-mail : ${email}\n` +
+        `Téléphone : ${telephone || "-"}\n\n` +
+        `Message :\n${message || "(aucun message)"}`,
+      replyTo: email,
+      fromName: "Simulateur OETH — landing page",
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
 });
 
 // Vue filtrée par rôle : un agent ne reçoit que ses dossiers assignés,

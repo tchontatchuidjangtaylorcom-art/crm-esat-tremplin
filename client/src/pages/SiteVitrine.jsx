@@ -6,6 +6,14 @@ import ToastActivite from "../components/vitrine/ToastActivite.jsx";
 import CompteurAnime from "../components/vitrine/CompteurAnime.jsx";
 import RevelerAuScroll from "../components/vitrine/RevelerAuScroll.jsx";
 import FondEtoile from "../components/vitrine/FondEtoile.jsx";
+import SimulateurOeth from "../components/vitrine/SimulateurOeth.jsx";
+
+const LIENS_NAV = [
+  { label: "Notre démarche", href: "#manifeste" },
+  { label: "Impact", href: "#impact" },
+  { label: "Ressources", href: "#ressources" },
+  { label: "Contact", href: "#contact" },
+];
 
 const RESSOURCES = [
   {
@@ -43,6 +51,7 @@ export default function SiteVitrine() {
   const [vitrine, setVitrine] = useState(null);
   const [contactPole, setContactPole] = useState(null);
   const [defile, setDefile] = useState(false);
+  const [simulateurOuvert, setSimulateurOuvert] = useState(false);
 
   useEffect(() => {
     api.getVitrine().then(setVitrine).catch(() => setVitrine({ statistiques: {}, entreprises: [] }));
@@ -73,25 +82,53 @@ export default function SiteVitrine() {
           defile ? "bg-white/90 dark:bg-slate-950/90 backdrop-blur border-b border-slate-200 dark:border-slate-800" : "bg-transparent"
         }`}
       >
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <p className={`text-sm font-semibold tracking-tight transition-colors ${defile ? "text-slate-900 dark:text-white" : "text-white"}`}>
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+          <p className={`text-sm font-semibold tracking-tight transition-colors shrink-0 ${defile ? "text-slate-900 dark:text-white" : "text-white"}`}>
             Pôle OETH <span className={defile ? "text-marine-500" : "text-white/50"}>/</span> AGEFIPH
           </p>
-          <Link
-            to="/connexion"
-            className={`flex items-center gap-2 rounded-full border text-xs font-medium px-4 py-2 transition ${
-              defile
-                ? "border-marine-800 dark:border-marine-300 text-marine-800 dark:text-marine-200 hover:bg-marine-800 hover:text-white dark:hover:bg-marine-300 dark:hover:text-marine-900"
-                : "border-white/25 text-white hover:bg-white hover:text-marine-900"
-            }`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-            </svg>
-            Portail sécurisé
-          </Link>
+
+          <nav className="hidden lg:flex items-center gap-7">
+            {LIENS_NAV.map((lien) => (
+              <a
+                key={lien.href}
+                href={lien.href}
+                className={`text-xs font-medium tracking-wide transition ${
+                  defile ? "text-slate-600 dark:text-slate-300 hover:text-marine-700 dark:hover:text-marine-300" : "text-white/80 hover:text-white"
+                }`}
+              >
+                {lien.label}
+              </a>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <Link
+              to="/connexion"
+              title="Portail sécurisé (agents)"
+              className={`hidden sm:flex items-center gap-1.5 text-xs font-medium transition ${
+                defile ? "text-slate-500 dark:text-slate-400 hover:text-marine-700 dark:hover:text-marine-300" : "text-white/60 hover:text-white"
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+              Portail sécurisé
+            </Link>
+            <button
+              onClick={() => setSimulateurOuvert(true)}
+              className={`rounded-full text-xs font-semibold px-5 py-2.5 transition ${
+                defile
+                  ? "bg-marine-800 text-white hover:bg-marine-900"
+                  : "bg-white text-marine-900 hover:bg-marine-100"
+              }`}
+            >
+              Estimer vos obligations
+            </button>
+          </div>
         </div>
       </header>
+
+      {simulateurOuvert && <SimulateurOeth onClose={() => setSimulateurOuvert(false)} />}
 
       {/* Hero — univers étoilé, plein écran. */}
       <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-marine-950 via-marine-900 to-marine-950">
@@ -133,12 +170,12 @@ export default function SiteVitrine() {
           </RevelerAuScroll>
           <RevelerAuScroll delai={400}>
             <div className="flex flex-wrap items-center justify-center gap-4 mt-10">
-              <Link
-                to="/connexion"
+              <button
+                onClick={() => setSimulateurOuvert(true)}
                 className="rounded-full bg-white text-marine-900 text-sm font-semibold px-7 py-3.5 hover:bg-marine-100 transition"
               >
-                Accéder au portail sécurisé
-              </Link>
+                Estimer vos obligations
+              </button>
               <a
                 href="#manifeste"
                 className="rounded-full border border-white/25 text-white text-sm font-semibold px-7 py-3.5 hover:bg-white/10 transition"
@@ -202,7 +239,7 @@ export default function SiteVitrine() {
       </section>
 
       {/* Compteurs animés — données réelles. */}
-      <section className="py-24 sm:py-28 border-b border-slate-100 dark:border-slate-800">
+      <section id="impact" className="py-24 sm:py-28 border-b border-slate-100 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-6">
           <RevelerAuScroll>
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white text-center mb-16">
@@ -292,8 +329,8 @@ export default function SiteVitrine() {
         </div>
       </section>
 
-      {/* Pied de page */}
-      <footer className="border-t border-slate-200 dark:border-slate-800 py-10">
+      {/* Pied de page / contact */}
+      <footer id="contact" className="border-t border-slate-200 dark:border-slate-800 py-10">
         <div className="max-w-6xl mx-auto px-6 text-center text-sm text-slate-500 dark:text-slate-400 space-y-1">
           <p className="font-semibold text-slate-700 dark:text-slate-200">Pôle OETH / AGEFIPH</p>
           {contactPole?.adressePostale && <p>{contactPole.adressePostale}</p>}
@@ -302,7 +339,13 @@ export default function SiteVitrine() {
             {contactPole?.adresse && contactPole?.telephone && <span> · </span>}
             {contactPole?.telephone && <span>{contactPole.telephone}</span>}
           </p>
-          <p className="text-xs text-slate-400 dark:text-slate-600 pt-2">
+          <button
+            onClick={() => setSimulateurOuvert(true)}
+            className="inline-block mt-3 rounded-full bg-marine-800 hover:bg-marine-900 text-white text-xs font-semibold px-5 py-2.5 transition"
+          >
+            Estimer vos obligations / contacter un conseiller
+          </button>
+          <p className="text-xs text-slate-400 dark:text-slate-600 pt-4">
             Les statistiques affichées sont calculées à partir du portefeuille d'entreprises accompagnées par le pôle et
             mises à jour en continu ; les montants sont des estimations.
           </p>

@@ -224,7 +224,34 @@ function normaliserResultat(r) {
     secteurPublic,
     actif,
     dateFermeture: r.date_fermeture || null,
+    dateCreation: r.date_creation || null,
   };
+}
+
+// Recherche multi-résultats en texte libre (nom OU SIREN/SIRET — le paramètre
+// `q` de l'API publique gère les deux sans distinction côté appelant) : sert
+// le simulateur d'obligations OETH de la landing page publique, où un
+// visiteur ne connaît pas forcément le SIREN exact de son entreprise. Lecture
+// seule, jamais de création de lead ni d'écriture en base (contrairement à
+// creerLeadDepuisSiren côté CRM, réservé aux agents authentifiés).
+export async function rechercherEntreprises(requete, { limite = 5 } = {}) {
+  const q = String(requete || "").trim();
+  if (!q) return [];
+
+  const params = new URLSearchParams({ q, page: "1", per_page: String(Math.min(limite, 25)) });
+  const reponse = await fetchAvecRetry(`${BASE_URL}?${params.toString()}`);
+  if (!reponse.ok) {
+    const erreur = new Error(
+      reponse.status === 429
+        ? "L'API publique Sirene (INSEE) est momentanément saturée — réessayez dans quelques instants."
+        : `L'API Sirene a répondu une erreur (HTTP ${reponse.status}).`
+    );
+    erreur.code = "INSEE_INDISPONIBLE";
+    throw erreur;
+  }
+
+  const donnees = await reponse.json();
+  return (donnees.results || []).filter((r) => r.nom_complet).map(normaliserResultat);
 }
 
 // Interroge l'API publique "Recherche d'entreprises" et normalise la réponse

@@ -145,6 +145,15 @@ export const api = {
   // Public, sans authentification (landing page /vitrine).
   getVitrine: () => fetch(`${BASE}/vitrine`).then(handle),
 
+  simulerObligationsOeth: (q) => fetch(`${BASE}/vitrine/simulation?q=${encodeURIComponent(q)}`).then(handle),
+
+  contacterConseillerVitrine: ({ nom, email, telephone, entreprise, message }) =>
+    fetch(`${BASE}/vitrine/contact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nom, email, telephone, entreprise, message }),
+    }).then(handle),
+
   getStatutMail: () => fetch(`${BASE}/emails/statut`).then(handle),
 
   getEmailsNonLus: () => fetch(`${BASE}/emails/non-lus`).then(handle),
