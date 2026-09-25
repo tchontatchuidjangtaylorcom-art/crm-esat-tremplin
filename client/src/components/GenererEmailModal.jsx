@@ -4,20 +4,28 @@ import { diffuserEntrepriseMaj } from "../telephony/CallContext.jsx";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { construireSignature } from "../mailSignature.js";
 
-// Rédaction IA ciblée depuis le tableau principal — pour une fiche qui n'a
-// encore aucune adresse mail connue (le cas visé par le bouton "Générer un
-// e-mail" sous le numéro de téléphone) : contrairement à MessagerieMail.jsx
-// (fil complet, sur la fiche détaillée), cette modale n'a qu'un but, générer
-// puis envoyer un brouillon en un minimum de gestes sans quitter le tableau.
-// La génération se lance automatiquement à l'ouverture (pas de clic
-// supplémentaire) ; l'agent complète juste le destinataire qu'il vient de
-// trouver, relit, et envoie — ou ajuste avant.
-export default function GenererEmailModal({ entreprise, onFermer }) {
-  const [destinataire, setDestinataire] = useState(entreprise.contact?.email || "");
+// Interface d'envoi d'e-mail ciblée depuis le tableau principal — deux
+// entrées distinctes selon que la fiche a déjà une adresse connue ou non
+// (voir EntrepriseTable.jsx) :
+//  - `autoGenerer=true` (aucune adresse connue, bouton "Générer un e-mail"
+//    sous le numéro) : un brouillon IA se génère automatiquement à
+//    l'ouverture, l'agent complète juste le destinataire qu'il vient de
+//    trouver, relit, et envoie.
+//  - `autoGenerer=false` (adresse déjà connue, clic sur l'e-mail affiché) :
+//    ouvre directement le compositeur, destinataire déjà pré-rempli — pas de
+//    génération imposée, un bouton dédié permet d'en demander une si l'agent
+//    le souhaite.
+// Contrairement à MessagerieMail.jsx (fil complet, sur la fiche détaillée),
+// cette modale n'a qu'un but : envoyer un e-mail en un minimum de gestes
+// sans quitter le tableau.
+export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = true }) {
+  const [destinataire, setDestinataire] = useState(
+    entreprise.contact?.email || entreprise.contact?.emailsAlternatifs?.[0]?.email || ""
+  );
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
   const [statutMail, setStatutMail] = useState(null);
-  const [generationEnCours, setGenerationEnCours] = useState(true);
+  const [generationEnCours, setGenerationEnCours] = useState(autoGenerer);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
 
@@ -27,6 +35,7 @@ export default function GenererEmailModal({ entreprise, onFermer }) {
       .getStatutMail()
       .then((s) => !annule && setStatutMail(s))
       .catch(() => {});
+    if (!autoGenerer) return () => {};
     api
       .genererEmailIA(entreprise.id)
       .then((resultat) => {
@@ -41,6 +50,22 @@ export default function GenererEmailModal({ entreprise, onFermer }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entreprise.id]);
+
+  // Génération IA à la demande (mode `autoGenerer=false`) — même appel que
+  // ci-dessus, déclenché par un clic plutôt qu'à l'ouverture.
+  async function genererAvecIA() {
+    setGenerationEnCours(true);
+    setErreur(null);
+    try {
+      const resultat = await api.genererEmailIA(entreprise.id);
+      setObjet(resultat.objet);
+      setCorps(resultat.corps);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setGenerationEnCours(false);
+    }
+  }
 
   // La signature n'est injectée qu'une fois le statut mail connu (elle en
   // dépend) — remplace le jeton une seule fois, dès qu'il arrive.
@@ -83,7 +108,7 @@ export default function GenererEmailModal({ entreprise, onFermer }) {
       >
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-slate-800 dark:text-slate-100">
-            ✨ Générer un e-mail — {entreprise.nom}
+            {autoGenerer ? "✨ Générer un e-mail" : "✉️ Envoyer un e-mail"} — {entreprise.nom}
           </h3>
           <button
             onClick={onFermer}
@@ -96,7 +121,7 @@ export default function GenererEmailModal({ entreprise, onFermer }) {
 
         {statutMail && !statutMail.configuree && (
           <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
-            Boîte mail non connectée côté serveur — la génération fonctionne, mais l'envoi sera indisponible.
+            Boîte mail non connectée côté serveur — {autoGenerer ? "la génération fonctionne, mais l'envoi sera indisponible." : "l'envoi sera indisponible."}
           </p>
         )}
 
@@ -111,17 +136,27 @@ export default function GenererEmailModal({ entreprise, onFermer }) {
         {!generationEnCours && (
           <form onSubmit={envoyer} className="space-y-3">
             <label className="block text-xs text-slate-500 dark:text-slate-400">
-              Destinataire (aucune adresse connue pour cette fiche)
+              {autoGenerer ? "Destinataire (aucune adresse connue pour cette fiche)" : "Destinataire"}
               <input
                 type="email"
                 required
-                autoFocus
+                autoFocus={autoGenerer}
                 placeholder="contact@entreprise.fr"
                 value={destinataire}
                 onChange={(e) => setDestinataire(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
               />
             </label>
+
+            {!autoGenerer && !objet.trim() && !corps.trim() && (
+              <button
+                type="button"
+                onClick={genererAvecIA}
+                className="text-xs font-medium text-marine-700 dark:text-marine-300 hover:underline"
+              >
+                ✨ Générer un brouillon avec l'IA
+              </button>
+            )}
 
             <label className="block text-xs text-slate-500 dark:text-slate-400">
               Objet

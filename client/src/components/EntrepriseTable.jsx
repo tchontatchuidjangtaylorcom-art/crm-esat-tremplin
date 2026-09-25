@@ -15,6 +15,13 @@ function sansEmailConnu(entreprise) {
   return !entreprise.contact?.email && !(entreprise.contact?.emailsAlternatifs?.length > 0);
 }
 
+// Adresse à afficher/utiliser comme destinataire : la principale si elle
+// existe, sinon la première alternative connue (ex : trouvée par l'IA mais
+// pas encore promue principale).
+function adresseEmailConnue(entreprise) {
+  return entreprise.contact?.email || entreprise.contact?.emailsAlternatifs?.[0]?.email || null;
+}
+
 function OethCell({ oeth }) {
   if (!oeth?.assujetti) {
     return <span className="text-xs text-slate-400 italic">Non assujetti (&lt; 20 sal.)</span>;
@@ -226,14 +233,27 @@ export default function EntrepriseTable({
                 </td>
                 <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
                   {e.contact?.nom && e.contact.nom !== "-" && <span className="block">{e.contact.nom}</span>}
+                  {/* Numéro et e-mail sont deux actions dissociées : l'un ne
+                      déclenche jamais l'autre — cliquer le numéro appelle
+                      (BoutonAppel), cliquer l'e-mail ouvre uniquement
+                      l'interface d'envoi (GenererEmailModal), jamais le
+                      téléphone. */}
                   <BoutonAppel entreprise={e} variant="lien" />
-                  {sansEmailConnu(e) && (
+                  {sansEmailConnu(e) ? (
                     <button
                       onClick={() => setEmailOuvertPour(e)}
                       title="Aucune adresse mail connue — générer un e-mail avec l'IA"
                       className="block mt-1 text-[11px] font-medium text-marine-700 dark:text-marine-300 hover:underline whitespace-nowrap"
                     >
                       ✨ Générer un e-mail
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setEmailOuvertPour(e)}
+                      title={`Envoyer un e-mail à ${adresseEmailConnue(e)}`}
+                      className="block mt-1 text-[11px] text-blue-600 dark:text-blue-400 hover:underline truncate max-w-[160px]"
+                    >
+                      {adresseEmailConnue(e)}
                     </button>
                   )}
                 </td>
@@ -287,7 +307,11 @@ export default function EntrepriseTable({
         />
       )}
       {emailOuvertPour && (
-        <GenererEmailModal entreprise={emailOuvertPour} onFermer={() => setEmailOuvertPour(null)} />
+        <GenererEmailModal
+          entreprise={emailOuvertPour}
+          onFermer={() => setEmailOuvertPour(null)}
+          autoGenerer={sansEmailConnu(emailOuvertPour)}
+        />
       )}
     </div>
   );
