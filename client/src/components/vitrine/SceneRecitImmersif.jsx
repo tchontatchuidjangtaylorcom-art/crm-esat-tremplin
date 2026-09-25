@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 // une équipe, une organisation) — plutôt qu'une illustration figurative
 // (poste de travail, rampe d'accès...) qui demanderait un vrai travail
 // d'illustrateur pour ne pas sonner faux. Piloté par `progression` (0→1,
-// fourni par useProgressionScroll) : la teinte et l'intensité des connexions
+// fourni par le ScrollTrigger de RecitImmersif.jsx) : la teinte et l'intensité des connexions
 // évoluent en 3 phases pour accompagner les 3 étapes du texte, sans jamais
 // dépendre du texte pour rester lisible seule. Canvas léger (pas de
 // dépendance 3D ajoutée), respecte prefers-reduced-motion.
