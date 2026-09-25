@@ -15,6 +15,41 @@ const LIENS_NAV = [
   { label: "Contact", href: "#contact" },
 ];
 
+// Chiffres NATIONAUX (pas le portefeuille propre du pôle, voir la section
+// "Notre impact" juste au-dessus, alimentée par /api/vitrine) — sourcés
+// auprès de publications officielles DARES/Agefiph/France Travail, jamais
+// inventés ni extrapolés à partir du CRM. Choix fait explicitement avec
+// l'utilisateur : afficher "10 000+ entreprises accompagnées" aurait été une
+// fausse allégation pour une structure régionale comme ce pôle — le contexte
+// national réel reste percutant sans mentir sur l'échelle du pôle lui-même.
+const STATS_NATIONALES = [
+  {
+    valeur: 111300,
+    label: "Entreprises assujetties à l'obligation légale OETH en France",
+    ton: "neutre",
+  },
+  {
+    valeur: 720800,
+    label: "Travailleurs handicapés déjà en emploi dans ces entreprises assujetties",
+    ton: "neutre",
+  },
+  {
+    valeur: 512598,
+    suffixe: "",
+    label: "Candidats en situation de handicap en recherche active d'emploi en France",
+    ton: "opportunite",
+  },
+  {
+    valeur: 600,
+    suffixe: " M€",
+    label: "Versés chaque année en contribution par les entreprises qui n'atteignent pas leur quota — au lieu d'investir dans le recrutement direct",
+    ton: "alerte",
+  },
+];
+
+const SOURCES_STATS_NATIONALES =
+  "Sources : DARES, « L'obligation d'emploi des travailleurs handicapés en 2024 » ; Agefiph, tableau de bord « Emploi et chômage des personnes handicapées » 2024 ; France Travail, « Les demandeurs d'emploi bénéficiaires d'une reconnaissance de handicap en 2024 ». Chiffres nationaux, distincts du portefeuille propre du pôle.";
+
 const RESSOURCES = [
   {
     nom: "Agefiph",
@@ -136,12 +171,12 @@ export default function SiteVitrine() {
         </div>
       )}
 
-      {/* Compteurs animés — données réelles. */}
+      {/* Compteurs animés — données réelles du portefeuille de CE pôle. */}
       <section id="impact" className="py-24 sm:py-28 border-b border-slate-100 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-6">
           <RevelerAuScroll>
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white text-center mb-16">
-              L'impact, en chiffres réels
+              Notre impact, en chiffres réels
             </h2>
           </RevelerAuScroll>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-10 text-center">
@@ -166,6 +201,70 @@ export default function SiteVitrine() {
               </p>
             </RevelerAuScroll>
           </div>
+          <p className="text-xs text-slate-400 dark:text-slate-600 text-center mt-10">
+            Portefeuille d'entreprises directement accompagnées par ce pôle — mis à jour en continu.
+          </p>
+        </div>
+      </section>
+
+      {/* Contexte national — chiffres NATIONAUX sourcés (DARES/Agefiph/France
+          Travail), volontairement distincts et clairement étiquetés comme
+          tels : jamais présentés comme le portefeuille du pôle lui-même. */}
+      <section className="bg-marine-950 text-white py-24 sm:py-28">
+        <div className="max-w-6xl mx-auto px-6">
+          <RevelerAuScroll>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-marine-400 mb-3 text-center">
+              Le contexte national
+            </p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-16">Pourquoi agir maintenant</h2>
+          </RevelerAuScroll>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {STATS_NATIONALES.map((s, i) => (
+              <RevelerAuScroll key={s.label} delai={i * 100}>
+                <div
+                  className={`h-full rounded-2xl border p-6 ${
+                    s.ton === "alerte"
+                      ? "border-amber-400/40 bg-amber-500/10"
+                      : s.ton === "opportunite"
+                        ? "border-emerald-400/30 bg-emerald-500/10"
+                        : "border-marine-700 bg-marine-900/60"
+                  }`}
+                >
+                  <p
+                    className={`text-3xl sm:text-4xl font-bold tracking-tight ${
+                      s.ton === "alerte" ? "text-amber-300" : s.ton === "opportunite" ? "text-emerald-300" : "text-white"
+                    }`}
+                  >
+                    <CompteurAnime valeur={s.valeur} suffixe={s.suffixe || ""} />
+                  </p>
+                  <p className="text-sm text-marine-200/90 mt-3 leading-snug">{s.label}</p>
+                </div>
+              </RevelerAuScroll>
+            ))}
+          </div>
+
+          <RevelerAuScroll delai={400}>
+            <div className="mt-10 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-6 py-6 sm:px-8 sm:py-7 flex flex-wrap items-center justify-between gap-5">
+              <p className="text-sm sm:text-base text-amber-100 max-w-2xl">
+                <strong className="text-amber-300">Ce que vous perdez : </strong>
+                65 % des entreprises assujetties ne remplissent pas encore pleinement leur obligation légale de 6 %,
+                dont 28 % n'emploient aucun travailleur handicapé — chacune verse une contribution qui aurait pu
+                financer un recrutement direct.
+              </p>
+              <button
+                onClick={() => setSimulateurOuvert(true)}
+                className="shrink-0 rounded-full bg-amber-400 hover:bg-amber-300 text-marine-950 text-sm font-semibold px-6 py-3 transition"
+              >
+                Estimer vos obligations
+              </button>
+            </div>
+          </RevelerAuScroll>
+
+          <RevelerAuScroll delai={500}>
+            <p className="text-[11px] text-marine-400/60 text-center mt-8 max-w-3xl mx-auto leading-relaxed">
+              {SOURCES_STATS_NATIONALES}
+            </p>
+          </RevelerAuScroll>
         </div>
       </section>
 
