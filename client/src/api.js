@@ -194,11 +194,19 @@ export const api = {
 
   listUtilisateurs: () => fetch(`${BASE}/utilisateurs`).then(handle),
 
-  creerUtilisateur: ({ email, prenom, nom, role, motDePasse }) =>
+  creerUtilisateur: ({ email, prenom, nom, telephone, siret, role, motDePasse }) =>
     fetch(`${BASE}/utilisateurs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, prenom: prenom || "", nom: nom || "", role: role || "agent", motDePasse: motDePasse || "" }),
+      body: JSON.stringify({
+        email,
+        prenom: prenom || "",
+        nom: nom || "",
+        telephone: telephone || "",
+        siret: siret || "",
+        role: role || "agent",
+        motDePasse: motDePasse || "",
+      }),
     }).then(handle),
 
   definirMotDePasse: (id, motDePasse) =>

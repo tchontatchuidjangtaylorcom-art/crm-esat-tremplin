@@ -285,25 +285,62 @@ app.get("/api/utilisateurs", exigerAdmin, (req, res) => {
   res.json(db.data.utilisateurs.map(sansMotDePasse));
 });
 
+// Retrouve l'entreprise déjà suivie dans le CRM (active ou archivée) dont le
+// SIRET correspond — utilisé pour lier un nouveau compte à son "entreprise
+// partenaire OETH" à la création (voir /api/utilisateurs ci-dessous). Repli
+// sur le SIREN (les 9 premiers chiffres) si le SIRET exact ne matche pas
+// (l'admin a pu saisir un autre établissement de la même entreprise, ou le
+// SIREN seul) : mieux vaut une entreprise correctement identifiée qu'aucune.
+function trouverEntrepriseParSiret(siretBrut) {
+  const chiffres = String(siretBrut || "").replace(/\D/g, "");
+  if (!chiffres) return null;
+  const toutes = [...db.data.entreprises, ...db.data.archives];
+  return (
+    toutes.find((e) => e.siret === chiffres) ||
+    toutes.find((e) => e.siret && e.siret.slice(0, 9) === chiffres.slice(0, 9)) ||
+    null
+  );
+}
+
 // Création directe d'un accès agent par l'admin (voir creerUtilisateurParAdmin
 // dans auth.js) : contrairement à /valider ci-dessous qui traite une demande
 // déjà déposée par l'agent, ici il n'y a pas encore de demande — l'admin
-// crée le compte à l'avance, déjà validé, à partir du seul email. Un mot de
-// passe optionnel peut être défini dès la création (motDePasse) — sinon le
-// compte reste accessible uniquement par lien magique, comme avant.
+// crée le compte à l'avance, déjà validé, à partir des champs du formulaire
+// "Gestion des accès" (nom/prénom/email obligatoires, téléphone/SIRET
+// optionnels). Un mot de passe optionnel peut être défini dès la création
+// (motDePasse) — sinon le compte reste accessible uniquement par lien
+// magique, comme avant.
 app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
   try {
+    const siretSaisi = String(req.body.siret || "").trim();
+    const entrepriseLiee = siretSaisi ? trouverEntrepriseParSiret(siretSaisi) : null;
+
     const { utilisateur, mailEnvoye } = await creerUtilisateurParAdmin(req.body.email, {
       prenom: String(req.body.prenom || "").trim(),
       nom: String(req.body.nom || "").trim(),
+      telephone: String(req.body.telephone || "").trim(),
+      siret: siretSaisi,
+      entrepriseLieeId: entrepriseLiee?.id || null,
       role: req.body.role === "admin" ? "admin" : "agent",
       appUrl: APP_URL,
       motDePasse: req.body.motDePasse ? String(req.body.motDePasse) : null,
     });
-    res.status(201).json({ utilisateur: sansMotDePasse(utilisateur), mailEnvoye });
+    res.status(201).json({
+      utilisateur: sansMotDePasse(utilisateur),
+      mailEnvoye,
+      entrepriseLieeNom: entrepriseLiee?.nom || null,
+      siretSansCorrespondance: Boolean(siretSaisi && !entrepriseLiee),
+    });
   } catch (e) {
     const statutHttp =
-      e.code === "EMAIL_INVALIDE" || e.code === "MOT_DE_PASSE_TROP_COURT" ? 400 : e.code === "COMPTE_EXISTANT" ? 409 : 500;
+      e.code === "EMAIL_INVALIDE" ||
+      e.code === "PRENOM_REQUIS" ||
+      e.code === "NOM_REQUIS" ||
+      e.code === "MOT_DE_PASSE_TROP_COURT"
+        ? 400
+        : e.code === "COMPTE_EXISTANT"
+        ? 409
+        : 500;
     res.status(statutHttp).json({ error: e.message });
   }
 });

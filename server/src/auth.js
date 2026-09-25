@@ -90,11 +90,28 @@ export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" }
 // "demander un lien", et qui crée un compte "en_attente" à valider), ici
 // c'est l'admin qui anticipe l'accès — le compte est donc créé directement
 // "valide", l'agent n'a plus qu'à se connecter avec cette adresse.
-export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", role = "agent", appUrl, motDePasse } = {}) {
+// `telephone`/`siret` sont de simples métadonnées optionnelles (le SIRET,
+// s'il correspond à une entreprise déjà suivie dans le CRM, est résolu côté
+// index.js en `entrepriseLieeId` avant d'arriver ici — cette fonction se
+// contente de les persister telles quelles, sans logique de recherche).
+export async function creerUtilisateurParAdmin(
+  email,
+  { prenom = "", nom = "", role = "agent", appUrl, motDePasse, telephone = "", siret = "", entrepriseLieeId = null } = {}
+) {
   const propre = normaliserEmail(email);
   if (!propre || !propre.includes("@")) {
     const erreur = new Error("Adresse mail invalide.");
     erreur.code = "EMAIL_INVALIDE";
+    throw erreur;
+  }
+  if (!prenom.trim()) {
+    const erreur = new Error("Le prénom est requis.");
+    erreur.code = "PRENOM_REQUIS";
+    throw erreur;
+  }
+  if (!nom.trim()) {
+    const erreur = new Error("Le nom est requis.");
+    erreur.code = "NOM_REQUIS";
     throw erreur;
   }
 
@@ -120,8 +137,11 @@ export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", r
   const utilisateur = {
     id: nanoid(),
     email: propre,
-    prenom,
-    nom,
+    prenom: prenom.trim(),
+    nom: nom.trim(),
+    telephone: telephone.trim() || null,
+    siret: siret.trim() || null,
+    entrepriseLieeId: entrepriseLieeId || null,
     role: role === "admin" ? "admin" : "agent",
     statut: "valide",
     motDePasseHash,
@@ -145,7 +165,7 @@ export async function creerUtilisateurParAdmin(email, { prenom = "", nom = "", r
         to: utilisateur.email,
         subject: "Votre accès au CRM OETH/AGEFIPH est prêt",
         text:
-          `Bonjour,\n\nUn accès au CRM OETH/AGEFIPH vient d'être créé pour vous.\n\n` +
+          `Bonjour ${utilisateur.prenom},\n\nUn accès au CRM OETH/AGEFIPH vient d'être créé pour vous.\n\n` +
           `Pour vous connecter, rendez-vous sur ${appUrl} et indiquez cette adresse mail : ` +
           `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.` +
           (motDePasseHash

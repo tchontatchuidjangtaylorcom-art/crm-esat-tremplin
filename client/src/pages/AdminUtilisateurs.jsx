@@ -37,6 +37,9 @@ export default function AdminUtilisateurs() {
 
   const [email, setEmail] = useState("");
   const [prenom, setPrenom] = useState("");
+  const [nom, setNom] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [siret, setSiret] = useState("");
   const [role, setRole] = useState("agent");
   const [motDePasse, setMotDePasse] = useState("");
   const [creation, setCreation] = useState(false);
@@ -71,24 +74,33 @@ export default function AdminUtilisateurs() {
 
   async function creerAcces(ev) {
     ev.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || !prenom.trim() || !nom.trim()) return;
     setCreation(true);
     setErreurCreation(null);
     setConfirmationCreation(null);
     try {
-      const { utilisateur, mailEnvoye } = await api.creerUtilisateur({
+      const { utilisateur, mailEnvoye, entrepriseLieeNom, siretSansCorrespondance } = await api.creerUtilisateur({
         email: email.trim(),
         prenom: prenom.trim(),
+        nom: nom.trim(),
+        telephone: telephone.trim(),
+        siret: siret.trim(),
         role,
         motDePasse: motDePasse.trim(),
       });
-      setConfirmationCreation(
+      const morceaux = [
         mailEnvoye
           ? `Accès créé pour ${utilisateur.email} — un mail avec les instructions de connexion lui a été envoyé.`
-          : `Accès créé pour ${utilisateur.email}. Envoi automatique du mail indisponible : communiquez-lui l'adresse du CRM pour qu'il se connecte.`
-      );
+          : `Accès créé pour ${utilisateur.email}. Envoi automatique du mail indisponible : communiquez-lui l'adresse du CRM pour qu'il se connecte.`,
+      ];
+      if (entrepriseLieeNom) morceaux.push(`Lié à l'entreprise « ${entrepriseLieeNom} » (SIRET reconnu).`);
+      else if (siretSansCorrespondance) morceaux.push("SIRET enregistré, mais aucune entreprise correspondante trouvée dans le CRM.");
+      setConfirmationCreation(morceaux.join(" "));
       setEmail("");
       setPrenom("");
+      setNom("");
+      setTelephone("");
+      setSiret("");
       setRole("agent");
       setMotDePasse("");
       charger();
@@ -210,15 +222,37 @@ export default function AdminUtilisateurs() {
         onSubmit={creerAcces}
         className="mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-4 space-y-3"
       >
-        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">+ Créer un accès agent</h2>
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">+ Ajouter un client / Créer un profil</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Le compte est créé directement validé — l'agent pourra se connecter avec cette adresse, par lien de
-          connexion par mail, ou directement par mot de passe si vous en définissez un ci-dessous. Limité aux
-          dossiers qui lui seront assignés.
+          Le compte est créé directement validé — la personne pourra se connecter avec cette adresse, par lien de
+          connexion par mail (indispensable, voir l'e-mail obligatoire ci-dessous), ou directement par mot de passe si
+          vous en définissez un. Limité aux dossiers qui lui seront assignés.
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <label className="block text-xs text-slate-500 dark:text-slate-400">
-            E-mail de l'agent
+            Prénom
+            <input
+              type="text"
+              required
+              placeholder="Jean"
+              value={prenom}
+              onChange={(e) => setPrenom(e.target.value)}
+              className="mt-1 w-36 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            Nom
+            <input
+              type="text"
+              required
+              placeholder="Dupont"
+              value={nom}
+              onChange={(e) => setNom(e.target.value)}
+              className="mt-1 w-36 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            E-mail
             <input
               type="email"
               required
@@ -229,12 +263,24 @@ export default function AdminUtilisateurs() {
             />
           </label>
           <label className="block text-xs text-slate-500 dark:text-slate-400">
-            Prénom (optionnel)
+            Téléphone (optionnel)
+            <input
+              type="tel"
+              placeholder="06 12 34 56 78"
+              value={telephone}
+              onChange={(e) => setTelephone(e.target.value)}
+              className="mt-1 w-40 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            SIRET (optionnel)
             <input
               type="text"
-              value={prenom}
-              onChange={(e) => setPrenom(e.target.value)}
-              className="mt-1 w-40 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+              placeholder="Entreprise partenaire OETH"
+              title="Si ce SIRET correspond à une entreprise déjà suivie dans le CRM, le compte y sera automatiquement lié."
+              value={siret}
+              onChange={(e) => setSiret(e.target.value)}
+              className="mt-1 w-48 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
             />
           </label>
           <label className="block text-xs text-slate-500 dark:text-slate-400">
@@ -261,10 +307,16 @@ export default function AdminUtilisateurs() {
           </label>
           <button
             type="submit"
-            disabled={creation || !email.trim() || (motDePasse.trim().length > 0 && motDePasse.trim().length < 8)}
+            disabled={
+              creation ||
+              !email.trim() ||
+              !prenom.trim() ||
+              !nom.trim() ||
+              (motDePasse.trim().length > 0 && motDePasse.trim().length < 8)
+            }
             className="rounded-lg bg-marine-800 hover:bg-marine-900 dark:bg-marine-200 dark:hover:bg-marine-300 text-white dark:text-marine-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
-            {creation ? "Création…" : "Créer l'accès"}
+            {creation ? "Création…" : "Créer le profil"}
           </button>
         </div>
         {motDePasse.trim().length > 0 && motDePasse.trim().length < 8 && (
@@ -297,6 +349,21 @@ export default function AdminUtilisateurs() {
                     <td className="px-4 py-3 text-slate-800 dark:text-slate-100">{u.email}</td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {[u.prenom, u.nom].filter(Boolean).join(" ") || "-"}
+                      {(u.telephone || u.siret) && (
+                        <span className="block text-[11px] text-slate-400 dark:text-slate-500">
+                          {[u.telephone, u.siret ? `SIRET ${u.siret}` : null].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                      {u.entrepriseLieeId && (
+                        <a
+                          href={`/entreprise/${u.entrepriseLieeId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-[11px] text-marine-700 dark:text-marine-300 hover:underline"
+                        >
+                          🔗 Entreprise liée
+                        </a>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{u.role}</td>
                     <td className="px-4 py-3">
