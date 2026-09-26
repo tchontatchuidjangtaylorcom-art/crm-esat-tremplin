@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api.js";
-import CercleProgression from "./CercleProgression.jsx";
 import AideModale, { InfoBouton } from "./AideModale.jsx";
 
 const ANNEE_REFERENCE = 2026;
@@ -37,43 +36,35 @@ function lireEntrepriseMemorisee() {
   }
 }
 
+function memoriserEntreprise(nom) {
+  try {
+    if (nom.trim()) localStorage.setItem(CLE_ENTREPRISE, nom.trim());
+    else localStorage.removeItem(CLE_ENTREPRISE);
+  } catch {
+    // stockage indisponible : le nom reste utilisé pour cette visite
+  }
+}
+
 // Lecture qualitative du taux d'emploi direct par rapport à l'objectif de 6 %.
 function lectureTaux(s) {
-  if (s.conforme) {
-    return {
-      position: "Objectif atteint",
-      message: "Votre quota légal est atteint : aucune contribution n'est due. Maintenez cet engagement dans la durée.",
-    };
-  }
-  if (s.tauxEmploi < 2) {
-    return {
-      position: "Moins de 2 %",
-      message:
-        "Votre taux est très éloigné de l'objectif légal. Le sujet doit être traité comme une priorité de structuration RH, pas uniquement comme une déclaration annuelle.",
-    };
-  }
-  if (s.tauxEmploi < 4) {
-    return {
-      position: "Entre 2 et 4 %",
-      message:
-        "La démarche est engagée mais l'écart reste significatif : un plan d'actions ciblé réduirait nettement votre contribution.",
-    };
-  }
-  return {
-    position: "Entre 4 et 6 %",
-    message: "Vous êtes proche de l'objectif : quelques actions ciblées peuvent suffire à l'atteindre.",
-  };
+  if (s.conforme) return "Quota légal atteint : aucune contribution n'est due. Maintenez cet engagement dans la durée.";
+  if (s.tauxEmploi < 2)
+    return "Votre taux est très éloigné de l'objectif légal : le sujet doit être traité comme une priorité RH, pas uniquement comme une déclaration annuelle.";
+  if (s.tauxEmploi < 4)
+    return "La démarche est engagée mais l'écart reste significatif : un plan d'actions ciblé réduirait nettement votre contribution.";
+  return "Vous êtes proche de l'objectif : quelques actions ciblées peuvent suffire à l'atteindre.";
 }
 
 // Simulateur OETH / DOETH intégré à la landing page publique (section
-// #simulateur). Le calcul se met à jour en direct à chaque saisie, via
-// /api/vitrine/calculer (simulerContributionOeth côté serveur — seule source
-// de vérité de la formule légale, jamais dupliquée ici). Lecture seule : rien
-// n'est enregistré, sauf si le visiteur envoie lui-même une demande d'analyse.
+// #simulateur). Disposition en deux colonnes : saisie à gauche, résultats à
+// droite dans un panneau qui reste visible au défilement (sticky), pour que
+// le visiteur voie l'effet de chaque saisie en direct. Sur mobile, les
+// résultats passent sous la saisie et une barre fixe rappelle le montant.
+// Calcul via /api/vitrine/calculer (simulerContributionOeth côté serveur —
+// seule source de vérité de la formule légale, jamais dupliquée ici).
 export default function SimulateurOeth() {
   const [saisie, setSaisie] = useState(SAISIE_VIDE);
   const [nomEntreprise, setNomEntreprise] = useState(lireEntrepriseMemorisee);
-  const [entrepriseMemorisee, setEntrepriseMemorisee] = useState(() => Boolean(lireEntrepriseMemorisee()));
   const [simulation, setSimulation] = useState(null);
   const [erreurCalcul, setErreurCalcul] = useState(null);
   const debounceRef = useRef(null);
@@ -91,6 +82,7 @@ export default function SimulateurOeth() {
   const [aideOuverte, setAideOuverte] = useState(null); // clé de fiche (aideSimulateur.js)
   const fermerAide = useCallback(() => setAideOuverte(null), []);
   const i = (cle) => <InfoBouton cle={cle} onOuvrir={setAideOuverte} />;
+
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
   const [requete, setRequete] = useState("");
   const [resultats, setResultats] = useState([]);
@@ -98,7 +90,26 @@ export default function SimulateurOeth() {
   const [erreurRecherche, setErreurRecherche] = useState(null);
   const debounceRechercheRef = useRef(null);
 
+  const sectionRef = useRef(null);
+  const resultatsRef = useRef(null);
+  const [sectionVisible, setSectionVisible] = useState(false);
+  const [resultatsVisibles, setResultatsVisibles] = useState(false);
+
   const effectifRenseigne = saisie.effectif.trim() !== "";
+
+  // Barre mobile : affichée seulement quand le simulateur est à l'écran et
+  // que le panneau de résultats ne l'est pas encore.
+  useEffect(() => {
+    if (!("IntersectionObserver" in window)) return;
+    const obsSection = new IntersectionObserver(([e]) => setSectionVisible(e.isIntersecting));
+    const obsResultats = new IntersectionObserver(([e]) => setResultatsVisibles(e.isIntersecting));
+    if (sectionRef.current) obsSection.observe(sectionRef.current);
+    if (resultatsRef.current) obsResultats.observe(resultatsRef.current);
+    return () => {
+      obsSection.disconnect();
+      obsResultats.disconnect();
+    };
+  }, []);
 
   // Recherche Sirene optionnelle (pré-remplissage du nom et de l'effectif
   // estimé par tranche INSEE — le visiteur peut ensuite corriger).
@@ -125,15 +136,6 @@ export default function SimulateurOeth() {
     return () => clearTimeout(debounceRechercheRef.current);
   }, [requete]);
 
-  function preremplirDepuisRecherche(candidat) {
-    setNomEntreprise(candidat.nom);
-    setEntrepriseMemorisee(false);
-    if (candidat.effectifEstime != null) modifier("effectif", String(candidat.effectifEstime));
-    setRechercheOuverte(false);
-    setRequete("");
-    setResultats([]);
-  }
-
   useEffect(() => {
     clearTimeout(debounceRef.current);
     const effectif = Number(saisie.effectif);
@@ -144,8 +146,8 @@ export default function SimulateurOeth() {
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const { simulation: s } = await api.simulerContributionVitrine(saisie);
-        setSimulation(s);
+        const { simulation: r } = await api.simulerContributionVitrine(saisie);
+        setSimulation(r);
         setErreurCalcul(null);
       } catch (e) {
         setErreurCalcul(e.message);
@@ -156,7 +158,15 @@ export default function SimulateurOeth() {
   }, [saisie, effectifRenseigne]);
 
   function modifier(champ, valeur) {
-    setSaisie((s) => ({ ...s, [champ]: valeur }));
+    setSaisie((prec) => ({ ...prec, [champ]: valeur }));
+  }
+
+  function preremplirDepuisRecherche(candidat) {
+    setNomEntreprise(candidat.nom);
+    if (candidat.effectifEstime != null) modifier("effectif", String(candidat.effectifEstime));
+    setRechercheOuverte(false);
+    setRequete("");
+    setResultats([]);
   }
 
   function choisirSousTraitance(v) {
@@ -171,16 +181,6 @@ export default function SimulateurOeth() {
     setContactOuvert(false);
     setEnvoye(false);
     setErreurPdf(null);
-  }
-
-  function memoriserEntreprise() {
-    try {
-      if (nomEntreprise.trim()) localStorage.setItem(CLE_ENTREPRISE, nomEntreprise.trim());
-      else localStorage.removeItem(CLE_ENTREPRISE);
-    } catch {
-      // stockage indisponible : le nom reste utilisé pour cette visite
-    }
-    setEntrepriseMemorisee(Boolean(nomEntreprise.trim()));
   }
 
   async function telechargerPdf() {
@@ -202,10 +202,10 @@ export default function SimulateurOeth() {
   }
 
   function ouvrirContact() {
-    const s = simulation;
-    const resume = s?.assujetti
-      ? `\n\nRésumé de ma simulation ${ANNEE_REFERENCE} : effectif ${formatNombre(s.effectif)}, BOETH ${formatNombre(s.boeth)}, ` +
-        `quota ${s.quota}, manque ${formatNombre(s.manque)}, contribution indicative ${formatMontant(s.contributionNette)}.`
+    const r = simulation;
+    const resume = r?.assujetti
+      ? `\n\nRésumé de ma simulation ${ANNEE_REFERENCE} : effectif ${formatNombre(r.effectif)}, BOETH ${formatNombre(r.boeth)}, ` +
+        `quota ${r.quota}, manque ${formatNombre(r.manque)}, contribution indicative ${formatMontant(r.contributionNette)}.`
       : "";
     setContact((c) => ({
       ...c,
@@ -232,538 +232,528 @@ export default function SimulateurOeth() {
 
   const s = simulation;
   const actif = Boolean(s?.assujetti);
-  const lecture = actif ? lectureTaux(s) : null;
-  const pourcentageQuota = actif && s.quota > 0 ? Math.min(100, (s.boeth / s.quota) * 100) : 0;
-  const ton = !actif ? "neutre" : s.conforme ? "conforme" : s.surcontribution ? "critique" : "partiel";
-  const risque = !actif
-    ? "—"
-    : s.surcontribution
-      ? "Élevé"
-      : s.contributionNette > 0
-        ? "Modéré"
-        : "Faible";
   const dash = (v) => (actif ? v : "—");
+  const progression = actif ? Math.min(100, (s.tauxEmploi / 6) * 100) : 0;
+  const couleurProgression = !actif ? "bg-slate-600" : s.conforme ? "bg-emerald-400" : s.surcontribution ? "bg-red-400" : "bg-orange-400";
+
+  const statut = !s
+    ? { texte: "En attente de vos données", classe: "bg-white/10 text-slate-400" }
+    : !s.assujetti
+      ? { texte: "Non assujetti", classe: "bg-emerald-400/15 text-emerald-300" }
+      : s.conforme
+        ? { texte: "Quota atteint", classe: "bg-emerald-400/15 text-emerald-300" }
+        : s.surcontribution
+          ? { texte: "Base majorée", classe: "bg-red-400/15 text-red-300" }
+          : s.deductions.total > 0
+            ? { texte: "Contribution réduite", classe: "bg-teal-400/15 text-teal-300" }
+            : { texte: "Contribution due", classe: "bg-orange-400/15 text-orange-300" };
 
   const plafondDepenses = s?.deductions.plafondDepenses || 0;
   const depensesMobilisees = s?.deductions.depenses || 0;
   const encoreMobilisable = Math.max(0, plafondDepenses - depensesMobilisees);
   const partMobilisee = plafondDepenses > 0 ? Math.min(100, (depensesMobilisees / plafondDepenses) * 100) : 0;
 
-  return (
-    <section id="simulateur" className="relative bg-black text-white py-20 sm:py-28 scroll-mt-16 overflow-hidden">
-      <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
-      <div aria-hidden className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
+  const TUILES = [
+    { label: "Quota légal retenu", valeur: dash(`${formatNombre(s?.quota)} bénéficiaire(s)`), info: "effectif" },
+    { label: "BOETH déclarés", valeur: dash(formatNombre(s?.boeth)), info: "boeth" },
+    { label: "Manque estimé", valeur: dash(formatNombre(s?.manque)), alerte: actif && s.manque > 0 },
+    { label: "Taux actuel", valeur: dash(`${formatNombre(s?.tauxEmploi)} %`), info: "objectif" },
+    { label: "Coefficient", valeur: actif ? (s.coefficient ? `${s.coefficient} × SMIC` : "Aucun") : "—", info: "coefficient" },
+    { label: "Contribution brute", valeur: dash(formatMontant(s?.contributionBrute)), info: "contribution" },
+    { label: "Déductions retenues", valeur: dash(formatMontant(s?.deductions.total)) },
+    { label: "Risque majoration", valeur: actif ? (s.surcontribution ? "Oui" : "Non") : "—", alerte: actif && s.surcontribution, info: "regle4ans" },
+  ];
 
-      <div className="relative max-w-7xl mx-auto px-6">
-        {/* Saisie */}
-        <div className="rounded-2xl border border-white/10 bg-marine-950 shadow-2xl overflow-hidden">
+  return (
+    <section
+      ref={sectionRef}
+      id="simulateur"
+      className="relative bg-black text-white py-16 sm:py-24 scroll-mt-16"
+    >
+      <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
+      <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] max-w-full h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="rounded-2xl border border-white/10 bg-marine-950 shadow-2xl">
           {/* Liseré tricolore discret — identité, pas un emblème d'État. */}
-          <div className="flex h-1">
+          <div className="flex h-1 rounded-t-2xl overflow-hidden">
             <span className="flex-1 bg-marine-500" />
             <span className="flex-1 bg-white" />
             <span className="flex-1 bg-red-500" />
           </div>
 
-          <div className="p-6 sm:p-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-400">Simulateur OETH / DOETH</p>
-          <h2 className="font-bold text-white text-2xl sm:text-3xl mt-1">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
-          <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-xl">
-            Obtenez une estimation immédiate de votre contribution OETH {ANNEE_REFERENCE} à partir des données de votre
-            entreprise.
-          </p>
-
-          {/* Recherche Sirene — repliée, purement facultative. */}
-          <button
-            type="button"
-            onClick={() => setRechercheOuverte((v) => !v)}
-            className="text-sm text-marine-300 hover:text-marine-200 hover:underline mt-6 mb-4 inline-flex items-center gap-1.5"
-          >
-            <span className="text-xs">{rechercheOuverte ? "▾" : "▸"}</span> Pré-remplir via ma raison sociale ou mon SIREN
-            (facultatif)
-          </button>
-          {rechercheOuverte && (
-            <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-3 max-w-xl">
-              <input
-                type="text"
-                value={requete}
-                onChange={(e) => setRequete(e.target.value)}
-                placeholder="Ex : ESAT Tremplin, ou 123 456 789"
-                className={CLASSE_INPUT}
-              />
-              <p className="text-[11px] text-slate-500 mt-1.5">Répertoire public Sirene (INSEE) — aucune donnée n'est enregistrée.</p>
-              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                {recherche && <p className="text-xs text-slate-500">Recherche…</p>}
-                {erreurRecherche && <p className="text-xs text-red-400">{erreurRecherche}</p>}
-                {resultats.map((r) => (
-                  <button
-                    key={r.siren}
-                    type="button"
-                    onClick={() => preremplirDepuisRecherche(r)}
-                    className="w-full text-left rounded-lg hover:bg-white/10 transition px-3 py-2"
-                  >
-                    <p className="text-sm font-medium text-white">{r.nom}</p>
-                    <p className="text-[11px] text-slate-400">{[r.ville, r.trancheEffectifLabel].filter(Boolean).join(" · ")}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <ChampLecture label="Année concernée" valeur={String(ANNEE_REFERENCE)} />
-            <ChampLecture label="SMIC horaire retenu" valeur={SMIC_AFFICHE} />
-            <Champ
-              label={<>Effectif d'assujettissement{i("effectif")}</>}
-              aide="Effectif moyen annuel (EMA OETH)."
-              value={saisie.effectif}
-              onChange={(v) => modifier("effectif", v)}
-              placeholder="Ex : 20"
-            />
-            <Champ
-              label={<>BOETH déclarés{i("boeth")}</>}
-              aide="Bénéficiaires de l'obligation d'emploi pris en compte dans la déclaration."
-              value={saisie.boeth}
-              onChange={(v) => modifier("boeth", v)}
-              placeholder="Ex. 0"
-            />
-            {/* Oui / Non d'abord : beaucoup d'entreprises n'ont aucun achat
-                auprès du secteur protégé, elles passent sans rien saisir. */}
-            <div className="text-xs text-slate-400">
-              Montant de sous-traitance EA / ESAT / TIH{i("sousTraitance")}
-              {sousTraitance !== true ? (
-                <>
-                  <OuiNon valeur={sousTraitance} onChange={choisirSousTraitance} />
-                  <span className="block text-[11px] text-slate-500 mt-1">Travaillez-vous avec un EA, un ESAT ou un TIH ?</span>
-                </>
-              ) : (
-                <>
-                  <div className="flex gap-2 mt-1.5">
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      inputMode="decimal"
-                      autoFocus
-                      value={saisie.coutMainOeuvreSousTraitance}
-                      onChange={(e) => modifier("coutMainOeuvreSousTraitance", e.target.value)}
-                      placeholder="Ex. 7386"
-                      className={CLASSE_INPUT}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => choisirSousTraitance(false)}
-                      title="Pas de sous-traitance"
-                      className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 text-slate-400 hover:bg-white/10 hover:text-white transition"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <span className="block text-[11px] text-slate-500 mt-1">
-                    Montant de main-d'œuvre valorisable. Le simulateur applique 30 %.
-                  </span>
-                </>
-              )}
-            </div>
-            <Champ
-              label={<>Salariés ECAP (nombre){i("ecap")}</>}
-              aide="Emplois exigeant des conditions d'aptitude particulières (chauffeurs routiers, BTP, sécurité…). Laissez vide si non concerné."
-              value={saisie.nbEcap}
-              onChange={(v) => modifier("nbEcap", v)}
-              placeholder="Facultatif"
-              step="1"
-            />
-            <Champ
-              label={<>Autres dépenses déductibles (€ HT){i("depenses")}</>}
-              aide="Accessibilité, maintien dans l'emploi… plafond 10 %."
-              value={saisie.depensesDeductibles}
-              onChange={(v) => modifier("depensesDeductibles", v)}
-              placeholder="0"
-            />
-          </div>
-
-          {/* Règle des 4 ans — questions en cascade : chaque réponse (Oui ou
-              Non) ouvre la question suivante, pour un parcours complet et
-              une synthèse PDF exhaustive (conditions de la base majorée à
-              1 500 × SMIC, voir simulerContributionOeth). */}
-          <div className="mt-6 space-y-3">
-            <Question
-              actif={saisie.aEmployeBoeth4Ans === null}
-              intitule={
-                <>
-                  Au cours des 4 dernières années, l'entreprise a-t-elle employé au moins un bénéficiaire de l'obligation
-                  d'emploi ? <span className="text-slate-500">(nouvelle période DOETH)</span>
-                  {i("regle4ans")}
-                </>
-              }
-              nom="q-boeth-4ans"
-              valeur={saisie.aEmployeBoeth4Ans}
-              onChange={(v) => modifier("aEmployeBoeth4Ans", v)}
-            />
-
-            {saisie.aEmployeBoeth4Ans !== null && (
-              <Question
-                actif={saisie.sousTraitance4Ans === null}
-                intitule="Au cours des 4 dernières années, l'entreprise a-t-elle réalisé des achats ou de la sous-traitance auprès d'une EA, d'un ESAT ou d'un TIH pour un montant supérieur ou égal à 600 × SMIC horaire ?"
-                nom="q-st-4ans"
-                valeur={saisie.sousTraitance4Ans}
-                onChange={(v) =>
-                  setSaisie((s) => ({ ...s, sousTraitance4Ans: v, ...(v === false ? { montantSousTraitance4Ans: "" } : {}) }))
-                }
-              >
-                {saisie.sousTraitance4Ans === true && (
-                  <label className="block mt-4 text-sm font-medium text-slate-200">
-                    Montant cumulé de main-d'œuvre sur 4 ans
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      inputMode="decimal"
-                      value={saisie.montantSousTraitance4Ans}
-                      onChange={(e) => modifier("montantSousTraitance4Ans", e.target.value)}
-                      placeholder="Ex. 7386"
-                      className={`mt-1.5 ${CLASSE_INPUT}`}
-                    />
-                    <span className="block text-[11px] font-normal text-slate-500 mt-1">
-                      Seuil {ANNEE_REFERENCE} : 7 386 €.
-                      {s?.sousTraitance4AnsInsuffisante && (
-                        <span className="text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
-                      )}
-                    </span>
-                  </label>
-                )}
-              </Question>
-            )}
-
-            {saisie.aEmployeBoeth4Ans !== null && saisie.sousTraitance4Ans !== null && (
-              <Question
-                actif={saisie.accordAgree === null}
-                intitule="L'entreprise dispose-t-elle d'un accord agréé applicable sur la période concernée ?"
-                nom="q-accord"
-                valeur={saisie.accordAgree}
-                onChange={(v) => modifier("accordAgree", v)}
-              >
-                {saisie.accordAgree === true && (
-                  <p className="mt-3 text-xs text-slate-400">
-                    Avec un accord agréé, l'obligation est remplie par la mise en œuvre de son programme : le budget
-                    correspondant finance les actions de l'accord au lieu d'être versé à l'URSSAF.
-                  </p>
-                )}
-              </Question>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 mt-6">
-            <button
-              type="button"
-              onClick={reinitialiser}
-              className="rounded-full border border-white/15 text-sm font-medium px-5 py-2.5 hover:bg-white/10 transition"
-            >
-              Nouvelle simulation
-            </button>
-            <a
-              href={GUIDE_OFFICIEL_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-full border border-white/15 text-sm font-medium px-5 py-2.5 text-marine-200 hover:bg-white/10 transition"
-            >
-              Guide officiel OETH (URSSAF) ↗
-            </a>
-            <span className="text-xs text-slate-500 sm:ml-auto">Calcul instantané · aucune donnée enregistrée</span>
-          </div>
-          {erreurCalcul && <p className="text-sm text-red-400 mt-4">{erreurCalcul}</p>}
-          {s && !s.assujetti && (
-            <p className="mt-4 rounded-xl bg-emerald-500/10 border border-emerald-400/30 p-4 text-sm text-emerald-200">
-              Effectif inférieur à {s.seuilAssujettissement} salariés : l'entreprise n'est pas assujettie à la contribution
-              OETH (la déclaration mensuelle des bénéficiaires en DSN reste due).
+          <div className="px-6 sm:px-8 pt-7 pb-6 border-b border-white/10">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-400">Simulateur OETH / DOETH</p>
+            <h2 className="font-bold text-white text-2xl sm:text-3xl mt-1">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
+            <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-2xl">
+              Obtenez une estimation immédiate de votre contribution OETH {ANNEE_REFERENCE} à partir des données de votre
+              entreprise.
             </p>
-          )}
           </div>
-        </div>
 
-        {/* Résultats — mis à jour en direct */}
-        <div className="mt-6 grid lg:grid-cols-3 gap-6 items-start">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Jauge */}
-              <Carte className="flex flex-col">
-                <div className="flex justify-center">
-                  <CercleProgression
-                    pourcentage={pourcentageQuota}
-                    ton={ton}
-                    taille={184}
-                    epaisseur={18}
-                    texteCentral={actif ? `${formatNombre(s.tauxEmploi)} %` : "—"}
+          <div className="grid lg:grid-cols-12">
+            {/* ─────────── Colonne gauche : saisie ─────────── */}
+            <div className="lg:col-span-7 px-6 sm:px-8 py-7">
+              <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-marine-400" /> Informations à renseigner
+              </p>
+
+              {/* Recherche Sirene — repliée, purement facultative. */}
+              <button
+                type="button"
+                onClick={() => setRechercheOuverte((v) => !v)}
+                className="text-sm text-marine-300 hover:text-marine-200 hover:underline mt-4 mb-4 inline-flex items-center gap-1.5"
+              >
+                <span className="text-xs">{rechercheOuverte ? "▾" : "▸"}</span> Pré-remplir via ma raison sociale ou mon
+                SIREN (facultatif)
+              </button>
+              {rechercheOuverte && (
+                <div className="mb-5 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <input
+                    type="text"
+                    value={requete}
+                    onChange={(e) => setRequete(e.target.value)}
+                    placeholder="Ex : ESAT Tremplin, ou 123 456 789"
+                    className={CLASSE_INPUT}
                   />
+                  <p className="text-[11px] text-slate-500 mt-1.5">Répertoire public Sirene (INSEE) — aucune donnée n'est enregistrée.</p>
+                  <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                    {recherche && <p className="text-xs text-slate-500">Recherche…</p>}
+                    {erreurRecherche && <p className="text-xs text-red-400">{erreurRecherche}</p>}
+                    {resultats.map((r) => (
+                      <button
+                        key={r.siren}
+                        type="button"
+                        onClick={() => preremplirDepuisRecherche(r)}
+                        className="w-full text-left rounded-lg hover:bg-white/10 transition px-3 py-2"
+                      >
+                        <p className="text-sm font-medium text-white">{r.nom}</p>
+                        <p className="text-[11px] text-slate-400">{[r.ville, r.trancheEffectifLabel].filter(Boolean).join(" · ")}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <h3 className="text-xl font-semibold mt-6">Objectif de 6 %{i("objectif")}</h3>
-                <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-                  {lecture
-                    ? lecture.message
-                    : "Renseignez votre effectif d'assujettissement : votre position par rapport au quota légal s'affiche ici."}
-                </p>
-              </Carte>
+              )}
 
-              {/* Contribution */}
-              <Carte>
-                <h3 className="text-xl font-semibold">Contribution estimée{i("contribution")}</h3>
-                <p className="text-sm text-slate-400 mt-2">Une lecture indicative pour prioriser vos actions sur les prochains mois.</p>
+              <div className="grid sm:grid-cols-2 gap-x-4 gap-y-5">
+                <ChampLecture label="Année concernée" valeur={String(ANNEE_REFERENCE)} />
+                <ChampLecture label="SMIC horaire retenu" valeur={SMIC_AFFICHE} />
+                <Champ
+                  label={<>Effectif d'assujettissement{i("effectif")}</>}
+                  aide="Effectif moyen annuel retenu pour l'OETH."
+                  value={saisie.effectif}
+                  onChange={(v) => modifier("effectif", v)}
+                  placeholder="Ex : 20"
+                />
+                <Champ
+                  label={<>BOETH déclarés{i("boeth")}</>}
+                  aide="Bénéficiaires de l'obligation d'emploi pris en compte dans la déclaration."
+                  value={saisie.boeth}
+                  onChange={(v) => modifier("boeth", v)}
+                  placeholder="Ex. 0"
+                />
+                {/* Oui / Non d'abord : beaucoup d'entreprises n'ont aucun achat
+                    auprès du secteur protégé, elles passent sans rien saisir. */}
+                <div className="text-xs text-slate-400">
+                  Montant de sous-traitance EA / ESAT / TIH{i("sousTraitance")}
+                  {sousTraitance !== true ? (
+                    <>
+                      <OuiNon valeur={sousTraitance} onChange={choisirSousTraitance} />
+                      <span className="block text-[11px] text-slate-500 mt-1">Travaillez-vous avec un EA, un ESAT ou un TIH ?</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex gap-2 mt-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          inputMode="decimal"
+                          autoFocus
+                          value={saisie.coutMainOeuvreSousTraitance}
+                          onChange={(e) => modifier("coutMainOeuvreSousTraitance", e.target.value)}
+                          placeholder="Ex. 7386"
+                          className={CLASSE_INPUT}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => choisirSousTraitance(false)}
+                          title="Pas de sous-traitance"
+                          className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <span className="block text-[11px] text-slate-500 mt-1">
+                        Montant de main-d'œuvre valorisable. Le simulateur applique 30 %.
+                      </span>
+                    </>
+                  )}
+                </div>
+                <Champ
+                  label={<>Salariés ECAP (nombre){i("ecap")}</>}
+                  aide="Emplois exigeant des conditions d'aptitude particulières (chauffeurs routiers, BTP, sécurité…). Laissez vide si non concerné."
+                  value={saisie.nbEcap}
+                  onChange={(v) => modifier("nbEcap", v)}
+                  placeholder="Facultatif"
+                  step="1"
+                />
+                <Champ
+                  label={<>Autres dépenses déductibles{i("depenses")}</>}
+                  aide="Accessibilité, maintien dans l'emploi… plafond 10 %."
+                  value={saisie.depensesDeductibles}
+                  onChange={(v) => modifier("depensesDeductibles", v)}
+                  placeholder="Ex. 1 000"
+                />
+                <label className="block text-xs text-slate-400">
+                  Nom de l'entreprise
+                  <input
+                    type="text"
+                    value={nomEntreprise}
+                    onChange={(e) => setNomEntreprise(e.target.value)}
+                    onBlur={() => memoriserEntreprise(nomEntreprise)}
+                    placeholder="Facultatif"
+                    className={`mt-1.5 ${CLASSE_INPUT}`}
+                  />
+                  <span className="block text-[11px] text-slate-500 mt-1">Repris dans votre synthèse PDF.</span>
+                </label>
+              </div>
+
+              {/* Règle des 4 ans — questions en cascade : chaque réponse (Oui ou
+                  Non) ouvre la question suivante, pour un parcours complet et
+                  une synthèse PDF exhaustive (conditions de la base majorée à
+                  1 500 × SMIC, voir simulerContributionOeth). */}
+              <div className="mt-7 space-y-3">
+                <Question
+                  actif={saisie.aEmployeBoeth4Ans === null}
+                  intitule={
+                    <>
+                      Au cours des 4 dernières années, l'entreprise a-t-elle employé au moins un bénéficiaire de
+                      l'obligation d'emploi ? <span className="text-slate-500">(nouvelle période DOETH)</span>
+                      {i("regle4ans")}
+                    </>
+                  }
+                  nom="q-boeth-4ans"
+                  valeur={saisie.aEmployeBoeth4Ans}
+                  onChange={(v) => modifier("aEmployeBoeth4Ans", v)}
+                />
+
+                {saisie.aEmployeBoeth4Ans !== null && (
+                  <Question
+                    actif={saisie.sousTraitance4Ans === null}
+                    intitule="Au cours des 4 dernières années, l'entreprise a-t-elle réalisé des achats ou de la sous-traitance auprès d'une EA, d'un ESAT ou d'un TIH pour un montant supérieur ou égal à 600 × SMIC horaire ?"
+                    nom="q-st-4ans"
+                    valeur={saisie.sousTraitance4Ans}
+                    onChange={(v) =>
+                      setSaisie((prec) => ({
+                        ...prec,
+                        sousTraitance4Ans: v,
+                        ...(v === false ? { montantSousTraitance4Ans: "" } : {}),
+                      }))
+                    }
+                  >
+                    {saisie.sousTraitance4Ans === true && (
+                      <label className="block mt-4 text-sm font-medium text-slate-200">
+                        Montant cumulé de main-d'œuvre sur 4 ans
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          inputMode="decimal"
+                          value={saisie.montantSousTraitance4Ans}
+                          onChange={(e) => modifier("montantSousTraitance4Ans", e.target.value)}
+                          placeholder="Ex. 7386"
+                          className={`mt-1.5 ${CLASSE_INPUT}`}
+                        />
+                        <span className="block text-[11px] font-normal text-slate-500 mt-1">
+                          Seuil {ANNEE_REFERENCE} : 7 386 €.
+                          {s?.sousTraitance4AnsInsuffisante && (
+                            <span className="text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
+                          )}
+                        </span>
+                      </label>
+                    )}
+                  </Question>
+                )}
+
+                {saisie.aEmployeBoeth4Ans !== null && saisie.sousTraitance4Ans !== null && (
+                  <Question
+                    actif={saisie.accordAgree === null}
+                    intitule="L'entreprise dispose-t-elle d'un accord agréé applicable sur la période concernée ?"
+                    nom="q-accord"
+                    valeur={saisie.accordAgree}
+                    onChange={(v) => modifier("accordAgree", v)}
+                  >
+                    {saisie.accordAgree === true && (
+                      <p className="mt-3 text-xs text-slate-400">
+                        Avec un accord agréé, l'obligation est remplie par la mise en œuvre de son programme : le budget
+                        correspondant finance les actions de l'accord au lieu d'être versé à l'URSSAF.
+                      </p>
+                    )}
+                  </Question>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 mt-7 pt-6 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={reinitialiser}
+                  className="rounded-full border border-white/15 text-sm font-medium px-5 py-2.5 hover:bg-white/10 transition"
+                >
+                  Nouvelle simulation
+                </button>
+                <a
+                  href={GUIDE_OFFICIEL_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full text-sm font-medium px-4 py-2.5 text-marine-200 hover:bg-white/10 transition sm:ml-auto"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                  Guide officiel OETH <span className="text-[10px] uppercase tracking-wider text-slate-500">URSSAF · PDF</span>
+                </a>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-3">Calcul instantané · aucune donnée enregistrée</p>
+            </div>
+
+            {/* ─────────── Colonne droite : résultats en direct ─────────── */}
+            <div
+              ref={resultatsRef}
+              className="lg:col-span-5 border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 lg:rounded-br-2xl"
+            >
+              <div className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto px-6 sm:px-7 py-7 space-y-3 [scrollbar-width:thin]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">Résultats en direct</p>
+                  <span className={`rounded-full text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 ${statut.classe}`}>
+                    {statut.texte}
+                  </span>
+                </div>
+
+                {/* Montant principal */}
                 <div
-                  className={`mt-5 rounded-2xl border px-5 py-5 ${
-                    actif && s.surcontribution ? "border-red-400/30 bg-red-500/10" : "border-teal-400/25 bg-teal-400/[0.07]"
+                  className={`rounded-xl border border-white/10 border-l-4 bg-white/[0.04] px-5 py-5 ${
+                    actif && s.surcontribution ? "border-l-red-400" : actif && s.contributionNette === 0 ? "border-l-emerald-400" : "border-l-marine-400"
                   }`}
                 >
-                  <p className="text-sm text-slate-300">Contribution nette estimée</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Contribution indicative après déductions
+                  </p>
                   <p
-                    className={`text-4xl font-bold tracking-tight mt-2 tabular-nums ${
-                      actif && s.surcontribution ? "text-red-300" : "text-white"
+                    className={`text-4xl sm:text-5xl font-bold tracking-tight mt-2 tabular-nums transition-colors ${
+                      !actif ? "text-slate-600" : s.surcontribution ? "text-red-300" : s.contributionNette === 0 ? "text-emerald-300" : "text-white"
                     }`}
                   >
                     {actif ? formatMontant(s.contributionNette) : "— €"}
                   </p>
+                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                    {!effectifRenseigne
+                      ? "Renseignez l'effectif d'assujettissement : les résultats s'affichent ici instantanément."
+                      : s && !s.assujetti
+                        ? `Effectif inférieur à ${s.seuilAssujettissement} salariés : pas de contribution OETH (la déclaration mensuelle en DSN reste due).`
+                        : actif
+                          ? lectureTaux(s)
+                          : "Calcul en cours…"}
+                  </p>
+                  {erreurCalcul && <p className="text-xs text-red-400 mt-2">{erreurCalcul}</p>}
                 </div>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <MiniCarte label="BOETH manquants" valeur={dash(formatNombre(s?.manque))} />
-                  <MiniCarte label="Déductions estimées" valeur={dash(formatMontant(s?.deductions.total))} />
+
+                {/* Tuiles */}
+                <div className="grid grid-cols-2 gap-2">
+                  {TUILES.map((t) => (
+                    <div
+                      key={t.label}
+                      className={`rounded-xl border px-3.5 py-3 ${t.alerte ? "border-red-400/30 bg-red-500/10" : "border-white/10 bg-white/[0.03]"}`}
+                    >
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center">
+                        {t.label}
+                        {t.info && i(t.info)}
+                      </p>
+                      <p className={`text-base font-semibold mt-1 tabular-nums ${t.alerte ? "text-red-300" : "text-white"}`}>{t.valeur}</p>
+                    </div>
+                  ))}
                 </div>
-              </Carte>
-            </div>
 
-            {/* Indicateurs */}
-            <div className="grid sm:grid-cols-3 gap-4">
-              <Indicateur label={<>Position par rapport à l'objectif{i("objectif")}</>} valeur={lecture?.position || "—"} teinte="emerald" />
-              <Indicateur label={<>Risque financier{i("regle4ans")}</>} valeur={risque} teinte="rose" />
-              <Indicateur label={<>Potentiel d'économie{i("economie")}</>} valeur={dash(formatMontant(s?.economie))} teinte="sky" />
-            </div>
-
-            {/* Entreprise concernée */}
-            <Carte className="flex flex-col md:flex-row md:items-center gap-5">
-              <div className="flex-1">
-                <span className="inline-block rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-300 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1">
-                  Facultatif
-                </span>
-                <h3 className="text-lg font-semibold mt-3">Cette simulation concerne quelle entreprise ?</h3>
-                <p className="text-sm text-slate-400 mt-1.5">
-                  Un seul champ, sans bloquer vos résultats. Le nom est repris dans votre synthèse PDF et dans votre
-                  demande d'analyse.
-                </p>
-              </div>
-              <div className="md:w-80">
-                <label className="text-xs text-slate-400">Entreprise concernée</label>
-                <div className="flex gap-2 mt-1.5">
-                  <input
-                    type="text"
-                    value={nomEntreprise}
-                    onChange={(e) => {
-                      setNomEntreprise(e.target.value);
-                      setEntrepriseMemorisee(false);
-                    }}
-                    placeholder="Ex : Société Dupont"
-                    className={CLASSE_INPUT}
-                  />
-                  <button
-                    type="button"
-                    onClick={memoriserEntreprise}
-                    className="shrink-0 rounded-xl bg-white text-marine-900 hover:bg-marine-100 text-sm font-semibold px-4 transition"
-                  >
-                    {entrepriseMemorisee ? "✓" : "Mémoriser"}
-                  </button>
+                {/* Progression vers 6 % */}
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium text-slate-200">Progression vers le quota de 6 %</span>
+                    <span className="tabular-nums text-slate-300">{actif ? `${formatNombre(s.tauxEmploi)} %` : "—"} / 6 %</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10 mt-2.5 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-500 ${couleurProgression}`} style={{ width: `${progression}%` }} />
+                  </div>
                 </div>
-              </div>
-            </Carte>
 
-            {/* Alertes & détail du calcul */}
-            {actif && (
-              <div className="space-y-3 text-sm">
-                {s.surcontribution && (
-                  <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-red-200">
-                    <p className="font-semibold text-red-300">Base majorée retenue par défaut{i("regle4ans")}</p>
+                {actif && s.surcontribution && (
+                  <div className="rounded-xl border border-red-400/40 bg-red-500/10 p-4 text-xs text-red-200 leading-relaxed">
+                    <p className="font-semibold text-red-300 text-sm flex items-center">
+                      Base majorée retenue par défaut{i("regle4ans")}
+                    </p>
                     <p className="mt-1">
-                      Sans BOETH employé sur les 4 dernières années ni sous-traitance EA/ESAT/TIH d'au moins{" "}
-                      {formatMontant(s.seuilSousTraitanceMin)} (600 × SMIC), la contribution est calculée à 1 500 × SMIC par
-                      bénéficiaire manquant, sauf accord agréé. Vérifiez vos réponses aux questions sur les 4 dernières
-                      années.
+                      Sans BOETH employé sur les 4 dernières années, ni sous-traitance EA/ESAT/TIH d'au moins{" "}
+                      {formatMontant(s.seuilSousTraitanceMin)} (600 × SMIC), ni accord agréé, la contribution est calculée à
+                      1 500 × SMIC par bénéficiaire manquant.
                     </p>
                   </div>
                 )}
-                {s.deductions.sousTraitancePlafonnee && (
-                  <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-amber-100">
+                {actif && s.deductions.sousTraitancePlafonnee && (
+                  <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3.5 text-xs text-amber-100">
                     Plafond atteint : la déduction sous-traitance est limitée à {s.deductions.tauxPlafondSousTraitance} % de la
                     contribution brute.
                   </div>
                 )}
-                <details className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 group">
-                  <summary className="cursor-pointer font-medium text-slate-200 list-none flex justify-between">
-                    Détail du calcul
-                    <span className="text-slate-500 group-open:rotate-180 transition">▾</span>
-                  </summary>
-                  <dl className="mt-3 divide-y divide-white/10">
+
+                {/* Lecture administrative */}
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300 flex items-center">
+                    Lecture administrative{i("economie")}
+                  </p>
+                  <dl className="mt-2 text-sm divide-y divide-white/[0.07]">
                     {[
-                      ["Quota légal (6 %, arrondi inférieur)", formatNombre(s.quota)],
-                      [<>Coefficient appliqué{i("coefficient")}</>, s.coefficient ? `${s.coefficient} × SMIC` : "Aucun"],
-                      ["Contribution brute", formatMontant(s.contributionBrute)],
-                      [`Sous-traitance retenue (plafond ${s.deductions.tauxPlafondSousTraitance} %)`, formatMontant(s.deductions.sousTraitance)],
-                      ["Déduction ECAP retenue", formatMontant(s.deductions.ecap)],
-                      ["Autres dépenses retenues (plafond 10 %)", formatMontant(s.deductions.depenses)],
-                      ["Base réglementaire maximale (1 500 × SMIC)", formatMontant(s.baseMaximale)],
-                    ].map(([l, v], index) => (
-                      <div key={index} className="flex justify-between gap-4 py-2">
+                      ["Base réglementaire maximale", dash(formatMontant(s?.baseMaximale))],
+                      ["Sous-traitance retenue", dash(formatMontant(s?.deductions.sousTraitance))],
+                      ["Déduction ECAP retenue", dash(formatMontant(s?.deductions.ecap))],
+                      ["Autres dépenses retenues", dash(formatMontant(s?.deductions.depenses))],
+                    ].map(([l, v]) => (
+                      <div key={l} className="flex justify-between gap-4 py-2">
                         <dt className="text-slate-400">{l}</dt>
-                        <dd className="font-medium tabular-nums text-right">{v}</dd>
+                        <dd className="font-medium tabular-nums">{v}</dd>
                       </div>
                     ))}
+                    <div className="flex justify-between gap-4 pt-2.5">
+                      <dt className="font-semibold text-emerald-300">Économie estimée</dt>
+                      <dd className="font-bold text-emerald-300 tabular-nums">{dash(formatMontant(s?.economie))}</dd>
+                    </div>
                   </dl>
-                  <p className="text-xs text-slate-500 mt-3">
-                    La contribution {ANNEE_REFERENCE} se déclare dans la DSN d'avril {ANNEE_REFERENCE + 1} (échéance du 5 ou
-                    15 mai). Estimation indicative selon les règles de droit commun, hors accord agréé : seule l'URSSAF
-                    calcule et recouvre la contribution.{" "}
+                </div>
+
+                {actif && plafondDepenses > 0 && (
+                  <div className="rounded-xl border border-amber-400/25 bg-amber-500/[0.06] px-4 py-3">
+                    <div className="flex justify-between gap-3 text-xs">
+                      <p className="font-medium text-amber-100">Encore mobilisable via les dépenses déductibles</p>
+                      <p className="font-bold text-amber-200 tabular-nums">{formatMontant(encoreMobilisable)}</p>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-amber-200/15 mt-2 overflow-hidden">
+                      <div className="h-full bg-amber-300 rounded-full transition-all" style={{ width: `${partMobilisee}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[11px] text-amber-100/70 mt-1.5">
+                      <span>Déjà mobilisé : {formatMontant(depensesMobilisees)}</span>
+                      <span>Plafond 10 % : {formatMontant(plafondDepenses)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Passage à l'action */}
+                <div className="pt-2 space-y-2">
+                  <button
+                    type="button"
+                    onClick={telechargerPdf}
+                    disabled={!actif || pdfEnCours}
+                    className="w-full rounded-xl bg-teal-400 hover:bg-teal-300 text-marine-950 text-sm font-semibold py-3 transition shadow-[0_8px_30px_rgba(45,212,191,0.2)] disabled:opacity-40 disabled:shadow-none"
+                  >
+                    {pdfEnCours ? "Génération…" : "Télécharger la synthèse PDF"}
+                  </button>
+                  {erreurPdf && <p className="text-xs text-red-400">{erreurPdf}</p>}
+
+                  {!contactOuvert ? (
+                    <button
+                      type="button"
+                      onClick={ouvrirContact}
+                      className="w-full rounded-xl border border-white/25 text-sm font-semibold py-3 hover:bg-white/10 transition"
+                    >
+                      Demander une analyse gratuite
+                    </button>
+                  ) : envoye ? (
+                    <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-center">
+                      <p className="font-semibold text-emerald-300 text-sm">Demande envoyée</p>
+                      <p className="text-xs text-slate-400 mt-1">Un conseiller du Pôle OETH / AGEFIPH vous recontacte prochainement.</p>
+                    </div>
+                  ) : (
+                    <form onSubmit={envoyerContact} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                      <p className="text-xs text-slate-300">Un conseiller analyse vos écarts et vos leviers prioritaires.</p>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Votre nom"
+                        value={contact.nom}
+                        onChange={(e) => setContact((c) => ({ ...c, nom: e.target.value }))}
+                        className={CLASSE_INPUT}
+                      />
+                      <input
+                        type="email"
+                        required
+                        placeholder="Votre e-mail"
+                        value={contact.email}
+                        onChange={(e) => setContact((c) => ({ ...c, email: e.target.value }))}
+                        className={CLASSE_INPUT}
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Téléphone (facultatif)"
+                        value={contact.telephone}
+                        onChange={(e) => setContact((c) => ({ ...c, telephone: e.target.value }))}
+                        className={CLASSE_INPUT}
+                      />
+                      <textarea
+                        rows={3}
+                        value={contact.message}
+                        onChange={(e) => setContact((c) => ({ ...c, message: e.target.value }))}
+                        className={`${CLASSE_INPUT} resize-none`}
+                      />
+                      {erreurEnvoi && (
+                        <p className="text-xs text-red-400 bg-red-500/10 border border-red-400/30 rounded-lg p-3">{erreurEnvoi}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={envoiEnCours || !contact.nom.trim() || !contact.email.trim()}
+                          className="flex-1 rounded-xl bg-white text-marine-900 hover:bg-marine-100 text-sm font-semibold py-2.5 transition disabled:opacity-40"
+                        >
+                          {envoiEnCours ? "Envoi…" : "Envoyer ma demande"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setContactOuvert(false)}
+                          className="rounded-xl text-sm text-slate-400 px-3 hover:text-white transition"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                  <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+                    Estimation indicative (droit commun, hors accord agréé). La contribution {ANNEE_REFERENCE} se déclare dans
+                    la DSN d'avril {ANNEE_REFERENCE + 1} ; seule l'URSSAF la calcule et la recouvre.{" "}
                     <a href={PAGE_URSSAF_URL} target="_blank" rel="noopener noreferrer" className="text-marine-300 hover:underline">
                       En savoir plus ↗
                     </a>
                   </p>
-                </details>
+                </div>
               </div>
-            )}
+            </div>
           </div>
-
-          {/* Colonne latérale — synthèse & passage à l'action */}
-          <aside className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 sm:p-6 lg:sticky lg:top-24">
-            <span
-              className={`inline-block rounded-full text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 ${
-                actif ? "bg-teal-400/15 text-teal-300" : "bg-white/10 text-slate-400"
-              }`}
-            >
-              {actif ? "Votre simulation est prête" : "En attente de vos données"}
-            </span>
-
-            <div className="mt-4 rounded-2xl border border-teal-400/25 bg-teal-400/[0.07] px-4 py-4">
-              <p className="text-xs text-slate-300">Contribution nette estimée</p>
-              <p className="text-3xl font-bold tracking-tight mt-1 tabular-nums">{actif ? formatMontant(s.contributionNette) : "— €"}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <MiniCarte label="taux d'emploi" valeur={dash(`${formatNombre(s?.tauxEmploi)} %`)} compact />
-              <MiniCarte label="BOETH manquants" valeur={dash(formatNombre(s?.manque))} compact />
-            </div>
-
-            {actif && plafondDepenses > 0 && (
-              <div className="mt-2 rounded-2xl border border-amber-400/30 bg-amber-500/[0.08] px-4 py-3">
-                <div className="flex justify-between gap-3">
-                  <p className="text-xs font-medium text-amber-100">Encore mobilisable via les dépenses déductibles</p>
-                  <p className="text-sm font-bold text-amber-200 tabular-nums">{formatMontant(encoreMobilisable)}</p>
-                </div>
-                <div className="h-1.5 rounded-full bg-amber-200/15 mt-2.5 overflow-hidden">
-                  <div className="h-full bg-amber-300 rounded-full transition-all" style={{ width: `${partMobilisee}%` }} />
-                </div>
-                <div className="flex justify-between text-[11px] text-amber-100/70 mt-1.5">
-                  <span>Déjà mobilisé : {formatMontant(depensesMobilisees)}</span>
-                  <span>Plafond 10 % : {formatMontant(plafondDepenses)}</span>
-                </div>
-                <p className="text-[11px] text-amber-100/60 mt-1.5">ECAP et sous-traitance suivent d'autres règles.</p>
-              </div>
-            )}
-
-            <div className="border-t border-white/10 mt-5 pt-5">
-              <Etape numero="1" titre="Recevez votre synthèse complète">
-                Résultats, détail du calcul et rappel DSN, au format PDF.
-              </Etape>
-              <button
-                type="button"
-                onClick={telechargerPdf}
-                disabled={!actif || pdfEnCours}
-                className="mt-4 w-full rounded-xl bg-teal-400 hover:bg-teal-300 text-marine-950 text-sm font-semibold py-3 transition shadow-[0_8px_30px_rgba(45,212,191,0.25)] disabled:opacity-40 disabled:shadow-none"
-              >
-                {pdfEnCours ? "Génération…" : "Télécharger ma synthèse PDF"}
-              </button>
-              {erreurPdf && <p className="text-xs text-red-400 mt-2">{erreurPdf}</p>}
-
-              <div className="flex items-center gap-3 my-5 text-[10px] uppercase tracking-wider text-slate-500">
-                <span className="flex-1 h-px bg-white/10" />
-                ou
-                <span className="flex-1 h-px bg-white/10" />
-              </div>
-
-              <Etape numero="2" titre="Analysez-la gratuitement avec un conseiller">
-                Un conseiller du pôle vous aide à comprendre les écarts et à identifier vos leviers prioritaires.
-              </Etape>
-
-              {!contactOuvert ? (
-                <button
-                  type="button"
-                  onClick={ouvrirContact}
-                  className="mt-4 w-full rounded-xl border border-white/25 text-sm font-semibold py-3 hover:bg-white/10 transition"
-                >
-                  Demander mon analyse gratuite
-                </button>
-              ) : envoye ? (
-                <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-center">
-                  <p className="font-semibold text-emerald-300 text-sm">Demande envoyée</p>
-                  <p className="text-xs text-slate-400 mt-1">Un conseiller du Pôle OETH / AGEFIPH vous recontacte prochainement.</p>
-                </div>
-              ) : (
-                <form onSubmit={envoyerContact} className="mt-4 space-y-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Votre nom"
-                    value={contact.nom}
-                    onChange={(e) => setContact((c) => ({ ...c, nom: e.target.value }))}
-                    className={CLASSE_INPUT}
-                  />
-                  <input
-                    type="email"
-                    required
-                    placeholder="Votre e-mail"
-                    value={contact.email}
-                    onChange={(e) => setContact((c) => ({ ...c, email: e.target.value }))}
-                    className={CLASSE_INPUT}
-                  />
-                  <input
-                    type="tel"
-                    placeholder="Téléphone (facultatif)"
-                    value={contact.telephone}
-                    onChange={(e) => setContact((c) => ({ ...c, telephone: e.target.value }))}
-                    className={CLASSE_INPUT}
-                  />
-                  <textarea
-                    rows={4}
-                    value={contact.message}
-                    onChange={(e) => setContact((c) => ({ ...c, message: e.target.value }))}
-                    className={`${CLASSE_INPUT} resize-none`}
-                  />
-                  {erreurEnvoi && (
-                    <p className="text-xs text-red-400 bg-red-500/10 border border-red-400/30 rounded-lg p-3">{erreurEnvoi}</p>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      type="submit"
-                      disabled={envoiEnCours || !contact.nom.trim() || !contact.email.trim()}
-                      className="flex-1 rounded-xl bg-white text-marine-900 hover:bg-marine-100 text-sm font-semibold py-2.5 transition disabled:opacity-40"
-                    >
-                      {envoiEnCours ? "Envoi…" : "Envoyer ma demande"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setContactOuvert(false)}
-                      className="rounded-xl text-sm text-slate-400 px-3 hover:text-white transition"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              <div className="flex gap-4 mt-4 text-[11px] text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400" /> Gratuit
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400" /> Sans engagement
-                </span>
-              </div>
-            </div>
-          </aside>
         </div>
       </div>
+
+      {/* Barre mobile : rappel du montant tant que le panneau de résultats
+          (placé sous la saisie sur petit écran) n'est pas visible. */}
+      {actif && sectionVisible && !resultatsVisibles && (
+        <button
+          type="button"
+          onClick={() => resultatsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="lg:hidden fixed bottom-0 inset-x-0 z-50 flex items-center justify-between gap-3 bg-marine-950/95 backdrop-blur border-t border-white/15 px-5 py-3 text-left"
+        >
+          <span>
+            <span className="block text-[10px] uppercase tracking-wider text-slate-400">Contribution estimée</span>
+            <span className={`block text-lg font-bold tabular-nums ${s.surcontribution ? "text-red-300" : "text-white"}`}>
+              {formatMontant(s.contributionNette)}
+            </span>
+          </span>
+          <span className="text-xs font-semibold text-marine-200">Voir le détail ↓</span>
+        </button>
+      )}
+
       {aideOuverte && <AideModale cle={aideOuverte} onFermer={fermerAide} />}
     </section>
   );
@@ -771,57 +761,6 @@ export default function SimulateurOeth() {
 
 const CLASSE_INPUT =
   "w-full rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-slate-500 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500";
-
-const TEINTES = {
-  emerald: "border-emerald-400/25 bg-emerald-400/[0.07]",
-  rose: "border-rose-400/25 bg-rose-400/[0.07]",
-  sky: "border-sky-400/25 bg-sky-400/[0.07]",
-};
-
-function Carte({ className = "", children }) {
-  return <div className={`rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-7 ${className}`}>{children}</div>;
-}
-
-function MiniCarte({ label, valeur, compact = false }) {
-  return (
-    <div className={`rounded-2xl border border-white/10 bg-white/[0.03] ${compact ? "px-3 py-2.5" : "px-4 py-4"}`}>
-      {compact ? (
-        <>
-          <p className="text-sm font-bold tabular-nums">{valeur}</p>
-          <p className="text-[11px] text-slate-400">{label}</p>
-        </>
-      ) : (
-        <>
-          <p className="text-sm text-slate-400">{label}</p>
-          <p className="text-2xl font-semibold mt-2 tabular-nums">{valeur}</p>
-        </>
-      )}
-    </div>
-  );
-}
-
-function Indicateur({ label, valeur, teinte }) {
-  return (
-    <div className={`rounded-2xl border px-5 py-5 ${TEINTES[teinte]}`}>
-      <p className="text-sm text-slate-300">{label}</p>
-      <p className="text-xl font-bold mt-2 tabular-nums">{valeur}</p>
-    </div>
-  );
-}
-
-function Etape({ numero, titre, children }) {
-  return (
-    <div className="flex gap-3">
-      <span className="shrink-0 w-7 h-7 rounded-lg bg-teal-400/15 text-teal-300 text-xs font-bold flex items-center justify-center">
-        {numero}
-      </span>
-      <div>
-        <p className="font-semibold">{titre}</p>
-        <p className="text-xs text-slate-400 mt-1 leading-relaxed">{children}</p>
-      </div>
-    </div>
-  );
-}
 
 // Carte de question Oui / Non à boutons radio ronds ; liseré gauche bleu
 // tant que la question attend une réponse.
