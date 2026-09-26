@@ -10,8 +10,8 @@ import db, { initDb, CANAL_GENERAL_ID } from "./db.js";
 import {
   calculerObligationOeth,
   simulerContributionOeth,
-  SMIC_PAR_EXERCICE,
-  EXERCICE_PAR_DEFAUT,
+  exercicesDisponibles,
+  exerciceParDefaut,
   smicPourExercice,
 } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur, CATEGORIES } from "./secteurs.js";
@@ -612,7 +612,7 @@ function lireSaisieSimulation(body = {}) {
     surcontributionDeclaree: ouiNon(body.surcontributionDeclaree),
     // Exercice choisi par le visiteur : le SMIC retenu en découle, toujours
     // côté serveur (liste fermée, jamais un montant fourni par le client).
-    annee: SMIC_PAR_EXERCICE[Number(body.annee)] ? Number(body.annee) : EXERCICE_PAR_DEFAUT,
+    annee: exercicesDisponibles().some((e) => e.annee === Number(body.annee)) ? Number(body.annee) : exerciceParDefaut(),
   };
   saisie.smicHoraire = smicPourExercice(saisie.annee);
   saisie.depensesDeductibles =
@@ -634,6 +634,12 @@ function lireSaisieSimulation(body = {}) {
   );
   return invalide ? null : saisie;
 }
+
+// Exercices proposés au simulateur et SMIC retenu pour chacun (calculés
+// d'après la date du jour et l'historique REVALORISATIONS_SMIC).
+app.get("/api/vitrine/referentiel", (req, res) => {
+  res.json({ exercices: exercicesDisponibles(), parDefaut: exerciceParDefaut() });
+});
 
 app.post("/api/vitrine/calculer", (req, res) => {
   const saisie = lireSaisieSimulation(req.body);

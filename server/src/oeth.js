@@ -4,16 +4,57 @@
 
 export const SEUIL_ASSUJETTISSEMENT = 20; // effectif à partir duquel l'OETH s'applique
 export const TAUX_LEGAL = 0.06; // règle des 6 %
-export const SMIC_HORAIRE_BRUT = 12.31; // € — à mettre à jour chaque revalorisation du SMIC
 
-// SMIC horaire brut retenu par exercice : celui en vigueur au 31 décembre de
-// l'année concernée (11,88 € depuis le 1er novembre 2024, 12,31 € depuis le
-// 1er juin 2026). L'exercice N se déclare dans la DSN d'avril N+1.
-export const SMIC_PAR_EXERCICE = { 2025: 11.88, 2026: 12.31 };
-export const EXERCICE_PAR_DEFAUT = 2026;
+// Historique des revalorisations du SMIC horaire brut. SEUL ENDROIT À METTRE
+// À JOUR quand le SMIC change : ajouter une ligne { depuis, montant }.
+// Le SMIC retenu pour l'exercice N est celui en vigueur au 31 décembre N ;
+// l'exercice N se déclare dans la DSN d'avril N+1.
+export const REVALORISATIONS_SMIC = [
+  { depuis: "2024-11-01", montant: 11.88 },
+  { depuis: "2026-01-01", montant: 12.02 },
+  { depuis: "2026-06-01", montant: 12.31 },
+];
+
+// Dernier SMIC publié — utilisé par le CRM (calculerObligationOeth).
+export const SMIC_HORAIRE_BRUT = REVALORISATIONS_SMIC[REVALORISATIONS_SMIC.length - 1].montant;
+
+const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+function dateLongue(iso) {
+  const [a, m, j] = iso.split("-").map(Number);
+  return `${j === 1 ? "1er" : j} ${MOIS[m - 1]} ${a}`;
+}
+
+function revalorisationEnVigueur(isoDate) {
+  const applicables = REVALORISATIONS_SMIC.filter((r) => r.depuis <= isoDate);
+  return applicables[applicables.length - 1] || REVALORISATIONS_SMIC[0];
+}
+
+// Exercices proposés : l'année précédente et l'année en cours, calculés
+// d'après la date du jour (en 2027 : 2026 et 2027, sans intervention).
+// Un exercice encore en cours est "provisoire" : le SMIC au 31 décembre
+// n'est pas encore connu, on retient le dernier SMIC publié.
+export function exercicesDisponibles(maintenant = new Date()) {
+  const anneeCourante = maintenant.getFullYear();
+  return [anneeCourante - 1, anneeCourante].map((annee) => {
+    const provisoire = annee >= anneeCourante;
+    const r = revalorisationEnVigueur(`${annee}-12-31`);
+    return {
+      annee,
+      smic: r.montant,
+      provisoire,
+      note: provisoire
+        ? `SMIC en vigueur depuis le ${dateLongue(r.depuis)}, retenu à titre provisoire pour l'exercice ${annee} (valeur définitive : SMIC au 31 décembre ${annee}) — DOETH déposée en ${annee + 1}.`
+        : `SMIC en vigueur au 31 décembre ${annee} (depuis le ${dateLongue(r.depuis)}), retenu pour l'exercice ${annee} — DOETH déposée en ${annee + 1}.`,
+    };
+  });
+}
+
+export function exerciceParDefaut(maintenant = new Date()) {
+  return maintenant.getFullYear();
+}
 
 export function smicPourExercice(annee) {
-  return SMIC_PAR_EXERCICE[annee] ?? SMIC_PAR_EXERCICE[EXERCICE_PAR_DEFAUT];
+  return revalorisationEnVigueur(`${annee}-12-31`).montant;
 }
 export const DUREE_NEUTRALISATION_ANNEES = 5; // délai légal de neutralisation pour une entreprise nouvellement créée
 

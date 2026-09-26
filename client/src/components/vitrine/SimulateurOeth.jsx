@@ -3,20 +3,16 @@ import { api } from "../../api.js";
 import CercleProgression from "./CercleProgression.jsx";
 import AideModale, { InfoBouton } from "./AideModale.jsx";
 
-// Exercices proposés et SMIC horaire brut retenu (celui en vigueur au 31
-// décembre de l'exercice). Affichage seulement : le calcul serveur choisit
-// lui-même le SMIC d'après l'année transmise (voir SMIC_PAR_EXERCICE).
-const EXERCICES = {
-  2025: {
-    smic: 11.88,
-    note: "SMIC en vigueur au 31 décembre 2025 (depuis le 1er novembre 2024), retenu pour l'exercice 2025 — DOETH déposée en 2026.",
-  },
-  2026: {
-    smic: 12.31,
-    note: "SMIC en vigueur depuis le 1er juin 2026, retenu pour l'exercice 2026 — DOETH déposée en 2027.",
-  },
-};
-const EXERCICE_PAR_DEFAUT = 2026;
+// Exercices proposés et SMIC retenu : fournis par le serveur
+// (/api/vitrine/referentiel, calculés d'après la date du jour et
+// l'historique REVALORISATIONS_SMIC de oeth.js). Cette liste locale ne sert
+// que de secours si l'appel échoue ; le calcul serveur choisit toujours
+// lui-même le SMIC d'après l'année transmise.
+const EXERCICES_SECOURS = [
+  { annee: 2025, smic: 11.88, provisoire: false, note: "SMIC en vigueur au 31 décembre 2025, retenu pour l'exercice 2025." },
+  { annee: 2026, smic: 12.31, provisoire: true, note: "SMIC en vigueur depuis le 1er juin 2026, retenu à titre provisoire pour l'exercice 2026." },
+];
+const EXERCICE_PAR_DEFAUT = new Date().getFullYear();
 const GUIDE_OFFICIEL_URL = "https://www.urssaf.fr/files/live/sites/urssaffr/files/outils-documentation/guides/Guide-OETH.pdf";
 const PAGE_URSSAF_URL = "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/contribution-annuelle-oeth.html";
 const CLE_ENTREPRISE = "simulateur-oeth-entreprise";
@@ -188,7 +184,18 @@ export default function SimulateurOeth() {
   const fermerAide = useCallback(() => setAideOuverte(null), []);
   const i = (cle) => <InfoBouton cle={cle} onOuvrir={setAideOuverte} />;
 
-  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  const [exercices, setExercices] = useState(EXERCICES_SECOURS);
+
+  useEffect(() => {
+    api
+      .getReferentielVitrine()
+      .then(({ exercices: liste, parDefaut }) => {
+        if (!Array.isArray(liste) || liste.length === 0) return;
+        setExercices(liste);
+        setSaisie((prec) => (liste.some((e) => e.annee === prec.annee) ? prec : { ...prec, annee: parDefaut }));
+      })
+      .catch(() => {});
+  }, []);
   const [requete, setRequete] = useState("");
   const [resultats, setResultats] = useState([]);
   const [recherche, setRecherche] = useState(false);
@@ -203,7 +210,7 @@ export default function SimulateurOeth() {
 
   const effectifRenseigne = saisie.effectif.trim() !== "";
   const ANNEE_REFERENCE = saisie.annee;
-  const exercice = EXERCICES[ANNEE_REFERENCE];
+  const exercice = exercices.find((e) => e.annee === ANNEE_REFERENCE) || exercices[exercices.length - 1];
   const smicTexte = exercice.smic.toLocaleString("fr-FR", { minimumFractionDigits: 2 });
   const seuilSousTraitance = Math.round(600 * exercice.smic);
 
@@ -305,7 +312,6 @@ export default function SimulateurOeth() {
     setNomEntreprise(candidat.nom);
     setEntrepriseMemorisee(false);
     if (candidat.effectifEstime != null) changerEffectif(String(candidat.effectifEstime));
-    setRechercheOuverte(false);
     setRequete("");
     setResultats([]);
   }
@@ -525,73 +531,91 @@ export default function SimulateurOeth() {
           </div>
         </div>
 
+        {/* ─────────── Gain de temps : recherche d'entreprise (Sirene) ─────────── */}
+        <div className="rounded-2xl border border-teal-400/25 bg-gradient-to-r from-teal-400/[0.08] via-marine-950/80 to-marine-950/80 px-6 sm:px-8 py-5">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            <div className="flex items-start gap-3 lg:w-[38%]">
+              <span className="shrink-0 w-9 h-9 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-300 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
+                </svg>
+              </span>
+              <div>
+                <p className="font-semibold">Gagnez du temps : retrouvez votre entreprise</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Raison sociale ou SIREN : nous pré-remplissons le nom et un effectif estimé, que vous pouvez corriger.
+                  Facultatif.
+                </p>
+              </div>
+            </div>
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={requete}
+                onChange={(e) => setRequete(e.target.value)}
+                placeholder="Ex : Société Dupont, ou 123 456 789"
+                className={`${CLASSE_INPUT} pl-11`}
+                aria-label="Rechercher votre entreprise par raison sociale ou SIREN"
+              />
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
+              </svg>
+              {(recherche || erreurRecherche || resultats.length > 0) && (
+                <div className="absolute z-30 inset-x-0 top-full mt-2 rounded-xl border border-white/15 bg-marine-950 shadow-2xl p-2 max-h-64 overflow-y-auto">
+                  {recherche && <p className="text-xs text-slate-500 px-2 py-1.5">Recherche…</p>}
+                  {erreurRecherche && <p className="text-xs text-red-400 px-2 py-1.5">{erreurRecherche}</p>}
+                  {resultats.map((r) => (
+                    <button
+                      key={r.siren}
+                      type="button"
+                      onClick={() => preremplirDepuisRecherche(r)}
+                      className="w-full text-left rounded-lg hover:bg-white/10 transition px-3 py-2"
+                    >
+                      <p className="text-sm font-medium text-white">{r.nom}</p>
+                      <p className="text-[11px] text-slate-400">{[r.ville, r.trancheEffectifLabel].filter(Boolean).join(" · ")}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-slate-500 mt-1.5">Répertoire public Sirene (INSEE) — aucune donnée n'est enregistrée.</p>
+            </div>
+          </div>
+        </div>
+
         {/* ─────────── Étape 01 : l'essentiel ─────────── */}
         <div className="rounded-2xl border border-white/10 bg-marine-950/80 px-6 sm:px-8 pt-5 pb-4">
           <EnteteEtape
             numero="01"
             titre="Commencez avec 3 informations essentielles"
             sousTitre="Renseignez votre effectif, puis votre taux d'emploi ou votre EMA BOETH : les deux sont liés, saisir l'un calcule l'autre."
-          >
-            <button
-              type="button"
-              onClick={() => setRechercheOuverte((v) => !v)}
-              className="text-xs text-marine-300 hover:text-marine-200 hover:underline inline-flex items-center gap-1.5"
-            >
-              <span>{rechercheOuverte ? "▾" : "▸"}</span> Pré-remplir via ma raison sociale ou mon SIREN (facultatif)
-            </button>
-          </EnteteEtape>
-
-          {rechercheOuverte && (
-            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-3 max-w-xl">
-              <input
-                type="text"
-                value={requete}
-                onChange={(e) => setRequete(e.target.value)}
-                placeholder="Ex : ESAT Tremplin, ou 123 456 789"
-                className={CLASSE_INPUT}
-              />
-              <p className="text-[11px] text-slate-500 mt-1.5">Répertoire public Sirene (INSEE) — aucune donnée n'est enregistrée.</p>
-              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                {recherche && <p className="text-xs text-slate-500">Recherche…</p>}
-                {erreurRecherche && <p className="text-xs text-red-400">{erreurRecherche}</p>}
-                {resultats.map((r) => (
-                  <button
-                    key={r.siren}
-                    type="button"
-                    onClick={() => preremplirDepuisRecherche(r)}
-                    className="w-full text-left rounded-lg hover:bg-white/10 transition px-3 py-2"
-                  >
-                    <p className="text-sm font-medium text-white">{r.nom}</p>
-                    <p className="text-[11px] text-slate-400">{[r.ville, r.trancheEffectifLabel].filter(Boolean).join(" · ")}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          />
 
           {/* Référentiel appliqué : année et SMIC, au-dessus des saisies. */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {/* Choix de l'exercice : le SMIC retenu et tout le calcul suivent. */}
+            {/* Choix de l'exercice (liste fournie par le serveur d'après la
+                date du jour) : le SMIC retenu et tout le calcul suivent. */}
             <div
               role="radiogroup"
               aria-label="Année concernée"
-              className="inline-flex items-center gap-1 rounded-full border border-marine-400/40 bg-marine-500/10 pl-3.5 pr-1 py-1 text-xs"
+              className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/[0.06] pl-3.5 pr-1 py-1 text-xs"
             >
-              <span className="text-[10px] font-bold uppercase tracking-wider text-marine-300 mr-1.5">Année concernée</span>
-              {Object.keys(EXERCICES).map((a) => {
-                const actifAnnee = Number(a) === ANNEE_REFERENCE;
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mr-1.5">Année concernée</span>
+              {exercices.map((e) => {
+                const actifAnnee = e.annee === ANNEE_REFERENCE;
                 return (
                   <button
-                    key={a}
+                    key={e.annee}
                     type="button"
                     role="radio"
                     aria-checked={actifAnnee}
-                    onClick={() => modifier("annee", Number(a))}
+                    onClick={() => modifier("annee", e.annee)}
                     className={`rounded-full px-3 py-1 font-semibold transition ${
-                      actifAnnee ? "bg-marine-400 text-marine-950" : "text-slate-300 hover:bg-white/10"
+                      actifAnnee
+                        ? "bg-amber-400 text-marine-950 shadow-[0_0_14px_rgba(251,191,36,0.45)]"
+                        : "text-slate-300 hover:bg-white/10"
                     }`}
                   >
-                    {a}
+                    {e.annee}
                   </button>
                 );
               })}
@@ -599,6 +623,11 @@ export default function SimulateurOeth() {
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SMIC horaire brut retenu</span>
               <span className="font-semibold text-white tabular-nums">{smicTexte} €</span>
+              {exercice.provisoire && (
+                <span className="rounded-full bg-amber-400/15 text-amber-300 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5">
+                  Provisoire
+                </span>
+              )}
             </span>
             <span className="text-[11px] text-slate-500">{exercice.note}</span>
           </div>

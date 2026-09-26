@@ -149,6 +149,8 @@ export const api = {
 
   // saisie : { effectif, boeth, coutMainOeuvreSousTraitance, nbEcap,
   // depensesDeductibles, aEmployeBoeth4Ans } — voir simulerContributionOeth.
+  getReferentielVitrine: () => fetch(`${BASE}/vitrine/referentiel`).then(handle),
+
   simulerContributionVitrine: (saisie) =>
     fetch(`${BASE}/vitrine/calculer`, {
       method: "POST",
