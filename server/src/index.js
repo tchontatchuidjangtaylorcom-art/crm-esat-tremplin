@@ -7,7 +7,13 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
 import db, { initDb, CANAL_GENERAL_ID } from "./db.js";
-import { calculerObligationOeth, simulerContributionOeth } from "./oeth.js";
+import {
+  calculerObligationOeth,
+  simulerContributionOeth,
+  SMIC_PAR_EXERCICE,
+  EXERCICE_PAR_DEFAUT,
+  smicPourExercice,
+} from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur, CATEGORIES } from "./secteurs.js";
 import {
   estSirenValide,
@@ -604,7 +610,11 @@ function lireSaisieSimulation(body = {}) {
     montantSousTraitance4Ans: nombre(body.montantSousTraitance4Ans),
     accordAgree: ouiNon(body.accordAgree),
     surcontributionDeclaree: ouiNon(body.surcontributionDeclaree),
+    // Exercice choisi par le visiteur : le SMIC retenu en découle, toujours
+    // côté serveur (liste fermée, jamais un montant fourni par le client).
+    annee: SMIC_PAR_EXERCICE[Number(body.annee)] ? Number(body.annee) : EXERCICE_PAR_DEFAUT,
   };
+  saisie.smicHoraire = smicPourExercice(saisie.annee);
   saisie.depensesDeductibles =
     saisie.depAccessibilite + saisie.depMaintien + saisie.depAccompagnement + saisie.depPartenariats ||
     nombre(body.depensesDeductibles);
@@ -644,7 +654,7 @@ app.post("/api/vitrine/synthese-pdf", async (req, res) => {
       poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
     });
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", 'attachment; filename="simulation-oeth-2026.pdf"');
+    res.setHeader("Content-Disposition", `attachment; filename="simulation-oeth-${saisie.annee}.pdf"`);
     res.send(pdf);
   } catch (e) {
     res.status(500).json({ error: e.message });

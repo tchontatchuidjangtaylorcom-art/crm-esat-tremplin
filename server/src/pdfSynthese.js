@@ -254,7 +254,7 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       .fillColor(BLEU)
       .font("Helvetica-Bold")
       .fontSize(14)
-      .text("Simulation OETH / DOETH 2026 — synthèse indicative", 50, 96, { width: largeurUtile });
+      .text(`Simulation OETH / DOETH — exercice ${saisie.annee} — synthèse indicative`, 50, 96, { width: largeurUtile });
     doc
       .fillColor(GRIS_CLAIR)
       .font("Helvetica")

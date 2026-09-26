@@ -5,6 +5,16 @@
 export const SEUIL_ASSUJETTISSEMENT = 20; // effectif à partir duquel l'OETH s'applique
 export const TAUX_LEGAL = 0.06; // règle des 6 %
 export const SMIC_HORAIRE_BRUT = 12.31; // € — à mettre à jour chaque revalorisation du SMIC
+
+// SMIC horaire brut retenu par exercice : celui en vigueur au 31 décembre de
+// l'année concernée (11,88 € depuis le 1er novembre 2024, 12,31 € depuis le
+// 1er juin 2026). L'exercice N se déclare dans la DSN d'avril N+1.
+export const SMIC_PAR_EXERCICE = { 2025: 11.88, 2026: 12.31 };
+export const EXERCICE_PAR_DEFAUT = 2026;
+
+export function smicPourExercice(annee) {
+  return SMIC_PAR_EXERCICE[annee] ?? SMIC_PAR_EXERCICE[EXERCICE_PAR_DEFAUT];
+}
 export const DUREE_NEUTRALISATION_ANNEES = 5; // délai légal de neutralisation pour une entreprise nouvellement créée
 
 // Coefficient (nombre de SMIC horaires par unité manquante) selon la taille de

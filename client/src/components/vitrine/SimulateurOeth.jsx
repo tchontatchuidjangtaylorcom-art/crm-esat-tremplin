@@ -3,8 +3,20 @@ import { api } from "../../api.js";
 import CercleProgression from "./CercleProgression.jsx";
 import AideModale, { InfoBouton } from "./AideModale.jsx";
 
-const ANNEE_REFERENCE = 2026;
-const SMIC_AFFICHE = "12,31";
+// Exercices proposés et SMIC horaire brut retenu (celui en vigueur au 31
+// décembre de l'exercice). Affichage seulement : le calcul serveur choisit
+// lui-même le SMIC d'après l'année transmise (voir SMIC_PAR_EXERCICE).
+const EXERCICES = {
+  2025: {
+    smic: 11.88,
+    note: "SMIC en vigueur au 31 décembre 2025 (depuis le 1er novembre 2024), retenu pour l'exercice 2025 — DOETH déposée en 2026.",
+  },
+  2026: {
+    smic: 12.31,
+    note: "SMIC en vigueur depuis le 1er juin 2026, retenu pour l'exercice 2026 — DOETH déposée en 2027.",
+  },
+};
+const EXERCICE_PAR_DEFAUT = 2026;
 const GUIDE_OFFICIEL_URL = "https://www.urssaf.fr/files/live/sites/urssaffr/files/outils-documentation/guides/Guide-OETH.pdf";
 const PAGE_URSSAF_URL = "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/contribution-annuelle-oeth.html";
 const CLE_ENTREPRISE = "simulateur-oeth-entreprise";
@@ -23,6 +35,7 @@ const SAISIE_VIDE = {
   montantSousTraitance4Ans: "",
   accordAgree: null,
   surcontributionDeclaree: null,
+  annee: EXERCICE_PAR_DEFAUT,
 };
 
 // Dépenses déductibles ventilées par code DSN (bloc S21.G00.82), plafond
@@ -183,6 +196,10 @@ export default function SimulateurOeth() {
   const [resultatsVisibles, setResultatsVisibles] = useState(false);
 
   const effectifRenseigne = saisie.effectif.trim() !== "";
+  const ANNEE_REFERENCE = saisie.annee;
+  const exercice = EXERCICES[ANNEE_REFERENCE];
+  const smicTexte = exercice.smic.toLocaleString("fr-FR", { minimumFractionDigits: 2 });
+  const seuilSousTraitance = Math.round(600 * exercice.smic);
 
   // Barre mobile : affichée quand le simulateur est à l'écran mais que le
   // bloc résultats ne l'est pas.
@@ -548,18 +565,36 @@ export default function SimulateurOeth() {
 
           {/* Référentiel appliqué : année et SMIC, au-dessus des saisies. */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-marine-400/40 bg-marine-500/10 px-3.5 py-1.5 text-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-marine-300">Année concernée</span>
-              <span className="font-semibold text-white">{ANNEE_REFERENCE}</span>
-            </span>
+            {/* Choix de l'exercice : le SMIC retenu et tout le calcul suivent. */}
+            <div
+              role="radiogroup"
+              aria-label="Année concernée"
+              className="inline-flex items-center gap-1 rounded-full border border-marine-400/40 bg-marine-500/10 pl-3.5 pr-1 py-1 text-xs"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-marine-300 mr-1.5">Année concernée</span>
+              {Object.keys(EXERCICES).map((a) => {
+                const actifAnnee = Number(a) === ANNEE_REFERENCE;
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    role="radio"
+                    aria-checked={actifAnnee}
+                    onClick={() => modifier("annee", Number(a))}
+                    className={`rounded-full px-3 py-1 font-semibold transition ${
+                      actifAnnee ? "bg-marine-400 text-marine-950" : "text-slate-300 hover:bg-white/10"
+                    }`}
+                  >
+                    {a}
+                  </button>
+                );
+              })}
+            </div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SMIC horaire brut retenu</span>
-              <span className="font-semibold text-white">{SMIC_AFFICHE} €</span>
+              <span className="font-semibold text-white tabular-nums">{smicTexte} €</span>
             </span>
-            <span className="text-[11px] text-slate-500">
-              SMIC en vigueur depuis le 1er juin {ANNEE_REFERENCE}, retenu pour l'exercice {ANNEE_REFERENCE} (DOETH déposée
-              en {ANNEE_REFERENCE + 1}).
-            </span>
+            <span className="text-[11px] text-slate-500">{exercice.note}</span>
           </div>
 
           <div className="mt-3 grid md:grid-cols-3 gap-3">
@@ -820,7 +855,7 @@ export default function SimulateurOeth() {
                             className={`mt-1.5 ${CLASSE_INPUT}`}
                           />
                           <span className="block text-[11px] font-normal text-slate-500 mt-1">
-                            Seuil {ANNEE_REFERENCE} : 7 386 €.
+                            Seuil {ANNEE_REFERENCE} : {formatMontant(seuilSousTraitance)}.
                             {s?.sousTraitance4AnsInsuffisante && (
                               <span className="text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
                             )}
