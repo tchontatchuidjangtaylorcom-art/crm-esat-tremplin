@@ -79,7 +79,6 @@ export default function SimulateurOeth() {
 
   const [aideEssentielOuverte, setAideEssentielOuverte] = useState(false);
   const [deductionsOuvertes, setDeductionsOuvertes] = useState(true);
-  const [resultatsAffiches, setResultatsAffiches] = useState(false);
   const [erreurEffectif, setErreurEffectif] = useState(false);
 
   const [pdfEnCours, setPdfEnCours] = useState(false);
@@ -123,7 +122,7 @@ export default function SimulateurOeth() {
       obsSection.disconnect();
       obsResultats.disconnect();
     };
-  }, [resultatsAffiches]);
+  }, []);
 
   // Recherche Sirene optionnelle (pré-remplissage du nom et de l'effectif
   // estimé par tranche INSEE — le visiteur peut ensuite corriger).
@@ -224,7 +223,6 @@ export default function SimulateurOeth() {
       setErreurEffectif(true);
       return;
     }
-    setResultatsAffiches(true);
     setTimeout(() => resultatsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
@@ -238,8 +236,6 @@ export default function SimulateurOeth() {
     setTauxSaisi("");
     setSousTraitance(null);
     setSimulation(null);
-    setResultatsAffiches(false);
-    setDeductionsOuvertes(false);
     setContactOuvert(false);
     setEnvoye(false);
     setErreurPdf(null);
@@ -344,7 +340,7 @@ export default function SimulateurOeth() {
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] max-w-full h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
 
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 space-y-5">
+      <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 space-y-5">
         {/* ─────────── En-tête ─────────── */}
         <div className="rounded-2xl border border-white/10 bg-marine-950 shadow-2xl overflow-hidden">
           <div className="flex h-1">
@@ -413,7 +409,20 @@ export default function SimulateurOeth() {
             </div>
           )}
 
-          <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Référentiel appliqué : année et SMIC, au-dessus des saisies. */}
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-marine-400/40 bg-marine-500/10 px-3.5 py-1.5 text-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-marine-300">Année concernée</span>
+              <span className="font-semibold text-white">{ANNEE_REFERENCE}</span>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SMIC horaire brut retenu</span>
+              <span className="font-semibold text-white">{SMIC_AFFICHE} €</span>
+            </span>
+            <span className="text-[11px] text-slate-500">Référentiel réglementaire appliqué par le simulateur.</span>
+          </div>
+
+          <div className="mt-3 grid md:grid-cols-3 gap-3">
             <CaseSaisie
               titre={<>Effectif d'assujettissement{i("effectif")}</>}
               unite="salariés"
@@ -443,14 +452,6 @@ export default function SimulateurOeth() {
               aide="Bénéficiaires de l'obligation d'emploi pris en compte dans la déclaration."
               accent
             />
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-              <p className="text-xs font-medium text-slate-300">SMIC horaire brut retenu</p>
-              <div className="mt-2.5 flex items-center justify-between rounded-lg border border-white/5 bg-black/20 px-3 py-2.5 text-sm text-slate-300">
-                {SMIC_AFFICHE}
-                <span className="text-[10px] text-slate-500">€ · réglementaire</span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-2">Référentiel {ANNEE_REFERENCE} appliqué par le simulateur.</p>
-            </div>
           </div>
 
           <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02]">
@@ -644,7 +645,7 @@ export default function SimulateurOeth() {
             onClick={calculer}
             className="inline-flex items-center gap-2 rounded-xl bg-teal-400 hover:bg-teal-300 text-marine-950 text-sm font-bold px-7 py-3.5 transition shadow-[0_10px_40px_rgba(45,212,191,0.3)]"
           >
-            {resultatsAffiches ? "Voir mes résultats ↓" : "Calculer ma contribution →"}
+            Calculer ma contribution ↓
           </button>
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 mt-3 text-[11px] text-slate-400">
             <span>● Résultat immédiat</span>
@@ -662,7 +663,9 @@ export default function SimulateurOeth() {
         </div>
 
         {/* ─────────── Étape 03 : résultats ─────────── */}
-        {resultatsAffiches && (
+        {/* Toujours visible, même vide : le visiteur voit d'emblée ce qu'il
+            va obtenir, et chaque saisie met les chiffres à jour en direct. */}
+        {(
           <div ref={resultatsRef} className="scroll-mt-20 pt-4">
             <div className="flex items-center gap-4 mb-5">
               <span className="shrink-0 w-10 h-10 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-300 text-sm font-bold flex items-center justify-center">
@@ -700,7 +703,9 @@ export default function SimulateurOeth() {
                         {actif ? formatMontant(s.contributionNette) : "— €"}
                       </p>
                       <p className="text-sm text-slate-400 mt-2 max-w-md leading-relaxed">
-                        {lecture ? lecture.message : "Votre position par rapport au quota légal s'affiche ici."}
+                        {lecture
+                          ? lecture.message
+                          : "Renseignez votre effectif ci-dessus : vos résultats s'affichent ici instantanément, à chaque saisie."}
                       </p>
                     </div>
                     {actif && s.contributionBrute > 0 && (
@@ -1045,7 +1050,7 @@ export default function SimulateurOeth() {
 
       {/* Barre mobile : rappel du montant tant que le bloc résultats n'est
           pas à l'écran. */}
-      {resultatsAffiches && actif && sectionVisible && !resultatsVisibles && (
+      {actif && sectionVisible && !resultatsVisibles && (
         <button
           type="button"
           onClick={() => resultatsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
