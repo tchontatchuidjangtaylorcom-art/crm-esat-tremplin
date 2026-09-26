@@ -163,6 +163,9 @@ export function simulerContributionOeth({
   nbEcap = 0,
   depensesDeductibles = 0,
   aEmployeBoeth4Ans = null,
+  sousTraitance4Ans = null,
+  montantSousTraitance4Ans = 0,
+  accordAgree = null,
   smicHoraire = SMIC_HORAIRE_BRUT,
 } = {}) {
   const eff = positif(effectif);
@@ -178,7 +181,17 @@ export function simulerContributionOeth({
   const tranche = assujetti ? trancheEffectif(eff) : null;
 
   const seuilSousTraitanceMin = arrondi2(SEUIL_SOUS_TRAITANCE_SMIC * smicHoraire);
-  const actionMinimale = beneficiaires > 0 || aEmployeBoeth4Ans === true || coutST >= seuilSousTraitanceMin;
+  // Sous-traitance cumulée sur la période : "Oui" suffit si aucun montant
+  // n'est précisé ; un montant saisi doit atteindre le seuil de 600 × SMIC.
+  const montantST4Ans = positif(montantSousTraitance4Ans);
+  const sousTraitance4AnsSuffisante =
+    sousTraitance4Ans === true && (montantST4Ans === 0 || montantST4Ans >= seuilSousTraitanceMin);
+  const actionMinimale =
+    beneficiaires > 0 ||
+    aEmployeBoeth4Ans === true ||
+    coutST >= seuilSousTraitanceMin ||
+    sousTraitance4AnsSuffisante ||
+    accordAgree === true;
   const surcontribution = assujetti && manque > 0 && !actionMinimale;
 
   const coefficient = manque > 0 ? (surcontribution ? COEFFICIENT_SURCONTRIBUTION : tranche.coefficient) : null;
@@ -216,6 +229,8 @@ export function simulerContributionOeth({
     coefficientTranche: tranche?.coefficient || null,
     surcontribution,
     actionMinimale,
+    accordAgree: accordAgree === true,
+    sousTraitance4AnsInsuffisante: sousTraitance4Ans === true && !sousTraitance4AnsSuffisante,
     seuilSousTraitanceMin,
     coefficient,
     contributionBrute,

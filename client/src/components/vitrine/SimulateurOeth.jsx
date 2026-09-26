@@ -16,6 +16,9 @@ const SAISIE_VIDE = {
   nbEcap: "",
   depensesDeductibles: "",
   aEmployeBoeth4Ans: null,
+  sousTraitance4Ans: null,
+  montantSousTraitance4Ans: "",
+  accordAgree: null,
 };
 
 function formatMontant(n) {
@@ -376,30 +379,88 @@ export default function SimulateurOeth() {
               onChange={(v) => modifier("depensesDeductibles", v)}
               placeholder="0"
             />
-            <div className="text-xs text-slate-400">
-              BOETH employé ces 4 dernières années ?{i("regle4ans")}
-              <div className="flex gap-2 mt-1.5">
-                {[
-                  { v: true, label: "Oui" },
-                  { v: false, label: "Non" },
-                ].map((o) => (
-                  <button
-                    key={o.label}
-                    type="button"
-                    onClick={() => modifier("aEmployeBoeth4Ans", saisie.aEmployeBoeth4Ans === o.v ? null : o.v)}
-                    aria-pressed={saisie.aEmployeBoeth4Ans === o.v}
-                    className={`flex-1 rounded-xl py-3 text-sm font-medium border transition ${
-                      saisie.aEmployeBoeth4Ans === o.v
-                        ? "bg-marine-500 border-marine-400 text-white"
-                        : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              <span className="block text-[11px] text-slate-500 mt-1">Nouvelle période DOETH — règle des 4 ans.</span>
-            </div>
+          </div>
+
+          {/* Règle des 4 ans — questions en cascade : chaque réponse "Non"
+              ouvre la question suivante (conditions cumulatives de la base
+              majorée à 1 500 × SMIC, voir simulerContributionOeth). */}
+          <div className="mt-6 space-y-3">
+            <Question
+              actif={saisie.aEmployeBoeth4Ans === null}
+              intitule={
+                <>
+                  Au cours des 4 dernières années, l'entreprise a-t-elle employé au moins un bénéficiaire de l'obligation
+                  d'emploi ? <span className="text-slate-500">(nouvelle période DOETH)</span>
+                  {i("regle4ans")}
+                </>
+              }
+              nom="q-boeth-4ans"
+              valeur={saisie.aEmployeBoeth4Ans}
+              onChange={(v) =>
+                setSaisie((s) => ({
+                  ...s,
+                  aEmployeBoeth4Ans: v,
+                  ...(v === true ? { sousTraitance4Ans: null, montantSousTraitance4Ans: "", accordAgree: null } : {}),
+                }))
+              }
+            />
+
+            {saisie.aEmployeBoeth4Ans === true && (
+              <p className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.07] px-4 py-3 text-sm text-emerald-200">
+                ✓ La règle des 4 ans est respectée : pas de base majorée, le coefficient normal s'applique.
+              </p>
+            )}
+
+            {saisie.aEmployeBoeth4Ans === false && (
+              <Question
+                actif={saisie.sousTraitance4Ans === null}
+                intitule="Au cours des 4 dernières années, l'entreprise a-t-elle réalisé des achats ou de la sous-traitance auprès d'une EA, d'un ESAT ou d'un TIH pour un montant supérieur ou égal à 600 × SMIC horaire ?"
+                nom="q-st-4ans"
+                valeur={saisie.sousTraitance4Ans}
+                onChange={(v) =>
+                  setSaisie((s) => ({ ...s, sousTraitance4Ans: v, ...(v === false ? { montantSousTraitance4Ans: "" } : {}) }))
+                }
+              >
+                {saisie.sousTraitance4Ans === true && (
+                  <label className="block mt-4 text-sm font-medium text-slate-200">
+                    Montant cumulé de main-d'œuvre sur 4 ans
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      value={saisie.montantSousTraitance4Ans}
+                      onChange={(e) => modifier("montantSousTraitance4Ans", e.target.value)}
+                      placeholder="Ex. 7386"
+                      className={`mt-1.5 ${CLASSE_INPUT}`}
+                    />
+                    <span className="block text-[11px] font-normal text-slate-500 mt-1">
+                      Seuil {ANNEE_REFERENCE} : 7 386 €.
+                      {s?.sousTraitance4AnsInsuffisante && (
+                        <span className="text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
+                      )}
+                    </span>
+                  </label>
+                )}
+              </Question>
+            )}
+
+            {saisie.aEmployeBoeth4Ans === false && saisie.sousTraitance4Ans !== null && (
+              <Question
+                actif={saisie.accordAgree === null}
+                intitule="L'entreprise dispose-t-elle d'un accord agréé applicable sur la période concernée ?"
+                nom="q-accord"
+                valeur={saisie.accordAgree}
+                onChange={(v) => modifier("accordAgree", v)}
+              >
+                {saisie.accordAgree === true && (
+                  <p className="mt-3 text-xs text-slate-400">
+                    Avec un accord agréé, l'obligation est remplie par la mise en œuvre de son programme : le budget
+                    correspondant finance les actions de l'accord au lieu d'être versé à l'URSSAF.
+                  </p>
+                )}
+              </Question>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 mt-6">
@@ -530,8 +591,8 @@ export default function SimulateurOeth() {
                     <p className="mt-1">
                       Sans BOETH employé sur les 4 dernières années ni sous-traitance EA/ESAT/TIH d'au moins{" "}
                       {formatMontant(s.seuilSousTraitanceMin)} (600 × SMIC), la contribution est calculée à 1 500 × SMIC par
-                      bénéficiaire manquant. Répondez « Oui » ci-dessus si c'est le cas, ou renseignez vos achats auprès du
-                      secteur protégé.
+                      bénéficiaire manquant, sauf accord agréé. Vérifiez vos réponses aux questions sur les 4 dernières
+                      années.
                     </p>
                   </div>
                 )}
@@ -770,6 +831,42 @@ function Etape({ numero, titre, children }) {
         <p className="text-xs text-slate-400 mt-1 leading-relaxed">{children}</p>
       </div>
     </div>
+  );
+}
+
+// Carte de question Oui / Non à boutons radio ronds ; liseré gauche bleu
+// tant que la question attend une réponse.
+function Question({ intitule, nom, valeur, onChange, actif, children }) {
+  return (
+    <fieldset
+      className={`rounded-xl border bg-white/[0.03] px-5 py-4 transition ${
+        actif ? "border-white/10 border-l-4 border-l-marine-400" : "border-white/10"
+      }`}
+    >
+      <legend className="sr-only">{typeof intitule === "string" ? intitule : nom}</legend>
+      <p className="text-sm text-slate-200 leading-relaxed">{intitule}</p>
+      <div className="flex gap-6 mt-3">
+        {[
+          { v: true, label: "Oui" },
+          { v: false, label: "Non" },
+        ].map((o) => (
+          <label key={o.label} className="inline-flex items-center gap-2 cursor-pointer text-sm text-slate-200">
+            <input
+              type="radio"
+              name={nom}
+              checked={valeur === o.v}
+              onChange={() => onChange(o.v)}
+              className="peer sr-only"
+            />
+            <span className="w-5 h-5 rounded-full border-2 border-slate-500 flex items-center justify-center peer-checked:border-marine-300 peer-focus-visible:ring-2 peer-focus-visible:ring-marine-500">
+              <span className={`w-2.5 h-2.5 rounded-full ${valeur === o.v ? "bg-marine-300" : "bg-transparent"}`} />
+            </span>
+            {o.label}
+          </label>
+        ))}
+      </div>
+      {children}
+    </fieldset>
   );
 }
 

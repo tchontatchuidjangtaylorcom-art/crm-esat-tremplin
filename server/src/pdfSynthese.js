@@ -209,6 +209,10 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
   });
 }
 
+function ouiNonTexte(v) {
+  return v === true ? "Oui" : v === false ? "Non" : "Non renseigné";
+}
+
 function formatNombre(n) {
   const v = Math.round((n || 0) * 100) / 100;
   return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(".", ",");
@@ -295,10 +299,18 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       ["Coût main-d'œuvre sous-traitance EA / ESAT / TIH (HT)", formatMontant(saisie.coutMainOeuvreSousTraitance)],
       ["Salariés ECAP", formatNombre(saisie.nbEcap)],
       ["Autres dépenses déductibles (HT)", formatMontant(saisie.depensesDeductibles)],
-      [
-        "BOETH employé au cours des 4 dernières années",
-        saisie.aEmployeBoeth4Ans === true ? "Oui" : saisie.aEmployeBoeth4Ans === false ? "Non" : "Non renseigné",
-      ],
+      ["BOETH employé au cours des 4 dernières années", ouiNonTexte(saisie.aEmployeBoeth4Ans)],
+      ...(saisie.aEmployeBoeth4Ans === false
+        ? [
+            [
+              "Sous-traitance EA / ESAT / TIH >= 600 x SMIC sur 4 ans",
+              saisie.sousTraitance4Ans === true && saisie.montantSousTraitance4Ans > 0
+                ? `Oui (${formatMontant(saisie.montantSousTraitance4Ans)})`
+                : ouiNonTexte(saisie.sousTraitance4Ans),
+            ],
+            ["Accord agréé applicable", ouiNonTexte(saisie.accordAgree)],
+          ]
+        : []),
     ]);
 
     section("Résultat", [
@@ -321,7 +333,7 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
         .fontSize(9)
         .fillColor(ROUGE)
         .text(
-          "Surcontribution : aucune action minimale renseignée (aucun BOETH sur 4 ans et sous-traitance inférieure à 600 × SMIC) — " +
+          "Surcontribution : aucune action minimale renseignée (aucun BOETH sur 4 ans, sous-traitance inférieure à 600 × SMIC, pas d'accord agréé) — " +
             "coefficient de 1 500 × SMIC par unité manquante.",
           50,
           y,

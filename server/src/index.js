@@ -587,15 +587,26 @@ app.get("/api/vitrine/simulation", async (req, res) => {
 // 4 ans) utilise simulerContributionOeth — mêmes constantes que le CRM.
 function lireSaisieSimulation(body = {}) {
   const nombre = (v) => (v === "" || v === null || v === undefined ? 0 : Number(v));
+  const ouiNon = (v) => (v === true ? true : v === false ? false : null);
   const saisie = {
     effectif: nombre(body.effectif),
     boeth: nombre(body.boeth),
     coutMainOeuvreSousTraitance: nombre(body.coutMainOeuvreSousTraitance),
     nbEcap: nombre(body.nbEcap),
     depensesDeductibles: nombre(body.depensesDeductibles),
-    aEmployeBoeth4Ans: body.aEmployeBoeth4Ans === true ? true : body.aEmployeBoeth4Ans === false ? false : null,
+    aEmployeBoeth4Ans: ouiNon(body.aEmployeBoeth4Ans),
+    sousTraitance4Ans: ouiNon(body.sousTraitance4Ans),
+    montantSousTraitance4Ans: nombre(body.montantSousTraitance4Ans),
+    accordAgree: ouiNon(body.accordAgree),
   };
-  const invalide = ["effectif", "boeth", "coutMainOeuvreSousTraitance", "nbEcap", "depensesDeductibles"].some(
+  const invalide = [
+    "effectif",
+    "boeth",
+    "coutMainOeuvreSousTraitance",
+    "nbEcap",
+    "depensesDeductibles",
+    "montantSousTraitance4Ans",
+  ].some(
     (k) => !Number.isFinite(saisie[k]) || saisie[k] < 0
   );
   return invalide ? null : saisie;
