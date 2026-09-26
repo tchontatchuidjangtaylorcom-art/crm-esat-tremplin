@@ -29,7 +29,16 @@ export default function FormulaireDemo() {
   const [envoye, setEnvoye] = useState(false);
 
   useEffect(() => {
-    api.getOptionsDemo().then(setOptions).catch(() => {});
+    api
+      .getOptionsDemo()
+      .then((o) =>
+        setOptions({
+          fonctions: Array.isArray(o?.fonctions) ? o.fonctions : [],
+          tailles: Array.isArray(o?.tailles) ? o.tailles : [],
+          sujets: Array.isArray(o?.sujets) ? o.sujets : [],
+        })
+      )
+      .catch(() => {});
   }, []);
 
   const champ = (cle) => ({ value: form[cle], onChange: (e) => setForm((f) => ({ ...f, [cle]: e.target.value })) });

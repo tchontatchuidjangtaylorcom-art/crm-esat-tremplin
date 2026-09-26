@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "../../api.js";
 import CercleProgression from "./CercleProgression.jsx";
 import AideModale, { InfoBouton } from "./AideModale.jsx";
 
