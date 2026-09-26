@@ -340,7 +340,7 @@ export default function SimulateurOeth() {
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] max-w-full h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
 
-      <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 space-y-5">
+      <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 space-y-3">
         {/* ─────────── En-tête ─────────── */}
         <div className="rounded-2xl border border-white/10 bg-marine-950 shadow-2xl overflow-hidden">
           <div className="flex h-1">
@@ -348,7 +348,7 @@ export default function SimulateurOeth() {
             <span className="flex-1 bg-white" />
             <span className="flex-1 bg-red-500" />
           </div>
-          <div className="px-6 sm:px-8 py-7 flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+          <div className="px-6 sm:px-8 py-5 flex flex-col md:flex-row md:items-end md:justify-between gap-5">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-400">Simulateur OETH / DOETH</p>
               <h2 className="font-bold text-white text-2xl sm:text-3xl mt-1">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
@@ -366,7 +366,7 @@ export default function SimulateurOeth() {
         </div>
 
         {/* ─────────── Étape 01 : l'essentiel ─────────── */}
-        <div className="rounded-2xl border border-white/10 bg-marine-950/80 px-6 sm:px-8 py-7">
+        <div className="rounded-2xl border border-white/10 bg-marine-950/80 px-6 sm:px-8 pt-5 pb-4">
           <EnteteEtape
             numero="01"
             titre="Commencez avec 3 informations essentielles"
@@ -410,7 +410,7 @@ export default function SimulateurOeth() {
           )}
 
           {/* Référentiel appliqué : année et SMIC, au-dessus des saisies. */}
-          <div className="mt-6 flex flex-wrap items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-marine-400/40 bg-marine-500/10 px-3.5 py-1.5 text-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-marine-300">Année concernée</span>
               <span className="font-semibold text-white">{ANNEE_REFERENCE}</span>
@@ -461,11 +461,11 @@ export default function SimulateurOeth() {
             />
           </div>
 
-          <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02]">
+          <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.02]">
             <button
               type="button"
               onClick={() => setAideEssentielOuverte((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium text-slate-300 hover:text-white"
+              className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-slate-300 hover:text-white"
             >
               Besoin d'aide pour identifier ces informations ?
               <span className="text-marine-300 text-base leading-none">{aideEssentielOuverte ? "−" : "+"}</span>
@@ -487,10 +487,10 @@ export default function SimulateurOeth() {
           <button
             type="button"
             onClick={() => setDeductionsOuvertes((v) => !v)}
-            className="w-full flex items-center gap-4 px-6 sm:px-8 py-5 text-left"
+            className="w-full flex items-center gap-3 px-6 sm:px-8 py-3 text-left"
             aria-expanded={deductionsOuvertes}
           >
-            <span className="shrink-0 w-10 h-10 rounded-xl bg-marine-500/15 border border-marine-400/30 text-marine-300 text-sm font-bold flex items-center justify-center">
+            <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-300 text-xs font-bold flex items-center justify-center">
               02
             </span>
             <span className="flex-1">
@@ -1103,7 +1103,7 @@ function Pastille({ couleur, children }) {
 function EnteteEtape({ numero, titre, sousTitre, children }) {
   return (
     <div className="flex flex-col md:flex-row md:items-start gap-4">
-      <span className="shrink-0 w-10 h-10 rounded-xl bg-marine-500/15 border border-marine-400/30 text-marine-300 text-sm font-bold flex items-center justify-center">
+      <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-300 text-xs font-bold flex items-center justify-center">
         {numero}
       </span>
       <div className="flex-1">
