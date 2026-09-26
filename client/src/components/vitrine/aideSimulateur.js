@@ -76,6 +76,16 @@ export const AIDES = {
       "Répondez Oui si vous avez employé au moins un bénéficiaire, même à temps partiel, au cours des 4 dernières années. Un seul recrutement ou un contrat suffisant avec un ESAT ou une EA suffit à sortir de cette base majorée.",
     sources: [SOURCE_URSSAF],
   },
+  surcontribution: {
+    titre: "La surcontribution (contribution majorée)",
+    definition:
+      "C'est une contribution nettement plus élevée, appliquée aux entreprises qui sont restées à zéro pendant plus de 3 années consécutives, donc dès la 4e année : aucun travailleur handicapé employé, aucun achat suffisant auprès d'une EA, d'un ESAT ou d'un TIH, et aucun accord agréé.",
+    calcul:
+      "Au lieu de 400, 500 ou 600 × SMIC selon la taille de l'entreprise, chaque bénéficiaire manquant coûte 1 500 × SMIC horaire, soit 18 465 €. Exemple : 34 salariés et un quota de 2 bénéficiaires, soit 2 × 18 465 € = 36 930 € au lieu de 9 848 € avec le coefficient normal.",
+    conseil:
+      "Il suffit d'une seule action pour en sortir : employer au moins un bénéficiaire, même à temps partiel, ou acheter au moins 600 × SMIC (7 386 €) de prestations à une EA, un ESAT ou un TIH, ou appliquer un accord agréé. Si vous ne savez pas, choisissez « Je ne sais pas » : trois questions simples permettent de le déterminer.",
+    sources: [SOURCE_URSSAF],
+  },
   objectif: {
     titre: "Le taux d'emploi et l'objectif de 6 %",
     definition:

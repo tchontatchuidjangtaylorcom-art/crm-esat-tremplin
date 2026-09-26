@@ -166,6 +166,7 @@ export function simulerContributionOeth({
   sousTraitance4Ans = null,
   montantSousTraitance4Ans = 0,
   accordAgree = null,
+  surcontributionDeclaree = null, // true | false | null (null = déduite des réponses)
   smicHoraire = SMIC_HORAIRE_BRUT,
 } = {}) {
   const eff = positif(effectif);
@@ -192,7 +193,12 @@ export function simulerContributionOeth({
     coutST >= seuilSousTraitanceMin ||
     sousTraitance4AnsSuffisante ||
     accordAgree === true;
-  const surcontribution = assujetti && manque > 0 && !actionMinimale;
+  // Réponse directe du visiteur ("Votre entreprise est-elle concernée par
+  // la surcontribution ?") prioritaire ; sinon déduction depuis les réponses.
+  const surcontribution =
+    assujetti &&
+    manque > 0 &&
+    (surcontributionDeclaree === true ? true : surcontributionDeclaree === false ? false : !actionMinimale);
 
   const coefficient = manque > 0 ? (surcontribution ? COEFFICIENT_SURCONTRIBUTION : tranche.coefficient) : null;
   const contributionBrute = coefficient ? arrondi2(manque * coefficient * smicHoraire) : 0;

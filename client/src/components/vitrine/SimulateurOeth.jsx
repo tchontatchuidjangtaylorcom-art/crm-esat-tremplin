@@ -14,12 +14,45 @@ const SAISIE_VIDE = {
   boeth: "",
   coutMainOeuvreSousTraitance: "",
   nbEcap: "",
-  depensesDeductibles: "",
+  depAccessibilite: "",
+  depMaintien: "",
+  depAccompagnement: "",
+  depPartenariats: "",
   aEmployeBoeth4Ans: null,
   sousTraitance4Ans: null,
   montantSousTraitance4Ans: "",
   accordAgree: null,
+  surcontributionDeclaree: null,
 };
+
+// Dépenses déductibles ventilées par code DSN (bloc S21.G00.82), plafond
+// global de 10 % de la contribution brute appliqué côté serveur.
+const DEPENSES = [
+  {
+    champ: "depAccessibilite",
+    titre: "Accessibilité",
+    dsn: "062",
+    exemples: "Diagnostics, travaux, stationnement ou équipements allant au-delà des obligations légales.",
+  },
+  {
+    champ: "depMaintien",
+    titre: "Maintien et reconversion",
+    dsn: "063",
+    exemples: "Adaptation du poste, moyens humains, techniques ou organisationnels et reconversion interne.",
+  },
+  {
+    champ: "depAccompagnement",
+    titre: "Accompagnement, formation et sensibilisation",
+    dsn: "064",
+    exemples: "Pair-aidance, démarches RQTH, accompagnement de BOETH, formation des managers et sensibilisation.",
+  },
+  {
+    champ: "depPartenariats",
+    titre: "Partenariats associatifs",
+    dsn: "072",
+    exemples: "Conventions ou adhésions liées à la formation, à l'insertion ou au maintien dans l'emploi, hors mécénat.",
+  },
+];
 
 function formatMontant(n) {
   return `${Math.round(n || 0).toLocaleString("fr-FR")} €`;
@@ -91,6 +124,7 @@ export default function SimulateurOeth() {
   const [envoye, setEnvoye] = useState(false);
 
   const [sousTraitance, setSousTraitance] = useState(null); // null | true | false
+  const [surcontributionChoix, setSurcontributionChoix] = useState(""); // "" | "oui" | "non" | "inconnu"
   const [aideOuverte, setAideOuverte] = useState(null); // clé de fiche (aideSimulateur.js)
   const fermerAide = useCallback(() => setAideOuverte(null), []);
   const i = (cle) => <InfoBouton cle={cle} onOuvrir={setAideOuverte} />;
@@ -213,6 +247,17 @@ export default function SimulateurOeth() {
     setResultats([]);
   }
 
+  // "Oui" / "Non" : réponse directe transmise au calcul. "Je ne sais pas" :
+  // le calcul se fonde sur les 3 questions de la règle des 4 ans.
+  function choisirSurcontribution(choix) {
+    setSurcontributionChoix(choix);
+    setSaisie((prec) => ({
+      ...prec,
+      surcontributionDeclaree: choix === "oui" ? true : choix === "non" ? false : null,
+      ...(choix === "inconnu" ? {} : { aEmployeBoeth4Ans: null, sousTraitance4Ans: null, montantSousTraitance4Ans: "", accordAgree: null }),
+    }));
+  }
+
   function choisirSousTraitance(v) {
     setSousTraitance(v);
     if (v !== true) modifier("coutMainOeuvreSousTraitance", "");
@@ -235,6 +280,7 @@ export default function SimulateurOeth() {
     setSaisie(SAISIE_VIDE);
     setTauxSaisi("");
     setSousTraitance(null);
+    setSurcontributionChoix("");
     setSimulation(null);
     setContactOuvert(false);
     setEnvoye(false);
@@ -324,11 +370,17 @@ export default function SimulateurOeth() {
       .join(" + ") || "Aucune";
   const risque = !actif ? "—" : s.surcontribution ? "Élevé" : s.contributionNette > 0 ? "Modéré" : "Faible";
 
-  const nbDeductionsRenseignees = [
-    saisie.coutMainOeuvreSousTraitance,
-    saisie.nbEcap,
-    saisie.depensesDeductibles,
-  ].filter((v) => String(v).trim() !== "").length + [saisie.aEmployeBoeth4Ans, saisie.sousTraitance4Ans, saisie.accordAgree].filter((v) => v !== null).length;
+  const nbDeductionsRenseignees =
+    [saisie.coutMainOeuvreSousTraitance, saisie.nbEcap, ...DEPENSES.map((d) => saisie[d.champ])].filter(
+      (v) => String(v).trim() !== "" && Number(v) > 0
+    ).length + (surcontributionChoix ? 1 : 0);
+
+  // Récapitulatif par code DSN (bloc Cotisation établissement S21.G00.82).
+  const recapDsn = [
+    { code: "060", libelle: "Déduction ECAP", valeur: s?.deductions.ecap },
+    { code: "061", libelle: "Sous-traitance EA / ESAT / TIH / EPS", valeur: s?.deductions.sousTraitance },
+    ...DEPENSES.map((d) => ({ code: d.dsn, libelle: d.titre, valeur: Number(saisie[d.champ]) || 0 })),
+  ];
 
   const plafondDepenses = s?.deductions.plafondDepenses || 0;
   const depensesMobilisees = s?.deductions.depenses || 0;
@@ -511,136 +563,203 @@ export default function SimulateurOeth() {
           </button>
 
           {deductionsOuvertes && (
-            <div className="px-6 sm:px-8 pb-7 border-t border-white/10 pt-6">
-              <div className="grid md:grid-cols-3 gap-4">
+            <div className="px-6 sm:px-8 pb-6 border-t border-white/10 pt-5 space-y-4">
+              <p className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-slate-400">
+                Vous pouvez laisser tous ces montants vides si vous n'êtes pas concerné. Leur saisie permet simplement
+                d'affiner le calcul et de préparer votre récapitulatif DSN (codes indiqués sur chaque champ).
+              </p>
+
+              <div className="grid md:grid-cols-2 gap-3">
+                <CarteDeduction
+                  titre={<>Effectif moyen annuel ECAP{i("ecap")}</>}
+                  dsn="060"
+                  question="Comment le renseigner ?"
+                  reponse="Reportez l'effectif moyen annuel ECAP communiqué par l'URSSAF ou la MSA (chauffeurs routiers, BTP, sécurité…). Laissez vide si vous n'êtes pas concerné."
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    value={saisie.nbEcap}
+                    onChange={(e) => modifier("nbEcap", e.target.value)}
+                    placeholder="Facultatif"
+                    className={CLASSE_INPUT}
+                  />
+                </CarteDeduction>
+
                 {/* Oui / Non d'abord : beaucoup d'entreprises n'ont aucun achat
                     auprès du secteur protégé, elles passent sans rien saisir. */}
-                <div className="text-xs text-slate-400">
-                  Montant de sous-traitance EA / ESAT / TIH{i("sousTraitance")}
+                <CarteDeduction
+                  titre={<>Sous-traitance EA, ESAT, TIH ou EPS{i("sousTraitance")}</>}
+                  dsn="061"
+                  question="Quel montant saisir ?"
+                  reponse="Le coût de la main-d'œuvre indiqué sur les attestations annuelles de vos fournisseurs (hors taxes, hors matières premières), et non le total des factures. Le simulateur en retient 30 %."
+                >
                   {sousTraitance !== true ? (
                     <>
                       <OuiNon valeur={sousTraitance} onChange={choisirSousTraitance} />
-                      <span className="block text-[11px] text-slate-500 mt-1">Travaillez-vous avec un EA, un ESAT ou un TIH ?</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex gap-2 mt-1.5">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          inputMode="decimal"
-                          autoFocus
-                          value={saisie.coutMainOeuvreSousTraitance}
-                          onChange={(e) => modifier("coutMainOeuvreSousTraitance", e.target.value)}
-                          placeholder="Ex. 7386"
-                          className={CLASSE_INPUT}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => choisirSousTraitance(false)}
-                          title="Pas de sous-traitance"
-                          className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 text-slate-400 hover:bg-white/10 hover:text-white transition"
-                        >
-                          ✕
-                        </button>
-                      </div>
                       <span className="block text-[11px] text-slate-500 mt-1">
-                        Montant de main-d'œuvre valorisable. Le simulateur applique 30 %.
+                        Travaillez-vous avec une EA, un ESAT, un TIH ou une entreprise de portage (EPS) ?
                       </span>
                     </>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        inputMode="decimal"
+                        autoFocus
+                        value={saisie.coutMainOeuvreSousTraitance}
+                        onChange={(e) => modifier("coutMainOeuvreSousTraitance", e.target.value)}
+                        placeholder="Ex. 7386"
+                        className={CLASSE_INPUT}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => choisirSousTraitance(false)}
+                        title="Pas de sous-traitance"
+                        className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </CarteDeduction>
+              </div>
+
+              <div className="flex flex-wrap items-end justify-between gap-2 pt-3 border-t border-white/10">
+                <p className="font-semibold flex items-center">Dépenses déductibles{i("depenses")}</p>
+                <p className="text-xs text-slate-500">Montants HT engagés pendant l'exercice</p>
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                {DEPENSES.map((d) => (
+                  <CarteDeduction key={d.champ} titre={d.titre} dsn={d.dsn} question="Voir des exemples" reponse={d.exemples}>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      value={saisie[d.champ]}
+                      onChange={(e) => modifier(d.champ, e.target.value)}
+                      placeholder="0"
+                      className={CLASSE_INPUT}
+                    />
+                  </CarteDeduction>
+                ))}
+              </div>
+              <p className="rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-100">
+                Les dépenses 062, 063, 064 et 072 sont ventilées séparément dans votre récapitulatif DSN. Le simulateur
+                applique automatiquement leur plafond global de 10 % de la contribution brute.
+              </p>
+
+              {/* Surcontribution : réponse directe, ou vérification guidée en
+                  3 questions (règle des 4 ans) si le visiteur ne sait pas. */}
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 flex flex-col md:flex-row md:items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold flex items-center">
+                    Votre entreprise est-elle concernée par la surcontribution ?{i("surcontribution")}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Elle s'applique après plus de 3 années consécutives sans aucune action (aucun BOETH, pas d'achat
+                    suffisant au secteur protégé, pas d'accord agréé).
+                  </p>
+                </div>
+                <select
+                  value={surcontributionChoix}
+                  onChange={(e) => choisirSurcontribution(e.target.value)}
+                  className={`${CLASSE_INPUT} md:w-72 cursor-pointer`}
+                >
+                  <option className="bg-marine-950" value="">
+                    Choisir…
+                  </option>
+                  <option className="bg-marine-950" value="non">
+                    Non
+                  </option>
+                  <option className="bg-marine-950" value="oui">
+                    Oui
+                  </option>
+                  <option className="bg-marine-950" value="inconnu">
+                    Je ne sais pas — vérifier
+                  </option>
+                </select>
+              </div>
+
+              {/* Règle des 4 ans — questions en cascade, affichées quand le
+                  visiteur ne sait pas s'il est concerné. */}
+              {surcontributionChoix === "inconnu" && (
+                <div className="space-y-3">
+                  <Question
+                    actif={saisie.aEmployeBoeth4Ans === null}
+                    intitule={
+                      <>
+                        Au cours des 4 dernières années, l'entreprise a-t-elle employé au moins un bénéficiaire de
+                        l'obligation d'emploi ? <span className="text-slate-500">(nouvelle période DOETH)</span>
+                        {i("regle4ans")}
+                      </>
+                    }
+                    nom="q-boeth-4ans"
+                    valeur={saisie.aEmployeBoeth4Ans}
+                    onChange={(v) => modifier("aEmployeBoeth4Ans", v)}
+                  />
+
+                  {saisie.aEmployeBoeth4Ans !== null && (
+                    <Question
+                      actif={saisie.sousTraitance4Ans === null}
+                      intitule="Au cours des 4 dernières années, l'entreprise a-t-elle réalisé des achats ou de la sous-traitance auprès d'une EA, d'un ESAT ou d'un TIH pour un montant supérieur ou égal à 600 × SMIC horaire ?"
+                      nom="q-st-4ans"
+                      valeur={saisie.sousTraitance4Ans}
+                      onChange={(v) =>
+                        setSaisie((prec) => ({
+                          ...prec,
+                          sousTraitance4Ans: v,
+                          ...(v === false ? { montantSousTraitance4Ans: "" } : {}),
+                        }))
+                      }
+                    >
+                      {saisie.sousTraitance4Ans === true && (
+                        <label className="block mt-4 text-sm font-medium text-slate-200 max-w-md">
+                          Montant cumulé de main-d'œuvre sur 4 ans
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            inputMode="decimal"
+                            value={saisie.montantSousTraitance4Ans}
+                            onChange={(e) => modifier("montantSousTraitance4Ans", e.target.value)}
+                            placeholder="Ex. 7386"
+                            className={`mt-1.5 ${CLASSE_INPUT}`}
+                          />
+                          <span className="block text-[11px] font-normal text-slate-500 mt-1">
+                            Seuil {ANNEE_REFERENCE} : 7 386 €.
+                            {s?.sousTraitance4AnsInsuffisante && (
+                              <span className="text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
+                            )}
+                          </span>
+                        </label>
+                      )}
+                    </Question>
+                  )}
+
+                  {saisie.aEmployeBoeth4Ans !== null && saisie.sousTraitance4Ans !== null && (
+                    <Question
+                      actif={saisie.accordAgree === null}
+                      intitule="L'entreprise dispose-t-elle d'un accord agréé applicable sur la période concernée ?"
+                      nom="q-accord"
+                      valeur={saisie.accordAgree}
+                      onChange={(v) => modifier("accordAgree", v)}
+                    >
+                      {saisie.accordAgree === true && (
+                        <p className="mt-3 text-xs text-slate-400">
+                          Avec un accord agréé, l'obligation est remplie par la mise en œuvre de son programme : le budget
+                          correspondant finance les actions de l'accord au lieu d'être versé à l'URSSAF.
+                        </p>
+                      )}
+                    </Question>
                   )}
                 </div>
-                <Champ
-                  label={<>Salariés ECAP (nombre){i("ecap")}</>}
-                  aide="Emplois exigeant des conditions d'aptitude particulières (chauffeurs routiers, BTP, sécurité…). Laissez vide si non concerné."
-                  value={saisie.nbEcap}
-                  onChange={(v) => modifier("nbEcap", v)}
-                  placeholder="Facultatif"
-                  step="1"
-                />
-                <Champ
-                  label={<>Autres dépenses déductibles{i("depenses")}</>}
-                  aide="Accessibilité, maintien dans l'emploi… plafond 10 %."
-                  value={saisie.depensesDeductibles}
-                  onChange={(v) => modifier("depensesDeductibles", v)}
-                  placeholder="Ex. 1 000"
-                />
-              </div>
-
-              {/* Règle des 4 ans — questions en cascade : chaque réponse (Oui ou
-                  Non) ouvre la question suivante (conditions de la base
-                  majorée à 1 500 × SMIC, voir simulerContributionOeth). */}
-              <div className="mt-6 space-y-3">
-                <Question
-                  actif={saisie.aEmployeBoeth4Ans === null}
-                  intitule={
-                    <>
-                      Au cours des 4 dernières années, l'entreprise a-t-elle employé au moins un bénéficiaire de
-                      l'obligation d'emploi ? <span className="text-slate-500">(nouvelle période DOETH)</span>
-                      {i("regle4ans")}
-                    </>
-                  }
-                  nom="q-boeth-4ans"
-                  valeur={saisie.aEmployeBoeth4Ans}
-                  onChange={(v) => modifier("aEmployeBoeth4Ans", v)}
-                />
-
-                {saisie.aEmployeBoeth4Ans !== null && (
-                  <Question
-                    actif={saisie.sousTraitance4Ans === null}
-                    intitule="Au cours des 4 dernières années, l'entreprise a-t-elle réalisé des achats ou de la sous-traitance auprès d'une EA, d'un ESAT ou d'un TIH pour un montant supérieur ou égal à 600 × SMIC horaire ?"
-                    nom="q-st-4ans"
-                    valeur={saisie.sousTraitance4Ans}
-                    onChange={(v) =>
-                      setSaisie((prec) => ({
-                        ...prec,
-                        sousTraitance4Ans: v,
-                        ...(v === false ? { montantSousTraitance4Ans: "" } : {}),
-                      }))
-                    }
-                  >
-                    {saisie.sousTraitance4Ans === true && (
-                      <label className="block mt-4 text-sm font-medium text-slate-200 max-w-md">
-                        Montant cumulé de main-d'œuvre sur 4 ans
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          inputMode="decimal"
-                          value={saisie.montantSousTraitance4Ans}
-                          onChange={(e) => modifier("montantSousTraitance4Ans", e.target.value)}
-                          placeholder="Ex. 7386"
-                          className={`mt-1.5 ${CLASSE_INPUT}`}
-                        />
-                        <span className="block text-[11px] font-normal text-slate-500 mt-1">
-                          Seuil {ANNEE_REFERENCE} : 7 386 €.
-                          {s?.sousTraitance4AnsInsuffisante && (
-                            <span className="text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
-                          )}
-                        </span>
-                      </label>
-                    )}
-                  </Question>
-                )}
-
-                {saisie.aEmployeBoeth4Ans !== null && saisie.sousTraitance4Ans !== null && (
-                  <Question
-                    actif={saisie.accordAgree === null}
-                    intitule="L'entreprise dispose-t-elle d'un accord agréé applicable sur la période concernée ?"
-                    nom="q-accord"
-                    valeur={saisie.accordAgree}
-                    onChange={(v) => modifier("accordAgree", v)}
-                  >
-                    {saisie.accordAgree === true && (
-                      <p className="mt-3 text-xs text-slate-400">
-                        Avec un accord agréé, l'obligation est remplie par la mise en œuvre de son programme : le budget
-                        correspondant finance les actions de l'accord au lieu d'être versé à l'URSSAF.
-                      </p>
-                    )}
-                  </Question>
-                )}
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -869,6 +988,35 @@ export default function SimulateurOeth() {
                     <a href={PAGE_URSSAF_URL} target="_blank" rel="noopener noreferrer" className="text-marine-300 hover:underline">
                       En savoir plus ↗
                     </a>
+                  </p>
+                </Carte>
+
+                {/* Récapitulatif DSN */}
+                <Carte>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">Récapitulatif par code DSN</p>
+                    <span className="text-[11px] text-slate-500">Bloc « Cotisation établissement » S21.G00.82 · indicatif</span>
+                  </div>
+                  <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {recapDsn.map((ligne) => (
+                      <div
+                        key={ligne.code}
+                        className={`rounded-xl border px-3.5 py-3 flex items-center gap-3 ${
+                          ligne.valeur > 0 ? "border-teal-400/25 bg-teal-400/[0.06]" : "border-white/10 bg-white/[0.02]"
+                        }`}
+                      >
+                        <span className="shrink-0 rounded-md bg-teal-400/15 text-teal-300 text-[10px] font-bold px-2 py-1">{ligne.code}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[11px] text-slate-400 truncate">{ligne.libelle}</span>
+                          <span className="block text-sm font-semibold tabular-nums">{actif ? formatMontant(ligne.valeur) : "—"}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-3">
+                    060 et 061 : déductions retenues par le simulateur. 062 à 072 : dépenses HT saisies, leur plafond global
+                    de 10 % étant appliqué au calcul. À transmettre à votre gestionnaire de paie pour la DSN d'avril{" "}
+                    {ANNEE_REFERENCE + 1}.
                   </p>
                 </Carte>
 
@@ -1212,6 +1360,29 @@ function DonutRepartition({ total, segments }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+// Carte de saisie de l'étape 02 : titre + badge du code DSN concerné, champ,
+// puis aide dépliable ("Comment le renseigner ?", "Voir des exemples").
+function CarteDeduction({ titre, dsn, question, reponse, children }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center gap-2 mb-2.5">
+        <p className="text-sm font-semibold flex items-center">{titre}</p>
+        <span className="rounded-md bg-teal-400/15 border border-teal-400/25 text-teal-300 text-[10px] font-bold tracking-wider px-2 py-0.5">
+          DSN {dsn}
+        </span>
+      </div>
+      {children}
+      <details className="group mt-2.5">
+        <summary className="cursor-pointer list-none text-xs font-medium text-teal-300 hover:text-teal-200 inline-flex items-center gap-1.5">
+          <span className="text-[9px] transition-transform group-open:rotate-90">▶</span>
+          {question}
+        </summary>
+        <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{reponse}</p>
+      </details>
     </div>
   );
 }

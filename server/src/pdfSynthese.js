@@ -276,7 +276,16 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       .text(formatMontant(s.contributionNette), 65, y + 26);
     y += 56 + 18;
 
+    // Saut de page si la section ne tient plus au-dessus du pied de page.
+    const assurerPlace = (hauteur) => {
+      if (y + hauteur > doc.page.height - 115) {
+        doc.addPage();
+        y = 50;
+      }
+    };
+
     const section = (titre, lignes) => {
+      assurerPlace(18 + lignes.length * 16);
       doc.font("Helvetica-Bold").fontSize(10).fillColor(BLEU).text(titre, 50, y);
       y += 18;
       const col1 = largeurUtile * 0.62;
@@ -298,7 +307,11 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       ["BOETH déclarés (effectif moyen annuel)", formatNombre(s.boeth)],
       ["Coût main-d'œuvre sous-traitance EA / ESAT / TIH (HT)", formatMontant(saisie.coutMainOeuvreSousTraitance)],
       ["Salariés ECAP", formatNombre(saisie.nbEcap)],
-      ["Autres dépenses déductibles (HT)", formatMontant(saisie.depensesDeductibles)],
+      ["Dépenses déductibles (HT, total 062 + 063 + 064 + 072)", formatMontant(saisie.depensesDeductibles)],
+      [
+        "Concerné par la surcontribution (réponse directe)",
+        saisie.surcontributionDeclaree === null ? "Déterminé par le simulateur" : ouiNonTexte(saisie.surcontributionDeclaree),
+      ],
       ["BOETH employé au cours des 4 dernières années", ouiNonTexte(saisie.aEmployeBoeth4Ans)],
       ...(saisie.aEmployeBoeth4Ans !== null
         ? [
@@ -327,7 +340,18 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       ["Économie estimée vs base maximale", formatMontant(s.economie)],
     ]);
 
+    // Récapitulatif par code DSN (bloc Cotisation établissement S21.G00.82).
+    section("Récapitulatif indicatif par code DSN (S21.G00.82)", [
+      ["060 - Déduction ECAP", formatMontant(s.deductions.ecap)],
+      ["061 - Sous-traitance EA / ESAT / TIH / EPS", formatMontant(s.deductions.sousTraitance)],
+      ["062 - Accessibilité (dépense HT)", formatMontant(saisie.depAccessibilite)],
+      ["063 - Maintien et reconversion (dépense HT)", formatMontant(saisie.depMaintien)],
+      ["064 - Accompagnement, formation, sensibilisation (dépense HT)", formatMontant(saisie.depAccompagnement)],
+      ["072 - Partenariats associatifs (dépense HT)", formatMontant(saisie.depPartenariats)],
+    ]);
+
     if (s.surcontribution) {
+      assurerPlace(40);
       doc
         .font("Helvetica-Bold")
         .fontSize(9)
@@ -342,6 +366,7 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       y = doc.y + 12;
     }
 
+    assurerPlace(50);
     doc
       .font("Helvetica-Oblique")
       .fontSize(8)
@@ -355,7 +380,8 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
         { width: largeurUtile }
       );
 
-    const yPied = doc.page.height - 80;
+    if (doc.y > doc.page.height - 105) doc.addPage();
+    const yPied = doc.page.height - 90;
     doc.moveTo(50, yPied).lineTo(largeurPage - 50, yPied).strokeColor("#cbd5e1").lineWidth(1).stroke();
     doc.font("Helvetica-Bold").fontSize(9.5).fillColor(GRIS_TEXTE).text("— Pôle OETH / AGEFIPH", 50, yPied + 10);
     doc

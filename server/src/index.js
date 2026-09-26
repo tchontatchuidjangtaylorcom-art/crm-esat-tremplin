@@ -593,18 +593,31 @@ function lireSaisieSimulation(body = {}) {
     boeth: nombre(body.boeth),
     coutMainOeuvreSousTraitance: nombre(body.coutMainOeuvreSousTraitance),
     nbEcap: nombre(body.nbEcap),
-    depensesDeductibles: nombre(body.depensesDeductibles),
+    // Dépenses déductibles ventilées par code DSN (062, 063, 064, 072) ; leur
+    // somme est plafonnée globalement à 10 % de la contribution brute.
+    depAccessibilite: nombre(body.depAccessibilite),
+    depMaintien: nombre(body.depMaintien),
+    depAccompagnement: nombre(body.depAccompagnement),
+    depPartenariats: nombre(body.depPartenariats),
     aEmployeBoeth4Ans: ouiNon(body.aEmployeBoeth4Ans),
     sousTraitance4Ans: ouiNon(body.sousTraitance4Ans),
     montantSousTraitance4Ans: nombre(body.montantSousTraitance4Ans),
     accordAgree: ouiNon(body.accordAgree),
+    surcontributionDeclaree: ouiNon(body.surcontributionDeclaree),
   };
+  saisie.depensesDeductibles =
+    saisie.depAccessibilite + saisie.depMaintien + saisie.depAccompagnement + saisie.depPartenariats ||
+    nombre(body.depensesDeductibles);
   const invalide = [
     "effectif",
     "boeth",
     "coutMainOeuvreSousTraitance",
     "nbEcap",
     "depensesDeductibles",
+    "depAccessibilite",
+    "depMaintien",
+    "depAccompagnement",
+    "depPartenariats",
     "montantSousTraitance4Ans",
   ].some(
     (k) => !Number.isFinite(saisie[k]) || saisie[k] < 0
