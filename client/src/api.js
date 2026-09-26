@@ -220,11 +220,11 @@ export const api = {
 
   getAuthConfig: () => fetch(`${BASE}/auth/config`).then(handle),
 
-  demanderLien: (email) =>
+  demanderLien: (email, { prenom, nom } = {}) =>
     fetch(`${BASE}/auth/demander-lien`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, prenom: prenom || "", nom: nom || "" }),
     }).then(handle),
 
   connexionMotDePasse: (email, motDePasse) =>

@@ -297,6 +297,26 @@ export async function envoyerLienMagique(utilisateur, appUrl) {
   }
 }
 
+// Confirmation envoyée quand l'admin valide une demande d'accès en attente
+// (voir POST /api/utilisateurs/:id/valider) — distincte du lien magique :
+// il n'y a pas encore de jeton à ce stade, juste l'info que l'accès est
+// désormais ouvert et où aller le demander. Best-effort côté appelant (la
+// validation du compte doit réussir même si ce mail échoue).
+export async function envoyerConfirmationAcces(utilisateur, appUrl) {
+  console.log(`[auth] Envoi de la confirmation d'accès à ${utilisateur.email}…`);
+  await envoyerMail({
+    to: utilisateur.email,
+    subject: "Votre accès au CRM OETH/AGEFIPH a été validé",
+    text:
+      `Bonjour${utilisateur.prenom ? ` ${utilisateur.prenom}` : ""},\n\n` +
+      `Votre demande d'accès au CRM OETH/AGEFIPH vient d'être validée par l'administrateur.\n\n` +
+      `Pour vous connecter, rendez-vous sur ${appUrl} et indiquez cette adresse mail : ` +
+      `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.\n\nPôle OETH / AGEFIPH`,
+    fromName: "Pôle OETH / AGEFIPH",
+  });
+  console.log(`[auth] Confirmation d'accès envoyée avec succès à ${utilisateur.email}.`);
+}
+
 // Vérifie un jeton de lien magique et retourne l'utilisateur correspondant
 // (ou lève une erreur si le jeton est invalide/expiré/le compte non validé).
 export function verifierLienMagique(token) {

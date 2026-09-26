@@ -14,7 +14,13 @@ const INTERVALLE_POLLING_MS = 20000;
 export default function NotificationCenter() {
   const navigate = useNavigate();
   const { canaux } = useChat();
-  const [data, setData] = useState({ messagesNonLus: 0, nouveauxLeads: [], rdvAVenir: [], fichesPotentielles: [] });
+  const [data, setData] = useState({
+    messagesNonLus: 0,
+    nouveauxLeads: [],
+    rdvAVenir: [],
+    fichesPotentielles: [],
+    demandesAcces: [],
+  });
   const [ouvert, setOuvert] = useState(false);
 
   useEffect(() => {
@@ -34,13 +40,15 @@ export default function NotificationCenter() {
   }, []);
 
   const alertesEquipe = data.alertesPresenceEquipe || [];
+  const demandesAcces = data.demandesAcces || [];
   const total =
     data.messagesNonLus +
     data.nouveauxLeads.length +
     data.rdvAVenir.length +
     (data.fichesPotentielles?.length || 0) +
     (data.alertePresence ? 1 : 0) +
-    alertesEquipe.length;
+    alertesEquipe.length +
+    demandesAcces.length;
 
   function ouvrirCanalNonLu() {
     setOuvert(false);
@@ -96,6 +104,28 @@ export default function NotificationCenter() {
                   <span className="text-red-700 dark:text-red-300">
                     Absence le {formatJourCourt(alertesEquipe[0].jour)} :{" "}
                     <strong>{alertesEquipe.map((a) => a.prenom || a.email).join(", ")}</strong>
+                  </span>
+                </button>
+              )}
+
+              {demandesAcces.length > 0 && (
+                <button
+                  onClick={() => {
+                    setOuvert(false);
+                    navigate("/admin/utilisateurs");
+                  }}
+                  className="w-full text-left px-4 py-2.5 bg-marine-50/70 dark:bg-marine-950/30 hover:bg-marine-50 dark:hover:bg-marine-950/50 flex items-center gap-2"
+                >
+                  <span aria-hidden>🔑</span>
+                  <span className="text-marine-800 dark:text-marine-300 truncate">
+                    {demandesAcces.length} demande{demandesAcces.length > 1 ? "s" : ""} d'accès à valider :{" "}
+                    <strong>
+                      {demandesAcces
+                        .slice(0, 2)
+                        .map((d) => d.prenom || d.email)
+                        .join(", ")}
+                      {demandesAcces.length > 2 ? "…" : ""}
+                    </strong>
                   </span>
                 </button>
               )}

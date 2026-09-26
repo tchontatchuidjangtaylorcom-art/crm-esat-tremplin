@@ -57,6 +57,7 @@ import {
   definirMotDePasse,
   verifierMotDePasse,
   envoyerLienMagique,
+  envoyerConfirmationAcces,
   verifierLienMagique,
   creerCookieSession,
   optionsCookie,
@@ -66,8 +67,8 @@ import {
 } from "./auth.js";
 import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
-
 import { reparerChampsContact } from "./telephone.js";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
 // client). N'existe pas en développement local (Vite sert le frontend
@@ -85,7 +86,6 @@ app.use(cookieParser());
 
 await initDb();
 
-// ---- Libellés des issues d'appel / sorties de dossier (source de vérité) ----
 // Répare une fois au démarrage les fiches dont les champs de contact sont
 // mélangés (e-mail saisi comme numéro, numéro saisi comme nom — voir
 // telephone.js) ; les nouvelles saisies sont corrigées à chaque PATCH.
@@ -97,6 +97,7 @@ await initDb();
   }
 }
 
+// ---- Libellés des issues d'appel / sorties de dossier (source de vérité) ----
 const ISSUES_APPEL = {
   nrp: "NRP (Non Répondant)",
   me_rappelle: "Me rappelle",
@@ -212,7 +213,13 @@ app.post("/api/auth/demander-lien", async (req, res) => {
     return res.status(400).json({ error: "Adresse mail invalide." });
   }
 
-  const utilisateur = await trouverOuCreerUtilisateur(email);
+  // prenom/nom : renseignés par le formulaire "Créer un compte" de la page
+  // de connexion (voir Connexion.jsx) — ignorés sans effet si le compte
+  // existe déjà (voir trouverOuCreerUtilisateur), donc sans risque à
+  // toujours les transmettre même sur une simple reconnexion.
+  const prenom = String(req.body.prenom || "").trim();
+  const nom = String(req.body.nom || "").trim();
+  const utilisateur = await trouverOuCreerUtilisateur(email, { prenom, nom });
 
   if (utilisateur.statut === "refuse") {
     return res.status(403).json({ error: "Accès non autorisé pour cette adresse. Contactez l'administrateur." });
@@ -409,11 +416,27 @@ app.post("/api/utilisateurs/:id/renvoyer-lien", exigerAdmin, async (req, res) =>
 app.post("/api/utilisateurs/:id/valider", exigerAdmin, async (req, res) => {
   const utilisateur = trouverUtilisateurParId(req.params.id);
   if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
+  const etaitEnAttente = utilisateur.statut === "en_attente";
   utilisateur.statut = "valide";
   utilisateur.role = req.body.role === "admin" ? "admin" : "agent";
   utilisateur.dateValidation = new Date().toISOString();
   await db.write();
-  res.json(sansMotDePasse(utilisateur));
+
+  // Confirmation best-effort : seulement pour une demande qui attendait
+  // réellement une validation (pas quand l'admin repasse un compte déjà
+  // valide sur un autre rôle) — un échec d'envoi ne doit jamais faire
+  // échouer la validation, qui a déjà réussi côté base à ce stade.
+  let mailEnvoye = false;
+  if (etaitEnAttente && estEnvoiConfigure()) {
+    try {
+      await envoyerConfirmationAcces(utilisateur, APP_URL);
+      mailEnvoye = true;
+    } catch (e) {
+      console.error(`[auth] Échec d'envoi de la confirmation d'accès à ${utilisateur.email} : ${e.message}`);
+    }
+  }
+
+  res.json({ ...sansMotDePasse(utilisateur), mailEnvoye });
 });
 
 app.post("/api/utilisateurs/:id/refuser", exigerAdmin, async (req, res) => {
@@ -1250,6 +1273,7 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
   for (const champ of champsAutorises) {
     if (champ in req.body) entreprise[champ] = req.body[champ];
   }
+  if ("contact" in req.body) reparerChampsContact(entreprise.contact);
 
   await db.write();
   res.json(enrichir(entreprise));
@@ -1273,7 +1297,6 @@ app.post("/api/entreprises/:id/assigner", exigerAdmin, async (req, res) => {
   }
   // Nouvelle affectation à un agent différent : déclenche l'alerte "nouveau
   // lead assigné" (voir /api/notifications) jusqu'à ce qu'il ouvre la fiche.
-  if ("contact" in req.body) reparerChampsContact(entreprise.contact);
   if (utilisateurId && utilisateurId !== entreprise.assigneA) {
     entreprise.assignationVue = false;
     entreprise.dateAssignation = new Date().toISOString();
@@ -2102,7 +2125,22 @@ app.get("/api/notifications", exigerAuth, (req, res) => {
     if (!agent) return res.status(404).json({ error: "Agent introuvable." });
     cible = agent;
   }
-  res.json(calculerNotifications(cible));
+
+  // Demandes d'accès en attente (voir POST /api/auth/demander-lien et la
+  // page "Créer un compte" de Connexion.jsx) : toujours basées sur le rôle
+  // RÉEL du compte connecté, pas sur `cible` — un admin en Mode Manager (qui
+  // consulte le tableau de bord "comme" un agent) doit continuer à voir ces
+  // demandes, une préoccupation d'administration indépendante de l'agent
+  // consulté.
+  const demandesAcces =
+    req.utilisateur.role === "admin"
+      ? db.data.utilisateurs
+          .filter((u) => u.statut === "en_attente")
+          .map((u) => ({ id: u.id, email: u.email, prenom: u.prenom, nom: u.nom, dateCreation: u.dateCreation }))
+          .sort((a, b) => new Date(a.dateCreation) - new Date(b.dateCreation))
+      : [];
+
+  res.json({ ...calculerNotifications(cible), demandesAcces });
 });
 
 // Suivi du temps de travail (voir presence.js et client/src/PresenceContext.jsx).
