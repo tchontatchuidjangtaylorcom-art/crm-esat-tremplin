@@ -12,6 +12,7 @@ import DicteeCommentaire from "../components/DicteeCommentaire.jsx";
 import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
+import { erreurNumero, estNumeroAffichable } from "../telephone.js";
 import {
   ISSUES_APPEL,
   SORTIES_DOSSIER,
@@ -377,6 +378,12 @@ export default function EntrepriseDetail() {
     const nouveauNumero = nouveauTelephone.trim();
     const appliqueCategorie = appliquerCategorieSuggeree && propositionIa?.secteurCategorie;
     if (!nouveauNumero && !appliqueCategorie) return;
+    const refus = nouveauNumero ? erreurNumero(nouveauNumero) : null;
+    if (refus) {
+      setErreurRechercheIa(refus);
+      return;
+    }
+    setErreurRechercheIa(null);
     setEnregistrementTelephone(true);
     try {
       const patch = {};
@@ -471,11 +478,11 @@ export default function EntrepriseDetail() {
           numéro devient principal (voir GestionTelephones) puisqu'il ne fait
           que refléter l'état `entreprise` déjà tenu à jour par le parent. */}
       <div className="flex flex-wrap items-center gap-4 mb-6 px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-xl" aria-hidden>
             ☎
           </span>
-          {entreprise.contact?.telephone ? (
+          {estNumeroAffichable(entreprise.contact?.telephone) ? (
             <a
               href={versLienTel(entreprise.contact.telephone)}
               className="text-lg font-semibold text-blue-700 dark:text-blue-400 hover:underline"
@@ -484,8 +491,25 @@ export default function EntrepriseDetail() {
               {entreprise.contact.telephone}
             </a>
           ) : (
-            <span className="text-lg font-semibold text-slate-400 dark:text-slate-500">Aucun numéro renseigné</span>
+            <span className="text-lg font-semibold text-slate-400 dark:text-slate-500">
+              Aucun numéro renseigné
+              <span className="block text-xs font-normal">Ajoutez-le dans « Numéros de téléphone » ci-dessous</span>
+            </span>
           )}
+          {/* Autres numéros connus : appelables d'un geste eux aussi. */}
+          {(entreprise.contact?.telephonesAlternatifs || [])
+            .filter((t) => estNumeroAffichable(t.numero))
+            .map((t) => (
+              <a
+                key={t.id || t.numero}
+                href={versLienTel(t.numero)}
+                title={`Appeler ${t.numero}${t.note ? ` (${t.note})` : ""}`}
+                className="text-sm font-medium text-blue-700 dark:text-blue-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-2.5 py-0.5 hover:underline"
+              >
+                {t.numero}
+                {t.note && <span className="text-slate-400 dark:text-slate-500 font-normal"> · {t.note}</span>}
+              </a>
+            ))}
         </div>
         {oeth?.assujetti && (
           <>
@@ -782,7 +806,8 @@ export default function EntrepriseDetail() {
             {!entreprise.contact?.telephoneInvalide ? (
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Numéro {entreprise.contact?.telephone || "(aucun renseigné)"} non attribué ou injoignable ?
+                  Numéro {estNumeroAffichable(entreprise.contact?.telephone) ? entreprise.contact.telephone : "(aucun renseigné)"}{" "}
+                  non attribué ou injoignable ?
                 </p>
                 <button
                   onClick={signalerTelephoneInvalide}
@@ -901,7 +926,8 @@ export default function EntrepriseDetail() {
 
                 <form onSubmit={corrigerTelephone} className="flex gap-2">
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="tel"
                     placeholder="Nouveau numéro trouvé…"
                     value={nouveauTelephone}
                     onChange={(e) => setNouveauTelephone(e.target.value)}

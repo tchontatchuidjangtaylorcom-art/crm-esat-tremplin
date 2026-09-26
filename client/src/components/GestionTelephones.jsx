@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
+import { erreurNumero, estNumeroAffichable } from "../telephone.js";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -46,13 +47,25 @@ export default function GestionTelephones({ entreprise, onMaj, compact = false }
   function ajouter(ev) {
     ev.preventDefault();
     if (!nouveauNumero.trim()) return;
-    const nouvelleEntree = {
-      id: idUnique(),
-      numero: nouveauNumero.trim(),
-      note: nouvelleNote.trim(),
-      dateAjout: new Date().toISOString(),
-    };
-    sauvegarderContact({ telephonesAlternatifs: [...alternates, nouvelleEntree] });
+    const refus = erreurNumero(nouveauNumero);
+    if (refus) {
+      setErreur(refus);
+      return;
+    }
+    // Pas encore de numéro principal utilisable (vide, ou un e-mail saisi
+    // par erreur) : le nouveau numéro le devient directement, et apparaît
+    // aussitôt dans le bandeau ☎ en haut de la fiche.
+    if (!estNumeroAffichable(contact.telephone)) {
+      sauvegarderContact({ telephone: nouveauNumero.trim(), telephoneInvalide: false });
+    } else {
+      const nouvelleEntree = {
+        id: idUnique(),
+        numero: nouveauNumero.trim(),
+        note: nouvelleNote.trim(),
+        dateAjout: new Date().toISOString(),
+      };
+      sauvegarderContact({ telephonesAlternatifs: [...alternates, nouvelleEntree] });
+    }
     setNouveauNumero("");
     setNouvelleNote("");
   }
@@ -123,10 +136,15 @@ export default function GestionTelephones({ entreprise, onMaj, compact = false }
 
       <div className="flex flex-wrap gap-2">
         <input
-          type="text"
-          placeholder="Nouveau numéro (ex : obtenu via le standard)"
+          type="tel"
+          inputMode="tel"
+          placeholder="Nouveau numéro (ex : 01 41 33 84 00)"
           value={nouveauNumero}
-          onChange={(e) => setNouveauNumero(e.target.value)}
+          onChange={(e) => {
+            setNouveauNumero(e.target.value);
+            setErreur(null);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && ajouter(e)}
           className="flex-1 min-w-[140px] rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs"
         />
         <input

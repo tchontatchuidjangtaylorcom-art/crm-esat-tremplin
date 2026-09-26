@@ -67,6 +67,7 @@ import {
 import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
 
+import { reparerChampsContact } from "./telephone.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
 // client). N'existe pas en développement local (Vite sert le frontend
@@ -85,6 +86,17 @@ app.use(cookieParser());
 await initDb();
 
 // ---- Libellés des issues d'appel / sorties de dossier (source de vérité) ----
+// Répare une fois au démarrage les fiches dont les champs de contact sont
+// mélangés (e-mail saisi comme numéro, numéro saisi comme nom — voir
+// telephone.js) ; les nouvelles saisies sont corrigées à chaque PATCH.
+{
+  const reparees = [...db.data.entreprises, ...db.data.archives].filter((e) => reparerChampsContact(e.contact));
+  if (reparees.length) {
+    await db.write();
+    console.log(`[contacts] ${reparees.length} fiche(s) réparée(s) (e-mail/numéro/nom remis à leur place).`);
+  }
+}
+
 const ISSUES_APPEL = {
   nrp: "NRP (Non Répondant)",
   me_rappelle: "Me rappelle",
@@ -1261,6 +1273,7 @@ app.post("/api/entreprises/:id/assigner", exigerAdmin, async (req, res) => {
   }
   // Nouvelle affectation à un agent différent : déclenche l'alerte "nouveau
   // lead assigné" (voir /api/notifications) jusqu'à ce qu'il ouvre la fiche.
+  if ("contact" in req.body) reparerChampsContact(entreprise.contact);
   if (utilisateurId && utilisateurId !== entreprise.assigneA) {
     entreprise.assignationVue = false;
     entreprise.dateAssignation = new Date().toISOString();

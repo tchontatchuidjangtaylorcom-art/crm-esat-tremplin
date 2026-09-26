@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
+import { estNumeroTelephone, estNumeroAffichable } from "../telephone.js";
+import { jouerSonConfirmation } from "../sonConfirmation.js";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -27,6 +29,7 @@ export default function GestionContacts({ entreprise, onMaj }) {
   const [edition, setEdition] = useState(null); // { id, nom, fonction }
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
+  const [info, setInfo] = useState(null);
 
   const contact = entreprise.contact || {};
   const alternatifs = contact.contactsAlternatifs || [];
@@ -46,14 +49,66 @@ export default function GestionContacts({ entreprise, onMaj }) {
     }
   }
 
+  // Numéro de téléphone saisi dans un champ "Nom" (réflexe fréquent pendant
+  // un appel) : rangé là où il sert, c'est-à-dire comme numéro principal
+  // s'il n'y en a pas encore — il s'affiche alors dans le bandeau ☎ en haut
+  // de la fiche —, sinon comme numéro alternatif. Rien n'est perdu.
+  function champsPourNumero(numero, note) {
+    if (!estNumeroAffichable(contact.telephone)) {
+      return { telephone: numero, telephoneInvalide: false };
+    }
+    const dejaConnu = [contact.telephone, ...(contact.telephonesAlternatifs || []).map((t) => t.numero)].some(
+      (n) => String(n || "").replace(/\D/g, "") === numero.replace(/\D/g, "")
+    );
+    if (dejaConnu) return {};
+    return {
+      telephonesAlternatifs: [
+        ...(contact.telephonesAlternatifs || []),
+        { id: idUnique(), numero, note, dateAjout: new Date().toISOString() },
+      ],
+    };
+  }
+
+  function messageNumeroRange(numero, champs) {
+    return champs.telephone
+      ? `📞 « ${numero} » est un numéro de téléphone : enregistré comme numéro principal (en haut de la fiche).`
+      : `📞 « ${numero} » est un numéro de téléphone : ajouté aux numéros de la fiche.`;
+  }
+
   async function soumettrePrincipal(ev) {
     ev.preventDefault();
-    await sauvegarderContact({ nom: nomPrincipal.trim(), fonction: fonctionPrincipal.trim() });
+    setInfo(null);
+    const saisie = nomPrincipal.trim();
+    if (estNumeroTelephone(saisie)) {
+      const champs = champsPourNumero(saisie, fonctionPrincipal.trim());
+      const updated = await sauvegarderContact({ ...champs, fonction: fonctionPrincipal.trim() });
+      if (updated) {
+        jouerSonConfirmation();
+        setInfo(messageNumeroRange(saisie, champs));
+        const nomActuel = updated.contact?.nom;
+        setNomPrincipal(nomActuel && nomActuel !== "-" ? nomActuel : "");
+      }
+      return;
+    }
+    await sauvegarderContact({ nom: saisie, fonction: fonctionPrincipal.trim() });
   }
 
   async function ajouter(ev) {
     ev.preventDefault();
     if (!nouveauNom.trim()) return;
+    setInfo(null);
+    if (estNumeroTelephone(nouveauNom.trim())) {
+      const numero = nouveauNom.trim();
+      const champs = champsPourNumero(numero, nouvelleFonction.trim());
+      const updated = await sauvegarderContact(champs);
+      if (updated) {
+        jouerSonConfirmation();
+        setInfo(messageNumeroRange(numero, champs));
+        setNouveauNom("");
+        setNouvelleFonction("");
+      }
+      return;
+    }
     const nouvelleEntree = {
       id: idUnique(),
       nom: nouveauNom.trim(),
@@ -213,6 +268,12 @@ export default function GestionContacts({ entreprise, onMaj }) {
           {enCours ? "Ajout…" : "+ Ajouter un contact"}
         </button>
       </div>
+
+      {info && (
+        <p className="text-xs text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1.5">
+          {info}
+        </p>
+      )}
 
       {erreur && (
         <p className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg px-2.5 py-1.5">
