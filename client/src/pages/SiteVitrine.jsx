@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
-import TickerImpact from "../components/vitrine/TickerImpact.jsx";
 import ToastActivite from "../components/vitrine/ToastActivite.jsx";
 import CompteurAnime from "../components/vitrine/CompteurAnime.jsx";
 import RevelerAuScroll from "../components/vitrine/RevelerAuScroll.jsx";
@@ -63,10 +62,6 @@ const RESSOURCES = [
   },
 ];
 
-function formatMontant(n) {
-  return `${Math.round(n || 0).toLocaleString("fr-FR")} €`;
-}
-
 export default function SiteVitrine() {
   const [vitrine, setVitrine] = useState(null);
   const [contactPole, setContactPole] = useState(null);
@@ -93,7 +88,6 @@ export default function SiteVitrine() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const stats = vitrine?.statistiques || {};
   const entreprises = vitrine?.entreprises || [];
 
   return (
@@ -160,57 +154,10 @@ export default function SiteVitrine() {
         <RecitImmersif onOuvrirSimulateur={() => setSimulateurOuvert(true)} />
       </div>
 
-      {/* Bandeau de transition — chiffres en un coup d'œil avant la section
-          détaillée, sur un fond encore sombre pour ne pas casser l'ambiance
-          du récit qui vient de se terminer. */}
-      {vitrine && (
-        <div className="bg-marine-950 py-8">
-          <div className="max-w-xl mx-auto px-6">
-            <TickerImpact statistiques={stats} entreprises={entreprises} verre />
-          </div>
-        </div>
-      )}
-
-      {/* Compteurs animés — données réelles du portefeuille de CE pôle. */}
-      <section id="impact" className="py-24 sm:py-28 border-b border-slate-100 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-6">
-          <RevelerAuScroll>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white text-center mb-16">
-              Notre impact, en chiffres réels
-            </h2>
-          </RevelerAuScroll>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-10 text-center">
-            {[
-              { valeur: stats.nbEntreprisesConformes || 0, label: "Entreprises en conformité OETH" },
-              { valeur: stats.nbBeneficiairesInseres || 0, label: "Travailleurs handicapés recrutés" },
-              { valeur: stats.tauxConformite || 0, suffixe: " %", label: "Taux de conformité moyen" },
-            ].map((c, i) => (
-              <RevelerAuScroll key={c.label} delai={i * 100}>
-                <p className="text-4xl sm:text-5xl font-bold text-marine-800 dark:text-marine-200 tracking-tight">
-                  <CompteurAnime valeur={c.valeur} suffixe={c.suffixe || ""} />
-                </p>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-3">{c.label}</p>
-              </RevelerAuScroll>
-            ))}
-            <RevelerAuScroll delai={300}>
-              <p className="text-4xl sm:text-5xl font-bold text-marine-800 dark:text-marine-200 tracking-tight">
-                {formatMontant(stats.economiesRealisees)}
-              </p>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-3">
-                Contribution évitée grâce au recrutement direct (estimation)
-              </p>
-            </RevelerAuScroll>
-          </div>
-          <p className="text-xs text-slate-400 dark:text-slate-600 text-center mt-10">
-            Portefeuille d'entreprises directement accompagnées par ce pôle — mis à jour en continu.
-          </p>
-        </div>
-      </section>
-
       {/* Contexte national — chiffres NATIONAUX sourcés (DARES/Agefiph/France
           Travail), volontairement distincts et clairement étiquetés comme
           tels : jamais présentés comme le portefeuille du pôle lui-même. */}
-      <section className="bg-marine-950 text-white py-24 sm:py-28">
+      <section id="impact" className="bg-marine-950 text-white py-24 sm:py-28">
         <div className="max-w-6xl mx-auto px-6">
           <RevelerAuScroll>
             <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-marine-400 mb-3 text-center">
