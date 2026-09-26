@@ -83,6 +83,7 @@ export default function SimulateurOeth() {
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
   const [envoye, setEnvoye] = useState(false);
 
+  const [sousTraitance, setSousTraitance] = useState(null); // null | true | false
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
   const [requete, setRequete] = useState("");
   const [resultats, setResultats] = useState([]);
@@ -151,8 +152,14 @@ export default function SimulateurOeth() {
     setSaisie((s) => ({ ...s, [champ]: valeur }));
   }
 
+  function choisirSousTraitance(v) {
+    setSousTraitance(v);
+    if (v !== true) modifier("coutMainOeuvreSousTraitance", "");
+  }
+
   function reinitialiser() {
     setSaisie(SAISIE_VIDE);
+    setSousTraitance(null);
     setSimulation(null);
     setContactOuvert(false);
     setEnvoye(false);
@@ -312,13 +319,44 @@ export default function SimulateurOeth() {
               onChange={(v) => modifier("boeth", v)}
               placeholder="Ex. 0"
             />
-            <Champ
-              label="Sous-traitance EA / ESAT / TIH (€ HT)"
-              aide="Coût de main-d'œuvre facturé — 30 % retenus."
-              value={saisie.coutMainOeuvreSousTraitance}
-              onChange={(v) => modifier("coutMainOeuvreSousTraitance", v)}
-              placeholder="0"
-            />
+            {/* Oui / Non d'abord : beaucoup d'entreprises n'ont aucun achat
+                auprès du secteur protégé, elles passent sans rien saisir. */}
+            <div className="text-xs text-slate-400">
+              Montant de sous-traitance EA / ESAT / TIH
+              {sousTraitance !== true ? (
+                <>
+                  <OuiNon valeur={sousTraitance} onChange={choisirSousTraitance} />
+                  <span className="block text-[11px] text-slate-500 mt-1">Travaillez-vous avec un EA, un ESAT ou un TIH ?</span>
+                </>
+              ) : (
+                <>
+                  <div className="flex gap-2 mt-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      autoFocus
+                      value={saisie.coutMainOeuvreSousTraitance}
+                      onChange={(e) => modifier("coutMainOeuvreSousTraitance", e.target.value)}
+                      placeholder="Ex. 7386"
+                      className={CLASSE_INPUT}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => choisirSousTraitance(false)}
+                      title="Pas de sous-traitance"
+                      className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <span className="block text-[11px] text-slate-500 mt-1">
+                    Montant de main-d'œuvre valorisable. Le simulateur applique 30 %.
+                  </span>
+                </>
+              )}
+            </div>
             <Champ
               label="Salariés ECAP (nombre)"
               aide="Conditions d'aptitude particulières — 17 × SMIC chacun."
@@ -726,6 +764,29 @@ function Etape({ numero, titre, children }) {
         <p className="font-semibold">{titre}</p>
         <p className="text-xs text-slate-400 mt-1 leading-relaxed">{children}</p>
       </div>
+    </div>
+  );
+}
+
+function OuiNon({ valeur, onChange }) {
+  return (
+    <div className="flex gap-2 mt-1.5">
+      {[
+        { v: true, label: "Oui" },
+        { v: false, label: "Non" },
+      ].map((o) => (
+        <button
+          key={o.label}
+          type="button"
+          onClick={() => onChange(valeur === o.v ? null : o.v)}
+          aria-pressed={valeur === o.v}
+          className={`flex-1 rounded-xl py-3 text-sm font-medium border transition ${
+            valeur === o.v ? "bg-marine-500 border-marine-400 text-white" : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
