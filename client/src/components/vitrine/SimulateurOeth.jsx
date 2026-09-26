@@ -78,6 +78,8 @@ const RECOMMANDATIONS = [
     accompagnement:
       "Un conseiller fait le point avec vous sur votre situation OETH, identifie les leviers les plus utiles et vous aide à les organiser en un plan d'actions réaliste.",
     tags: ["Impact fort", "Effort moyen", "1 à 2 mois"],
+    bouton: "Découvrir le pilotage handicap",
+    lien: "/vitrine/pilotage#feuille-de-route",
   },
   {
     titre: "Accompagner les démarches RQTH",
@@ -87,6 +89,8 @@ const RECOMMANDATIONS = [
     accompagnement:
       "Nous vous aidons à informer vos équipes sur la RQTH, ses effets et sa confidentialité, et vous orientons vers les bons interlocuteurs (MDPH, Cap emploi).",
     tags: ["Impact très fort", "Effort moyen", "3 à 6 mois"],
+    bouton: "Découvrir notre solution",
+    lien: "/vitrine/pilotage#suivi",
   },
   {
     titre: "Développer les achats inclusifs",
@@ -96,6 +100,8 @@ const RECOMMANDATIONS = [
     accompagnement:
       "Nous vous aidons à repérer les prestations que vous pourriez confier au secteur protégé et adapté, et à entrer en contact avec des structures proches de vous.",
     tags: ["Impact moyen", "Effort faible", "1 à 2 mois"],
+    bouton: "Découvrir le pilotage handicap",
+    lien: "/vitrine/pilotage#achats",
   },
   {
     titre: "Sensibiliser les équipes",
@@ -105,6 +111,8 @@ const RECOMMANDATIONS = [
     accompagnement:
       "Nous vous orientons vers des actions de sensibilisation adaptées à votre entreprise. Ces dépenses peuvent être déductibles de la contribution (DSN 064).",
     tags: ["Impact moyen", "Effort faible", "Immédiat"],
+    bouton: "Découvrir les conférences",
+    lien: "/vitrine/pilotage#sensibilisation",
   },
 ];
 
