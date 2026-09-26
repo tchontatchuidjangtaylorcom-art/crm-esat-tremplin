@@ -428,9 +428,16 @@ export default function SimulateurOeth() {
               unite="salariés"
               value={saisie.effectif}
               onChange={changerEffectif}
-              placeholder="Ex. 34"
-              aide="Effectif moyen annuel retenu pour l'OETH."
-              erreur={erreurEffectif ? "Renseignez votre effectif pour calculer." : null}
+              placeholder="Minimum 20"
+              min="20"
+              aide="Effectif moyen annuel retenu pour l'OETH (minimum 20 salariés)."
+              erreur={
+                erreurEffectif
+                  ? "Renseignez votre effectif (minimum 20) pour calculer."
+                  : effectifRenseigne && Number(saisie.effectif) < 20
+                    ? "Minimum 20 salariés : en dessous, l'entreprise n'est pas redevable de la contribution OETH."
+                    : null
+              }
             />
             <CaseSaisie
               titre={<>Taux d'emploi BOETH{i("objectif")}</>}
@@ -1105,7 +1112,7 @@ function EnteteEtape({ numero, titre, sousTitre, children }) {
 }
 
 // Case de saisie de l'étape 01 (titre, badge "Lié", unité dans le champ).
-function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, accent = false, erreur = null }) {
+function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, accent = false, erreur = null, min = "0" }) {
   return (
     <div
       className={`rounded-xl border p-4 transition ${
@@ -1121,7 +1128,7 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
       <div className="relative mt-2.5">
         <input
           type="number"
-          min="0"
+          min={min}
           step="any"
           inputMode="decimal"
           value={value}
