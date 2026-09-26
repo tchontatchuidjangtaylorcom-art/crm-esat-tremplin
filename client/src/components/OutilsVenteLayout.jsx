@@ -32,6 +32,21 @@ export default function OutilsVenteLayout({ children }) {
     setOutil((actuel) => (actuel === cle ? null : cle));
   }
 
+  // Sur mobile, le panneau s'ouvrait auparavant en flux normal SOUS le
+  // contenu de la page (colonne empilée, comme sur desktop en plus étroit) :
+  // sur une fiche prospect déjà longue, l'agent devait faire défiler très
+  // loin pour même s'apercevoir que le panneau s'était ouvert — perçu comme
+  // "le bouton ne fait rien". Passe en plein écran superposé (fixed) sous
+  // ce seuil, et bloque le défilement de la page en dessous tant qu'il est
+  // ouvert, pour un état "ouvert" toujours immédiatement visible.
+  useEffect(() => {
+    if (!outil || window.innerWidth >= 1024) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [outil]);
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="bandeau-tricolore">
@@ -43,9 +58,17 @@ export default function OutilsVenteLayout({ children }) {
       <div className="flex flex-1 flex-col lg:flex-row items-stretch">
         <div className="flex-1 min-w-0">{children}</div>
         {outil && (
-          <aside className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l-2 border-marine-200 dark:border-marine-800/60 bg-white dark:bg-slate-900 overflow-y-auto">
-            <PanelOutilsVente outil={outil} onFermer={() => setOutil(null)} />
-          </aside>
+          <>
+            {/* Mobile/tablette : panneau plein écran superposé, toujours
+                visible immédiatement quel que soit le défilement en cours. */}
+            <div className="lg:hidden fixed inset-0 z-50 bg-white dark:bg-slate-900 overflow-y-auto">
+              <PanelOutilsVente outil={outil} onFermer={() => setOutil(null)} />
+            </div>
+            {/* Desktop : colonne dockée à droite, comme avant. */}
+            <aside className="hidden lg:block w-[420px] shrink-0 border-l-2 border-marine-200 dark:border-marine-800/60 bg-white dark:bg-slate-900 overflow-y-auto">
+              <PanelOutilsVente outil={outil} onFermer={() => setOutil(null)} />
+            </aside>
+          </>
         )}
       </div>
     </div>
