@@ -226,6 +226,7 @@ export function simulerContributionOeth({
       tauxPlafondSousTraitance: tauxPlafondST * 100,
       depenses: deductionDepenses,
       depensesPlafonnees: depenses > 0 && depenses > plafondDepenses,
+      plafondDepenses: arrondi2(plafondDepenses),
       ecap: deductionEcap,
       total: totalDeductions,
     },

@@ -9,7 +9,9 @@ const TONS = {
   neutre: { anneau: "#38bdf8", lueur: "rgba(56,189,248,0.45)" }, // sky-400
 };
 
-export default function CercleProgression({ pourcentage, ton = "neutre", taille = 168, epaisseur = 12, libelle }) {
+// `texteCentral` (facultatif) remplace le pourcentage affiché au centre —
+// ex. le taux d'emploi réel alors que l'anneau montre l'avancement vers 6 %.
+export default function CercleProgression({ pourcentage, ton = "neutre", taille = 168, epaisseur = 12, libelle, texteCentral }) {
   const rayon = (taille - epaisseur) / 2;
   const circonference = 2 * Math.PI * rayon;
   const avancement = Math.max(0, Math.min(100, pourcentage));
@@ -34,7 +36,7 @@ export default function CercleProgression({ pourcentage, ton = "neutre", taille 
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold text-white tracking-tight">{Math.round(pourcentage)}%</span>
+        <span className="text-3xl font-bold text-white tracking-tight">{texteCentral ?? `${Math.round(pourcentage)}%`}</span>
         {libelle && <span className="text-[10px] uppercase tracking-wide text-slate-400 mt-1 text-center px-4">{libelle}</span>}
       </div>
     </div>
