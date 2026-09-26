@@ -147,6 +147,13 @@ export const api = {
 
   simulerObligationsOeth: (q) => fetch(`${BASE}/vitrine/simulation?q=${encodeURIComponent(q)}`).then(handle),
 
+  calculerObligationVitrine: ({ effectif, effectifBeneficiaire, dateCreation }) =>
+    fetch(`${BASE}/vitrine/calculer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ effectif, effectifBeneficiaire, dateCreation }),
+    }).then(handle),
+
   contacterConseillerVitrine: ({ nom, email, telephone, entreprise, message }) =>
     fetch(`${BASE}/vitrine/contact`, {
       method: "POST",

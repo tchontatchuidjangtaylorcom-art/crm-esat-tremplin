@@ -558,6 +558,13 @@ app.get("/api/vitrine/simulation", async (req, res) => {
           codePostal: r.codePostal,
           secteurActivite: r.secteurActivite,
           trancheEffectifLabel: r.trancheEffectifLabel,
+          // Bruts, pour pré-remplir les champs éditables du simulateur
+          // manuel (voir SimulateurOeth.jsx) — `oeth` ci-dessous reste
+          // fourni tel quel (bénéficiaires=0) comme aperçu immédiat dans la
+          // liste de résultats, avant que le visiteur n'affine ses propres
+          // chiffres dans les champs.
+          effectifEstime: r.effectifEstime,
+          dateCreation: r.dateCreation,
           actif: r.actif,
           oeth,
         };
@@ -566,6 +573,23 @@ app.get("/api/vitrine/simulation", async (req, res) => {
   } catch (e) {
     res.status(e.code === "INSEE_INDISPONIBLE" ? 502 : 500).json({ error: e.message });
   }
+});
+
+// Calcul direct (module "Simulateur Gratuit OETH / DOETH" — saisie manuelle
+// de l'effectif et des bénéficiaires, voir SimulateurOeth.jsx) : même moteur
+// que /api/vitrine/simulation et que le CRM (calculerObligationOeth), lecture
+// seule, rien n'est stocké. Séparé de /simulation ci-dessus parce qu'ici
+// l'effectif ET les bénéficiaires viennent du visiteur lui-même (donc plus
+// fiables que l'estimation par tranche INSEE) et doivent rester éditables en
+// direct sans repasser par une recherche d'entreprise.
+app.post("/api/vitrine/calculer", (req, res) => {
+  const effectif = Number(req.body.effectif);
+  const effectifBeneficiaire = Number(req.body.effectifBeneficiaire) || 0;
+  const dateCreation = req.body.dateCreation || null;
+  if (!Number.isFinite(effectif) || effectif < 0) {
+    return res.status(400).json({ error: "Effectif invalide." });
+  }
+  res.json({ oeth: calculerObligationOeth({ effectif, effectifBeneficiaire, dateCreation }) });
 });
 
 // Prise de contact publique depuis la landing page (bouton "Contacter un
