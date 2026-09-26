@@ -363,7 +363,7 @@ export default function SimulateurOeth() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "simulation-oeth-2026.pdf";
+      a.download = `simulation-oeth-${ANNEE_REFERENCE}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
