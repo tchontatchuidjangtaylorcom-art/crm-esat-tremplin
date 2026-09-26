@@ -307,10 +307,10 @@ export default function SimulateurOeth() {
             />
             <Champ
               label="BOETH déclarés"
-              aide="Effectif moyen annuel, décimales possibles."
+              aide="Bénéficiaires de l'obligation d'emploi pris en compte dans la déclaration."
               value={saisie.boeth}
               onChange={(v) => modifier("boeth", v)}
-              placeholder="0"
+              placeholder="Ex. 0"
             />
             <Champ
               label="Sous-traitance EA / ESAT / TIH (€ HT)"
