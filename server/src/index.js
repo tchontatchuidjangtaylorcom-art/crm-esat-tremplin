@@ -907,6 +907,10 @@ const DELAI_ENTRE_APPELS_IA_MS = Number(process.env.ANTHROPIC_ENRICHISSEMENT_DEL
 // laisser tourner un lot de 100 fiches pour zéro résultat.
 const ECHECS_CONSECUTIFS_MAX = 5;
 
+// File des enrichissements déclenchés par /api/leads/secteur/importer : un
+// seul tourne à la fois (voir la note à l'appel).
+let fileEnrichissementImport = Promise.resolve();
+
 async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
   let echecsConsecutifs = 0;
   let interrompu = null;
@@ -1109,10 +1113,13 @@ app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
 
   // Volontairement après res.json ci-dessus et sans await : voir
   // enrichirTelephonesViaIA pour le détail (ne doit pas bloquer la réponse).
+  // Mis en file : le frontend importe une vague en plusieurs petits appels,
+  // lancer un enrichissement parallèle par appel multiplierait les requêtes
+  // simultanées vers Anthropic (limites de débit).
   if (enrichissementTelephoneIA) {
-    enrichirTelephonesViaIA(creeesPourIa).catch((e) =>
-      console.error("[ia] Échec de l'enrichissement téléphone en lot :", e.message)
-    );
+    fileEnrichissementImport = fileEnrichissementImport
+      .then(() => enrichirTelephonesViaIA(creeesPourIa))
+      .catch((e) => console.error("[ia] Échec de l'enrichissement téléphone en lot :", e.message));
   }
 });
 

@@ -181,7 +181,14 @@ export default function ImportLot({ categories, agents, onImporte }) {
   );
 }
 
-const TAILLE_MAX_APPEL = 100; // même limite anti-abus que l'import manuel (voir server/src/index.js)
+// Petits morceaux plutôt qu'un seul appel de 100 SIREN : côté serveur chaque
+// SIREN coûte un appel Sirene + une pause, un appel de 100 restait ouvert
+// une à deux minutes et tombait en 502 au moindre redémarrage de l'instance
+// Render. Des morceaux de 10 gardent chaque requête courte, donnent une vraie
+// progression et, en cas d'échec transitoire, sont simplement renvoyés :
+// l'import est idempotent (les SIREN déjà créés reviennent "existant").
+const TAILLE_MAX_APPEL = 10;
+const DELAIS_REESSAI_MS = [3000, 10000, 30000];
 
 // Génère une vague de prospects à partir d'un secteur du CRM : recherche de
 // VRAIES entreprises dans le répertoire Sirene (INSEE) par code NAF — voir
@@ -251,20 +258,34 @@ function GenererVagueSecteur({ categories, agents, onImporte }) {
     for (let i = 0; i < sirens.length; i += TAILLE_MAX_APPEL) {
       const morceau = sirens.slice(i, i + TAILLE_MAX_APPEL);
       setProgressionImport(`${tousResultats.length} / ${sirens.length}…`);
-      try {
-        const reponse = await api.importerProspectsParSecteur(
-          categorie,
-          lot.trim(),
-          morceau,
-          assigneA || null,
-          rechercheTelephoneIA
+      let reponse = null;
+      let derniereErreur = null;
+      for (let essai = 0; essai <= DELAIS_REESSAI_MS.length; essai++) {
+        try {
+          reponse = await api.importerProspectsParSecteur(
+            categorie,
+            lot.trim(),
+            morceau,
+            assigneA || null,
+            rechercheTelephoneIA
+          );
+          break;
+        } catch (e) {
+          derniereErreur = e;
+          if (essai === DELAIS_REESSAI_MS.length) break;
+          setProgressionImport(`${tousResultats.length} / ${sirens.length} — nouvel essai…`);
+          await new Promise((resolve) => setTimeout(resolve, DELAIS_REESSAI_MS[essai]));
+        }
+      }
+      if (!reponse) {
+        setErreur(
+          `Import interrompu après ${tousResultats.length} / ${sirens.length} fiches (${derniereErreur?.message}). ` +
+            "Relancez la même vague : les fiches déjà importées seront simplement ignorées."
         );
-        tousResultats.push(...reponse.resultats);
-        avecIa = avecIa || reponse.enrichissementTelephoneIA;
-      } catch (e) {
-        setErreur(e.message);
         break;
       }
+      tousResultats.push(...reponse.resultats);
+      avecIa = avecIa || reponse.enrichissementTelephoneIA;
     }
     setProgressionImport(null);
     setResultatImport(tousResultats);
