@@ -550,10 +550,12 @@ export default function SimulateurOeth() {
                 </svg>
               </span>
               <div>
-                <p className="font-semibold">Gagnez du temps : retrouvez votre entreprise</p>
+                <p className="font-semibold">
+                  Gagnez du temps : retrouvez votre entreprise{" "}
+                  <span className="font-normal text-slate-400">(facultatif)</span>
+                </p>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Raison sociale ou SIREN : nous pré-remplissons le nom et un effectif estimé, que vous pouvez corriger.
-                  Facultatif.
                 </p>
               </div>
             </div>
@@ -566,7 +568,7 @@ export default function SimulateurOeth() {
                 className={`${CLASSE_INPUT} pl-11`}
                 aria-label="Rechercher votre entreprise par raison sociale ou SIREN"
               />
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-slate-500 absolute left-4 top-[23px] -translate-y-1/2 pointer-events-none">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
               </svg>
               {(recherche || erreurRecherche || resultats.length > 0) && (
