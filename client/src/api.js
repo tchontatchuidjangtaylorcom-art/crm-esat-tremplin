@@ -151,6 +151,25 @@ export const api = {
   // depensesDeductibles, aEmployeBoeth4Ans } — voir simulerContributionOeth.
   getReferentielVitrine: () => fetch(`${BASE}/vitrine/referentiel`).then(handle),
 
+  // Page publique "Pilotage handicap" : rendez-vous expert et démo.
+  getDisponibilitesRdv: () => fetch(`${BASE}/vitrine/rdv/disponibilites`).then(handle),
+
+  reserverRdv: (donnees) =>
+    fetch(`${BASE}/vitrine/rdv`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+
+  getOptionsDemo: () => fetch(`${BASE}/vitrine/demo/options`).then(handle),
+
+  demanderDemo: (donnees) =>
+    fetch(`${BASE}/vitrine/demo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+
   simulerContributionVitrine: (saisie) =>
     fetch(`${BASE}/vitrine/calculer`, {
       method: "POST",

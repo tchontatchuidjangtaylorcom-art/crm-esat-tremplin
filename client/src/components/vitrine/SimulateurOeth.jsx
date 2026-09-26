@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../../api.js";
+import { Link } from "react-router-dom";
 import CercleProgression from "./CercleProgression.jsx";
 import AideModale, { InfoBouton } from "./AideModale.jsx";
 
@@ -1358,17 +1358,13 @@ export default function SimulateurOeth() {
                         </span>
                       ))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        ouvrirContact();
-                        setTimeout(() => asideRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
-                      }}
+                    <Link
+                      to={r.lien}
                       className="mt-4 self-start rounded-lg text-xs font-semibold px-3.5 py-2 transition hover:brightness-110"
                       style={{ background: r.couleur, color: "#050b18" }}
                     >
-                      En parler avec un conseiller →
-                    </button>
+                      {r.bouton} →
+                    </Link>
                   </div>
                 ))}
               </div>

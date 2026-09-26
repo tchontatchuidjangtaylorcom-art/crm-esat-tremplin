@@ -79,6 +79,16 @@ export async function initDb() {
     db.data.presence = [];
     aEcrire = true;
   }
+  // Prises de rendez-vous et demandes de démo depuis la page publique
+  // "Pilotage handicap" (voir vitrineRdv.js).
+  if (!db.data.rendezVousVitrine) {
+    db.data.rendezVousVitrine = [];
+    aEcrire = true;
+  }
+  if (!db.data.demandesDemo) {
+    db.data.demandesDemo = [];
+    aEcrire = true;
+  }
   if (!db.data.presenceDebutSuivi) {
     db.data.presenceDebutSuivi = new Date().toISOString();
     aEcrire = true;

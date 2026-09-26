@@ -39,6 +39,7 @@ import {
   verifierConnexionSMTP,
 } from "./mail.js";
 import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
+import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
 import { genererRapportPdf } from "./pdfRapport.js";
 import {
   estRechercheIaConfiguree,
@@ -672,6 +673,9 @@ app.post("/api/vitrine/synthese-pdf", async (req, res) => {
 // envoie simplement un mail à la boîte du pôle déjà configurée (aucune
 // écriture en base, aucune création de lead automatique — un conseiller
 // qualifie ensuite manuellement, comme n'importe quelle demande entrante).
+// Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
+enregistrerRoutesVitrineRdv(app);
+
 app.post("/api/vitrine/contact", async (req, res) => {
   const nom = String(req.body.nom || "").trim();
   const email = String(req.body.email || "").trim();
