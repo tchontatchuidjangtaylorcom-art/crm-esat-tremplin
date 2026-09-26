@@ -46,15 +46,31 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statut?.enCours]);
 
-  async function lancer() {
+  const [message, setMessage] = useState(null);
+
+  // Recharge les compteurs (à traiter / déjà recherchées) à la fin d'un lot.
+  useEffect(() => {
+    if (statut && !statut.enCours && statut.termine) {
+      api.getStatutEnrichissementTelephones().then(setStatut).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statut?.enCours]);
+
+  async function lancer(inclureDejaTentees = false) {
     setErreur(null);
+    setMessage(null);
     try {
-      const reponse = await api.lancerEnrichissementTelephones();
-      setStatut(reponse);
+      const reponse = await api.lancerEnrichissementTelephones(inclureDejaTentees);
+      if (reponse.message) setMessage(reponse.message);
+      setStatut((s) => ({ ...s, ...reponse }));
     } catch (e) {
       setErreur(e.message);
     }
   }
+
+  // Par défaut (avant le premier appel de statut) : tout est "à traiter".
+  const aTraiter = statut?.aTraiter ?? manquants;
+  const dejaTentees = statut?.dejaTentees ?? 0;
 
   // Diagnostic pour l'erreur "model X is not found" : plutôt que deviner un
   // nouveau nom de modèle Anthropic si celui configuré venait à être
@@ -89,7 +105,15 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
         ) : (
           <>
             <strong>{manquants}</strong> fiche{manquants > 1 ? "s" : ""} sans numéro de téléphone dans le pipeline
-            actif.
+            actif{dejaTentees > 0 ? (
+              <>
+                {" "}
+                — <strong>{aTraiter}</strong> jamais recherchée{aTraiter > 1 ? "s" : ""},{" "}
+                {dejaTentees} déjà recherchée{dejaTentees > 1 ? "s" : ""} sans succès (ignorée
+                {dejaTentees > 1 ? "s" : ""})
+              </>
+            ) : null}
+            .
             {statut?.termine && (
               <>
                 {" "}
@@ -103,13 +127,25 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
         )}
       </p>
 
-      <button
-        onClick={lancer}
-        disabled={statut?.enCours}
-        className="rounded-lg bg-marine-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
-      >
-        {statut?.enCours ? "Enrichissement…" : "🤖 Lancer l'enrichissement Claude des numéros manquants"}
-      </button>
+      <div className="flex flex-col items-end gap-1">
+        <button
+          onClick={() => lancer(false)}
+          disabled={statut?.enCours || aTraiter === 0}
+          className="rounded-lg bg-marine-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
+        >
+          {statut?.enCours
+            ? "Enrichissement…"
+            : `🤖 Lancer l'enrichissement Claude des nouvelles fiches (${aTraiter})`}
+        </button>
+        {dejaTentees > 0 && !statut?.enCours && (
+          <button
+            onClick={() => lancer(true)}
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
+          >
+            Relancer aussi sur les {dejaTentees} fiches déjà recherchées
+          </button>
+        )}
+      </div>
 
       {statut?.interrompu && (
         <div className="w-full">
@@ -153,6 +189,7 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
           Dernière erreur rencontrée : {statut.derniereErreur}
         </p>
       )}
+      {message && <p className="text-sm text-slate-500 dark:text-slate-400 w-full">{message}</p>}
       {erreur && <p className="text-sm text-red-600 dark:text-red-400 w-full">{erreur}</p>}
     </div>
   );

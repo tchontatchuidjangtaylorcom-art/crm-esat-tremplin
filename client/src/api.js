@@ -76,8 +76,12 @@ export const api = {
       body: JSON.stringify({ categorie, lot, sirens, assigneA: assigneA || null, rechercheTelephoneIA }),
     }).then(handle),
 
-  lancerEnrichissementTelephones: () =>
-    fetch(`${BASE}/leads/enrichir-telephones`, { method: "POST" }).then(handle),
+  lancerEnrichissementTelephones: (inclureDejaTentees = false) =>
+    fetch(`${BASE}/leads/enrichir-telephones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inclureDejaTentees }),
+    }).then(handle),
 
   getStatutEnrichissementTelephones: () => fetch(`${BASE}/leads/enrichir-telephones/statut`).then(handle),
 

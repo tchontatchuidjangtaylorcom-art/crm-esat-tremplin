@@ -911,6 +911,30 @@ const ECHECS_CONSECUTIFS_MAX = 5;
 // seul tourne à la fois (voir la note à l'appel).
 let fileEnrichissementImport = Promise.resolve();
 
+// Trace, sur la fiche, la dernière recherche IA de téléphone — pour que
+// l'enrichissement en lot ne repasse pas indéfiniment sur les mêmes fiches
+// introuvables (voir estDejaTenteeSansSucces) et se concentre sur les
+// nouvelles.
+function marquerRechercheTelephone(entreprise, resultat, erreur = null) {
+  const precedente = entreprise.rechercheTelephoneIA || {};
+  entreprise.rechercheTelephoneIA = {
+    date: new Date().toISOString(),
+    resultat,
+    erreurs: resultat === "erreur" ? (precedente.erreurs || 0) + 1 : 0,
+    ...(erreur ? { derniereErreur: erreur } : {}),
+  };
+}
+
+// Une fiche est ignorée par le lot si Claude n'a rien trouvé, ou si la
+// recherche a échoué au moins ERREURS_AVANT_ABANDON fois (une seule erreur
+// peut être passagère : panne, limite de débit, clé mal configurée).
+const ERREURS_AVANT_ABANDON = 2;
+function estDejaTenteeSansSucces(entreprise) {
+  const r = entreprise.rechercheTelephoneIA;
+  if (!r) return false;
+  return r.resultat === "introuvable" || (r.resultat === "erreur" && r.erreurs >= ERREURS_AVANT_ABANDON);
+}
+
 async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
   let echecsConsecutifs = 0;
   let interrompu = null;
@@ -919,6 +943,7 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
     let erreurMessage = null;
     try {
       const resultat = await rechercherContactAlternatif(entreprise);
+      marquerRechercheTelephone(entreprise, resultat.telephone ? "trouve" : "introuvable");
       if (resultat.telephone) {
         entreprise.contact.telephone = resultat.telephone;
         entreprise.commentaires.unshift({
@@ -930,13 +955,19 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
             `${resultat.source ? `, source : ${resultat.source}` : ""})` +
             `${resultat.contact ? ` — contact suggéré : ${resultat.contact}` : ""}. À vérifier au premier appel.`,
         });
-        await db.write();
         trouve = true;
       }
+      await db.write();
       echecsConsecutifs = 0;
     } catch (e) {
       erreurMessage = e.message;
       echecsConsecutifs += 1;
+      // Pas de trace si l'IA n'est pas configurée : ce n'est pas la fiche
+      // qui pose problème.
+      if (e.code !== "IA_NON_CONFIGUREE") {
+        marquerRechercheTelephone(entreprise, "erreur", e.message);
+        await db.write().catch(() => {});
+      }
       console.error(
         `[ia] Échec de recherche automatique de téléphone pour ${entreprise.nom} :`,
         JSON.stringify(detailErreurIa(e))
@@ -989,9 +1020,19 @@ app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
     return res.status(409).json({ error: "Un enrichissement est déjà en cours.", ...etatEnrichissementLot });
   }
 
-  const cibles = db.data.entreprises.filter((e) => !e.contact?.telephone);
+  // Par défaut, seules les fiches jamais cherchées (ou en échec passager)
+  // sont traitées, les plus récentes d'abord ; `inclureDejaTentees` relance
+  // aussi celles où Claude n'avait rien trouvé.
+  const inclureDejaTentees = req.body?.inclureDejaTentees === true;
+  const cibles = db.data.entreprises
+    .filter((e) => !e.contact?.telephone && (inclureDejaTentees || !estDejaTenteeSansSucces(e)))
+    .reverse();
   if (cibles.length === 0) {
-    return res.json({ total: 0, enCours: false, message: "Aucune fiche sans téléphone à enrichir." });
+    return res.json({
+      ...etatEnrichissementLot,
+      total: 0,
+      message: "Aucune nouvelle fiche à enrichir : toutes les fiches sans numéro ont déjà été recherchées.",
+    });
   }
 
   etatEnrichissementLot = {
@@ -1031,7 +1072,9 @@ app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
 // interroge cette route toutes les quelques secondes pendant qu'un
 // enrichissement tourne, pour afficher une barre de progression.
 app.get("/api/leads/enrichir-telephones/statut", exigerAdmin, (req, res) => {
-  res.json(etatEnrichissementLot);
+  const sansTelephone = db.data.entreprises.filter((e) => !e.contact?.telephone);
+  const dejaTentees = sansTelephone.filter(estDejaTenteeSansSucces).length;
+  res.json({ ...etatEnrichissementLot, aTraiter: sansTelephone.length - dejaTentees, dejaTentees });
 });
 
 // Génération d'une vague de prospects par secteur : recherche de candidats
