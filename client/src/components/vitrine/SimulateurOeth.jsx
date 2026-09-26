@@ -359,7 +359,7 @@ export default function SimulateurOeth() {
             </div>
             <Champ
               label="Salariés ECAP (nombre)"
-              aide="Conditions d'aptitude particulières — 17 × SMIC chacun."
+              aide="Emplois exigeant des conditions d'aptitude particulières (chauffeurs routiers, BTP, sécurité…). Laissez vide si non concerné."
               value={saisie.nbEcap}
               onChange={(v) => modifier("nbEcap", v)}
               placeholder="Facultatif"
