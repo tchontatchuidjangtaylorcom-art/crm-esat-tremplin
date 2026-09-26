@@ -54,6 +54,44 @@ const DEPENSES = [
   },
 ];
 
+// Leviers d'action généraux (bonnes pratiques OETH), affichés sur une ligne
+// sous les résultats. Aucune offre commerciale : le bouton mène à la
+// demande d'analyse gratuite auprès d'un conseiller du pôle.
+const RECOMMANDATIONS = [
+  {
+    titre: "Identifier les situations déjà présentes",
+    couleur: "#2dd4bf",
+    texte:
+      "Le premier levier n'est pas toujours le recrutement : des salariés déjà en poste peuvent être éligibles à une RQTH sans l'avoir déclaré.",
+    etapes: ["Informer sur la RQTH en interne", "Garantir la confidentialité", "Accompagner les démarches MDPH"],
+    tags: ["Impact fort", "Effort moyen", "3 à 6 mois"],
+  },
+  {
+    titre: "Désigner un référent handicap",
+    couleur: "#f472b6",
+    texte:
+      "Un interlocuteur identifié pour orienter, rassurer et suivre les actions. Il est obligatoire dans les entreprises d'au moins 250 salariés.",
+    etapes: ["Choisir et former le référent", "Le faire connaître des équipes", "Piloter un plan d'actions"],
+    tags: ["Impact fort", "Effort faible", "1 mois"],
+  },
+  {
+    titre: "Sécuriser le maintien dans l'emploi",
+    couleur: "#38bdf8",
+    texte:
+      "Repérer tôt les difficultés de santé au travail évite les ruptures, les arrêts longs et les situations d'inaptitude.",
+    etapes: ["Travailler avec la médecine du travail", "Mobiliser les aides Agefiph", "Adapter les postes"],
+    tags: ["Impact fort", "Effort moyen", "2 mois"],
+  },
+  {
+    titre: "Former les managers et les RH",
+    couleur: "#fbbf24",
+    texte:
+      "Des repères simples pour parler handicap, santé au travail et aménagements. Ces actions relèvent des dépenses déductibles (DSN 064).",
+    etapes: ["Sensibiliser les équipes", "Former les managers", "Outiller les RH"],
+    tags: ["Impact moyen", "Effort faible", "Immédiat"],
+  },
+];
+
 function formatMontant(n) {
   return `${Math.round(n || 0).toLocaleString("fr-FR")} €`;
 }
@@ -125,6 +163,8 @@ export default function SimulateurOeth() {
 
   const [sousTraitance, setSousTraitance] = useState(null); // null | true | false
   const [surcontributionChoix, setSurcontributionChoix] = useState(""); // "" | "oui" | "non" | "inconnu"
+  const [syntheseCopiee, setSyntheseCopiee] = useState(false);
+  const asideRef = useRef(null);
   const [aideOuverte, setAideOuverte] = useState(null); // clé de fiche (aideSimulateur.js)
   const fermerAide = useCallback(() => setAideOuverte(null), []);
   const i = (cle) => <InfoBouton cle={cle} onOuvrir={setAideOuverte} />;
@@ -375,12 +415,57 @@ export default function SimulateurOeth() {
       (v) => String(v).trim() !== "" && Number(v) > 0
     ).length + (surcontributionChoix ? 1 : 0);
 
-  // Récapitulatif par code DSN (bloc Cotisation établissement S21.G00.82).
-  const recapDsn = [
-    { code: "060", libelle: "Déduction ECAP", valeur: s?.deductions.ecap },
-    { code: "061", libelle: "Sous-traitance EA / ESAT / TIH / EPS", valeur: s?.deductions.sousTraitance },
-    ...DEPENSES.map((d) => ({ code: d.dsn, libelle: d.titre, valeur: Number(saisie[d.champ]) || 0 })),
-  ];
+  // Synthèse DSN (bloc Cotisation établissement S21.G00.82, rubrique
+  // S21.G00.82.002). 065 à 068 se déclarent ensemble ; l'écrêtement
+  // transitoire ayant pris fin, 067 reprend 066.
+  const lignesDsn = [
+    { code: "060", element: "Déduction ECAP", note: "17 × SMIC par salarié ECAP", valeur: s?.deductions.ecap || 0, calcule: true },
+    {
+      code: "061",
+      element: "Déduction sous-traitance EA / ESAT / TIH / EPS",
+      note: "30 % du coût de main-d'œuvre, plafonné",
+      valeur: s?.deductions.sousTraitance || 0,
+      calcule: true,
+    },
+    ...DEPENSES.map((d) => ({ code: d.dsn, element: d.titre, note: "Dépense HT saisie — justificatifs à conserver", valeur: Number(saisie[d.champ]) || 0 })),
+    { code: "065", element: "Contribution brute avant déductions", note: "Manque × coefficient × SMIC", valeur: s?.contributionBrute || 0, calcule: true, total: true },
+    { code: "066", element: "Contribution nette avant écrêtement", note: "Brute − déductions", valeur: s?.contributionNette || 0, calcule: true, total: true },
+    { code: "067", element: "Contribution nette après écrêtement", note: "Identique au 066", valeur: s?.contributionNette || 0, calcule: true, total: true },
+    { code: "068", element: "Contribution réelle due", note: "Montant estimé à régler", valeur: s?.contributionNette || 0, calcule: true, total: true },
+  ].map((l) => ({ ...l, statut: l.calcule ? "Prérempli" : l.valeur > 0 ? "À valider" : "Non concerné" }));
+
+  function texteSyntheseDsn() {
+    return [
+      `Synthèse DSN OETH — exercice ${ANNEE_REFERENCE}${nomEntreprise ? ` — ${nomEntreprise}` : ""}`,
+      "Bloc S21.G00.82 (Cotisation établissement), rubrique S21.G00.82.002",
+      ...lignesDsn.map((l) => `${l.code} — ${l.element} : ${Math.round(l.valeur)} € (${l.statut})`),
+      "Estimation indicative — seule l'URSSAF (ou la MSA) calcule et recouvre la contribution.",
+    ].join("\n");
+  }
+
+  async function copierSyntheseDsn() {
+    try {
+      await navigator.clipboard.writeText(texteSyntheseDsn());
+      setSyntheseCopiee(true);
+      setTimeout(() => setSyntheseCopiee(false), 2000);
+    } catch {
+      // presse-papiers indisponible (navigateur ancien, contexte non sécurisé)
+    }
+  }
+
+  function telechargerCsvDsn() {
+    const lignes = [
+      ["Élément", "Rubrique DSN", "Code", "Valeur (€)", "Statut"],
+      ...lignesDsn.map((l) => [l.element, "S21.G00.82.002", l.code, String(Math.round(l.valeur)), l.statut]),
+    ];
+    const csv = "﻿" + lignes.map((l) => l.map((c) => `"${c.replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `synthese-dsn-oeth-${ANNEE_REFERENCE}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const plafondDepenses = s?.deductions.plafondDepenses || 0;
   const depensesMobilisees = s?.deductions.depenses || 0;
@@ -471,7 +556,10 @@ export default function SimulateurOeth() {
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SMIC horaire brut retenu</span>
               <span className="font-semibold text-white">{SMIC_AFFICHE} €</span>
             </span>
-            <span className="text-[11px] text-slate-500">Référentiel réglementaire appliqué par le simulateur.</span>
+            <span className="text-[11px] text-slate-500">
+              SMIC en vigueur depuis le 1er juin {ANNEE_REFERENCE}, retenu pour l'exercice {ANNEE_REFERENCE} (DOETH déposée
+              en {ANNEE_REFERENCE + 1}).
+            </span>
           </div>
 
           <div className="mt-3 grid md:grid-cols-3 gap-3">
@@ -991,35 +1079,6 @@ export default function SimulateurOeth() {
                   </p>
                 </Carte>
 
-                {/* Récapitulatif DSN */}
-                <Carte>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">Récapitulatif par code DSN</p>
-                    <span className="text-[11px] text-slate-500">Bloc « Cotisation établissement » S21.G00.82 · indicatif</span>
-                  </div>
-                  <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {recapDsn.map((ligne) => (
-                      <div
-                        key={ligne.code}
-                        className={`rounded-xl border px-3.5 py-3 flex items-center gap-3 ${
-                          ligne.valeur > 0 ? "border-teal-400/25 bg-teal-400/[0.06]" : "border-white/10 bg-white/[0.02]"
-                        }`}
-                      >
-                        <span className="shrink-0 rounded-md bg-teal-400/15 text-teal-300 text-[10px] font-bold px-2 py-1">{ligne.code}</span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-[11px] text-slate-400 truncate">{ligne.libelle}</span>
-                          <span className="block text-sm font-semibold tabular-nums">{actif ? formatMontant(ligne.valeur) : "—"}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-3">
-                    060 et 061 : déductions retenues par le simulateur. 062 à 072 : dépenses HT saisies, leur plafond global
-                    de 10 % étant appliqué au calcul. À transmettre à votre gestionnaire de paie pour la DSN d'avril{" "}
-                    {ANNEE_REFERENCE + 1}.
-                  </p>
-                </Carte>
-
                 {/* Entreprise concernée */}
                 <Carte className="flex flex-col md:flex-row md:items-center gap-5">
                   <div className="flex-1">
@@ -1057,7 +1116,7 @@ export default function SimulateurOeth() {
               </div>
 
               {/* Colonne synthèse & passage à l'action */}
-              <aside className="rounded-2xl border border-white/10 bg-marine-950 p-5 sm:p-6">
+              <aside ref={asideRef} className="rounded-2xl border border-white/10 bg-marine-950 p-5 sm:p-6">
                 <span
                   className={`inline-block rounded-full text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 ${
                     actif ? "bg-teal-400/15 text-teal-300" : "bg-white/10 text-slate-400"
@@ -1193,6 +1252,164 @@ export default function SimulateurOeth() {
                   </div>
                 </div>
               </aside>
+            </div>
+
+            {/* ─────────── Recommandations prioritaires (4 sur une ligne) ─────────── */}
+            <div className="mt-8">
+              <div className="flex flex-wrap items-end justify-between gap-2 mb-4">
+                <div>
+                  <p className="text-lg font-semibold">Vos recommandations prioritaires</p>
+                  <p className="text-xs text-slate-400">Des leviers concrets, du plus rapide au plus structurant.</p>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                {RECOMMANDATIONS.map((r, index) => (
+                  <div
+                    key={r.titre}
+                    className="relative rounded-2xl border border-white/10 bg-marine-950 p-5 flex flex-col overflow-hidden"
+                  >
+                    <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: r.couleur }} />
+                    <span
+                      className="self-start rounded-full text-[10px] font-bold uppercase tracking-wider px-2.5 py-1"
+                      style={{ background: `${r.couleur}22`, color: r.couleur }}
+                    >
+                      Priorité {index + 1}
+                    </span>
+                    <p className="font-semibold mt-3 leading-snug">{r.titre}</p>
+                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{r.texte}</p>
+                    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                      <p className="text-[11px] font-semibold text-slate-200">Premières étapes</p>
+                      <ul className="mt-1.5 space-y-1">
+                        {r.etapes.map((e) => (
+                          <li key={e} className="text-[11px] text-slate-400 flex gap-1.5">
+                            <span style={{ color: r.couleur }}>›</span>
+                            {e}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {r.tags.map((t) => (
+                        <span key={t} className="rounded-md border border-white/10 bg-white/[0.03] text-[10px] text-slate-300 px-2 py-1">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        ouvrirContact();
+                        setTimeout(() => asideRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+                      }}
+                      className="mt-4 self-start rounded-lg text-xs font-semibold px-3.5 py-2 transition hover:brightness-110"
+                      style={{ background: r.couleur, color: "#050b18" }}
+                    >
+                      En parler avec un conseiller →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ─────────── Synthèse DSN ─────────── */}
+            <div className="mt-8 rounded-2xl border border-white/10 bg-marine-950 p-5 sm:p-7">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div>
+                  <span className="inline-block rounded-full bg-teal-400/15 text-teal-300 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
+                    Aide à la déclaration
+                  </span>
+                  <p className="text-lg font-semibold mt-2">Votre synthèse DSN pour préparer la DOETH</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    Les principaux codes DSN associés à votre simulation, à transmettre à votre gestionnaire de paie pour
+                    préparer la déclaration annuelle et rapprocher vos dépenses de la contribution estimée.
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={copierSyntheseDsn}
+                    disabled={!actif}
+                    className="rounded-lg border border-white/20 text-xs font-semibold px-3.5 py-2 hover:bg-white/10 transition disabled:opacity-40"
+                  >
+                    {syntheseCopiee ? "✓ Copiée" : "Copier la synthèse"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={telechargerCsvDsn}
+                    disabled={!actif}
+                    className="rounded-lg bg-teal-400 hover:bg-teal-300 text-marine-950 text-xs font-semibold px-3.5 py-2 transition disabled:opacity-40"
+                  >
+                    Télécharger le CSV
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-2 mt-5">
+                {[
+                  ["Exercice", String(ANNEE_REFERENCE)],
+                  ["Bloc principal", "S21.G00.82"],
+                  ["Contribution réelle due estimée", dash(formatMontant(s?.contributionNette))],
+                ].map(([l, v]) => (
+                  <div key={l} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">{l}</p>
+                    <p className="text-sm font-bold mt-0.5 tabular-nums">{v}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="mt-3 rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-100 leading-relaxed">
+                Ces codes sont une aide au rapprochement. Avant dépôt, vérifiez les données mises à disposition par l'URSSAF
+                ou la MSA, l'existence d'un accord agréé, les plafonds de déduction et la qualification exacte de chaque
+                dépense. Les codes 065 à 068 se déclarent obligatoirement ensemble, arrondis à l'euro.
+              </p>
+
+              <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-sm min-w-[640px]">
+                  <thead className="bg-white/[0.04] text-[11px] uppercase tracking-wider text-slate-400">
+                    <tr>
+                      <th className="text-left font-semibold px-4 py-2.5">Élément</th>
+                      <th className="text-left font-semibold px-3 py-2.5">Rubrique DSN</th>
+                      <th className="text-left font-semibold px-3 py-2.5">Code</th>
+                      <th className="text-right font-semibold px-3 py-2.5">Valeur issue de la simulation</th>
+                      <th className="text-left font-semibold px-4 py-2.5">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.06]">
+                    {lignesDsn.map((l) => (
+                      <tr key={l.code} className={l.total ? "bg-teal-400/[0.04]" : ""}>
+                        <td className="px-4 py-2.5">
+                          <span className={l.total ? "font-semibold" : ""}>{l.element}</span>
+                          <span className="block text-[11px] text-slate-500">{l.note}</span>
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-[11px] text-slate-400">S21.G00.82.002</td>
+                        <td className="px-3 py-2.5">
+                          <span className="rounded-md bg-teal-400/15 text-teal-300 text-[11px] font-bold px-2 py-0.5">{l.code}</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
+                          {actif ? `${Math.round(l.valeur).toLocaleString("fr-FR")} €` : "—"}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span
+                            className={`rounded-full text-[10px] font-semibold px-2.5 py-1 ${
+                              l.statut === "Prérempli"
+                                ? "bg-emerald-400/15 text-emerald-300"
+                                : l.statut === "À valider"
+                                  ? "bg-amber-400/15 text-amber-300"
+                                  : "bg-white/10 text-slate-400"
+                            }`}
+                          >
+                            {actif ? l.statut : "—"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-3">
+                Montants arrondis à l'euro. Mesures transitoires d'écrêtement terminées : le code 067 reprend le 066.
+                Estimation hors accord agréé ; seule l'URSSAF (ou la MSA) calcule et recouvre la contribution.
+              </p>
             </div>
           </div>
         )}

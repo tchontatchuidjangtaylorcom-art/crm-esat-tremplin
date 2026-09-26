@@ -348,6 +348,10 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       ["063 - Maintien et reconversion (dépense HT)", formatMontant(saisie.depMaintien)],
       ["064 - Accompagnement, formation, sensibilisation (dépense HT)", formatMontant(saisie.depAccompagnement)],
       ["072 - Partenariats associatifs (dépense HT)", formatMontant(saisie.depPartenariats)],
+      ["065 - Contribution brute avant déductions", formatMontant(s.contributionBrute)],
+      ["066 - Contribution nette avant écrêtement", formatMontant(s.contributionNette)],
+      ["067 - Contribution nette après écrêtement (= 066)", formatMontant(s.contributionNette)],
+      ["068 - Contribution réelle due", formatMontant(s.contributionNette)],
     ]);
 
     if (s.surcontribution) {
