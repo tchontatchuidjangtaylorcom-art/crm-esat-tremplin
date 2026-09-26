@@ -508,16 +508,16 @@ export default function SimulateurOeth() {
             <span className="flex-1 bg-white" />
             <span className="flex-1 bg-red-500" />
           </div>
-          <div className="px-6 sm:px-8 py-5 flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+          <div className="px-6 sm:px-8 py-6 flex flex-col items-center text-center gap-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-400">Simulateur OETH / DOETH</p>
-              <h2 className="font-bold text-white text-2xl sm:text-3xl mt-1">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
-              <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-2xl">
+              <h2 className="font-bold text-white text-2xl sm:text-4xl mt-1.5">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
+              <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-2xl mx-auto">
                 Obtenez une estimation immédiate de votre contribution OETH {ANNEE_REFERENCE} à partir des données de votre
                 entreprise.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
+            <div className="flex flex-wrap justify-center gap-2">
               <Pastille couleur="bg-teal-400">Environ 2 minutes</Pastille>
               <Pastille couleur="bg-sky-400">Aucune pièce à joindre</Pastille>
               <Pastille couleur="bg-amber-400">Résultat immédiat</Pastille>
