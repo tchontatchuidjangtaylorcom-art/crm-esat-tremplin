@@ -83,7 +83,48 @@ export default function SimulateurOeth() {
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
   const [envoye, setEnvoye] = useState(false);
 
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  const [requete, setRequete] = useState("");
+  const [resultats, setResultats] = useState([]);
+  const [recherche, setRecherche] = useState(false);
+  const [erreurRecherche, setErreurRecherche] = useState(null);
+  const debounceRechercheRef = useRef(null);
+
   const effectifRenseigne = saisie.effectif.trim() !== "";
+
+  // Recherche Sirene optionnelle (pré-remplissage du nom et de l'effectif
+  // estimé par tranche INSEE — le visiteur peut ensuite corriger).
+  useEffect(() => {
+    clearTimeout(debounceRechercheRef.current);
+    if (requete.trim().length < 2) {
+      setResultats([]);
+      setErreurRecherche(null);
+      return;
+    }
+    debounceRechercheRef.current = setTimeout(async () => {
+      setRecherche(true);
+      setErreurRecherche(null);
+      try {
+        const { resultats: r } = await api.simulerObligationsOeth(requete.trim());
+        setResultats(r);
+      } catch (e) {
+        setErreurRecherche(e.message);
+        setResultats([]);
+      } finally {
+        setRecherche(false);
+      }
+    }, 350);
+    return () => clearTimeout(debounceRechercheRef.current);
+  }, [requete]);
+
+  function preremplirDepuisRecherche(candidat) {
+    setNomEntreprise(candidat.nom);
+    setEntrepriseMemorisee(false);
+    if (candidat.effectifEstime != null) modifier("effectif", String(candidat.effectifEstime));
+    setRechercheOuverte(false);
+    setRequete("");
+    setResultats([]);
+  }
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -195,26 +236,65 @@ export default function SimulateurOeth() {
   const partMobilisee = plafondDepenses > 0 ? Math.min(100, (depensesMobilisees / plafondDepenses) * 100) : 0;
 
   return (
-    <section id="simulateur" className="relative bg-marine-950 text-white py-20 sm:py-28 scroll-mt-16 overflow-hidden">
+    <section id="simulateur" className="relative bg-black text-white py-20 sm:py-28 scroll-mt-16 overflow-hidden">
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
       <div aria-hidden className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
 
       <div className="relative max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-2xl mx-auto">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-marine-400">
-            OETH · DOETH · BOETH · EA · ESAT · TIH
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-bold mt-3 tracking-tight">
-            Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}
-          </h2>
-          <p className="text-slate-400 mt-4">
+        {/* Saisie */}
+        <div className="rounded-2xl border border-white/10 bg-marine-950 shadow-2xl overflow-hidden">
+          {/* Liseré tricolore discret — identité, pas un emblème d'État. */}
+          <div className="flex h-1">
+            <span className="flex-1 bg-marine-500" />
+            <span className="flex-1 bg-white" />
+            <span className="flex-1 bg-red-500" />
+          </div>
+
+          <div className="p-6 sm:p-8">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-400">Simulateur OETH / DOETH</p>
+          <h2 className="font-bold text-white text-2xl sm:text-3xl mt-1">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
+          <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-xl">
             Obtenez une estimation immédiate de votre contribution OETH {ANNEE_REFERENCE} à partir des données de votre
             entreprise.
           </p>
-        </div>
 
-        {/* Saisie */}
-        <div className="mt-12 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+          {/* Recherche Sirene — repliée, purement facultative. */}
+          <button
+            type="button"
+            onClick={() => setRechercheOuverte((v) => !v)}
+            className="text-sm text-marine-300 hover:text-marine-200 hover:underline mt-6 mb-4 inline-flex items-center gap-1.5"
+          >
+            <span className="text-xs">{rechercheOuverte ? "▾" : "▸"}</span> Pré-remplir via ma raison sociale ou mon SIREN
+            (facultatif)
+          </button>
+          {rechercheOuverte && (
+            <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-3 max-w-xl">
+              <input
+                type="text"
+                value={requete}
+                onChange={(e) => setRequete(e.target.value)}
+                placeholder="Ex : ESAT Tremplin, ou 123 456 789"
+                className={CLASSE_INPUT}
+              />
+              <p className="text-[11px] text-slate-500 mt-1.5">Répertoire public Sirene (INSEE) — aucune donnée n'est enregistrée.</p>
+              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                {recherche && <p className="text-xs text-slate-500">Recherche…</p>}
+                {erreurRecherche && <p className="text-xs text-red-400">{erreurRecherche}</p>}
+                {resultats.map((r) => (
+                  <button
+                    key={r.siren}
+                    type="button"
+                    onClick={() => preremplirDepuisRecherche(r)}
+                    className="w-full text-left rounded-lg hover:bg-white/10 transition px-3 py-2"
+                  >
+                    <p className="text-sm font-medium text-white">{r.nom}</p>
+                    <p className="text-[11px] text-slate-400">{[r.ville, r.trancheEffectifLabel].filter(Boolean).join(" · ")}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <ChampLecture label="Année concernée" valeur={String(ANNEE_REFERENCE)} />
             <ChampLecture label="SMIC horaire retenu" valeur={SMIC_AFFICHE} />
@@ -305,6 +385,7 @@ export default function SimulateurOeth() {
               OETH (la déclaration mensuelle des bénéficiaires en DSN reste due).
             </p>
           )}
+          </div>
         </div>
 
         {/* Résultats — mis à jour en direct */}
