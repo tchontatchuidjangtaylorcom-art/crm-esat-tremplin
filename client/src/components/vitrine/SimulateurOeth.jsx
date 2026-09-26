@@ -362,7 +362,7 @@ export default function SimulateurOeth() {
               aide="Conditions d'aptitude particulières — 17 × SMIC chacun."
               value={saisie.nbEcap}
               onChange={(v) => modifier("nbEcap", v)}
-              placeholder="0"
+              placeholder="Facultatif"
               step="1"
             />
             <Champ
