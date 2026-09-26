@@ -422,6 +422,17 @@ export async function relaverBoiteMail(onMessage) {
     secure: true,
     auth: { user: c.user, pass: c.password },
     logger: false,
+    connectionTimeout: TIMEOUT_MS,
+    greetingTimeout: TIMEOUT_MS,
+    socketTimeout: 60_000,
+  });
+  // ImapFlow est un EventEmitter : une coupure de socket en dehors d'un appel
+  // attendu (fermeture côté OVH, timeout réseau) émet "error", et un "error"
+  // sans écouteur fait planter tout le processus Node — donc le serveur
+  // entier, d'où des 502 intermittents sur Render. On le journalise
+  // simplement : la relève suivante rouvrira une connexion neuve.
+  client.on("error", (e) => {
+    console.error("[mail] Erreur de connexion IMAP (ignorée, nouvelle tentative à la prochaine relève) :", e.message);
   });
 
   await client.connect();

@@ -1913,7 +1913,14 @@ app.get("/api/notifications", exigerAuth, (req, res) => {
 // à l'entreprise dont l'adresse de contact correspond à l'expéditeur ; les
 // autres sont journalisés côté serveur mais ignorés (pas de boîte "non
 // triée" pour cette première version).
+// Une relève lente (boîte OVH qui répond mal) ne doit jamais en chevaucher
+// une autre : sinon les connexions IMAP s'empilent toutes les 60 s jusqu'à
+// saturer la mémoire du conteneur Render.
+let releveEnCours = false;
+
 async function relevePeriodiqueBoiteMail() {
+  if (releveEnCours) return;
+  releveEnCours = true;
   try {
     await relaverBoiteMail(async (mail) => {
       const entreprise = trouverEntrepriseParEmail(mail.de);
@@ -1936,8 +1943,18 @@ async function relevePeriodiqueBoiteMail() {
     });
   } catch (e) {
     console.error("Erreur lors de la relève de la boîte mail :", e.message);
+  } finally {
+    releveEnCours = false;
   }
 }
+
+// Filet de sécurité : une promesse rejetée sans catch quelque part (tâche de
+// fond, enrichissement IA, relève...) est journalisée au lieu de faire
+// tomber tout le serveur — un bug ponctuel dans une tâche annexe ne doit pas
+// rendre le CRM et la vitrine injoignables (502 Render).
+process.on("unhandledRejection", (raison) => {
+  console.error("[process] Promesse rejetée non gérée :", raison?.stack || raison);
+});
 
 // Envoi et réception (IMAP) sont vérifiés et activés indépendamment — voir
 // mail.js pour le détail des noms de variables acceptés. L'envoi via l'API
