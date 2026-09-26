@@ -78,7 +78,7 @@ export default function SimulateurOeth() {
   const debounceRef = useRef(null);
 
   const [aideEssentielOuverte, setAideEssentielOuverte] = useState(false);
-  const [deductionsOuvertes, setDeductionsOuvertes] = useState(true);
+  const [deductionsOuvertes, setDeductionsOuvertes] = useState(false);
   const [erreurEffectif, setErreurEffectif] = useState(false);
 
   const [pdfEnCours, setPdfEnCours] = useState(false);
@@ -645,21 +645,16 @@ export default function SimulateurOeth() {
           )}
         </div>
 
-        {/* ─────────── Appel à l'action ─────────── */}
-        <div className="rounded-2xl border border-teal-400/20 bg-gradient-to-b from-teal-400/[0.07] to-transparent px-6 py-7 text-center">
-          <button
-            type="button"
-            onClick={calculer}
-            className="inline-flex items-center gap-2 rounded-xl bg-teal-400 hover:bg-teal-300 text-marine-950 text-sm font-bold px-7 py-3.5 transition shadow-[0_10px_40px_rgba(45,212,191,0.3)]"
-          >
-            Calculer ma contribution ↓
-          </button>
-          <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 mt-3 text-[11px] text-slate-400">
+        {/* Liens utilitaires — l'appel "Calculer ma contribution" est un
+            bouton flottant (voir bas du composant) : il ne prend pas de place
+            et les résultats remontent juste sous la saisie. */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-400">
             <span>● Résultat immédiat</span>
             <span>● Sans coordonnées</span>
             <span>● Sans engagement</span>
           </div>
-          <div className="flex flex-wrap justify-center gap-4 mt-4 text-xs">
+          <div className="flex flex-wrap gap-4 text-xs">
             <button type="button" onClick={reinitialiser} className="text-slate-400 hover:text-white underline-offset-4 hover:underline">
               Nouvelle simulation
             </button>
@@ -1055,21 +1050,30 @@ export default function SimulateurOeth() {
         )}
       </div>
 
-      {/* Barre mobile : rappel du montant tant que le bloc résultats n'est
-          pas à l'écran. */}
-      {actif && sectionVisible && !resultatsVisibles && (
+      {/* Bouton flottant : visible tant que le simulateur est à l'écran mais
+          que le bloc résultats ne l'est pas. Affiche la contribution en
+          direct pendant la saisie ; un clic descend aux résultats. */}
+      {sectionVisible && !resultatsVisibles && (
         <button
           type="button"
-          onClick={() => resultatsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-          className="lg:hidden fixed bottom-0 inset-x-0 z-50 flex items-center justify-between gap-3 bg-marine-950/95 backdrop-blur border-t border-white/15 px-5 py-3 text-left"
+          onClick={calculer}
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 rounded-2xl bg-teal-400 hover:bg-teal-300 text-marine-950 pl-5 pr-4 py-3 shadow-[0_12px_40px_rgba(45,212,191,0.4)] ring-1 ring-teal-200/40 transition max-w-[calc(100vw-2rem)]"
         >
-          <span>
-            <span className="block text-[10px] uppercase tracking-wider text-slate-400">Contribution estimée</span>
-            <span className={`block text-lg font-bold tabular-nums ${s.surcontribution ? "text-red-300" : "text-white"}`}>
-              {formatMontant(s.contributionNette)}
-            </span>
-          </span>
-          <span className="text-xs font-semibold text-marine-200">Voir le détail ↓</span>
+          {actif ? (
+            <>
+              <span className="text-left">
+                <span className="block text-[10px] font-semibold uppercase tracking-wider text-marine-900/70">
+                  Contribution estimée
+                </span>
+                <span className="block text-lg font-bold tabular-nums leading-tight">{formatMontant(s.contributionNette)}</span>
+              </span>
+              <span className="rounded-xl bg-marine-950 text-teal-300 text-xs font-semibold px-3 py-2 whitespace-nowrap">
+                Voir le détail ↓
+              </span>
+            </>
+          ) : (
+            <span className="text-sm font-bold whitespace-nowrap pr-1">Calculer ma contribution ↓</span>
+          )}
         </button>
       )}
 
