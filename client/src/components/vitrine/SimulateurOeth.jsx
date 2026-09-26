@@ -67,40 +67,46 @@ const DEPENSES = [
   },
 ];
 
-// Leviers d'action généraux (bonnes pratiques OETH), affichés sur une ligne
-// sous les résultats. Aucune offre commerciale : le bouton mène à la
-// demande d'analyse gratuite auprès d'un conseiller du pôle.
+// Leviers d'action affichés sur une ligne sous les résultats. Textes
+// originaux : l'encadré "Comment nous pouvons vous accompagner" ne décrit
+// que du conseil et de l'orientation par les conseillers du pôle — aucune
+// plateforme, formation ou prestation que le pôle ne fournirait pas. Le
+// bouton mène à la demande d'analyse gratuite.
 const RECOMMANDATIONS = [
   {
-    titre: "Identifier les situations déjà présentes",
+    titre: "Structurer une feuille de route handicap",
     couleur: "#2dd4bf",
     texte:
-      "Le premier levier n'est pas toujours le recrutement : des salariés déjà en poste peuvent être éligibles à une RQTH sans l'avoir déclaré.",
-    etapes: ["Informer sur la RQTH en interne", "Garantir la confidentialité", "Accompagner les démarches MDPH"],
-    tags: ["Impact fort", "Effort moyen", "3 à 6 mois"],
+      "Fixer des priorités, des responsables et des échéances pour que les actions ponctuelles deviennent une démarche suivie d'année en année.",
+    accompagnement:
+      "Un conseiller fait le point avec vous sur votre situation OETH, identifie les leviers les plus utiles et vous aide à les organiser en un plan d'actions réaliste.",
+    tags: ["Impact fort", "Effort moyen", "1 à 2 mois"],
   },
   {
-    titre: "Désigner un référent handicap",
+    titre: "Accompagner les démarches RQTH",
     couleur: "#f472b6",
     texte:
-      "Un interlocuteur identifié pour orienter, rassurer et suivre les actions. Il est obligatoire dans les entreprises d'au moins 250 salariés.",
-    etapes: ["Choisir et former le référent", "Le faire connaître des équipes", "Piloter un plan d'actions"],
-    tags: ["Impact fort", "Effort faible", "1 mois"],
+      "Des salariés déjà en poste peuvent être concernés sans l'avoir déclaré. Une démarche confidentielle et bien expliquée lève souvent les freins.",
+    accompagnement:
+      "Nous vous aidons à informer vos équipes sur la RQTH, ses effets et sa confidentialité, et vous orientons vers les bons interlocuteurs (MDPH, Cap emploi).",
+    tags: ["Impact très fort", "Effort moyen", "3 à 6 mois"],
   },
   {
-    titre: "Sécuriser le maintien dans l'emploi",
+    titre: "Développer les achats inclusifs",
     couleur: "#38bdf8",
     texte:
-      "Repérer tôt les difficultés de santé au travail évite les ruptures, les arrêts longs et les situations d'inaptitude.",
-    etapes: ["Travailler avec la médecine du travail", "Mobiliser les aides Agefiph", "Adapter les postes"],
-    tags: ["Impact fort", "Effort moyen", "2 mois"],
+      "Confier des prestations à une EA, un ESAT ou un TIH réduit la contribution (DSN 061) et fait sortir de la base majorée dès 600 × SMIC d'achats.",
+    accompagnement:
+      "Nous vous aidons à repérer les prestations que vous pourriez confier au secteur protégé et adapté, et à entrer en contact avec des structures proches de vous.",
+    tags: ["Impact moyen", "Effort faible", "1 à 2 mois"],
   },
   {
-    titre: "Former les managers et les RH",
+    titre: "Sensibiliser les équipes",
     couleur: "#fbbf24",
     texte:
-      "Des repères simples pour parler handicap, santé au travail et aménagements. Ces actions relèvent des dépenses déductibles (DSN 064).",
-    etapes: ["Sensibiliser les équipes", "Former les managers", "Outiller les RH"],
+      "Rendre le sujet visible réduit les tabous et crée un climat de confiance, propice aux déclarations comme aux aménagements de poste.",
+    accompagnement:
+      "Nous vous orientons vers des actions de sensibilisation adaptées à votre entreprise. Ces dépenses peuvent être déductibles de la contribution (DSN 064).",
     tags: ["Impact moyen", "Effort faible", "Immédiat"],
   },
 ];
@@ -1312,16 +1318,9 @@ export default function SimulateurOeth() {
                     </span>
                     <p className="font-semibold mt-3 leading-snug">{r.titre}</p>
                     <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{r.texte}</p>
-                    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <p className="text-[11px] font-semibold text-slate-200">Premières étapes</p>
-                      <ul className="mt-1.5 space-y-1">
-                        {r.etapes.map((e) => (
-                          <li key={e} className="text-[11px] text-slate-400 flex gap-1.5">
-                            <span style={{ color: r.couleur }}>›</span>
-                            {e}
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 flex-1">
+                      <p className="text-[11px] font-semibold text-slate-200">Comment nous pouvons vous accompagner</p>
+                      <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">{r.accompagnement}</p>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {r.tags.map((t) => (
