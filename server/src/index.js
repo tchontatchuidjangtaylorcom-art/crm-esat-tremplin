@@ -915,11 +915,16 @@ let fileEnrichissementImport = Promise.resolve();
 // l'enrichissement en lot ne repasse pas indéfiniment sur les mêmes fiches
 // introuvables (voir estDejaTenteeSansSucces) et se concentre sur les
 // nouvelles.
+// Incrémenté quand la méthode de recherche change nettement : les fiches
+// marquées "introuvables" par une version précédente sont alors retentées.
+const VERSION_RECHERCHE_TELEPHONE = 2;
+
 function marquerRechercheTelephone(entreprise, resultat, erreur = null) {
   const precedente = entreprise.rechercheTelephoneIA || {};
   entreprise.rechercheTelephoneIA = {
     date: new Date().toISOString(),
     resultat,
+    version: VERSION_RECHERCHE_TELEPHONE,
     erreurs: resultat === "erreur" ? (precedente.erreurs || 0) + 1 : 0,
     ...(erreur ? { derniereErreur: erreur } : {}),
   };
@@ -931,8 +936,56 @@ function marquerRechercheTelephone(entreprise, resultat, erreur = null) {
 const ERREURS_AVANT_ABANDON = 2;
 function estDejaTenteeSansSucces(entreprise) {
   const r = entreprise.rechercheTelephoneIA;
-  if (!r) return false;
+  if (!r || (r.version || 1) < VERSION_RECHERCHE_TELEPHONE) return false;
   return r.resultat === "introuvable" || (r.resultat === "erreur" && r.erreurs >= ERREURS_AVANT_ABANDON);
+}
+
+// Écrit sur la fiche ce que la recherche IA a trouvé : le 1er numéro devient
+// le numéro principal, les suivants vont dans les numéros alternatifs (même
+// format que GestionTelephones.jsx), et le contact RH devient le contact
+// principal s'il n'y en a pas encore, sinon un contact alternatif.
+function appliquerResultatRechercheIA(entreprise, resultat) {
+  const contact = entreprise.contact;
+  const maintenant = new Date().toISOString();
+  const [principal, ...autres] = resultat.telephones;
+  contact.telephone = principal.numero;
+  contact.telephoneInvalide = false;
+
+  const connus = new Set(
+    [contact.telephone, ...(contact.telephonesAlternatifs || []).map((t) => t.numero)].map((n) => String(n).replace(/\D/g, ""))
+  );
+  const nouveaux = autres
+    .filter((t) => !connus.has(t.numero.replace(/\D/g, "")))
+    .map((t) => ({ id: nanoid(), numero: t.numero, note: `Trouvé par l'IA${t.libelle ? ` — ${t.libelle}` : ""}`, dateAjout: maintenant }));
+  if (nouveaux.length) contact.telephonesAlternatifs = [...(contact.telephonesAlternatifs || []), ...nouveaux];
+
+  const rh = resultat.contactRH;
+  if (rh) {
+    const sansNom = !contact.nom || contact.nom === "-";
+    const dejaConnu = [contact.nom, ...(contact.contactsAlternatifs || []).map((c) => c.nom)].some(
+      (n) => n && n.toLowerCase() === rh.nom.toLowerCase()
+    );
+    if (sansNom) {
+      contact.nom = rh.nom;
+      contact.fonction = rh.fonction || "-";
+    } else if (!dejaConnu) {
+      contact.contactsAlternatifs = [
+        ...(contact.contactsAlternatifs || []),
+        { id: nanoid(), nom: rh.nom, fonction: rh.fonction || "", dateAjout: maintenant },
+      ];
+    }
+  }
+
+  const lignes = resultat.telephones.map(
+    (t, i) => `n°${i + 1} ${t.numero}${t.libelle ? ` (${t.libelle})` : ""}${t.source ? ` — ${t.source}` : ""}`
+  );
+  if (rh) lignes.push(`contact : ${rh.nom}${rh.fonction ? `, ${rh.fonction}` : ""}${rh.source ? ` — ${rh.source}` : ""}`);
+  entreprise.commentaires.unshift({
+    id: nanoid(),
+    date: maintenant,
+    auteur: "Assistant IA",
+    texte: `Trouvé automatiquement par recherche IA (confiance ${resultat.confiance}) : ${lignes.join(" ; ")}. À vérifier au premier appel.`,
+  });
 }
 
 async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
@@ -945,16 +998,7 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
       const resultat = await rechercherContactAlternatif(entreprise);
       marquerRechercheTelephone(entreprise, resultat.telephone ? "trouve" : "introuvable");
       if (resultat.telephone) {
-        entreprise.contact.telephone = resultat.telephone;
-        entreprise.commentaires.unshift({
-          id: nanoid(),
-          date: new Date().toISOString(),
-          auteur: "Assistant IA",
-          texte:
-            `Numéro de téléphone trouvé automatiquement via recherche IA (confiance ${resultat.confiance}` +
-            `${resultat.source ? `, source : ${resultat.source}` : ""})` +
-            `${resultat.contact ? ` — contact suggéré : ${resultat.contact}` : ""}. À vérifier au premier appel.`,
-        });
+        appliquerResultatRechercheIA(entreprise, resultat);
         trouve = true;
       }
       await db.write();

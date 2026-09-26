@@ -27,7 +27,20 @@ const VERSION_API = "2023-06-01";
 // au moment de l'écriture — ajustez ANTHROPIC_MODEL (sans toucher au code)
 // si Anthropic publie une version plus récente à privilégier.
 const MODELE_PAR_DEFAUT = "claude-sonnet-5";
-const TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS) || 20000;
+// Une recherche web + lecture de pages prend facilement 30 à 60 s : l'ancien
+// délai de 20 s coupait une bonne partie des recherches avant la réponse.
+const TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS) || 90000;
+
+// Outils de recherche web côté serveur Anthropic. Les variantes 20260209
+// (filtrage dynamique des résultats) n'existent que sur les modèles récents ;
+// les autres gardent les variantes de base, sinon l'API répond 400.
+function outilsWeb(modele, { maxRecherches = 4, maxLectures = 4 } = {}) {
+  const recent = /^claude-(opus-5|opus-4-[678]|sonnet-5|sonnet-4-6)/.test(modele);
+  return [
+    { type: recent ? "web_search_20260209" : "web_search_20250305", name: "web_search", max_uses: maxRecherches },
+    { type: recent ? "web_fetch_20260209" : "web_fetch_20250910", name: "web_fetch", max_uses: maxLectures },
+  ];
+}
 
 // Anthropic ne plafonne pas le débit aussi bas que le plan gratuit Gemini,
 // mais applique tout de même des limites de requêtes/minute selon le palier
@@ -99,17 +112,22 @@ export function detailErreur(e) {
   };
 }
 
+// L'outil de recherche web d'Anthropic ne voit PAS la page de résultats
+// Google (ni son encart "fiche d'établissement") : l'ancien prompt lui
+// demandait d'y lire le numéro, d'où beaucoup de "rien trouvé" alors qu'un
+// agent le trouve en un clic. On lui demande désormais d'ouvrir (web_fetch)
+// les pages qu'un agent consulterait — PagesJaunes, site officiel,
+// Societe.com — et d'y lire les numéros, plus le contact RH si disponible.
 function construirePrompt(entreprise) {
   const villeOuCp = [entreprise.codePostal, entreprise.ville].filter(Boolean).join(" ");
-  // Même requête que le lien manuel "Rechercher sur Google" déjà proposé à
-  // l'agent (voir EntrepriseDetail.jsx) — on demande au modèle de faire
-  // EXACTEMENT la recherche qu'un agent ferait lui-même à la main, plutôt
-  // qu'une formulation plus verbeuse qui disperse la recherche web sur des
-  // pages moins directement pertinentes.
-  const requetePrincipale = [entreprise.nom, villeOuCp, "téléphone"].filter(Boolean).join(" ");
-  const requeteSiret = entreprise.siret ? `${entreprise.nom} ${entreprise.siret}` : null;
-
-  const identite = [entreprise.nom, entreprise.adresse, villeOuCp, entreprise.siret ? `SIRET ${entreprise.siret}` : null]
+  const requeteAgent = [entreprise.nom, villeOuCp, "téléphone"].filter(Boolean).join(" ");
+  const identite = [
+    entreprise.nom,
+    entreprise.adresse,
+    villeOuCp,
+    entreprise.siret ? `SIRET ${entreprise.siret}` : null,
+    entreprise.secteurActivite ? `activité : ${entreprise.secteurActivite}` : null,
+  ]
     .filter(Boolean)
     .join(", ");
 
@@ -117,23 +135,32 @@ function construirePrompt(entreprise) {
     .map((c) => `${c.value} = ${c.label}`)
     .join(" ; ");
 
+  const numeroActuel = entreprise.contact?.telephone;
+
   return (
-    `Tu aides un télé-prospecteur français à mettre à jour la fiche de cette entreprise : ${identite}.\n` +
-    `Le numéro actuellement enregistré (${entreprise.contact?.telephone || "aucun"}) est invalide ou non attribué.\n` +
-    `Pour le retrouver, lance ta recherche web EXACTEMENT comme le ferait un agent qui tape lui-même dans Google — ` +
-    `pas une formulation plus longue ou plus explicative : requête "${requetePrincipale}"` +
-    (requeteSiret ? `, et si besoin en repli "${requeteSiret}"` : "") +
-    `.\n` +
-    `Priorité stricte à l'extraction directe : regarde D'ABORD si un numéro apparaît directement dans le bloc de ` +
-    `résultat Google lui-même (fiche d'établissement / pavé "Google Maps"/"Business Profile" affiché en tête de ` +
-    `page, avec le numéro de standard déjà visible) — c'est presque toujours la source la plus fiable et la plus ` +
-    `rapide, exactement ce qu'un agent verrait au premier coup d'œil sans avoir à cliquer plus loin. Ne creuse dans ` +
-    `des pages individuelles (site officiel, PagesJaunes, Societe.com, Verif.com, Infogreffe, LinkedIn) que si ce ` +
-    `bloc direct est absent ou ne donne pas de numéro exploitable.\n` +
-    `Détermine aussi, à partir de l'activité réelle de cette entreprise, la catégorie la plus pertinente EXCLUSIVEMENT parmi cette liste officielle (utilise la clé, pas le libellé) : ${listeCategories}.\n` +
-    `Termine IMPÉRATIVEMENT ta réponse par une seule ligne contenant uniquement un objet JSON strict, sans texte autour, exactement au format :\n` +
-    `{"telephone": "<numéro ou null>", "contact": "<nom et fonction ou null>", "secteurCategorie": "<une des clés ci-dessus ou null>", "source": "<url ou null>", "confiance": "haute|moyenne|faible"}\n` +
-    `Si tu ne trouves rien de fiable pour un champ, mets-le à null plutôt que d'inventer une valeur — une mauvaise info est pire qu'aucune info ici.`
+    `Un télé-prospecteur français doit appeler cette entreprise : ${identite}.\n` +
+    (numeroActuel
+      ? `Le numéro enregistré (${numeroActuel}) est invalide ou injoignable : trouves-en d'autres.\n`
+      : `Aucun numéro n'est enregistré.\n`) +
+    `\n` +
+    `Objectif 1 — les numéros de téléphone de cet établissement (standard, accueil, agence locale, siège si c'est ` +
+    `le même site). Un agent qui tape "${requeteAgent}" dans Google le trouve presque toujours dès les premiers ` +
+    `résultats : PagesJaunes, site officiel (pages Contact, Mentions légales, Nos agences), Societe.com, annuaires ` +
+    `professionnels. Cherche de la même façon, puis ouvre avec web_fetch les pages les plus prometteuses pour lire ` +
+    `le numéro dans la page elle-même plutôt que de te fier à un extrait de résultat.\n` +
+    `Objectif 2 — si possible, la personne à contacter pour le recrutement ou l'obligation d'emploi des travailleurs ` +
+    `handicapés : DRH, responsable RH, chargé(e) de recrutement, référent handicap, ou à défaut le dirigeant. ` +
+    `Uniquement un nom réel lu dans une source (site officiel, LinkedIn, presse, Societe.com pour le dirigeant).\n` +
+    `Objectif 3 — la catégorie la plus pertinente EXCLUSIVEMENT parmi cette liste (clé, pas libellé) : ${listeCategories}.\n` +
+    `\n` +
+    `Ne renvoie que des informations lues dans une source : un numéro ou un nom inventé ferait perdre du temps à ` +
+    `l'agent, laisse plutôt le champ vide. Si un numéro est celui d'un autre établissement du groupe, dis-le dans ` +
+    `son libellé.\n` +
+    `Termine ta réponse par un unique objet JSON, sans texte après, au format :\n` +
+    `{"telephones": [{"numero": "01 23 45 67 89", "libelle": "standard | accueil | agence | siège | RH | ...", "source": "<url>"}], ` +
+    `"contactRH": {"nom": "<prénom nom>", "fonction": "<fonction>", "source": "<url>"} ou null, ` +
+    `"secteurCategorie": "<clé ou null>", "confiance": "haute|moyenne|faible"}\n` +
+    `Classe les numéros du plus utile au moins utile (3 au maximum) ; "telephones" vaut [] si rien de fiable.`
   );
 }
 
@@ -143,8 +170,8 @@ function construirePrompt(entreprise) {
 // accolades imbriquées avant le JSON final, ex. citations/notes de l'outil
 // de recherche). Généralisée par clé pour servir les deux formats de réponse
 // (recherche de téléphone : "telephone" ; assistant conversationnel : "reponse").
-function extraireBlocJsonParCle(texte, cle) {
-  const debutCle = texte.indexOf(`"${cle}"`);
+function extraireBlocJsonParCle(texte, cle, { dernier = false } = {}) {
+  const debutCle = dernier ? texte.lastIndexOf(`"${cle}"`) : texte.indexOf(`"${cle}"`);
   if (debutCle === -1) return null;
   const debutObjet = texte.lastIndexOf("{", debutCle);
   if (debutObjet === -1) return null;
@@ -160,17 +187,23 @@ function extraireBlocJsonParCle(texte, cle) {
   return null;
 }
 
-function extraireResultat(corpsReponse) {
-  const texte = (corpsReponse.content || [])
-    .filter((bloc) => bloc.type === "text")
-    .map((bloc) => bloc.text || "")
-    .join("\n");
+// Garde un numéro seulement s'il ressemble à un vrai numéro (9 à 15 chiffres),
+// pour écarter les "null", "non trouvé" et autres valeurs de remplissage.
+function nettoieNumero(v) {
+  if (!v || typeof v !== "string") return null;
+  const numero = v.replace(/[^\d+ .()-]/g, "").trim();
+  const chiffres = numero.replace(/\D/g, "");
+  return chiffres.length >= 9 && chiffres.length <= 15 ? numero : null;
+}
 
-  const bloc = extraireBlocJsonParCle(texte, "telephone");
+function extraireResultat(texte) {
+  // Le JSON final est en fin de réponse : on part de la DERNIÈRE occurrence,
+  // le texte intermédiaire pouvant contenir des bribes de JSON.
+  const bloc = extraireBlocJsonParCle(texte, "telephones", { dernier: true });
   if (!bloc) {
     const erreur = new Error("Réponse de l'IA illisible (pas de JSON de résultat trouvé).");
     erreur.code = "REPONSE_IA_INVALIDE";
-    erreur.response = texte.slice(0, 500);
+    erreur.response = texte.slice(-500);
     throw erreur;
   }
 
@@ -185,15 +218,35 @@ function extraireResultat(corpsReponse) {
   }
 
   const nettoie = (v) => (v && v !== "null" ? v : null);
+  const vus = new Set();
+  const telephones = (Array.isArray(resultat.telephones) ? resultat.telephones : [])
+    .map((t) => ({ numero: nettoieNumero(t?.numero), libelle: nettoie(t?.libelle), source: nettoie(t?.source) }))
+    .filter((t) => {
+      if (!t.numero) return false;
+      const chiffres = t.numero.replace(/\D/g, "");
+      if (vus.has(chiffres)) return false;
+      vus.add(chiffres);
+      return true;
+    })
+    .slice(0, 3);
+
+  const rh = resultat.contactRH && typeof resultat.contactRH.nom === "string" && nettoie(resultat.contactRH.nom);
+  const contactRH = rh
+    ? { nom: resultat.contactRH.nom.trim(), fonction: nettoie(resultat.contactRH.fonction) || "", source: nettoie(resultat.contactRH.source) }
+    : null;
+
   // Défense contre une clé de catégorie hallucinée/inconnue : on ignore
   // plutôt que de laisser une clé invalide se propager jusqu'à classifierSecteur.
   const cleCategorie = nettoie(resultat.secteurCategorie);
   const categorieValide = cleCategorie && CATEGORIES[cleCategorie] ? cleCategorie : null;
 
   return {
-    telephone: nettoie(resultat.telephone),
-    contact: nettoie(resultat.contact),
-    source: nettoie(resultat.source),
+    telephones,
+    contactRH,
+    // Champs historiques, lus par /api/entreprises/:id/rechercher-contact.
+    telephone: telephones[0]?.numero || null,
+    contact: contactRH ? [contactRH.nom, contactRH.fonction].filter(Boolean).join(", ") : null,
+    source: telephones[0]?.source || null,
     confiance: resultat.confiance || "faible",
     secteurCategorie: categorieValide,
     secteurCategorieLabel: categorieValide ? CATEGORIES[categorieValide].label : null,
@@ -492,43 +545,60 @@ export async function analyserDictee(entreprise, transcription) {
 async function appelerClaude(entreprise, cle, modele) {
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
-  let reponse;
+  const messages = [{ role: "user", content: construirePrompt(entreprise) }];
+  const textes = [];
   try {
-    reponse = await fetch(API_URL, {
-      method: "POST",
-      headers: enTetes(cle),
-      body: JSON.stringify({
-        model: modele,
-        max_tokens: 1024,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
-        messages: [{ role: "user", content: construirePrompt(entreprise) }],
-      }),
-      signal: controleur.signal,
-    });
-  } catch (e) {
-    if (e.name === "AbortError") {
-      const erreur = new Error(`Délai de recherche IA dépassé (${TIMEOUT_MS}ms).`);
-      erreur.code = "TIMEOUT_MANUEL";
-      throw erreur;
+    // Les outils serveur (recherche/lecture web) peuvent rendre la main en
+    // cours de route (stop_reason "pause_turn") : on renvoie alors la réponse
+    // telle quelle pour que Claude continue, sinon le JSON final n'arrive
+    // jamais. Avec l'ancien max_tokens de 1024, la réponse était aussi
+    // souvent tronquée avant le JSON — deux causes des "réponses illisibles".
+    for (let tour = 0; tour < 4; tour++) {
+      let reponse;
+      try {
+        reponse = await fetch(API_URL, {
+          method: "POST",
+          headers: enTetes(cle),
+          body: JSON.stringify({
+            model: modele,
+            max_tokens: 16000,
+            tools: outilsWeb(modele),
+            messages,
+          }),
+          signal: controleur.signal,
+        });
+      } catch (e) {
+        if (e.name === "AbortError") {
+          const erreur = new Error(`Délai de recherche IA dépassé (${TIMEOUT_MS}ms).`);
+          erreur.code = "TIMEOUT_MANUEL";
+          throw erreur;
+        }
+        throw e;
+      }
+
+      const corps = await reponse.json().catch(() => ({}));
+      if (!reponse.ok) {
+        const erreur = new Error(
+          corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+        );
+        erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+        erreur.responseCode = reponse.status;
+        erreur.response = JSON.stringify(corps).slice(0, 500);
+        erreur.reponseHttp = reponse;
+        throw erreur;
+      }
+
+      for (const bloc of corps.content || []) {
+        if (bloc.type === "text" && bloc.text) textes.push(bloc.text);
+      }
+      if (corps.stop_reason !== "pause_turn") break;
+      messages.push({ role: "assistant", content: corps.content });
     }
-    throw e;
   } finally {
     clearTimeout(idAbort);
   }
 
-  const corps = await reponse.json().catch(() => ({}));
-  if (!reponse.ok) {
-    const erreur = new Error(
-      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
-    );
-    erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
-    erreur.responseCode = reponse.status;
-    erreur.response = JSON.stringify(corps).slice(0, 500);
-    erreur.reponseHttp = reponse;
-    throw erreur;
-  }
-
-  return extraireResultat(corps);
+  return extraireResultat(textes.join("\n"));
 }
 
 export async function rechercherContactAlternatif(entreprise) {
