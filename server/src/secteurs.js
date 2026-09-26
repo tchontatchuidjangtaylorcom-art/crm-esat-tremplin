@@ -48,6 +48,24 @@ export const CATEGORIES = {
     argumentaire:
       "Postes d'accueil/caisse : embauche directe possible avec un aménagement de poste raisonnable.",
   },
+  // Nettoyage et EHPAD placés AVANT construction/industrie : la détection par
+  // mots-clés s'arrête à la première catégorie trouvée, et les libellés INSEE
+  // du nettoyage contiennent "bâtiment" ("Nettoyage courant des bâtiments")
+  // ou "industriel" ("nettoyage industriel").
+  nettoyage: {
+    label: "Nettoyage / Propreté",
+    motsCles: ["nettoyage", "propreté", "proprete", "désinfection", "desinfection", "entretien des locaux"],
+    nafCodes: ["81.21Z", "81.22Z", "81.29A", "81.29B"],
+    argumentaire:
+      "Secteur en forte tension de recrutement, avec de nombreux postes accessibles aux travailleurs handicapés : embauche directe via Cap Emploi / France Travail avec aménagements simples (horaires, matériel ergonomique, produits adaptés) ; à défaut, la sous-traitance d'une partie des prestations à une EA/ESAT propreté reste un levier rapide.",
+  },
+  ehpad: {
+    label: "EHPAD / Personnes âgées",
+    motsCles: ["ehpad", "maison de retraite", "personnes âgées", "personnes agees", "hébergement médicalisé", "hebergement medicalise", "résidence senior", "residence senior"],
+    nafCodes: ["87.10A", "87.30A"],
+    argumentaire:
+      "Difficultés de recrutement chroniques et postes de soin physiquement exigeants (manutention des résidents) : cibler l'embauche directe sur les postes ASH, cuisine, accueil, administratif, et les postes de soin avec aménagement (aides techniques au transfert) ; sous-traitance ESAT/EA pour la blanchisserie, la restauration ou les espaces verts. EHPAD public : relève du FIPHFP, vérifier l'assujettissement.",
+  },
   industrie: {
     label: "Industrie / Production",
     motsCles: ["industrie", "production", "fabrication", "usine", "métallurgie"],
