@@ -147,12 +147,24 @@ export const api = {
 
   simulerObligationsOeth: (q) => fetch(`${BASE}/vitrine/simulation?q=${encodeURIComponent(q)}`).then(handle),
 
-  calculerObligationVitrine: ({ effectif, effectifBeneficiaire, dateCreation }) =>
+  // saisie : { effectif, boeth, coutMainOeuvreSousTraitance, nbEcap,
+  // depensesDeductibles, aEmployeBoeth4Ans } — voir simulerContributionOeth.
+  simulerContributionVitrine: (saisie) =>
     fetch(`${BASE}/vitrine/calculer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ effectif, effectifBeneficiaire, dateCreation }),
+      body: JSON.stringify(saisie),
     }).then(handle),
+
+  telechargerSyntheseSimulation: async (saisie) => {
+    const res = await fetch(`${BASE}/vitrine/synthese-pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(saisie),
+    });
+    if (!res.ok) await handle(res);
+    return res.blob();
+  },
 
   contacterConseillerVitrine: ({ nom, email, telephone, entreprise, message }) =>
     fetch(`${BASE}/vitrine/contact`, {

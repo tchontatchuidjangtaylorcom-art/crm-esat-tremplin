@@ -8,6 +8,7 @@ import SimulateurOeth from "../components/vitrine/SimulateurOeth.jsx";
 import RecitImmersif from "../components/vitrine/RecitImmersif.jsx";
 
 const LIENS_NAV = [
+  { label: "Simulateur OETH", href: "#simulateur" },
   { label: "Notre démarche", href: "#manifeste" },
   { label: "Impact", href: "#impact" },
   { label: "Ressources", href: "#ressources" },
@@ -66,8 +67,11 @@ export default function SiteVitrine() {
   const [vitrine, setVitrine] = useState(null);
   const [contactPole, setContactPole] = useState(null);
   const [defile, setDefile] = useState(false);
-  const [simulateurOuvert, setSimulateurOuvert] = useState(false);
   const recitRef = useRef(null);
+
+  function allerAuSimulateur() {
+    document.getElementById("simulateur")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   useEffect(() => {
     api.getVitrine().then(setVitrine).catch(() => setVitrine({ statistiques: {}, entreprises: [] }));
@@ -133,26 +137,26 @@ export default function SiteVitrine() {
               Portail sécurisé
             </Link>
             <button
-              onClick={() => setSimulateurOuvert(true)}
+              onClick={allerAuSimulateur}
               className={`rounded-full text-xs font-semibold px-5 py-2.5 transition ${
                 defile
                   ? "bg-marine-800 text-white hover:bg-marine-900"
                   : "bg-white text-marine-900 hover:bg-marine-100"
               }`}
             >
-              Estimer vos obligations
+              Simuler ma contribution
             </button>
           </div>
         </div>
       </header>
 
-      {simulateurOuvert && <SimulateurOeth onClose={() => setSimulateurOuvert(false)} />}
-
-      {/* Récit immersif au scroll (hero + convictions + citation), voir
-          RecitImmersif.jsx — remplace l'ancien hero + manifeste statiques. */}
+      {/* Récit immersif au scroll (hero + convictions), voir RecitImmersif.jsx. */}
       <div ref={recitRef} id="manifeste">
-        <RecitImmersif onOuvrirSimulateur={() => setSimulateurOuvert(true)} />
+        <RecitImmersif onOuvrirSimulateur={allerAuSimulateur} />
       </div>
+
+      {/* Simulateur OETH / DOETH intégré — cœur de la landing page. */}
+      <SimulateurOeth />
 
       {/* Contexte national — chiffres NATIONAUX sourcés (DARES/Agefiph/France
           Travail), volontairement distincts et clairement étiquetés comme
@@ -199,10 +203,10 @@ export default function SiteVitrine() {
                 financer un recrutement direct.
               </p>
               <button
-                onClick={() => setSimulateurOuvert(true)}
+                onClick={allerAuSimulateur}
                 className="shrink-0 rounded-full bg-amber-400 hover:bg-amber-300 text-marine-950 text-sm font-semibold px-6 py-3 transition"
               >
-                Estimer vos obligations
+                Simuler ma contribution
               </button>
             </div>
           </RevelerAuScroll>
@@ -248,6 +252,25 @@ export default function SiteVitrine() {
         </section>
       )}
 
+      {/* Ce qui compte vraiment — ancienne étape finale du récit animé,
+          déplacée ici pour laisser la place au simulateur en haut de page. */}
+      <section className="bg-marine-950 text-white py-24 sm:py-28">
+        <RevelerAuScroll>
+          <div className="max-w-3xl mx-auto px-6 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-marine-400 mb-8">Ce qui compte vraiment</p>
+            <h2 className="text-3xl sm:text-5xl font-bold leading-tight">
+              Le recrutement direct change une vie professionnelle —{" "}
+              <span className="text-marine-300">pas seulement un chiffre de conformité.</span>
+            </h2>
+            <p className="text-sm text-marine-200/80 mt-10 max-w-2xl mx-auto leading-relaxed">
+              Le recrutement direct reste la voie la plus durable vers l'inclusion ; l'accompagnement Cap Emploi et les
+              solutions ESAT/EA demeurent des leviers complémentaires précieux, en particulier pour les parcours qui ont
+              besoin d'un cadre plus soutenant.
+            </p>
+          </div>
+        </RevelerAuScroll>
+      </section>
+
       {/* Ressources */}
       <section id="ressources" className="max-w-6xl mx-auto px-6 py-24 sm:py-28 border-t border-slate-100 dark:border-slate-800">
         <RevelerAuScroll>
@@ -284,10 +307,10 @@ export default function SiteVitrine() {
             {contactPole?.telephone && <span>{contactPole.telephone}</span>}
           </p>
           <button
-            onClick={() => setSimulateurOuvert(true)}
+            onClick={allerAuSimulateur}
             className="inline-block mt-3 rounded-full bg-marine-800 hover:bg-marine-900 text-white text-xs font-semibold px-5 py-2.5 transition"
           >
-            Estimer vos obligations / contacter un conseiller
+            Simuler ma contribution / contacter un conseiller
           </button>
           <p className="text-xs text-slate-400 dark:text-slate-600 pt-4">
             Les statistiques affichées sont calculées à partir du portefeuille d'entreprises accompagnées par le pôle et

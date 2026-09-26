@@ -7,7 +7,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
 import db, { initDb, CANAL_GENERAL_ID } from "./db.js";
-import { calculerObligationOeth } from "./oeth.js";
+import { calculerObligationOeth, simulerContributionOeth } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur, CATEGORIES } from "./secteurs.js";
 import {
   estSirenValide,
@@ -32,7 +32,7 @@ import {
   telephonePole,
   verifierConnexionSMTP,
 } from "./mail.js";
-import { genererSynthesePdf } from "./pdfSynthese.js";
+import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
 import { genererRapportPdf } from "./pdfRapport.js";
 import {
   estRechercheIaConfiguree,
@@ -583,14 +583,48 @@ app.get("/api/vitrine/simulation", async (req, res) => {
 // l'effectif ET les bénéficiaires viennent du visiteur lui-même (donc plus
 // fiables que l'estimation par tranche INSEE) et doivent rester éditables en
 // direct sans repasser par une recherche d'entreprise.
+// Le simulateur complet (déductions sous-traitance, ECAP, dépenses, règle des
+// 4 ans) utilise simulerContributionOeth — mêmes constantes que le CRM.
+function lireSaisieSimulation(body = {}) {
+  const nombre = (v) => (v === "" || v === null || v === undefined ? 0 : Number(v));
+  const saisie = {
+    effectif: nombre(body.effectif),
+    boeth: nombre(body.boeth),
+    coutMainOeuvreSousTraitance: nombre(body.coutMainOeuvreSousTraitance),
+    nbEcap: nombre(body.nbEcap),
+    depensesDeductibles: nombre(body.depensesDeductibles),
+    aEmployeBoeth4Ans: body.aEmployeBoeth4Ans === true ? true : body.aEmployeBoeth4Ans === false ? false : null,
+  };
+  const invalide = ["effectif", "boeth", "coutMainOeuvreSousTraitance", "nbEcap", "depensesDeductibles"].some(
+    (k) => !Number.isFinite(saisie[k]) || saisie[k] < 0
+  );
+  return invalide ? null : saisie;
+}
+
 app.post("/api/vitrine/calculer", (req, res) => {
-  const effectif = Number(req.body.effectif);
-  const effectifBeneficiaire = Number(req.body.effectifBeneficiaire) || 0;
-  const dateCreation = req.body.dateCreation || null;
-  if (!Number.isFinite(effectif) || effectif < 0) {
-    return res.status(400).json({ error: "Effectif invalide." });
+  const saisie = lireSaisieSimulation(req.body);
+  if (!saisie) return res.status(400).json({ error: "Valeurs invalides." });
+  res.json({ simulation: simulerContributionOeth(saisie) });
+});
+
+// Synthèse PDF de la simulation, générée à la volée (rien n'est stocké).
+app.post("/api/vitrine/synthese-pdf", async (req, res) => {
+  const saisie = lireSaisieSimulation(req.body);
+  if (!saisie) return res.status(400).json({ error: "Valeurs invalides." });
+  try {
+    const nomEntreprise = String(req.body.nomEntreprise || "").trim().slice(0, 120);
+    const pdf = await genererSimulationPdf({
+      saisie,
+      simulation: simulerContributionOeth(saisie),
+      nomEntreprise,
+      poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="simulation-oeth-2026.pdf"');
+    res.send(pdf);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
-  res.json({ oeth: calculerObligationOeth({ effectif, effectifBeneficiaire, dateCreation }) });
 });
 
 // Prise de contact publique depuis la landing page (bouton "Contacter un

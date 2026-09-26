@@ -8,10 +8,12 @@ export const SMIC_HORAIRE_BRUT = 12.31; // € — à mettre à jour chaque reva
 export const DUREE_NEUTRALISATION_ANNEES = 5; // délai légal de neutralisation pour une entreprise nouvellement créée
 
 // Coefficient (nombre de SMIC horaires par unité manquante) selon la taille de
-// l'entreprise, hors situation de "zéro recrutement".
+// l'entreprise, hors situation de "zéro recrutement". Seuils de droit commun
+// depuis la réforme 2020 (art. D5212-20 ; fiche Agefiph n°6) : 20 à moins de
+// 250, 250 à moins de 750, 750 et plus — l'ancien seuil de 200 n'existe plus.
 const TRANCHES_COEFFICIENT = [
-  { max: 199, coefficient: 400, label: "20-199" },
-  { max: 749, coefficient: 500, label: "200-749" },
+  { max: 249, coefficient: 400, label: "20-249" },
+  { max: 749, coefficient: 500, label: "250-749" },
   { max: Infinity, coefficient: 600, label: "750+" },
 ];
 
@@ -125,5 +127,109 @@ export function calculerObligationOeth({ effectif = 0, effectifBeneficiaire = 0,
     montantEstime: 0,
     neutralisation,
     projectionSiAssujetti: brut,
+  };
+}
+
+// --- Simulateur public (vitrine) -------------------------------------------
+// Calcul complet de la contribution annuelle, déductions comprises, selon les
+// règles de droit commun (fiche Agefiph n°6, réforme 2020) :
+//  - quota = arrondi inférieur de 6 % de l'effectif d'assujettissement ;
+//  - contribution brute = unités manquantes × coefficient × SMIC horaire ;
+//  - surcontribution (1 500 × SMIC) si, sur les 4 dernières années, aucun
+//    bénéficiaire employé ET sous-traitance EA/ESAT/TIH < 600 × SMIC ;
+//  - déduction sous-traitance = 30 % du coût de main-d'œuvre HT, plafonnée à
+//    50 % de la contribution brute (75 % si taux d'emploi ≥ 3 %) ;
+//  - dépenses déductibles plafonnées à 10 % de la contribution brute ;
+//  - ECAP : 17 × SMIC par salarié relevant d'un emploi exigeant des
+//    conditions d'aptitude particulières.
+const TAUX_DEDUCTION_SOUS_TRAITANCE = 0.3;
+const PLAFOND_SOUS_TRAITANCE_BAS = 0.5;
+const PLAFOND_SOUS_TRAITANCE_HAUT = 0.75;
+const SEUIL_TAUX_EMPLOI_PLAFOND_HAUT = 3; // %
+const PLAFOND_DEPENSES_DEDUCTIBLES = 0.1;
+const COEFFICIENT_ECAP = 17;
+const SEUIL_SOUS_TRAITANCE_SMIC = 600;
+
+const arrondi2 = (n) => Math.round(n * 100) / 100;
+const positif = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+export function simulerContributionOeth({
+  effectif,
+  boeth = 0,
+  coutMainOeuvreSousTraitance = 0,
+  nbEcap = 0,
+  depensesDeductibles = 0,
+  aEmployeBoeth4Ans = null,
+  smicHoraire = SMIC_HORAIRE_BRUT,
+} = {}) {
+  const eff = positif(effectif);
+  const beneficiaires = positif(boeth);
+  const coutST = positif(coutMainOeuvreSousTraitance);
+  const ecap = Math.floor(positif(nbEcap));
+  const depenses = positif(depensesDeductibles);
+
+  const assujetti = eff >= SEUIL_ASSUJETTISSEMENT;
+  const quota = assujetti ? Math.floor(eff * TAUX_LEGAL) : 0;
+  const manque = assujetti ? Math.max(0, arrondi2(quota - beneficiaires)) : 0;
+  const tauxEmploi = eff > 0 ? arrondi2((beneficiaires / eff) * 100) : 0;
+  const tranche = assujetti ? trancheEffectif(eff) : null;
+
+  const seuilSousTraitanceMin = arrondi2(SEUIL_SOUS_TRAITANCE_SMIC * smicHoraire);
+  const actionMinimale = beneficiaires > 0 || aEmployeBoeth4Ans === true || coutST >= seuilSousTraitanceMin;
+  const surcontribution = assujetti && manque > 0 && !actionMinimale;
+
+  const coefficient = manque > 0 ? (surcontribution ? COEFFICIENT_SURCONTRIBUTION : tranche.coefficient) : null;
+  const contributionBrute = coefficient ? arrondi2(manque * coefficient * smicHoraire) : 0;
+  const baseMaximale = arrondi2(manque * COEFFICIENT_SURCONTRIBUTION * smicHoraire);
+
+  const tauxPlafondST =
+    tauxEmploi >= SEUIL_TAUX_EMPLOI_PLAFOND_HAUT ? PLAFOND_SOUS_TRAITANCE_HAUT : PLAFOND_SOUS_TRAITANCE_BAS;
+  const stCalculee = coutST * TAUX_DEDUCTION_SOUS_TRAITANCE;
+  const plafondST = contributionBrute * tauxPlafondST;
+  const deductionSousTraitance = arrondi2(Math.min(stCalculee, plafondST));
+
+  const plafondDepenses = contributionBrute * PLAFOND_DEPENSES_DEDUCTIBLES;
+  const deductionDepenses = arrondi2(Math.min(depenses, plafondDepenses));
+
+  const deductionEcap = arrondi2(ecap * COEFFICIENT_ECAP * smicHoraire);
+
+  const totalDeductions = arrondi2(
+    Math.min(contributionBrute, deductionSousTraitance + deductionDepenses + deductionEcap)
+  );
+  const contributionNette = arrondi2(Math.max(0, contributionBrute - totalDeductions));
+
+  return {
+    smicHoraire,
+    tauxLegal: TAUX_LEGAL * 100,
+    seuilAssujettissement: SEUIL_ASSUJETTISSEMENT,
+    effectif: eff,
+    assujetti,
+    quota,
+    boeth: beneficiaires,
+    manque,
+    tauxEmploi,
+    conforme: assujetti && manque === 0,
+    tranche: tranche?.label || null,
+    coefficientTranche: tranche?.coefficient || null,
+    surcontribution,
+    actionMinimale,
+    seuilSousTraitanceMin,
+    coefficient,
+    contributionBrute,
+    baseMaximale,
+    deductions: {
+      sousTraitance: deductionSousTraitance,
+      sousTraitancePlafonnee: coutST > 0 && stCalculee > plafondST,
+      tauxPlafondSousTraitance: tauxPlafondST * 100,
+      depenses: deductionDepenses,
+      depensesPlafonnees: depenses > 0 && depenses > plafondDepenses,
+      ecap: deductionEcap,
+      total: totalDeductions,
+    },
+    contributionNette,
+    economie: arrondi2(Math.max(0, baseMaximale - contributionNette)),
   };
 }

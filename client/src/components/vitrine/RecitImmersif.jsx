@@ -38,7 +38,6 @@ export default function RecitImmersif({ onOuvrirSimulateur }) {
   const sectionRef = useRef(null);
   const stage1Ref = useRef(null);
   const stage2Ref = useRef(null);
-  const stage3Ref = useRef(null);
   const pilierRefs = useRef([]);
   const scrollCueRef = useRef(null);
   const [progression, setProgression] = useState(0);
@@ -54,14 +53,14 @@ export default function RecitImmersif({ onOuvrirSimulateur }) {
     if (reduitMouvement) return; // voir le rendu alternatif ci-dessous
 
     const ctx = gsap.context(() => {
-      gsap.set([stage2Ref.current, stage3Ref.current], { autoAlpha: 0, y: 0 });
+      gsap.set(stage2Ref.current, { autoAlpha: 0, y: 0 });
       gsap.set(pilierRefs.current, { opacity: 0.32, scale: 0.95 });
 
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: sectionRef.current,
           start: "top top",
-          end: "+=350%",
+          end: "+=250%",
           scrub: 1,
           pin: true,
           anticipatePin: 1,
@@ -87,15 +86,7 @@ export default function RecitImmersif({ onOuvrirSimulateur }) {
         .to(pilierRefs.current[1], { opacity: 0.32, scale: 0.95, duration: 0.5 })
         .to(pilierRefs.current[2], { opacity: 1, scale: 1, duration: 0.5 }, "<")
         .call(() => setPilierActif(2))
-        .to({}, { duration: 0.9 })
-        .addLabel("versCitation")
-        .to(stage2Ref.current, { autoAlpha: 0, y: -40, duration: 0.6 }, "versCitation")
-        .to(stage3Ref.current, { autoAlpha: 1, duration: 0.6 }, "versCitation")
-        .call(() => setEtapeActive(2), null, "versCitation")
-        .to({}, { duration: 2 })
-        .to(stage3Ref.current, { autoAlpha: 0, y: -40, duration: 0.6 })
-        .call(() => setEtapeActive(0), null, "<")
-        .to({}, { duration: 0.3 });
+        .to({}, { duration: 0.9 });
     }, sectionRef);
 
     return () => ctx.revert();
@@ -146,37 +137,22 @@ export default function RecitImmersif({ onOuvrirSimulateur }) {
           onClick={onOuvrirSimulateur}
           className="rounded-full bg-white text-marine-900 text-sm font-semibold px-7 py-3.5 hover:bg-marine-100 transition shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
         >
-          Estimer vos obligations
+          Simuler ma contribution OETH
         </button>
       </div>
     </div>
   );
 
-  const citation = (
-    <div className="max-w-3xl mx-auto text-center">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-marine-300 mb-8" style={OMBRE_TEXTE}>
-        Ce qui compte vraiment
-      </p>
-      <h2 className="text-3xl sm:text-5xl font-bold text-white leading-tight" style={OMBRE_TEXTE}>
-        Le recrutement direct change une vie professionnelle —{" "}
-        <span className="text-marine-300">pas seulement un chiffre de conformité.</span>
-      </h2>
-      <p className="text-xs text-marine-200/80 mt-10 max-w-2xl mx-auto leading-relaxed" style={OMBRE_TEXTE}>
-        Le recrutement direct reste la voie la plus durable vers l'inclusion ; l'accompagnement Cap Emploi et les
-        solutions ESAT/EA demeurent des leviers complémentaires précieux, en particulier pour les parcours qui ont
-        besoin d'un cadre plus soutenant.
-      </p>
-    </div>
-  );
-
-  // Rendu accessible (prefers-reduced-motion) : les 3 étapes restent
-  // consultables, empilées normalement, sans pin ni scrub.
+  // Rendu accessible (prefers-reduced-motion) : les étapes restent
+  // consultables, empilées normalement, sans pin ni scrub. (L'ancienne
+  // étape "Ce qui compte vraiment" vit désormais en bas de la landing page,
+  // le simulateur prenant sa place juste après ce récit.)
   if (reduitMouvement) {
     return (
       <div className="relative bg-black">
-        {[contenuHero, convictions, citation].map((contenu, i) => (
+        {[contenuHero, convictions].map((contenu, i) => (
           <div key={i} className="relative min-h-screen flex items-center justify-center px-6 py-24 overflow-hidden">
-            <SceneDarkTech progression={i / 2} />
+            <SceneDarkTech progression={i} />
             {contenu}
           </div>
         ))}
@@ -196,7 +172,7 @@ export default function RecitImmersif({ onOuvrirSimulateur }) {
 
       {/* Repère d'étapes du récit. */}
       <div className="hidden sm:flex flex-col items-center gap-3 absolute right-6 top-1/2 -translate-y-1/2 z-30">
-        {[0, 1, 2].map((i) => (
+        {[0, 1].map((i) => (
           <span
             key={i}
             className={`w-1.5 rounded-full transition-all duration-500 ${etapeActive === i ? "h-8 bg-white" : "h-1.5 bg-white/25"}`}
@@ -212,11 +188,6 @@ export default function RecitImmersif({ onOuvrirSimulateur }) {
       {/* Étape 2 — convictions (01/02/03) */}
       <div ref={stage2Ref} className="absolute inset-0 z-10 flex items-center justify-center px-6 opacity-0 invisible">
         {convictions}
-      </div>
-
-      {/* Étape 3 — citation forte */}
-      <div ref={stage3Ref} className="absolute inset-0 z-10 flex items-center justify-center px-6 opacity-0 invisible">
-        {citation}
       </div>
 
       {/* Invite au scroll — uniquement au tout début du récit. */}
