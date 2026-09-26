@@ -11,7 +11,7 @@ import AideModale, { InfoBouton } from "./AideModale.jsx";
 // lui-même le SMIC d'après l'année transmise.
 const EXERCICES_SECOURS = [
   { annee: 2025, smic: 11.88, provisoire: false, note: "SMIC en vigueur au 31 décembre 2025, retenu pour l'exercice 2025." },
-  { annee: 2026, smic: 12.31, provisoire: true, note: "SMIC en vigueur depuis le 1er juin 2026, retenu à titre provisoire pour l'exercice 2026." },
+  { annee: 2026, smic: 12.31, provisoire: true, note: "SMIC en vigueur depuis le 1er juin 2026, retenu pour l'exercice 2026." },
 ];
 const EXERCICE_PAR_DEFAUT = new Date().getFullYear();
 const GUIDE_OFFICIEL_URL = "https://www.urssaf.fr/files/live/sites/urssaffr/files/outils-documentation/guides/Guide-OETH.pdf";
@@ -634,11 +634,6 @@ export default function SimulateurOeth() {
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SMIC horaire brut retenu</span>
               <span className="font-semibold text-white tabular-nums">{smicTexte} €</span>
-              {exercice.provisoire && (
-                <span className="rounded-full bg-amber-400/15 text-amber-300 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5">
-                  Provisoire
-                </span>
-              )}
             </span>
             <span className="text-[11px] text-slate-500">{exercice.note}</span>
           </div>

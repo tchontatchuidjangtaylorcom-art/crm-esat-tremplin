@@ -43,7 +43,7 @@ export function exercicesDisponibles(maintenant = new Date()) {
       smic: r.montant,
       provisoire,
       note: provisoire
-        ? `SMIC en vigueur depuis le ${dateLongue(r.depuis)}, retenu à titre provisoire pour l'exercice ${annee} (valeur définitive : SMIC au 31 décembre ${annee}) — DOETH déposée en ${annee + 1}.`
+        ? `SMIC en vigueur depuis le ${dateLongue(r.depuis)}, retenu pour l'exercice ${annee} — DOETH déposée en ${annee + 1}.`
         : `SMIC en vigueur au 31 décembre ${annee} (depuis le ${dateLongue(r.depuis)}), retenu pour l'exercice ${annee} — DOETH déposée en ${annee + 1}.`,
     };
   });
