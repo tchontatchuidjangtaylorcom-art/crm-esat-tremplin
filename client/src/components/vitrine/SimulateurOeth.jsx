@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api.js";
 import CercleProgression from "./CercleProgression.jsx";
+import AideModale, { InfoBouton } from "./AideModale.jsx";
 
 const ANNEE_REFERENCE = 2026;
 const SMIC_AFFICHE = "12,31 €";
@@ -84,6 +85,9 @@ export default function SimulateurOeth() {
   const [envoye, setEnvoye] = useState(false);
 
   const [sousTraitance, setSousTraitance] = useState(null); // null | true | false
+  const [aideOuverte, setAideOuverte] = useState(null); // clé de fiche (aideSimulateur.js)
+  const fermerAide = useCallback(() => setAideOuverte(null), []);
+  const i = (cle) => <InfoBouton cle={cle} onOuvrir={setAideOuverte} />;
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
   const [requete, setRequete] = useState("");
   const [resultats, setResultats] = useState([]);
@@ -306,14 +310,14 @@ export default function SimulateurOeth() {
             <ChampLecture label="Année concernée" valeur={String(ANNEE_REFERENCE)} />
             <ChampLecture label="SMIC horaire retenu" valeur={SMIC_AFFICHE} />
             <Champ
-              label="Effectif d'assujettissement"
+              label={<>Effectif d'assujettissement{i("effectif")}</>}
               aide="Effectif moyen annuel (EMA OETH)."
               value={saisie.effectif}
               onChange={(v) => modifier("effectif", v)}
               placeholder="Ex : 20"
             />
             <Champ
-              label="BOETH déclarés"
+              label={<>BOETH déclarés{i("boeth")}</>}
               aide="Bénéficiaires de l'obligation d'emploi pris en compte dans la déclaration."
               value={saisie.boeth}
               onChange={(v) => modifier("boeth", v)}
@@ -322,7 +326,7 @@ export default function SimulateurOeth() {
             {/* Oui / Non d'abord : beaucoup d'entreprises n'ont aucun achat
                 auprès du secteur protégé, elles passent sans rien saisir. */}
             <div className="text-xs text-slate-400">
-              Montant de sous-traitance EA / ESAT / TIH
+              Montant de sous-traitance EA / ESAT / TIH{i("sousTraitance")}
               {sousTraitance !== true ? (
                 <>
                   <OuiNon valeur={sousTraitance} onChange={choisirSousTraitance} />
@@ -358,7 +362,7 @@ export default function SimulateurOeth() {
               )}
             </div>
             <Champ
-              label="Salariés ECAP (nombre)"
+              label={<>Salariés ECAP (nombre){i("ecap")}</>}
               aide="Emplois exigeant des conditions d'aptitude particulières (chauffeurs routiers, BTP, sécurité…). Laissez vide si non concerné."
               value={saisie.nbEcap}
               onChange={(v) => modifier("nbEcap", v)}
@@ -366,14 +370,14 @@ export default function SimulateurOeth() {
               step="1"
             />
             <Champ
-              label="Autres dépenses déductibles (€ HT)"
+              label={<>Autres dépenses déductibles (€ HT){i("depenses")}</>}
               aide="Accessibilité, maintien dans l'emploi… plafond 10 %."
               value={saisie.depensesDeductibles}
               onChange={(v) => modifier("depensesDeductibles", v)}
               placeholder="0"
             />
             <div className="text-xs text-slate-400">
-              BOETH employé ces 4 dernières années ?
+              BOETH employé ces 4 dernières années ?{i("regle4ans")}
               <div className="flex gap-2 mt-1.5">
                 {[
                   { v: true, label: "Oui" },
@@ -441,7 +445,7 @@ export default function SimulateurOeth() {
                     texteCentral={actif ? `${formatNombre(s.tauxEmploi)} %` : "—"}
                   />
                 </div>
-                <h3 className="text-xl font-semibold mt-6">Objectif de 6 %</h3>
+                <h3 className="text-xl font-semibold mt-6">Objectif de 6 %{i("objectif")}</h3>
                 <p className="text-sm text-slate-400 mt-2 leading-relaxed">
                   {lecture
                     ? lecture.message
@@ -451,7 +455,7 @@ export default function SimulateurOeth() {
 
               {/* Contribution */}
               <Carte>
-                <h3 className="text-xl font-semibold">Contribution estimée</h3>
+                <h3 className="text-xl font-semibold">Contribution estimée{i("contribution")}</h3>
                 <p className="text-sm text-slate-400 mt-2">Une lecture indicative pour prioriser vos actions sur les prochains mois.</p>
                 <div
                   className={`mt-5 rounded-2xl border px-5 py-5 ${
@@ -476,9 +480,9 @@ export default function SimulateurOeth() {
 
             {/* Indicateurs */}
             <div className="grid sm:grid-cols-3 gap-4">
-              <Indicateur label="Position par rapport à l'objectif" valeur={lecture?.position || "—"} teinte="emerald" />
-              <Indicateur label="Risque financier" valeur={risque} teinte="rose" />
-              <Indicateur label="Potentiel d'économie" valeur={dash(formatMontant(s?.economie))} teinte="sky" />
+              <Indicateur label={<>Position par rapport à l'objectif{i("objectif")}</>} valeur={lecture?.position || "—"} teinte="emerald" />
+              <Indicateur label={<>Risque financier{i("regle4ans")}</>} valeur={risque} teinte="rose" />
+              <Indicateur label={<>Potentiel d'économie{i("economie")}</>} valeur={dash(formatMontant(s?.economie))} teinte="sky" />
             </div>
 
             {/* Entreprise concernée */}
@@ -522,7 +526,7 @@ export default function SimulateurOeth() {
               <div className="space-y-3 text-sm">
                 {s.surcontribution && (
                   <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-red-200">
-                    <p className="font-semibold text-red-300">Base majorée retenue par défaut</p>
+                    <p className="font-semibold text-red-300">Base majorée retenue par défaut{i("regle4ans")}</p>
                     <p className="mt-1">
                       Sans BOETH employé sur les 4 dernières années ni sous-traitance EA/ESAT/TIH d'au moins{" "}
                       {formatMontant(s.seuilSousTraitanceMin)} (600 × SMIC), la contribution est calculée à 1 500 × SMIC par
@@ -545,14 +549,14 @@ export default function SimulateurOeth() {
                   <dl className="mt-3 divide-y divide-white/10">
                     {[
                       ["Quota légal (6 %, arrondi inférieur)", formatNombre(s.quota)],
-                      ["Coefficient appliqué", s.coefficient ? `${s.coefficient} × SMIC` : "Aucun"],
+                      [<>Coefficient appliqué{i("coefficient")}</>, s.coefficient ? `${s.coefficient} × SMIC` : "Aucun"],
                       ["Contribution brute", formatMontant(s.contributionBrute)],
                       [`Sous-traitance retenue (plafond ${s.deductions.tauxPlafondSousTraitance} %)`, formatMontant(s.deductions.sousTraitance)],
                       ["Déduction ECAP retenue", formatMontant(s.deductions.ecap)],
                       ["Autres dépenses retenues (plafond 10 %)", formatMontant(s.deductions.depenses)],
                       ["Base réglementaire maximale (1 500 × SMIC)", formatMontant(s.baseMaximale)],
-                    ].map(([l, v]) => (
-                      <div key={l} className="flex justify-between gap-4 py-2">
+                    ].map(([l, v], index) => (
+                      <div key={index} className="flex justify-between gap-4 py-2">
                         <dt className="text-slate-400">{l}</dt>
                         <dd className="font-medium tabular-nums text-right">{v}</dd>
                       </div>
@@ -710,6 +714,7 @@ export default function SimulateurOeth() {
           </aside>
         </div>
       </div>
+      {aideOuverte && <AideModale cle={aideOuverte} onFermer={fermerAide} />}
     </section>
   );
 }
