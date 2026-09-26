@@ -78,7 +78,7 @@ export default function SimulateurOeth() {
   const debounceRef = useRef(null);
 
   const [aideEssentielOuverte, setAideEssentielOuverte] = useState(false);
-  const [deductionsOuvertes, setDeductionsOuvertes] = useState(false);
+  const [deductionsOuvertes, setDeductionsOuvertes] = useState(true);
   const [resultatsAffiches, setResultatsAffiches] = useState(false);
   const [erreurEffectif, setErreurEffectif] = useState(false);
 
@@ -307,8 +307,25 @@ export default function SimulateurOeth() {
   const actif = Boolean(s?.assujetti);
   const dash = (v) => (actif ? v : "—");
   const lecture = actif ? lectureTaux(s) : null;
-  const pourcentageQuota = actif ? Math.min(100, (s.tauxEmploi / 6) * 100) : 0;
-  const ton = !actif ? "neutre" : s.conforme ? "conforme" : s.surcontribution ? "critique" : "partiel";
+  const statutLecture = !actif
+    ? { texte: "En attente", classe: "bg-white/10 text-slate-400" }
+    : s.conforme
+      ? { texte: "Quota atteint", classe: "bg-emerald-400/15 text-emerald-300" }
+      : s.surcontribution
+        ? { texte: "Base majorée", classe: "bg-red-400/15 text-red-300" }
+        : { texte: "Contribution réduite", classe: "bg-teal-400/15 text-teal-300" };
+
+  // Leviers pris en compte dans le calcul (ligne "Effet des actions").
+  const actionsRenseignees =
+    [
+      (s?.boeth > 0 || saisie.aEmployeBoeth4Ans === true) && "BOETH",
+      (s?.deductions.sousTraitance > 0 || (saisie.sousTraitance4Ans === true && !s?.sousTraitance4AnsInsuffisante)) && "EA / ESAT / TIH",
+      s?.deductions.ecap > 0 && "ECAP",
+      s?.deductions.depenses > 0 && "Dépenses",
+      saisie.accordAgree === true && "Accord agréé",
+    ]
+      .filter(Boolean)
+      .join(" + ") || "Aucune";
   const risque = !actif ? "—" : s.surcontribution ? "Élevé" : s.contributionNette > 0 ? "Modéré" : "Faible";
 
   const nbDeductionsRenseignees = [
@@ -667,56 +684,104 @@ export default function SimulateurOeth() {
 
             <div className="grid lg:grid-cols-3 gap-5 items-start">
               <div className="lg:col-span-2 space-y-5">
-                <div className="grid md:grid-cols-2 gap-5">
-                  {/* Jauge */}
-                  <Carte>
-                    <div className="flex justify-center">
-                      <CercleProgression
-                        pourcentage={pourcentageQuota}
-                        ton={ton}
-                        taille={176}
-                        epaisseur={16}
-                        texteCentral={actif ? `${formatNombre(s.tauxEmploi)} %` : "—"}
-                      />
-                    </div>
-                    <h3 className="text-lg font-semibold mt-5">Objectif de 6 %{i("objectif")}</h3>
-                    <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
-                      {lecture ? lecture.message : "Votre position par rapport au quota légal s'affiche ici."}
-                    </p>
-                  </Carte>
-
-                  {/* Contribution */}
-                  <Carte>
-                    <h3 className="text-lg font-semibold">Contribution estimée{i("contribution")}</h3>
-                    <p className="text-sm text-slate-400 mt-1">Une lecture indicative pour prioriser vos actions.</p>
-                    <div
-                      className={`mt-4 rounded-xl border px-5 py-5 ${
-                        actif && s.surcontribution ? "border-red-400/30 bg-red-500/10" : "border-teal-400/25 bg-teal-400/[0.07]"
-                      }`}
-                    >
-                      <p className="text-xs text-slate-300">Contribution nette estimée</p>
+                {/* Montant principal + répartition graphique de la contribution brute */}
+                <Carte className="relative overflow-hidden">
+                  <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full bg-teal-400/10 blur-3xl" />
+                  <div className="relative grid md:grid-cols-[1fr_auto] gap-6 items-center">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 flex items-center">
+                        Contribution indicative après déductions{i("contribution")}
+                      </p>
                       <p
-                        className={`text-4xl font-bold tracking-tight mt-1.5 tabular-nums ${
-                          !actif ? "text-slate-600" : s.surcontribution ? "text-red-300" : "text-white"
+                        className={`text-5xl sm:text-6xl font-bold tracking-tight mt-2 tabular-nums ${
+                          !actif ? "text-slate-600" : s.surcontribution ? "text-red-300" : s.contributionNette === 0 ? "text-emerald-300" : "text-white"
                         }`}
                       >
                         {actif ? formatMontant(s.contributionNette) : "— €"}
                       </p>
+                      <p className="text-sm text-slate-400 mt-2 max-w-md leading-relaxed">
+                        {lecture ? lecture.message : "Votre position par rapport au quota légal s'affiche ici."}
+                      </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      <MiniCarte label="BOETH manquants" valeur={dash(formatNombre(s?.manque))} />
-                      <MiniCarte label="Déductions estimées" valeur={dash(formatMontant(s?.deductions.total))} />
-                    </div>
-                  </Carte>
+                    {actif && s.contributionBrute > 0 && (
+                      <DonutRepartition
+                        total={s.contributionBrute}
+                        segments={[
+                          { label: "Reste à payer", valeur: s.contributionNette, couleur: s.surcontribution ? "#f87171" : "#fb923c" },
+                          { label: "Sous-traitance", valeur: s.deductions.sousTraitance, couleur: "#38bdf8" },
+                          { label: "ECAP", valeur: s.deductions.ecap, couleur: "#a78bfa" },
+                          { label: "Dépenses", valeur: s.deductions.depenses, couleur: "#fbbf24" },
+                        ]}
+                      />
+                    )}
+                  </div>
+                </Carte>
+
+                {/* Anneaux de pourcentages */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Anneau
+                    pourcentage={actif && s.quota > 0 ? (s.boeth / s.quota) * 100 : 0}
+                    couleur="#2dd4bf"
+                    titre="Quota atteint"
+                    detail={actif ? `${formatNombre(s.boeth)} / ${s.quota} BOETH` : "—"}
+                    actif={actif}
+                  />
+                  <Anneau
+                    pourcentage={actif && s.quota > 0 ? (s.manque / s.quota) * 100 : 0}
+                    couleur={actif && s.surcontribution ? "#f87171" : "#fb923c"}
+                    titre="Reste à couvrir"
+                    detail={actif ? `${formatNombre(s.manque)} BOETH manquant(s)` : "—"}
+                    actif={actif}
+                  />
+                  <Anneau
+                    pourcentage={actif && s.contributionBrute > 0 ? (s.deductions.total / s.contributionBrute) * 100 : 0}
+                    couleur="#38bdf8"
+                    titre="Brute déduite"
+                    detail={actif ? `${formatMontant(s.deductions.total)} de déductions` : "—"}
+                    actif={actif}
+                  />
+                  <Anneau
+                    pourcentage={actif && s.baseMaximale > 0 ? (s.economie / s.baseMaximale) * 100 : 0}
+                    couleur="#a78bfa"
+                    titre="Économie vs maximum"
+                    detail={actif ? `${formatMontant(s.economie)} économisés` : "—"}
+                    actif={actif}
+                  />
                 </div>
 
-                {/* Indicateurs */}
+                {/* Indicateurs clés */}
                 <div className="grid sm:grid-cols-3 gap-3">
                   <Indicateur label={<>Position par rapport à l'objectif{i("objectif")}</>} valeur={lecture?.position || "—"} teinte="emerald" />
                   <Indicateur label={<>Risque financier{i("regle4ans")}</>} valeur={risque} teinte="rose" />
                   <Indicateur label={<>Potentiel d'économie{i("economie")}</>} valeur={dash(formatMontant(s?.economie))} teinte="sky" />
                 </div>
 
+                {/* Détail chiffré */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {[
+                    ["Quota légal retenu", dash(`${formatNombre(s?.quota)} bénéficiaire(s)`), "effectif"],
+                    ["BOETH déclarés", dash(formatNombre(s?.boeth)), "boeth"],
+                    ["Manque estimé", dash(formatNombre(s?.manque)), null, actif && s.manque > 0],
+                    ["Taux actuel", dash(`${formatNombre(s?.tauxEmploi)} %`), "objectif"],
+                    ["Coefficient", actif ? (s.coefficient ? `${s.coefficient} × SMIC` : "Aucun") : "—", "coefficient"],
+                    ["Contribution brute", dash(formatMontant(s?.contributionBrute)), "contribution"],
+                    ["Déductions retenues", dash(formatMontant(s?.deductions.total))],
+                    ["Risque majoration", actif ? (s.surcontribution ? "Oui" : "Non") : "—", "regle4ans", actif && s.surcontribution],
+                  ].map(([l, v, info, alerte]) => (
+                    <div
+                      key={l}
+                      className={`rounded-xl border px-3.5 py-3 ${alerte ? "border-red-400/30 bg-red-500/10" : "border-white/10 bg-white/[0.03]"}`}
+                    >
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center">
+                        {l}
+                        {info && i(info)}
+                      </p>
+                      <p className={`text-base font-semibold mt-1 tabular-nums ${alerte ? "text-red-300" : "text-white"}`}>{v}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Messages de situation */}
                 {actif && s.surcontribution && (
                   <div className="rounded-xl border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-200 flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="flex-1">
@@ -736,42 +801,69 @@ export default function SimulateurOeth() {
                     </button>
                   </div>
                 )}
-
-                {/* Lecture administrative */}
-                <details className="group rounded-2xl border border-white/10 bg-white/[0.03]">
-                  <summary className="cursor-pointer list-none flex items-center justify-between px-5 py-4 text-sm font-semibold">
-                    Lecture administrative — détail du calcul
-                    <span className="text-marine-300 text-lg leading-none group-open:rotate-45 transition-transform">+</span>
-                  </summary>
-                  <div className="px-5 pb-5 grid sm:grid-cols-2 gap-x-8">
-                    {[
-                      ["Quota légal retenu", dash(`${formatNombre(s?.quota)} bénéficiaire(s)`)],
-                      ["Coefficient", actif ? (s.coefficient ? `${s.coefficient} × SMIC` : "Aucun") : "—", "coefficient"],
-                      ["Contribution brute", dash(formatMontant(s?.contributionBrute))],
-                      ["Base réglementaire maximale", dash(formatMontant(s?.baseMaximale))],
-                      [`Sous-traitance retenue${actif ? ` (plafond ${s.deductions.tauxPlafondSousTraitance} %)` : ""}`, dash(formatMontant(s?.deductions.sousTraitance))],
-                      ["Déduction ECAP retenue", dash(formatMontant(s?.deductions.ecap))],
-                      ["Autres dépenses retenues (plafond 10 %)", dash(formatMontant(s?.deductions.depenses))],
-                      ["Économie estimée", dash(formatMontant(s?.economie))],
-                    ].map(([l, v, info]) => (
-                      <div key={l} className="flex justify-between gap-4 py-2 border-b border-white/[0.07] text-sm">
-                        <span className="text-slate-400 flex items-center">
-                          {l}
-                          {info && i(info)}
-                        </span>
-                        <span className="font-medium tabular-nums text-right">{v}</span>
-                      </div>
-                    ))}
-                    <p className="sm:col-span-2 text-[11px] text-slate-500 mt-3 leading-relaxed">
-                      La contribution {ANNEE_REFERENCE} se déclare dans la DSN d'avril {ANNEE_REFERENCE + 1} (échéance du 5 ou
-                      15 mai). Estimation indicative selon les règles de droit commun : seule l'URSSAF calcule et recouvre la
-                      contribution.{" "}
-                      <a href={PAGE_URSSAF_URL} target="_blank" rel="noopener noreferrer" className="text-marine-300 hover:underline">
-                        En savoir plus ↗
-                      </a>
+                {actif && !s.surcontribution && s.economie > 0 && (
+                  <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4 text-sm">
+                    <p className="font-semibold text-emerald-300">Effet positif des actions renseignées</p>
+                    <p className="mt-1 text-xs text-emerald-100/80 leading-relaxed">
+                      Les éléments renseignés réduisent l'estimation de {formatMontant(s.economie)} par rapport à une
+                      situation maximale avec coefficient 1 500 × SMIC.
                     </p>
                   </div>
-                </details>
+                )}
+                {actif && !s.surcontribution && !s.conforme && (
+                  <div className="rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.08] p-4 text-sm">
+                    <p className="font-semibold text-amber-200">Quota légal non atteint, contribution réduite</p>
+                    <p className="mt-1 text-xs text-amber-100/80 leading-relaxed">
+                      L'entreprise présente un manque estimé de {formatNombre(s.manque)} bénéficiaire(s). Les actions
+                      renseignées écartent la majoration et les déductions applicables sont intégrées à l'estimation.
+                    </p>
+                  </div>
+                )}
+                {actif && s.conforme && (
+                  <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4 text-sm">
+                    <p className="font-semibold text-emerald-300">Quota légal atteint</p>
+                    <p className="mt-1 text-xs text-emerald-100/80">Aucune contribution n'est due au titre de l'année {ANNEE_REFERENCE}.</p>
+                  </div>
+                )}
+
+                {/* Lecture administrative */}
+                <Carte>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold flex items-center">Lecture administrative{i("economie")}</p>
+                    <span className={`rounded-full text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 ${statutLecture.classe}`}>
+                      {statutLecture.texte}
+                    </span>
+                  </div>
+                  <dl className="mt-3 text-sm divide-y divide-white/[0.07]">
+                    {[
+                      ["Base réglementaire maximale", dash(formatMontant(s?.baseMaximale))],
+                      [
+                        `Sous-traitance retenue${actif ? ` (plafond ${s.deductions.tauxPlafondSousTraitance} %)` : ""}`,
+                        dash(formatMontant(s?.deductions.sousTraitance)),
+                      ],
+                      ["Déduction ECAP retenue", dash(formatMontant(s?.deductions.ecap))],
+                      ["Autres dépenses retenues (plafond 10 %)", dash(formatMontant(s?.deductions.depenses))],
+                      ["Effet des actions renseignées", actif ? actionsRenseignees : "—"],
+                    ].map(([l, v]) => (
+                      <div key={l} className="flex justify-between gap-4 py-2.5">
+                        <dt className="text-slate-400">{l}</dt>
+                        <dd className="font-medium tabular-nums text-right">{v}</dd>
+                      </div>
+                    ))}
+                    <div className="flex justify-between gap-4 pt-3">
+                      <dt className="font-semibold text-emerald-300">Économie estimée</dt>
+                      <dd className="font-bold text-emerald-300 tabular-nums">{dash(formatMontant(s?.economie))}</dd>
+                    </div>
+                  </dl>
+                  <p className="text-[11px] text-slate-500 mt-4 leading-relaxed">
+                    La contribution {ANNEE_REFERENCE} se déclare dans la DSN d'avril {ANNEE_REFERENCE + 1} (échéance du 5 ou 15
+                    mai). Estimation indicative selon les règles de droit commun : seule l'URSSAF calcule et recouvre la
+                    contribution.{" "}
+                    <a href={PAGE_URSSAF_URL} target="_blank" rel="noopener noreferrer" className="text-marine-300 hover:underline">
+                      En savoir plus ↗
+                    </a>
+                  </p>
+                </Carte>
 
                 {/* Entreprise concernée */}
                 <Carte className="flex flex-col md:flex-row md:items-center gap-5">
@@ -1035,6 +1127,75 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">{unite}</span>
       </div>
       <p className={`text-[11px] mt-2 leading-snug ${erreur ? "text-red-300" : "text-slate-500"}`}>{erreur || aide}</p>
+    </div>
+  );
+}
+
+// Anneau de pourcentage coloré (tableau de bord des résultats).
+function Anneau({ pourcentage, couleur, titre, detail, actif }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-marine-950 px-3 py-4 flex flex-col items-center text-center">
+      <CercleProgression
+        pourcentage={actif ? pourcentage : 0}
+        couleur={couleur}
+        taille={108}
+        epaisseur={10}
+        texteCentral={actif ? `${Math.round(Math.min(999, pourcentage))} %` : "—"}
+      />
+      <p className="text-sm font-semibold mt-3">{titre}</p>
+      <p className="text-[11px] text-slate-400 mt-0.5">{detail}</p>
+    </div>
+  );
+}
+
+// Donut SVG : répartition de la contribution brute entre ce qui reste à
+// payer et chaque déduction retenue, avec légende chiffrée.
+function DonutRepartition({ total, segments }) {
+  const taille = 150;
+  const epaisseur = 18;
+  const rayon = (taille - epaisseur) / 2;
+  const circonference = 2 * Math.PI * rayon;
+  const visibles = segments.filter((seg) => seg.valeur > 0);
+  let cumul = 0;
+  return (
+    <div className="flex items-center gap-5">
+      <div className="relative shrink-0" style={{ width: taille, height: taille }}>
+        <svg width={taille} height={taille} className="-rotate-90">
+          <circle cx={taille / 2} cy={taille / 2} r={rayon} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={epaisseur} />
+          {visibles.map((seg) => {
+            const longueur = (seg.valeur / total) * circonference;
+            const cercle = (
+              <circle
+                key={seg.label}
+                cx={taille / 2}
+                cy={taille / 2}
+                r={rayon}
+                fill="none"
+                stroke={seg.couleur}
+                strokeWidth={epaisseur}
+                strokeDasharray={`${longueur} ${circonference - longueur}`}
+                strokeDashoffset={-cumul}
+                style={{ filter: `drop-shadow(0 0 6px ${seg.couleur}66)`, transition: "stroke-dasharray 0.6s ease-out" }}
+              />
+            );
+            cumul += longueur;
+            return cercle;
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[10px] uppercase tracking-wider text-slate-400">Brute</span>
+          <span className="text-sm font-bold tabular-nums">{formatMontant(total)}</span>
+        </div>
+      </div>
+      <ul className="space-y-1.5 text-xs">
+        {segments.map((seg) => (
+          <li key={seg.label} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: seg.couleur }} />
+            <span className="text-slate-400 w-24">{seg.label}</span>
+            <span className="font-semibold tabular-nums">{Math.round((seg.valeur / total) * 100)} %</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

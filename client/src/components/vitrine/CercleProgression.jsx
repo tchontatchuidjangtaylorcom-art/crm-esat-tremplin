@@ -11,12 +11,13 @@ const TONS = {
 
 // `texteCentral` (facultatif) remplace le pourcentage affiché au centre —
 // ex. le taux d'emploi réel alors que l'anneau montre l'avancement vers 6 %.
-export default function CercleProgression({ pourcentage, ton = "neutre", taille = 168, epaisseur = 12, libelle, texteCentral }) {
+// `couleur` (hex #rrggbb, facultatif) remplace la palette de `ton`.
+export default function CercleProgression({ pourcentage, ton = "neutre", taille = 168, epaisseur = 12, libelle, texteCentral, couleur }) {
   const rayon = (taille - epaisseur) / 2;
   const circonference = 2 * Math.PI * rayon;
   const avancement = Math.max(0, Math.min(100, pourcentage));
   const decalage = circonference * (1 - avancement / 100);
-  const couleurs = TONS[ton] || TONS.neutre;
+  const couleurs = couleur ? { anneau: couleur, lueur: `${couleur}88` } : TONS[ton] || TONS.neutre;
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: taille, height: taille }}>
@@ -36,7 +37,7 @@ export default function CercleProgression({ pourcentage, ton = "neutre", taille 
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold text-white tracking-tight">{texteCentral ?? `${Math.round(pourcentage)}%`}</span>
+        <span className={`${taille < 140 ? "text-xl" : "text-3xl"} font-bold text-white tracking-tight`}>{texteCentral ?? `${Math.round(pourcentage)}%`}</span>
         {libelle && <span className="text-[10px] uppercase tracking-wide text-slate-400 mt-1 text-center px-4">{libelle}</span>}
       </div>
     </div>
