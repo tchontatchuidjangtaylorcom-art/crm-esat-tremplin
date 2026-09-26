@@ -29,13 +29,17 @@ const VERSION_API = "2023-06-01";
 const MODELE_PAR_DEFAUT = "claude-sonnet-5";
 // Une recherche web + lecture de pages prend facilement 30 à 60 s : l'ancien
 // délai de 20 s coupait une bonne partie des recherches avant la réponse.
-const TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS) || 90000;
+const TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS) || 120000;
 
 // Outils de recherche web côté serveur Anthropic. Les variantes 20260209
 // (filtrage dynamique des résultats) n'existent que sur les modèles récents ;
 // les autres gardent les variantes de base, sinon l'API répond 400.
-function outilsWeb(modele, { maxRecherches = 4, maxLectures = 4 } = {}) {
-  const recent = /^claude-(opus-5|opus-4-[678]|sonnet-5|sonnet-4-6)/.test(modele);
+function estModeleRecent(modele) {
+  return /^claude-(opus-5|opus-4-[678]|sonnet-5|sonnet-4-6|fable-5)/.test(modele);
+}
+
+function outilsWeb(modele, { maxRecherches = 3, maxLectures = 2 } = {}) {
+  const recent = estModeleRecent(modele);
   return [
     { type: recent ? "web_search_20260209" : "web_search_20250305", name: "web_search", max_uses: maxRecherches },
     { type: recent ? "web_fetch_20260209" : "web_fetch_20250910", name: "web_fetch", max_uses: maxLectures },
@@ -563,6 +567,11 @@ async function appelerClaude(entreprise, cle, modele) {
             model: modele,
             max_tokens: 16000,
             tools: outilsWeb(modele),
+            // Effort bas : une recherche de numéro est une tâche simple, et
+            // l'effort par défaut faisait enchaîner de longues réflexions et
+            // de nombreux appels d'outils — au point de dépasser le délai.
+            // Non supporté par les anciens modèles (400), d'où la condition.
+            ...(estModeleRecent(modele) ? { output_config: { effort: "low" } } : {}),
             messages,
           }),
           signal: controleur.signal,

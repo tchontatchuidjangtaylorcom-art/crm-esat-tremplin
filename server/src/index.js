@@ -1020,7 +1020,9 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
     onProgres?.({ trouve, erreur: erreurMessage });
 
     if (echecsConsecutifs >= ECHECS_CONSECUTIFS_MAX) {
-      interrompu = `Interrompu après ${echecsConsecutifs} échecs consécutifs (dernière erreur : ${erreurMessage}) — vérifiez la configuration Anthropic (ANTHROPIC_API_KEY / ANTHROPIC_MODEL) ou le crédit disponible.`;
+      interrompu = /Délai de recherche IA dépassé/.test(erreurMessage)
+        ? `Interrompu après ${echecsConsecutifs} recherches trop lentes d'affilée (${erreurMessage}) — essayez un modèle plus rapide dans ANTHROPIC_MODEL (claude-sonnet-5 conseillé).`
+        : `Interrompu après ${echecsConsecutifs} échecs consécutifs (dernière erreur : ${erreurMessage}) — vérifiez la configuration Anthropic (ANTHROPIC_API_KEY / ANTHROPIC_MODEL) ou le crédit disponible.`;
       console.error(`[ia] Enrichissement en lot interrompu : ${interrompu}`);
       break;
     }
