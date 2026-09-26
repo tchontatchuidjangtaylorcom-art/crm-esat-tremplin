@@ -37,7 +37,7 @@ console.log(
 );
 
 const adapter = new JSONFile(file);
-const db = new Low(adapter, { entreprises: [], archives: [], utilisateurs: [], canaux: [], messages: [] });
+const db = new Low(adapter, { entreprises: [], archives: [], utilisateurs: [], canaux: [], messages: [], presence: [] });
 
 export const CANAL_GENERAL_ID = "general";
 
@@ -70,6 +70,17 @@ export async function initDb() {
   }
   if (!db.data.messages) {
     db.data.messages = [];
+    aEcrire = true;
+  }
+  // Suivi de présence (voir presence.js) : la date de mise en service sert
+  // à ne jamais signaler d'absence sur des jours antérieurs, pour lesquels
+  // il n'existe tout simplement pas de données.
+  if (!db.data.presence) {
+    db.data.presence = [];
+    aEcrire = true;
+  }
+  if (!db.data.presenceDebutSuivi) {
+    db.data.presenceDebutSuivi = new Date().toISOString();
     aEcrire = true;
   }
   // Canal "Infos Générales" : visible de tous implicitement (voir

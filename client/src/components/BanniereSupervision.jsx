@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useSupervision } from "../SupervisionContext.jsx";
+import { formatJourCourt } from "../PresenceContext.jsx";
 
 // Bandeau "Mode Manager" : rappelle en permanence qu'un admin consulte le
 // pipeline d'un agent plutôt que le sien (évite toute confusion — ex. assigner
@@ -41,6 +42,11 @@ export default function BanniereSupervision() {
             {notifs.rdvAVenir.length} RDV à venir · {notifs.fichesPotentielles?.length || 0} fiche
             {(notifs.fichesPotentielles?.length || 0) > 1 ? "s" : ""} potentielle
             {(notifs.fichesPotentielles?.length || 0) > 1 ? "s" : ""} en attente
+          </span>
+        )}
+        {notifs?.alertePresence && (
+          <span className="text-xs font-semibold text-red-700 dark:text-red-400">
+            ⚠️ Aucune activité le {formatJourCourt(notifs.alertePresence.jour)}
           </span>
         )}
       </div>

@@ -58,6 +58,7 @@ import {
   exigerAdmin,
 } from "./auth.js";
 import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
+import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -1892,7 +1893,16 @@ function calculerNotifications(utilisateur) {
     }))
     .sort((a, b) => new Date(b.dateFiche || 0) - new Date(a.dateFiche || 0));
 
-  return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles };
+  // Suivi de présence (voir presence.js) : l'agent est prévenu s'il n'a
+  // enregistré aucune activité le jour ouvré précédent ; le manager voit
+  // la même alerte pour chaque agent de l'équipe concerné.
+  const alertePresence = calculerKpiAgent(utilisateur).alerteAbsence;
+  const alertesPresenceEquipe =
+    utilisateur.role === "admin"
+      ? alertesAbsenceEquipe(db.data.utilisateurs.filter((u) => u.statut === "valide" && u.id !== utilisateur.id))
+      : [];
+
+  return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles, alertePresence, alertesPresenceEquipe };
 }
 
 // `commeAgentId` (admin uniquement) : calcule les notifications d'un AUTRE
@@ -1906,6 +1916,39 @@ app.get("/api/notifications", exigerAuth, (req, res) => {
     cible = agent;
   }
   res.json(calculerNotifications(cible));
+});
+
+// Suivi du temps de travail (voir presence.js et client/src/PresenceContext.jsx).
+// Le battement est toujours crédité au compte réellement connecté — y
+// compris un admin en Mode Manager : c'est lui qui travaille, pas l'agent
+// qu'il consulte.
+app.post("/api/presence/battement", exigerAuth, (req, res) => {
+  const jour = enregistrerBattement(req.utilisateur.id);
+  res.json({ jour: jour.jour, secondesActives: jour.secondesActives });
+});
+
+function lireDecalageSemaines(req) {
+  const n = Number.parseInt(req.query.semaine, 10);
+  return Number.isFinite(n) && n >= 0 && n <= 52 ? n : 0;
+}
+
+// `commeAgentId` (admin uniquement) : KPIs d'un agent en Mode Manager.
+app.get("/api/presence/moi", exigerAuth, (req, res) => {
+  let cible = req.utilisateur;
+  if (req.utilisateur.role === "admin" && req.query.commeAgentId) {
+    const agent = trouverUtilisateurParId(req.query.commeAgentId);
+    if (!agent) return res.status(404).json({ error: "Agent introuvable." });
+    cible = agent;
+  }
+  res.json({
+    utilisateur: { id: cible.id, prenom: cible.prenom, nom: cible.nom, role: cible.role },
+    ...calculerKpiAgent(cible, { decalageSemaines: lireDecalageSemaines(req) }),
+  });
+});
+
+app.get("/api/presence/equipe", exigerAdmin, (req, res) => {
+  const utilisateurs = db.data.utilisateurs.filter((u) => u.statut === "valide");
+  res.json(calculerKpiEquipe(utilisateurs, { decalageSemaines: lireDecalageSemaines(req) }));
 });
 
 // Relève périodique de la boîte mail du pôle (aucun effet si MAIL_* non

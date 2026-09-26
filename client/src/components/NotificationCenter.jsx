@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useChat } from "../chat/ChatContext.jsx";
 import { formatDateHeure } from "../constants.js";
+import { formatJourCourt } from "../PresenceContext.jsx";
 
 const INTERVALLE_POLLING_MS = 20000;
 
@@ -32,8 +33,14 @@ export default function NotificationCenter() {
     };
   }, []);
 
+  const alertesEquipe = data.alertesPresenceEquipe || [];
   const total =
-    data.messagesNonLus + data.nouveauxLeads.length + data.rdvAVenir.length + (data.fichesPotentielles?.length || 0);
+    data.messagesNonLus +
+    data.nouveauxLeads.length +
+    data.rdvAVenir.length +
+    (data.fichesPotentielles?.length || 0) +
+    (data.alertePresence ? 1 : 0) +
+    alertesEquipe.length;
 
   function ouvrirCanalNonLu() {
     setOuvert(false);
@@ -62,6 +69,37 @@ export default function NotificationCenter() {
             <p className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">Rien de nouveau.</p>
           ) : (
             <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+              {data.alertePresence && (
+                <button
+                  onClick={() => {
+                    setOuvert(false);
+                    navigate("/mes-kpis");
+                  }}
+                  className="w-full text-left px-4 py-2.5 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center gap-2"
+                >
+                  <span aria-hidden>⚠️</span>
+                  <span className="text-red-700 dark:text-red-300">
+                    Aucune activité enregistrée le <strong>{formatJourCourt(data.alertePresence.jour)}</strong>
+                  </span>
+                </button>
+              )}
+
+              {alertesEquipe.length > 0 && (
+                <button
+                  onClick={() => {
+                    setOuvert(false);
+                    navigate("/kpis-equipe");
+                  }}
+                  className="w-full text-left px-4 py-2.5 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-start gap-2"
+                >
+                  <span aria-hidden>🚨</span>
+                  <span className="text-red-700 dark:text-red-300">
+                    Absence le {formatJourCourt(alertesEquipe[0].jour)} :{" "}
+                    <strong>{alertesEquipe.map((a) => a.prenom || a.email).join(", ")}</strong>
+                  </span>
+                </button>
+              )}
+
               {data.messagesNonLus > 0 && (
                 <button
                   onClick={ouvrirCanalNonLu}

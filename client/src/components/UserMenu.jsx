@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import { useSupervision } from "../SupervisionContext.jsx";
+import { usePresence } from "../PresenceContext.jsx";
 import { api } from "../api.js";
 import NotificationCenter from "./NotificationCenter.jsx";
 
@@ -15,6 +16,7 @@ export default function UserMenu({ theme, onBasculerTheme }) {
   const { utilisateur } = useAuth();
   const identite = useIdentiteActuelle();
   const { agentSupervise, setAgentSupervise } = useSupervision();
+  const { enPause } = usePresence();
   const [agents, setAgents] = useState([]);
 
   useEffect(() => {
@@ -69,8 +71,24 @@ export default function UserMenu({ theme, onBasculerTheme }) {
             </svg>
             Gestion des accès
           </Link>
+
+          <Link
+            to="/kpis-equipe"
+            title="Présence et temps de travail de toute l'équipe"
+            className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            👥 KPIs équipe
+          </Link>
         </>
       )}
+
+      <Link
+        to="/mes-kpis"
+        title="Mon temps de travail et mon taux de présence"
+        className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+      >
+        📊 Mes KPIs
+      </Link>
 
       <NotificationCenter />
 
@@ -88,8 +106,10 @@ export default function UserMenu({ theme, onBasculerTheme }) {
             {initiales}
           </div>
           <span
-            title="En ligne"
-            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-800"
+            title={enPause ? "En pause (inactivité)" : "En ligne"}
+            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-800 ${
+              enPause ? "bg-amber-400" : "bg-emerald-500"
+            }`}
           />
         </div>
         <div className="leading-tight text-left hidden sm:block">

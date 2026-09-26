@@ -276,4 +276,15 @@ export const api = {
 
   getNotifications: (commeAgentId) =>
     fetch(`${BASE}/notifications${commeAgentId ? `?commeAgentId=${commeAgentId}` : ""}`).then(handle),
+
+  envoyerBattementPresence: () => fetch(`${BASE}/presence/battement`, { method: "POST" }).then(handle),
+
+  getMesKpisPresence: ({ semaine = 0, commeAgentId } = {}) => {
+    const params = new URLSearchParams({ semaine: String(semaine) });
+    if (commeAgentId) params.set("commeAgentId", commeAgentId);
+    return fetch(`${BASE}/presence/moi?${params}`).then(handle);
+  },
+
+  getKpisEquipePresence: ({ semaine = 0 } = {}) =>
+    fetch(`${BASE}/presence/equipe?semaine=${semaine}`).then(handle),
 };

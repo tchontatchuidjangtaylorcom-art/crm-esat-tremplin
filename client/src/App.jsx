@@ -15,12 +15,19 @@ import { AuthProvider } from "./AuthContext.jsx";
 import { ChatProvider } from "./chat/ChatContext.jsx";
 import ChatWidget from "./chat/ChatWidget.jsx";
 import { SupervisionProvider } from "./SupervisionContext.jsx";
+import { PresenceProvider } from "./PresenceContext.jsx";
+import MesKpis from "./pages/MesKpis.jsx";
+import KpisEquipe from "./pages/KpisEquipe.jsx";
 
 export default function App() {
   return (
     <AuthProvider>
       <CallProvider>
         <DialerProvider>
+          {/* Suivi du temps de travail : actif sur toutes les pages du CRM
+              dès qu'une session existe (y compris les pages admin), jamais
+              sur la vitrine publique ni la page de connexion. */}
+          <PresenceProvider>
           <Routes>
             {/* Site vitrine public — pas d'authentification, pas d'habillage CRM.
                 Vit à /vitrine plutôt qu'à la racine "/" pour ne rien changer au
@@ -50,6 +57,15 @@ export default function App() {
                           <Route path="/" element={<Dashboard />} />
                           <Route path="/entreprise/:id" element={<EntrepriseDetail />} />
                           <Route path="/chat" element={<Chat />} />
+                          <Route path="/mes-kpis" element={<MesKpis />} />
+                          <Route
+                            path="/kpis-equipe"
+                            element={
+                              <RequireAuth adminSeulement>
+                                <KpisEquipe />
+                              </RequireAuth>
+                            }
+                          />
                         </Routes>
                       </OutilsVenteLayout>
                       <ChatWidget />
@@ -59,6 +75,7 @@ export default function App() {
               }
             />
           </Routes>
+          </PresenceProvider>
           <CallPanel />
           <NotificationsMail />
         </DialerProvider>
