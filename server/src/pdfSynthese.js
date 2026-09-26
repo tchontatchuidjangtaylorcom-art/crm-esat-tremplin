@@ -300,7 +300,7 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       ["Salariés ECAP", formatNombre(saisie.nbEcap)],
       ["Autres dépenses déductibles (HT)", formatMontant(saisie.depensesDeductibles)],
       ["BOETH employé au cours des 4 dernières années", ouiNonTexte(saisie.aEmployeBoeth4Ans)],
-      ...(saisie.aEmployeBoeth4Ans === false
+      ...(saisie.aEmployeBoeth4Ans !== null
         ? [
             [
               "Sous-traitance EA / ESAT / TIH >= 600 x SMIC sur 4 ans",

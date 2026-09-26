@@ -381,9 +381,10 @@ export default function SimulateurOeth() {
             />
           </div>
 
-          {/* Règle des 4 ans — questions en cascade : chaque réponse "Non"
-              ouvre la question suivante (conditions cumulatives de la base
-              majorée à 1 500 × SMIC, voir simulerContributionOeth). */}
+          {/* Règle des 4 ans — questions en cascade : chaque réponse (Oui ou
+              Non) ouvre la question suivante, pour un parcours complet et
+              une synthèse PDF exhaustive (conditions de la base majorée à
+              1 500 × SMIC, voir simulerContributionOeth). */}
           <div className="mt-6 space-y-3">
             <Question
               actif={saisie.aEmployeBoeth4Ans === null}
@@ -396,22 +397,10 @@ export default function SimulateurOeth() {
               }
               nom="q-boeth-4ans"
               valeur={saisie.aEmployeBoeth4Ans}
-              onChange={(v) =>
-                setSaisie((s) => ({
-                  ...s,
-                  aEmployeBoeth4Ans: v,
-                  ...(v === true ? { sousTraitance4Ans: null, montantSousTraitance4Ans: "", accordAgree: null } : {}),
-                }))
-              }
+              onChange={(v) => modifier("aEmployeBoeth4Ans", v)}
             />
 
-            {saisie.aEmployeBoeth4Ans === true && (
-              <p className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.07] px-4 py-3 text-sm text-emerald-200">
-                ✓ La règle des 4 ans est respectée : pas de base majorée, le coefficient normal s'applique.
-              </p>
-            )}
-
-            {saisie.aEmployeBoeth4Ans === false && (
+            {saisie.aEmployeBoeth4Ans !== null && (
               <Question
                 actif={saisie.sousTraitance4Ans === null}
                 intitule="Au cours des 4 dernières années, l'entreprise a-t-elle réalisé des achats ou de la sous-traitance auprès d'une EA, d'un ESAT ou d'un TIH pour un montant supérieur ou égal à 600 × SMIC horaire ?"
@@ -445,7 +434,7 @@ export default function SimulateurOeth() {
               </Question>
             )}
 
-            {saisie.aEmployeBoeth4Ans === false && saisie.sousTraitance4Ans !== null && (
+            {saisie.aEmployeBoeth4Ans !== null && saisie.sousTraitance4Ans !== null && (
               <Question
                 actif={saisie.accordAgree === null}
                 intitule="L'entreprise dispose-t-elle d'un accord agréé applicable sur la période concernée ?"
