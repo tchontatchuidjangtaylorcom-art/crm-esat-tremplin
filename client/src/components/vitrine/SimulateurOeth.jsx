@@ -648,23 +648,32 @@ export default function SimulateurOeth() {
         </div>
 
         {/* ─────────── Étape 01 : l'essentiel ─────────── */}
-        <div id="etape-essentiel" className="scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-6 sm:px-8 pt-5 pb-4">
-          <EnteteEtape
-            numero="01"
-            titre="Commencez avec 3 informations essentielles"
-            sousTitre="Renseignez votre effectif, puis votre taux d'emploi ou votre EMA BOETH : les deux sont liés, saisir l'un calcule l'autre."
-          />
+        <div id="etape-essentiel" className="scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-4 sm:px-8 pt-4 sm:pt-5 pb-4">
+          <div className="hidden sm:block">
+            <EnteteEtape
+              numero="01"
+              titre="Commencez avec 3 informations essentielles"
+              sousTitre="Renseignez votre effectif, puis votre taux d'emploi ou votre EMA BOETH : les deux sont liés, saisir l'un calcule l'autre."
+            />
+          </div>
 
           {/* Référentiel appliqué : année et SMIC, au-dessus des saisies. */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          {/* Sur téléphone : "01", année et SMIC sur une seule ligne (libellés courts). */}
+          <div className="sm:mt-4 flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="sm:hidden shrink-0 w-7 h-7 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-xs font-bold flex items-center justify-center">
+              01
+            </span>
             {/* Choix de l'exercice (liste fournie par le serveur d'après la
                 date du jour) : le SMIC retenu et tout le calcul suivent. */}
             <div
               role="radiogroup"
               aria-label="Année concernée"
-              className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/[0.06] pl-3.5 pr-1 py-1 text-xs"
+              className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-amber-400/40 bg-amber-400/[0.06] pl-2 sm:pl-3.5 pr-1 py-1 text-xs"
             >
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mr-1.5">Année concernée</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mr-1 sm:mr-1.5">
+                <span className="sm:hidden">Année</span>
+                <span className="hidden sm:inline">Année concernée</span>
+              </span>
               {exercices.map((e) => {
                 const actifAnnee = e.annee === ANNEE_REFERENCE;
                 return (
@@ -674,7 +683,7 @@ export default function SimulateurOeth() {
                     role="radio"
                     aria-checked={actifAnnee}
                     onClick={() => modifier("annee", e.annee)}
-                    className={`rounded-full px-3 py-1 font-semibold transition ${
+                    className={`rounded-full px-1.5 sm:px-3 py-1 font-semibold transition ${
                       actifAnnee
                         ? "bg-amber-400 text-marine-950 shadow-[0_0_14px_rgba(251,191,36,0.45)]"
                         : "text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10"
@@ -685,11 +694,14 @@ export default function SimulateurOeth() {
                 );
               })}
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-900/15 dark:border-white/15 bg-slate-900/[0.04] dark:bg-white/[0.04] px-3.5 py-1.5 text-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">SMIC horaire brut retenu</span>
+            <span className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-slate-900/15 dark:border-white/15 bg-slate-900/[0.04] dark:bg-white/[0.04] px-2 sm:px-3.5 py-1.5 text-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <span className="sm:hidden">SMIC</span>
+                <span className="hidden sm:inline">SMIC horaire brut retenu</span>
+              </span>
               <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{smicTexte} €</span>
             </span>
-            <span className="text-[11px] text-slate-500">{exercice.note}</span>
+            <span className="w-full sm:w-auto text-[11px] text-slate-500">{exercice.note}</span>
           </div>
 
           {/* Type d'employeur : privé (AGEFIPH, déclaration DSN / URSSAF) ou
@@ -698,9 +710,9 @@ export default function SimulateurOeth() {
             <div
               role="radiogroup"
               aria-label="Type d'employeur"
-              className="inline-flex items-center gap-1 rounded-full border border-marine-400/40 bg-marine-500/[0.06] pl-3.5 pr-1 py-1 text-xs"
+              className="flex w-full sm:w-auto sm:inline-flex items-center gap-1 rounded-full border border-marine-400/40 bg-marine-500/[0.06] pl-1 sm:pl-3.5 pr-1 py-1 text-xs"
             >
-              <span className="text-[10px] font-bold uppercase tracking-wider text-marine-700 dark:text-marine-300 mr-1.5">Employeur</span>
+              <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider text-marine-700 dark:text-marine-300 mr-1.5">Employeur</span>
               {[
                 { v: "prive", label: "Privé · AGEFIPH" },
                 { v: "public", label: "Public · FIPHFP" },
@@ -711,7 +723,7 @@ export default function SimulateurOeth() {
                   role="radio"
                   aria-checked={secteur === o.v}
                   onClick={() => setSecteur(o.v)}
-                  className={`rounded-full px-3 py-1 font-semibold transition ${
+                  className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 sm:py-1 font-semibold transition ${
                     secteur === o.v
                       ? "bg-marine-500 text-white"
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10"
