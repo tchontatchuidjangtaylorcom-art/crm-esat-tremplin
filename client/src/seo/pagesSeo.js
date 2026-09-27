@@ -25,7 +25,7 @@ export const PAGES_SEO = {
   "/vitrine/faq": {
     titre: "FAQ OETH / DOETH — Obligation d'emploi des travailleurs handicapés",
     description:
-      "Qui est concerné, quota de 6 %, calcul de la contribution, surcontribution, déductions ESAT/EA, codes DSN, employeurs publics et FIPHFP : toutes les réponses.",
+      "Calcul de la contribution Agefiph, seuils d'effectif, plafonds OETH, déclaration obligatoire d'emploi (DOETH), BOETH, ESAT/EA, codes DSN : 25 réponses claires.",
     priorite: 0.9,
     frequence: "monthly",
   },
