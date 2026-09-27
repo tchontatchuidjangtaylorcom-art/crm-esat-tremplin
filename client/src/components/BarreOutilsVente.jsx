@@ -1,3 +1,5 @@
+import { useTheme } from "../useTheme.js";
+
 // Charte de couleurs exacte demandée : Argumentaire (vert), Script de vente
 // (marron), Modèles de mails (orange) — conservée comme repère de couleur
 // (les agents s'y réfèrent déjà à l'oral), mais en accent discret (pastille +
@@ -25,6 +27,11 @@ const OUTILS = [
 ];
 
 export default function BarreOutilsVente({ outilActif, onSelect }) {
+  // Barre présente sur toutes les pages du CRM : c'est ici que le thème
+  // clair/sombre est appliqué et qu'on peut le changer, où qu'on soit.
+  const { theme, basculer } = useTheme();
+  const sombre = theme === "sombre";
+
   return (
     <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
       <div className="flex flex-wrap items-center gap-2">
@@ -51,6 +58,17 @@ export default function BarreOutilsVente({ outilActif, onSelect }) {
       {/* Landing page publique — totalement indépendante du CRM (pas de session
           partagée, pas d'habillage) : ouverte dans un nouvel onglet pour ne pas
           faire perdre le contexte de travail de l'agent. */}
+      <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={basculer}
+        title={sombre ? "Passer en mode clair" : "Passer en mode sombre"}
+        aria-label={sombre ? "Passer en mode clair" : "Passer en mode sombre"}
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-marine-400 hover:text-marine-700 dark:hover:text-marine-300 px-3 py-1.5 text-sm font-medium transition"
+      >
+        <span aria-hidden="true">{sombre ? "☀️" : "🌙"}</span>
+        <span className="hidden sm:inline">{sombre ? "Mode clair" : "Mode sombre"}</span>
+      </button>
       <a
         href="/vitrine"
         target="_blank"
@@ -63,6 +81,7 @@ export default function BarreOutilsVente({ outilActif, onSelect }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H18m0 0v4.5M18 6l-8.25 8.25M6 10.5v6a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V15" />
         </svg>
       </a>
+      </div>
     </div>
   );
 }

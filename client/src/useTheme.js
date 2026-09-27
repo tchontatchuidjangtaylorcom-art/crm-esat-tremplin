@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 const CLE_STOCKAGE = "crm-theme";
 
@@ -13,23 +13,46 @@ function themeInitial() {
   return prefereSombre ? "sombre" : "clair";
 }
 
+// État partagé par tous les composants qui appellent useTheme() : la barre
+// d'outils (présente sur toutes les pages du CRM) et le menu utilisateur du
+// tableau de bord basculent le même thème.
+let themeCourant = themeInitial();
+const abonnes = new Set();
+
+function appliquer() {
+  document.documentElement.classList.toggle("dark", themeCourant === "sombre");
+}
+
+function definir(theme) {
+  themeCourant = theme;
+  try {
+    localStorage.setItem(CLE_STOCKAGE, theme);
+  } catch {
+    // Rien à faire si le stockage local est indisponible.
+  }
+  appliquer();
+  abonnes.forEach((f) => f());
+}
+
+function sAbonner(f) {
+  abonnes.add(f);
+  return () => abonnes.delete(f);
+}
+
 // Bascule clair/sombre pour tout le CRM : ajoute/retire la classe "dark" sur
 // <html> (pilotée par `darkMode: "class"` dans tailwind.config.js) et retient
 // le choix de l'agent d'une session à l'autre.
 export function useTheme() {
-  const [theme, setTheme] = useState(themeInitial);
+  const theme = useSyncExternalStore(sAbonner, () => themeCourant);
 
+  // Réappliqué à chaque page du CRM qui monte : le site vitrine gère son
+  // propre thème sur la même classe <html>.
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "sombre");
-    try {
-      localStorage.setItem(CLE_STOCKAGE, theme);
-    } catch {
-      // Rien à faire si le stockage local est indisponible.
-    }
-  }, [theme]);
+    appliquer();
+  }, []);
 
   function basculer() {
-    setTheme((t) => (t === "sombre" ? "clair" : "sombre"));
+    definir(themeCourant === "sombre" ? "clair" : "sombre");
   }
 
   return { theme, basculer };
