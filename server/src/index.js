@@ -1330,7 +1330,27 @@ app.get("/api/leads/demande", exigerAuth, (req, res) => {
   res.json(etatDemandeLeads(req.utilisateur.id));
 });
 
+// Toute erreur imprévue renvoie un message clair : sans ce filet, une
+// exception dans une route async n'était que journalisée, la requête restait
+// sans réponse et l'agent voyait "Erreur HTTP 502" (délai du proxy Render).
 app.post("/api/leads/demande", exigerAuth, async (req, res) => {
+  try {
+    await traiterDemandeLeads(req, res);
+  } catch (e) {
+    console.error("[demande-leads] Échec :", e?.stack || e);
+    const suivi = demandesLeads.get(req.utilisateur.id);
+    if (suivi?.enCours) {
+      suivi.enCours = false;
+      suivi.erreur = e.message;
+      suivi.termine = new Date().toISOString();
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: `La demande de fiches a échoué (${e.message}). Réessayez ; si le problème persiste, prévenez un administrateur.` });
+    }
+  }
+});
+
+async function traiterDemandeLeads(req, res) {
   const utilisateur = req.utilisateur;
   const etat = etatDemandeLeads(utilisateur.id);
   if (etat.enCours) return res.status(409).json({ error: "Une demande est déjà en cours.", ...etat });
@@ -1370,6 +1390,8 @@ app.post("/api/leads/demande", exigerAuth, async (req, res) => {
     e.assigneA = utilisateur.id;
     e.assignationVue = true;
     e.dateAssignation = maintenant;
+    // Certaines fiches anciennes n'ont pas de liste de commentaires.
+    e.commentaires = Array.isArray(e.commentaires) ? e.commentaires : [];
     e.commentaires.unshift({
       id: nanoid(),
       date: maintenant,
@@ -1461,7 +1483,7 @@ app.post("/api/leads/demande", exigerAuth, async (req, res) => {
       .then(() => enrichirTelephonesViaIA(aEnrichir))
       .catch((e) => console.error("[ia] Échec de l'enrichissement téléphone (demande de leads) :", e.message));
   }
-});
+}
 
 app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;

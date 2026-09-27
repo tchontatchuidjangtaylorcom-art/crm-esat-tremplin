@@ -41,7 +41,14 @@ export default function DemandeLeads({ categories, onMaj }) {
       setEtat(e);
       onMaj?.();
     } catch (e) {
-      setErreur(e.message);
+      // 502/503/504 ou coupure réseau : le serveur redémarre (déploiement) ou
+      // ne répond plus — message compréhensible plutôt qu'un code HTTP brut.
+      const indisponible = /HTTP 50[234]|Failed to fetch|NetworkError/i.test(e.message);
+      setErreur(
+        indisponible
+          ? "Le serveur redémarre ou ne répond pas pour le moment. Réessayez dans une minute."
+          : e.message
+      );
       api.getDemandeLeads().then(setEtat).catch(() => {});
     } finally {
       setEnvoi(false);
