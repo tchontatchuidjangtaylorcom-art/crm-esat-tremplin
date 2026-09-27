@@ -210,6 +210,10 @@ export default function SimulateurOeth() {
       .catch(() => {});
   }, []);
   const [requete, setRequete] = useState("");
+  // Sur téléphone, la recherche d'entreprise est repliée derrière un bouton
+  // pour que la saisie des 3 informations essentielles remonte à l'écran.
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  const champRechercheRef = useRef(null);
   const [resultats, setResultats] = useState([]);
   const [recherche, setRecherche] = useState(false);
   const [erreurRecherche, setErreurRecherche] = useState(null);
@@ -546,7 +550,7 @@ export default function SimulateurOeth() {
             <span className="flex-1 bg-white" />
             <span className="flex-1 bg-red-500" />
           </div>
-          <div className="px-6 sm:px-8 py-6 flex flex-col items-center text-center gap-4">
+          <div className="px-4 sm:px-8 py-5 sm:py-6 flex flex-col items-center text-center gap-3 sm:gap-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-600 dark:text-marine-400">
                 Obligation d'emploi des travailleurs handicapés
@@ -555,21 +559,42 @@ export default function SimulateurOeth() {
               <h1 className="font-bold text-slate-900 dark:text-white text-2xl sm:text-4xl mt-1.5">
                 Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}
               </h1>
-              <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-2 max-w-2xl mx-auto">
+              <p className="hidden sm:block text-base text-slate-500 dark:text-slate-400 mt-2 max-w-2xl mx-auto">
                 Obtenez une estimation immédiate de votre contribution OETH {ANNEE_REFERENCE} à partir des données de votre
                 entreprise.
               </p>
             </div>
-            <div className="flex flex-wrap justify-center gap-2">
-              <Pastille couleur="bg-teal-400">Environ 2 minutes</Pastille>
-              <Pastille couleur="bg-sky-400">Aucune pièce à joindre</Pastille>
-              <Pastille couleur="bg-amber-400">Résultat immédiat</Pastille>
+            {/* Sur une seule ligne sur téléphone (libellés courts). */}
+            <div className="flex flex-nowrap sm:flex-wrap justify-center gap-1.5 sm:gap-2">
+              <Pastille couleur="bg-teal-400" court="2 min">Environ 2 minutes</Pastille>
+              <Pastille couleur="bg-sky-400" court="Sans pièce jointe">Aucune pièce à joindre</Pastille>
+              <Pastille couleur="bg-amber-400" court="Immédiat">Résultat immédiat</Pastille>
             </div>
           </div>
         </div>
 
         {/* ─────────── Gain de temps : recherche d'entreprise (Sirene) ─────────── */}
-        <div className="rounded-2xl border border-teal-400/25 bg-gradient-to-r from-teal-400/[0.08] via-white dark:via-marine-950/80 to-white dark:to-marine-950/80 px-6 sm:px-8 py-5">
+        {!rechercheOuverte && (
+          <button
+            type="button"
+            onClick={() => {
+              setRechercheOuverte(true);
+              setTimeout(() => champRechercheRef.current?.focus(), 50);
+            }}
+            className="sm:hidden w-full flex items-center gap-3 rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-left"
+          >
+            <span className="shrink-0 rounded-full bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1">
+              Important
+            </span>
+            <span className="flex-1 text-sm font-semibold text-slate-900 dark:text-white">
+              Gagnez du temps : retrouvez votre entreprise
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+        )}
+        <div className={`${rechercheOuverte ? "block" : "hidden"} sm:block rounded-2xl border border-teal-400/25 bg-gradient-to-r from-teal-400/[0.08] via-white dark:via-marine-950/80 to-white dark:to-marine-950/80 px-6 sm:px-8 py-5`}>
           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
             <div className="flex items-start gap-3 lg:w-[38%]">
               <span className="shrink-0 w-9 h-9 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-700 dark:text-teal-300 flex items-center justify-center">
@@ -591,6 +616,7 @@ export default function SimulateurOeth() {
               <input
                 type="text"
                 value={requete}
+                ref={champRechercheRef}
                 onChange={(e) => setRequete(e.target.value)}
                 placeholder="Ex : Société Dupont, ou 123 456 789"
                 className={`${CLASSE_INPUT} pl-11`}
@@ -1616,11 +1642,18 @@ const TEINTES = {
   sky: "border-sky-400/25 bg-sky-400/[0.07]",
 };
 
-function Pastille({ couleur, children }) {
+function Pastille({ couleur, court, children }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.04] dark:bg-white/[0.04] text-[11px] text-slate-600 dark:text-slate-300 px-3 py-1.5">
-      <span className={`w-1.5 h-1.5 rounded-full ${couleur}`} />
-      {children}
+    <span className="inline-flex items-center gap-1.5 sm:gap-2 whitespace-nowrap rounded-full border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.04] dark:bg-white/[0.04] text-[11px] text-slate-600 dark:text-slate-300 px-2.5 sm:px-3 py-1.5">
+      <span className={`w-1.5 h-1.5 shrink-0 rounded-full ${couleur}`} />
+      {court ? (
+        <>
+          <span className="sm:hidden">{court}</span>
+          <span className="hidden sm:inline">{children}</span>
+        </>
+      ) : (
+        children
+      )}
     </span>
   );
 }
