@@ -6,6 +6,8 @@ import AdminUtilisateurs from "./pages/AdminUtilisateurs.jsx";
 import SiteVitrine from "./pages/SiteVitrine.jsx";
 import PilotageHandicap from "./pages/PilotageHandicap.jsx";
 import NotreDemarche from "./pages/NotreDemarche.jsx";
+import Vigilance from "./pages/Vigilance.jsx";
+import WidgetsVitrine from "./components/vitrine/WidgetsVitrine.jsx";
 import Chat from "./pages/Chat.jsx";
 import { CallProvider } from "./telephony/CallContext.jsx";
 import { DialerProvider } from "./telephony/DialerContext.jsx";
@@ -38,6 +40,7 @@ export default function App() {
             <Route path="/vitrine" element={<SiteVitrine />} />
             <Route path="/vitrine/pilotage" element={<PilotageHandicap />} />
             <Route path="/vitrine/notre-demarche" element={<NotreDemarche />} />
+            <Route path="/vitrine/vigilance" element={<Vigilance />} />
 
             {/* Hors du habillage CRM (pas de barre d'outils vente) */}
             <Route path="/connexion" element={<Connexion />} />
@@ -79,6 +82,8 @@ export default function App() {
               }
             />
           </Routes>
+          {/* Boutons flottants (Vigilance…) — pages publiques /vitrine uniquement. */}
+          <WidgetsVitrine />
           </PresenceProvider>
           <CallPanel />
           <NotificationsMail />

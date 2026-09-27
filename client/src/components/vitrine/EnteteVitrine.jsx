@@ -9,6 +9,7 @@ const LIENS_NAV = [
   { label: "Notre démarche", to: "/vitrine/notre-demarche" },
   { label: "Impact", to: "/vitrine#impact" },
   { label: "Ressources", to: "/vitrine#ressources" },
+  { label: "Vigilance", to: "/vitrine/vigilance" },
   { label: "Contact", to: "/vitrine#contact" },
 ];
 

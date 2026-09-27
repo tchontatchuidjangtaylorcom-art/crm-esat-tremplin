@@ -89,6 +89,11 @@ export async function initDb() {
     db.data.demandesDemo = [];
     aEcrire = true;
   }
+  // Sollicitations suspectes transmises pour vérification (page Vigilance).
+  if (!db.data.signalementsVigilance) {
+    db.data.signalementsVigilance = [];
+    aEcrire = true;
+  }
   if (!db.data.presenceDebutSuivi) {
     db.data.presenceDebutSuivi = new Date().toISOString();
     aEcrire = true;

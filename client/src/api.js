@@ -167,6 +167,13 @@ export const api = {
 
   getOptionsDemo: () => fetch(`${BASE}/vitrine/demo/options`).then(handle),
 
+  signalerSollicitation: (donnees) =>
+    fetch(`${BASE}/vitrine/vigilance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+
   demanderDemo: (donnees) =>
     fetch(`${BASE}/vitrine/demo`, {
       method: "POST",

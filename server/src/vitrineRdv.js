@@ -166,6 +166,52 @@ export function enregistrerRoutesVitrineRdv(app) {
     res.json({ ok: true, date, heure, dureeMinutes: DUREE_MINUTES });
   });
 
+  // Page Vigilance : une entreprise transmet une sollicitation reçue
+  // (appel, e-mail, courrier…) pour la faire vérifier par un conseiller.
+  app.post("/api/vitrine/vigilance", async (req, res) => {
+    const b = req.body || {};
+    if (b.siteWeb) return res.json({ ok: true }); // champ piège anti-robots
+    const CANAUX = ["Appel téléphonique", "E-mail", "Courrier", "Visite", "Autre"];
+    const signalement = {
+      id: crypto.randomUUID(),
+      nom: texte(b.nom, 120),
+      email: texte(b.email, 160),
+      telephone: texte(b.telephone, 30),
+      entreprise: texte(b.entreprise, 160),
+      canal: CANAUX.includes(b.canal) ? b.canal : "Autre",
+      interlocuteur: texte(b.interlocuteur, 200),
+      coordonneesInterlocuteur: texte(b.coordonneesInterlocuteur, 200),
+      description: texte(b.description, 3000),
+      dateCreation: new Date().toISOString(),
+    };
+    if (!signalement.nom || !emailValide(signalement.email) || !signalement.entreprise || !signalement.description) {
+      return res.status(400).json({ error: "Nom, e-mail valide, entreprise et description de la sollicitation sont requis." });
+    }
+    if (b.consentement !== true) {
+      return res.status(400).json({ error: "Merci d'accepter l'utilisation de vos informations pour traiter votre demande." });
+    }
+
+    db.data.signalementsVigilance.push(signalement);
+    await db.write();
+
+    await notifier({
+      sujetPole: `Vigilance — sollicitation à vérifier (${signalement.entreprise})`,
+      textePole:
+        `Une entreprise demande la vérification d'une sollicitation.\n\n` +
+        `Contact : ${signalement.nom} — ${signalement.entreprise}\nE-mail : ${signalement.email}\nTéléphone : ${signalement.telephone || "-"}\n\n` +
+        `Canal : ${signalement.canal}\nInterlocuteur / structure : ${signalement.interlocuteur || "-"}\n` +
+        `Numéro, e-mail ou site utilisé : ${signalement.coordonneesInterlocuteur || "-"}\n\nDescription :\n${signalement.description}`,
+      replyTo: signalement.email,
+      destinataireVisiteur: signalement.email,
+      sujetVisiteur: "Votre demande de vérification a bien été reçue",
+      texteVisiteur:
+        `Bonjour ${signalement.nom},\n\nNous avons bien reçu votre demande de vérification. Un conseiller l'examine et revient vers vous rapidement.\n\n` +
+        `En attendant, ne donnez suite à aucune demande de paiement liée à cette sollicitation.\n\n${signature()}`,
+    });
+
+    res.json({ ok: true });
+  });
+
   app.post("/api/vitrine/demo", async (req, res) => {
     const b = req.body || {};
     if (b.siteWeb) return res.json({ ok: true }); // champ piège anti-robots
