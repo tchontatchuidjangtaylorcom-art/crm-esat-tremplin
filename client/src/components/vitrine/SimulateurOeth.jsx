@@ -175,6 +175,7 @@ export default function SimulateurOeth() {
   const [aideEssentielOuverte, setAideEssentielOuverte] = useState(false);
   const [deductionsOuvertes, setDeductionsOuvertes] = useState(false);
   const [erreurEffectif, setErreurEffectif] = useState(false);
+  const [messageSynthese, setMessageSynthese] = useState(null);
 
   const [pdfEnCours, setPdfEnCours] = useState(false);
   const [erreurPdf, setErreurPdf] = useState(null);
@@ -295,6 +296,7 @@ export default function SimulateurOeth() {
   // donnée de référence envoyée au calcul.
   function changerEffectif(v) {
     setErreurEffectif(false);
+    setMessageSynthese(null);
     const eff = Number(v);
     setSaisie((prec) => {
       const suivant = { ...prec, effectif: v };
@@ -379,6 +381,22 @@ export default function SimulateurOeth() {
       // stockage indisponible : le nom reste utilisé pour cette visite
     }
     setEntrepriseMemorisee(Boolean(nomEntreprise.trim()));
+  }
+
+  // Bouton de fin de page : vérifie les champs nécessaires avant de
+  // télécharger ; sinon remonte à l'étape 01 et signale le champ manquant.
+  function telechargerSyntheseFinale() {
+    const effectif = Number(saisie.effectif);
+    if (!effectifRenseigne || !Number.isFinite(effectif) || effectif < 20) {
+      setErreurEffectif(true);
+      setMessageSynthese(
+        "Pour télécharger votre synthèse, renseignez d'abord votre effectif d'assujettissement (minimum 20 salariés) et, si vous les connaissez, vos BOETH."
+      );
+      document.getElementById("etape-essentiel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setMessageSynthese(null);
+    telechargerPdf();
   }
 
   async function telechargerPdf() {
@@ -599,7 +617,7 @@ export default function SimulateurOeth() {
         </div>
 
         {/* ─────────── Étape 01 : l'essentiel ─────────── */}
-        <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-6 sm:px-8 pt-5 pb-4">
+        <div id="etape-essentiel" className="scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-6 sm:px-8 pt-5 pb-4">
           <EnteteEtape
             numero="01"
             titre="Commencez avec 3 informations essentielles"
@@ -1525,6 +1543,28 @@ export default function SimulateurOeth() {
                 Montants arrondis à l'euro. Mesures transitoires d'écrêtement terminées : le code 067 reprend le 066.
                 Estimation hors accord agréé ; seule l'URSSAF (ou la MSA) calcule et recouvre la contribution.
               </p>
+            </div>
+
+            {/* Téléchargement de la synthèse en fin de parcours. Sans les
+                champs nécessaires (effectif ≥ 20), on guide le visiteur vers
+                la saisie au lieu de télécharger. */}
+            <div className="mt-8 flex flex-col items-center text-center gap-2">
+              <button
+                type="button"
+                onClick={telechargerSyntheseFinale}
+                disabled={pdfEnCours}
+                className="inline-flex items-center gap-2 rounded-xl bg-teal-400 hover:bg-teal-300 text-marine-950 text-sm font-bold px-7 py-3.5 transition shadow-[0_10px_40px_rgba(45,212,191,0.3)] disabled:opacity-50"
+              >
+                <span aria-hidden>⬇</span> {pdfEnCours ? "Génération…" : "Télécharger ma synthèse PDF"}
+              </button>
+              {messageSynthese ? (
+                <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">
+                  {messageSynthese}
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500">Résultats, détail du calcul et récapitulatif DSN, au format PDF.</p>
+              )}
+              {erreurPdf && <p className="text-sm text-red-600 dark:text-red-400">{erreurPdf}</p>}
             </div>
           </div>
         )}
