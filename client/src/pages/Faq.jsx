@@ -79,7 +79,7 @@ export default function Faq() {
           <span className="inline-flex items-center gap-2 rounded-full border border-teal-400/40 bg-teal-400/10 text-teal-700 dark:text-teal-300 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-teal-400" /> Questions fréquentes
           </span>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mt-5">Tout comprendre de l'OETH</h1>
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mt-5">FAQ OETH : tout comprendre de l'obligation d'emploi</h1>
           <p className="text-slate-600 dark:text-slate-300 text-lg mt-4">
             Les repères essentiels et les réponses aux questions les plus posées par les RH, la paie et les dirigeants.
           </p>

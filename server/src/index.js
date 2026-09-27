@@ -39,6 +39,8 @@ import {
 } from "./mail.js";
 import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
 import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
+import { servirFrontend } from "./seo.js";
+import compression from "compression";
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
 import { genererRapportPdf } from "./pdfRapport.js";
 import {
@@ -80,6 +82,9 @@ const distClient = path.join(__dirname, "..", "..", "client", "dist");
 const APP_URL = process.env.APP_URL || "http://localhost:5173";
 
 const app = express();
+// Compression gzip de toutes les réponses texte (HTML, JS, CSS, JSON) :
+// divise par ~3 à 4 le poids transféré (Core Web Vitals).
+app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
@@ -2483,11 +2488,9 @@ if (estImapConfigure()) {
 // Sert le frontend React buildé et gère le routage côté client (React
 // Router) : toute route qui n'est pas une route API renvoie index.html,
 // pour que /entreprise/:id fonctionne aussi en accès direct ou au rechargement.
+// Balises SEO par page, robots.txt, sitemap.xml et cache : voir seo.js.
 if (fs.existsSync(distClient)) {
-  app.use(express.static(distClient));
-  app.get(/^(?!\/api\/).*/, (req, res) => {
-    res.sendFile(path.join(distClient, "index.html"));
-  });
+  servirFrontend(app, distClient);
 } else {
   console.warn(
     `Build client introuvable (${distClient}) — le frontend n'est pas servi. ` +

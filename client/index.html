@@ -3,7 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CRM OETH / AGEFIPH</title>
+    <!-- Le <title> ci-dessous est remplacé par le serveur (server/src/seo.js)
+         par les balises SEO propres à chaque page : titre, description,
+         canonical, Open Graph, données structurées, noindex pour le CRM. -->
+    <title>Pôle OETH / AGEFIPH / FIPHFP</title>
+    <meta name="theme-color" content="#0b1a33" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,6 +22,12 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <p style="font-family: sans-serif; padding: 2rem">
+        Simulateur OETH / DOETH 2026 du Pôle OETH / AGEFIPH / FIPHFP : activez JavaScript pour estimer votre contribution.
+        Contact : contact@oeth-fiph.fr — +33 7 44 12 79 17.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

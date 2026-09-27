@@ -23,7 +23,7 @@ export default function Actualites() {
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 text-amber-700 dark:text-amber-300 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Actualités OETH
           </span>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mt-5">Les repères réglementaires à connaître</h1>
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mt-5">Actualités OETH : les repères réglementaires à connaître</h1>
           <p className="text-slate-600 dark:text-slate-300 text-lg mt-4 max-w-3xl">
             Échéances, SMIC, coefficients, déductions, codes DSN : l'essentiel pour anticiper votre déclaration OETH.
           </p>

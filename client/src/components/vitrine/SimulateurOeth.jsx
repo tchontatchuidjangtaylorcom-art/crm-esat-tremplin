@@ -548,8 +548,13 @@ export default function SimulateurOeth() {
           </div>
           <div className="px-6 sm:px-8 py-6 flex flex-col items-center text-center gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-600 dark:text-marine-400">Simulateur OETH / DOETH</p>
-              <h2 className="font-bold text-slate-900 dark:text-white text-2xl sm:text-4xl mt-1.5">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-600 dark:text-marine-400">
+                Obligation d'emploi des travailleurs handicapés
+              </p>
+              {/* Titre principal (H1) de la page /vitrine — mots-clés OETH / DOETH. */}
+              <h1 className="font-bold text-slate-900 dark:text-white text-2xl sm:text-4xl mt-1.5">
+                Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}
+              </h1>
               <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-2 max-w-2xl mx-auto">
                 Obtenez une estimation immédiate de votre contribution OETH {ANNEE_REFERENCE} à partir des données de votre
                 entreprise.

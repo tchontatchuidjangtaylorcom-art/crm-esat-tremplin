@@ -1,102 +1,17 @@
-import { Routes, Route } from "react-router-dom";
-import Dashboard from "./pages/Dashboard.jsx";
-import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
-import Connexion from "./pages/Connexion.jsx";
-import AdminUtilisateurs from "./pages/AdminUtilisateurs.jsx";
-import SiteVitrine from "./pages/SiteVitrine.jsx";
-import { ThemeVitrineLayout } from "./components/vitrine/ThemeVitrine.jsx";
-import PilotageHandicap from "./pages/PilotageHandicap.jsx";
-import NotreDemarche from "./pages/NotreDemarche.jsx";
-import Vigilance from "./pages/Vigilance.jsx";
-import Actualites from "./pages/Actualites.jsx";
-import Faq from "./pages/Faq.jsx";
-import WidgetsVitrine from "./components/vitrine/WidgetsVitrine.jsx";
-import Chat from "./pages/Chat.jsx";
-import { CallProvider } from "./telephony/CallContext.jsx";
-import { DialerProvider } from "./telephony/DialerContext.jsx";
-import CallPanel from "./telephony/CallPanel.jsx";
-import OutilsVenteLayout from "./components/OutilsVenteLayout.jsx";
-import NotificationsMail from "./components/NotificationsMail.jsx";
-import RequireAuth from "./components/RequireAuth.jsx";
-import { AuthProvider } from "./AuthContext.jsx";
-import { ChatProvider } from "./chat/ChatContext.jsx";
-import ChatWidget from "./chat/ChatWidget.jsx";
-import { SupervisionProvider } from "./SupervisionContext.jsx";
-import { PresenceProvider } from "./PresenceContext.jsx";
-import MesKpis from "./pages/MesKpis.jsx";
-import KpisEquipe from "./pages/KpisEquipe.jsx";
+import { lazy, Suspense } from "react";
+import { useLocation } from "react-router-dom";
+
+// Point d'entrée : le site public (/vitrine…) et le CRM interne sont deux
+// applications chargées séparément. Un visiteur de la vitrine ne télécharge
+// jamais le code du CRM (tableau de bord, téléphonie, chat…), et inversement
+// — voir VitrineApp.jsx et CrmApp.jsx.
+const VitrineApp = lazy(() => import("./VitrineApp.jsx"));
+const CrmApp = lazy(() => import("./CrmApp.jsx"));
 
 export default function App() {
+  const { pathname } = useLocation();
+  const estVitrine = pathname === "/vitrine" || pathname.startsWith("/vitrine/");
   return (
-    <AuthProvider>
-      <CallProvider>
-        <DialerProvider>
-          {/* Suivi du temps de travail : actif sur toutes les pages du CRM
-              dès qu'une session existe (y compris les pages admin), jamais
-              sur la vitrine publique ni la page de connexion. */}
-          <PresenceProvider>
-          <Routes>
-            {/* Site vitrine public — pas d'authentification, pas d'habillage CRM.
-                Vit à /vitrine plutôt qu'à la racine "/" pour ne rien changer au
-                routage existant du CRM (déjà utilisé en production) ; le bouton
-                "Portail sécurisé" de la vitrine renvoie vers /connexion. */}
-            {/* Thème clair/sombre propre au site vitrine (voir ThemeVitrine.jsx). */}
-            <Route element={<ThemeVitrineLayout />}>
-              <Route path="/vitrine" element={<SiteVitrine />} />
-              <Route path="/vitrine/pilotage" element={<PilotageHandicap />} />
-              <Route path="/vitrine/notre-demarche" element={<NotreDemarche />} />
-              <Route path="/vitrine/vigilance" element={<Vigilance />} />
-              <Route path="/vitrine/actualites" element={<Actualites />} />
-              <Route path="/vitrine/faq" element={<Faq />} />
-            </Route>
-
-            {/* Hors du habillage CRM (pas de barre d'outils vente) */}
-            <Route path="/connexion" element={<Connexion />} />
-            <Route
-              path="/admin/utilisateurs"
-              element={
-                <RequireAuth adminSeulement>
-                  <AdminUtilisateurs />
-                </RequireAuth>
-              }
-            />
-
-            <Route
-              path="/*"
-              element={
-                <RequireAuth>
-                  <ChatProvider>
-                    <SupervisionProvider>
-                      <OutilsVenteLayout>
-                        <Routes>
-                          <Route path="/" element={<Dashboard />} />
-                          <Route path="/entreprise/:id" element={<EntrepriseDetail />} />
-                          <Route path="/chat" element={<Chat />} />
-                          <Route path="/mes-kpis" element={<MesKpis />} />
-                          <Route
-                            path="/kpis-equipe"
-                            element={
-                              <RequireAuth adminSeulement>
-                                <KpisEquipe />
-                              </RequireAuth>
-                            }
-                          />
-                        </Routes>
-                      </OutilsVenteLayout>
-                      <ChatWidget />
-                    </SupervisionProvider>
-                  </ChatProvider>
-                </RequireAuth>
-              }
-            />
-          </Routes>
-          {/* Boutons flottants (Vigilance…) — pages publiques /vitrine uniquement. */}
-          <WidgetsVitrine />
-          </PresenceProvider>
-          <CallPanel />
-          <NotificationsMail />
-        </DialerProvider>
-      </CallProvider>
-    </AuthProvider>
+    <Suspense fallback={<div className="min-h-screen" aria-busy="true" />}>{estVitrine ? <VitrineApp /> : <CrmApp />}</Suspense>
   );
 }
