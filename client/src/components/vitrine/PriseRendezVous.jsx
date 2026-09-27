@@ -130,7 +130,7 @@ export default function PriseRendezVous({ onFermer }) {
           <div className="flex flex-wrap gap-4 mt-3 text-xs text-slate-600 dark:text-slate-300">
             <span>🕒 {dispo?.dureeMinutes || 45} min</span>
             <span>📹 Téléphone ou visioconférence — informations transmises à la confirmation</span>
-            <span>🌍 Heure de Paris</span>
+            <span>🌍 Experts disponibles du lundi au vendredi, 8h45–18h (heure de Paris)</span>
           </div>
 
           {etape === "creneau" && (

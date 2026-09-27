@@ -19,6 +19,30 @@ const RACCOURCIS = [
   { label: "Vigilance", faq: "sollicitation" },
 ];
 
+// Horaires des experts : du lundi au vendredi, 8h45-18h, heure de Paris
+// (mêmes horaires que les créneaux de rendez-vous, voir vitrineRdv.js).
+const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+export function statutExperts(maintenant = new Date()) {
+  const parties = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(maintenant)
+      .map((p) => [p.type, p.value])
+  );
+  const jour = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(parties.weekday);
+  const minutes = Number(parties.hour) * 60 + Number(parties.minute);
+  const ouvre = jour >= 1 && jour <= 5;
+  if (ouvre && minutes >= 8 * 60 + 45 && minutes < 18 * 60) {
+    return { ouvert: true, texte: "Experts disponibles jusqu'à 18h (lun.–ven. 8h45–18h)" };
+  }
+  // Prochaine ouverture : aujourd'hui si avant 8h45 un jour ouvré, sinon le
+  // prochain jour ouvré.
+  if (ouvre && minutes < 8 * 60 + 45) return { ouvert: false, texte: "Experts disponibles aujourd'hui dès 8h45" };
+  let suivant = (jour + 1) % 7;
+  while (suivant === 0 || suivant === 6) suivant = (suivant + 1) % 7;
+  const quand = suivant === (jour + 1) % 7 ? "demain" : JOURS[suivant];
+  return { ouvert: false, texte: `Experts disponibles ${quand} dès 8h45 (lun.–ven. 8h45–18h)` };
+}
+
 // Assistant du coin inférieur gauche. Volontairement présenté comme
 // automatique (aucun faux conseiller "en ligne") : il répond uniquement à
 // partir de la FAQ vérifiée (contenuFaq.js) et, s'il ne trouve pas, propose
@@ -30,10 +54,19 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
   const [rdvOuvert, setRdvOuvert] = useState(false);
   const fermerRdv = useCallback(() => setRdvOuvert(false), []);
   const finRef = useRef(null);
+  const [experts, setExperts] = useState(statutExperts);
 
   useEffect(() => {
     finRef.current?.scrollIntoView({ block: "end" });
   }, [messages, reflexion, ouvert]);
+
+  // Statut des experts rafraîchi chaque minute tant que le panneau est ouvert.
+  useEffect(() => {
+    if (!ouvert) return undefined;
+    setExperts(statutExperts());
+    const minuteur = setInterval(() => setExperts(statutExperts()), 60000);
+    return () => clearInterval(minuteur);
+  }, [ouvert]);
 
   function repondre(question, itemImpose = null) {
     if (!question.trim()) return;
@@ -83,6 +116,10 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm">Assistant OETH</p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">Réponses automatiques · disponible 24 h/24</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${experts.ouvert ? "bg-emerald-400" : "bg-slate-400"}`} />
+                  {experts.texte}
+                </p>
               </div>
               <button
                 type="button"
@@ -158,6 +195,13 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
                     {r.label}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setRdvOuvert(true)}
+                  className="rounded-full bg-teal-400 hover:bg-teal-300 text-marine-950 text-[11px] font-bold px-2.5 py-1"
+                >
+                  👤 Parler à un expert
+                </button>
               </div>
               <form
                 onSubmit={(e) => {

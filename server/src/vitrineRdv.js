@@ -7,12 +7,24 @@ import db from "./db.js";
 import { envoyerMail, estEnvoiConfigure, adresseMailPole, telephonePole } from "./mail.js";
 
 // Créneaux proposés (heure de Paris), du lundi au vendredi, 45 minutes.
-// Surchargeables via RDV_CRENEAUX="09:30,10:30,14:00" sans toucher au code.
-const CRENEAUX = (process.env.RDV_CRENEAUX || "09:30,10:30,11:30,14:00,15:00,16:00")
-  .split(",")
+// Par défaut : horaires des experts, du lundi au vendredi de 8h45 à 18h
+// (heure de Paris), un créneau toutes les 45 minutes se terminant au plus
+// tard à 18h. Surchargeables via RDV_CRENEAUX="09:30,10:30,14:00".
+const DUREE_MINUTES = 45;
+export const HORAIRES_EXPERTS = { debut: "08:45", fin: "18:00" };
+
+function creneauxParDefaut() {
+  const enMinutes = (h) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
+  const liste = [];
+  for (let m = enMinutes(HORAIRES_EXPERTS.debut); m + DUREE_MINUTES <= enMinutes(HORAIRES_EXPERTS.fin); m += DUREE_MINUTES) {
+    liste.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  }
+  return liste;
+}
+
+const CRENEAUX = (process.env.RDV_CRENEAUX ? process.env.RDV_CRENEAUX.split(",") : creneauxParDefaut())
   .map((c) => c.trim())
   .filter((c) => /^\d{2}:\d{2}$/.test(c));
-const DUREE_MINUTES = 45;
 const HORIZON_JOURS = 45; // réservable jusqu'à ~6 semaines à l'avance
 
 const FONCTIONS = ["DRH / RRH", "Référent handicap", "Chargé(e) de mission handicap", "Dirigeant(e)", "Paie / comptabilité", "Autre"];
