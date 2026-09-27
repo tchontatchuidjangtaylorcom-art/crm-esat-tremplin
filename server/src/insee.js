@@ -300,8 +300,13 @@ export async function rechercherEntrepriseParSiren(siren) {
 // l'API publique).
 export async function rechercherEntreprisesParSecteur(
   { nafCodes, estAdministration } = {},
-  { departement, limite = 100 } = {}
+  { departement, limite = 100, effectifMin20 = false, exclure = null, pagesMax = 40 } = {}
 ) {
+  // `exclure` (Set de SIREN déjà connus) : les pages sont parcourues jusqu'à
+  // trouver `limite` entreprises NOUVELLES — sans ça, une recherche répétée
+  // renverrait toujours les mêmes premières pages, déjà importées.
+  // `effectifMin20` : tranches INSEE 12 (20-49 salariés) et au-delà, seuil
+  // d'assujettissement à l'OETH.
   const parPage = 25;
   const resultats = [];
   let page = 1;
@@ -309,7 +314,7 @@ export async function rechercherEntreprisesParSecteur(
   while (resultats.length < limite) {
     const params = new URLSearchParams({
       page: String(page),
-      per_page: String(Math.min(parPage, limite - resultats.length)),
+      per_page: String(exclure ? parPage : Math.min(parPage, limite - resultats.length)),
       etat_administratif: "A",
     });
     if (estAdministration) {
@@ -318,6 +323,7 @@ export async function rechercherEntreprisesParSecteur(
       params.set("activite_principale", nafCodes.join(","));
     }
     if (departement) params.set("departement", departement);
+    if (effectifMin20) params.set("tranche_effectif_salarie", "12,21,22,31,32,41,42,51,52,53");
 
     const reponse = await fetchAvecRetry(`${BASE_URL}?${params.toString()}`);
     if (!reponse.ok) {
@@ -335,11 +341,12 @@ export async function rechercherEntreprisesParSecteur(
     if (lot.length === 0) break;
 
     for (const r of lot) {
+      if (exclure?.has(r.siren)) continue;
       resultats.push(normaliserResultat(r));
       if (resultats.length >= limite) break;
     }
 
-    if (lot.length < parPage) break; // dernière page atteinte
+    if (lot.length < parPage || page >= pagesMax) break; // dernière page atteinte
     page += 1;
     // Pause entre deux pages, en plus du retry/backoff sur 429 ci-dessus.
     await attendre(DELAI_ENTRE_APPELS_MS);

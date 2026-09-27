@@ -76,6 +76,14 @@ export const api = {
       body: JSON.stringify({ categorie, lot, sirens, assigneA: assigneA || null, rechercheTelephoneIA }),
     }).then(handle),
 
+  getDemandeLeads: () => fetch(`${BASE}/leads/demande`).then(handle),
+  demanderLeads: (categorie, departement) =>
+    fetch(`${BASE}/leads/demande`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categorie: categorie || null, departement: departement || null }),
+    }).then(handle),
+
   lancerEnrichissementTelephones: (inclureDejaTentees = false) =>
     fetch(`${BASE}/leads/enrichir-telephones`, {
       method: "POST",

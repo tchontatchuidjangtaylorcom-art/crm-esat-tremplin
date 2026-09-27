@@ -129,6 +129,11 @@ function findEntreprise(id) {
   return db.data.entreprises.find((e) => e.id === id) || db.data.archives.find((e) => e.id === id);
 }
 
+// Les fiches ne stockent que le SIRET : le SIREN en est les 9 premiers chiffres.
+function sirenDe(entreprise) {
+  return entreprise.siren || (entreprise.siret ? entreprise.siret.slice(0, 9) : null);
+}
+
 function estDejaConnu(siren) {
   return (
     db.data.entreprises.find((e) => e.siret && e.siret.slice(0, 9) === siren) ||
@@ -1196,7 +1201,7 @@ app.post("/api/leads/secteur/rechercher", exigerAdmin, async (req, res) => {
       { nafCodes: categorie.nafCodes, estAdministration: categorie.estAdministration },
       { departement, limite }
     );
-    const connus = new Set([...db.data.entreprises, ...db.data.archives].map((e) => e.siren));
+    const connus = new Set([...db.data.entreprises, ...db.data.archives].map(sirenDe));
     const nouveaux = candidats.filter((c) => !connus.has(c.siren));
     res.json({ categorie: cle, categorieLabel: categorie.label, total: nouveaux.length, entreprises: nouveaux });
   } catch (e) {
@@ -1260,6 +1265,179 @@ app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
     fileEnrichissementImport = fileEnrichissementImport
       .then(() => enrichirTelephonesViaIA(creeesPourIa))
       .catch((e) => console.error("[ia] Échec de l'enrichissement téléphone en lot :", e.message));
+  }
+});
+
+// Demande de leads en libre-service par un agent : évite qu'un agent reste
+// sans fiches quand aucun manager n'est disponible pour lui en assigner.
+// 1) on lui attribue des fiches existantes non assignées du secteur choisi ;
+// 2) s'il en manque, on génère le complément depuis Sirene (mêmes critères
+//    que la vague par secteur, entreprises de 20 salariés et plus), en
+//    arrière-plan — plusieurs dizaines de secondes, trop long pour bloquer
+//    la requête HTTP (voir les 502 rencontrés sur les imports longs).
+// Garde-fou : pas de nouvelle demande tant que l'agent a encore
+// SEUIL_NOUVEAUX_DEMANDE fiches "nouveau" jamais traitées.
+const TAILLE_DEMANDE_LEADS = 20;
+const SEUIL_NOUVEAUX_DEMANDE = 10;
+// Suivi par agent (mémoire process, comme l'enrichissement en lot).
+const demandesLeads = new Map();
+
+function nouveauxNonTraites(utilisateurId) {
+  return db.data.entreprises.filter((e) => e.assigneA === utilisateurId && e.statut === "nouveau").length;
+}
+
+function etatDemandeLeads(utilisateurId) {
+  const nouveaux = nouveauxNonTraites(utilisateurId);
+  return {
+    taille: TAILLE_DEMANDE_LEADS,
+    seuil: SEUIL_NOUVEAUX_DEMANDE,
+    nouveauxNonTraites: nouveaux,
+    peutDemander: nouveaux < SEUIL_NOUVEAUX_DEMANDE,
+    ...(demandesLeads.get(utilisateurId) || { enCours: false }),
+  };
+}
+
+function correspondDepartement(entreprise, departement) {
+  if (!departement) return true;
+  const cp = String(entreprise.codePostal || "");
+  if (/^2[AB]$/i.test(departement)) return cp.startsWith("20");
+  return cp.startsWith(departement);
+}
+
+app.get("/api/leads/demande", exigerAuth, (req, res) => {
+  res.json(etatDemandeLeads(req.utilisateur.id));
+});
+
+app.post("/api/leads/demande", exigerAuth, async (req, res) => {
+  const utilisateur = req.utilisateur;
+  const etat = etatDemandeLeads(utilisateur.id);
+  if (etat.enCours) return res.status(409).json({ error: "Une demande est déjà en cours.", ...etat });
+  if (!etat.peutDemander) {
+    return res.status(409).json({
+      error: `Vous avez encore ${etat.nouveauxNonTraites} fiches « Nouveau » à traiter : une nouvelle demande est possible sous ${SEUIL_NOUVEAUX_DEMANDE}.`,
+      ...etat,
+    });
+  }
+
+  const cle = req.body.categorie ? String(req.body.categorie) : null;
+  const categorie = cle ? CATEGORIES[cle] : null;
+  if (cle && !categorie) return res.status(400).json({ error: "Catégorie inconnue." });
+  const departement = req.body.departement ? String(req.body.departement).trim().toUpperCase() : null;
+  if (departement && !/^(\d{2,3}|2[AB])$/.test(departement)) {
+    return res.status(400).json({ error: "Département invalide (ex : 75, 69, 2A, 971)." });
+  }
+
+  const maintenant = new Date().toISOString();
+  const nomAgent = utilisateur.prenom || utilisateur.email;
+
+  // 1) Fiches existantes non assignées : les entreprises assujetties
+  // (20 salariés et plus) et celles qui ont déjà un numéro d'abord.
+  const pool = db.data.entreprises
+    .filter(
+      (e) =>
+        !e.assigneA &&
+        e.statut === "nouveau" &&
+        correspondDepartement(e, departement) &&
+        (!cle ||
+          classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle === cle)
+    )
+    .sort((a, b) => (b.effectif >= 20) - (a.effectif >= 20) || Boolean(b.contact?.telephone) - Boolean(a.contact?.telephone))
+    .slice(0, TAILLE_DEMANDE_LEADS);
+
+  for (const e of pool) {
+    e.assigneA = utilisateur.id;
+    e.assignationVue = true;
+    e.dateAssignation = maintenant;
+    e.commentaires.unshift({
+      id: nanoid(),
+      date: maintenant,
+      auteur: "Système",
+      texte: `Fiche attribuée automatiquement à ${nomAgent}, à sa demande.`,
+    });
+  }
+  if (pool.length) await db.write();
+
+  const manquants = TAILLE_DEMANDE_LEADS - pool.length;
+  // Sans secteur choisi, on ne génère pas : on ne sait pas quoi chercher.
+  const generer = manquants > 0 && Boolean(categorie);
+
+  demandesLeads.set(utilisateur.id, {
+    enCours: generer,
+    attribues: pool.length,
+    generes: 0,
+    aGenerer: generer ? manquants : 0,
+    categorieLabel: categorie?.label || null,
+    erreur: null,
+    message:
+      manquants > 0 && !categorie
+        ? "Plus assez de fiches disponibles sans secteur précis : choisissez un secteur pour lancer la génération de nouvelles fiches."
+        : null,
+    demarre: maintenant,
+    termine: generer ? null : maintenant,
+  });
+  res.status(202).json(etatDemandeLeads(utilisateur.id));
+  if (!generer) return;
+
+  // 2) Génération du complément, en arrière-plan.
+  const suivi = demandesLeads.get(utilisateur.id);
+  const lot = `Demande ${nomAgent} — ${categorie.label}${departement ? ` (${departement})` : ""} — ${maintenant.slice(0, 10)}`;
+  const creees = [];
+  try {
+    const connus = new Set([...db.data.entreprises, ...db.data.archives].map(sirenDe));
+    // Un peu plus que nécessaire : certaines fiches peuvent être radiées
+    // entre la recherche et la création.
+    // Le filtre "departement" de Sirene retient les entreprises ayant UN
+    // établissement dans le département, alors que la fiche reprend l'adresse
+    // du siège : on ne garde que celles dont le siège y est, pour qu'une
+    // demande "78" donne bien des fiches dans le 78 (d'où une recherche plus
+    // large quand un département est demandé).
+    const candidats = (
+      await rechercherEntreprisesParSecteur(
+        { nafCodes: categorie.nafCodes, estAdministration: categorie.estAdministration },
+        {
+          departement,
+          limite: departement ? manquants * 4 : manquants + 5,
+          effectifMin20: !categorie.estAdministration,
+          exclure: connus,
+        }
+      )
+    ).filter((c) => correspondDepartement(c, departement));
+    for (const candidat of candidats) {
+      if (creees.length >= manquants) break;
+      try {
+        const { existant, archive, entreprise } = await creerLeadDepuisSiren(candidat.siren, {
+          lot,
+          categorieForcee: cle,
+          assigneA: utilisateur.id,
+          utilisateur,
+        });
+        if (!existant && !archive && entreprise) {
+          creees.push(db.data.entreprises.find((e) => e.id === entreprise.id));
+          suivi.generes = creees.length;
+        }
+      } catch (e) {
+        console.error(`[demande-leads] Échec création ${candidat.siren} :`, e.message);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    if (creees.length < manquants) {
+      suivi.message = `Seulement ${creees.length} nouvelle(s) fiche(s) trouvée(s) pour ${categorie.label}${
+        departement ? ` dans le ${departement}` : ""
+      } : essayez un autre secteur ou département.`;
+    }
+  } catch (e) {
+    suivi.erreur = e.message;
+  } finally {
+    suivi.enCours = false;
+    suivi.termine = new Date().toISOString();
+  }
+
+  // Numéros de téléphone : même enrichissement IA qu'à l'import d'une vague.
+  const aEnrichir = creees.filter(Boolean);
+  if (aEnrichir.length && estRechercheIaConfiguree()) {
+    fileEnrichissementImport = fileEnrichissementImport
+      .then(() => enrichirTelephonesViaIA(aEnrichir))
+      .catch((e) => console.error("[ia] Échec de l'enrichissement téléphone (demande de leads) :", e.message));
   }
 });
 

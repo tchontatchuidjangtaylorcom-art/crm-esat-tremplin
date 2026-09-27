@@ -8,6 +8,7 @@ import RechercheSiren from "../components/RechercheSiren.jsx";
 import DialerPanel from "../components/DialerPanel.jsx";
 import UserMenu from "../components/UserMenu.jsx";
 import Sidebar from "../components/Sidebar.jsx";
+import DemandeLeads from "../components/DemandeLeads.jsx";
 import ImportLot from "../components/ImportLot.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import KpiObjectifMensuel from "../components/KpiObjectifMensuel.jsx";
@@ -333,6 +334,9 @@ export default function Dashboard() {
           <ImportLot categories={categories} agents={agents} onImporte={charger} />
         </div>
       )}
+
+      {/* Demande de leads en libre-service, pour les agents. */}
+      {!estAdmin && <DemandeLeads categories={categories} onMaj={charger} />}
 
       <div className="flex flex-col lg:flex-row gap-6">
         <Sidebar
