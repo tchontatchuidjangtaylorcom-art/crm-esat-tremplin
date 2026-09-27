@@ -71,6 +71,7 @@ export default function EnteteVitrine({ onSimuler }) {
           className="text-sm font-semibold tracking-tight transition-colors shrink-0 text-slate-900 dark:text-white"
         >
           Pôle OETH <span className="text-marine-500 dark:text-white/50">/</span> AGEFIPH{" "}
+          <span className="text-marine-500 dark:text-white/50">/</span> FIPHFP
         </Link>
 
         <nav className="hidden lg:flex items-center gap-1">
