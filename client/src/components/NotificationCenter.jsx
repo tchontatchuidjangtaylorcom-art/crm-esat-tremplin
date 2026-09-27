@@ -207,7 +207,7 @@ export default function NotificationCenter() {
                 >
                   <span aria-hidden>📋</span>
                   <span className="text-slate-700 dark:text-slate-200 truncate">
-                    Fiche Potentielle à finaliser : <strong>{f.nom}</strong>
+                    Client Potentiel (CP) à finaliser : <strong>{f.nom}</strong>
                     {f.soumisePar ? ` (${f.soumisePar})` : ""}
                   </span>
                 </button>

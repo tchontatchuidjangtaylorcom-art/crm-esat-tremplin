@@ -49,7 +49,12 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
   const [montantTaxesAnnonce, setMontantTaxesAnnonce] = useState(
     Math.round(entreprise.oeth?.montantEstime || 0)
   );
-  const [montantAFaire, setMontantAFaire] = useState("");
+  // Montant de prestations EA / ESAT / TIH permettant d'atteindre le seuil de
+  // main-d'œuvre (600 × SMIC), à 80 % de main-d'œuvre par défaut — modifiable.
+  const [montantAFaire, setMontantAFaire] = useState(() => {
+    const seuil = entreprise.oeth?.bareme?.seuilSousTraitance;
+    return seuil && entreprise.oeth?.deficit > 0 ? Math.round(seuil / 0.8) : "";
+  });
   const [remarques, setRemarques] = useState("");
 
   const [enCours, setEnCours] = useState(false);
@@ -95,6 +100,8 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
         personneEnChargeNom: entrepriseCourante.contact?.nom || "",
         personneEnChargeFonction: entrepriseCourante.contact?.fonction || "",
         nombreTravailleursHandicapes: entrepriseCourante.effectifBeneficiaire || 0,
+        unitesManquantes: entrepriseCourante.oeth?.deficit ?? null,
+        contactEmail: entrepriseCourante.contact?.email || "",
         montantTaxesAnnonce,
         montantAFaire,
         remarques,
@@ -115,7 +122,7 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
         onClick={(ev) => ev.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="font-semibold text-slate-800 dark:text-slate-100">Fiche de Suivi Prospect</h2>
+          <h2 className="font-semibold text-slate-800 dark:text-slate-100">Fiche de qualification — Client Potentiel (CP)</h2>
           <button
             onClick={onFermer}
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl leading-none"
@@ -224,7 +231,7 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
               Contact
             </h3>
             <label className="block text-xs text-slate-500 dark:text-slate-400">
-              Email
+              Adresse e-mail d'envoi du dossier
               <input
                 type="email"
                 value={emailSaisi}
@@ -235,7 +242,7 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs text-slate-500 dark:text-slate-400">
-                Nom de la personne en charge
+                Nom de l'interlocuteur
                 <input
                   type="text"
                   value={contactNomSaisi}
@@ -245,7 +252,7 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
                 />
               </label>
               <label className="block text-xs text-slate-500 dark:text-slate-400">
-                Fonction
+                Poste (Comptabilité, Direction, RH…)
                 <input
                   type="text"
                   value={contactFonctionSaisie}
@@ -255,6 +262,12 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
                 />
               </label>
             </div>
+
+            <datalist id="postes-interlocuteur-cp">
+              {["Comptabilité", "Direction générale", "Ressources humaines (RH)", "Paie", "Référent handicap", "Directeur administratif et financier"].map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
 
             {/* Gestion dynamique des numéros de téléphone (composant partagé avec la fiche entreprise) */}
             <GestionTelephones entreprise={entrepriseCourante} onMaj={majEntreprise} />
@@ -297,9 +310,16 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
               />
             </label>
 
+            {oeth?.assujetti && (
+              <p className="text-xs rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 text-slate-600 dark:text-slate-300">
+                Nombre d'unités manquantes : <strong>{oeth.deficit}</strong> · régime{" "}
+                <strong>{oeth.surcontribution ? "majoré (1 500 × SMIC)" : `classique (${oeth.coefficient ?? "—"} × SMIC)`}</strong>
+              </p>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <label className="block text-xs text-slate-500 dark:text-slate-400">
-                Montant de taxes annoncé (€)
+                Montant estimé de la contribution (€)
                 <input
                   type="number"
                   min={0}
@@ -309,7 +329,7 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
                 />
               </label>
               <label className="block text-xs text-slate-500 dark:text-slate-400">
-                Montant à faire (€)
+                Montant estimé de la solution EA / ESAT / TIH (€ HT)
                 <input
                   type="number"
                   min={0}
@@ -321,7 +341,7 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
             </div>
 
             <label className="block text-xs text-slate-500 dark:text-slate-400">
-              Remarques sur le client
+              Commentaires
               <textarea
                 value={remarques}
                 onChange={(e) => setRemarques(e.target.value)}
@@ -335,7 +355,7 @@ export default function FicheSuiviProspect({ entreprise, prenomAgent, onMaj, onV
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              La validation bascule automatiquement le dossier sur « Fiche Potentielle ».
+              La validation bascule le dossier en « Client Potentiel (CP) » et notifie immédiatement l'administrateur.
             </p>
             <div className="flex gap-2">
               <button

@@ -142,6 +142,28 @@ function calculerObligationBrute(effectif, effectifBeneficiaire) {
     contributionBrute: sim.contributionBrute,
     baseMaximale: sim.baseMaximale,
     montantEstime: Math.round(sim.contributionNette),
+    bareme: baremeParUnite(sim.smicHoraire),
+  };
+}
+
+// Barème "par unité manquante" affiché aux agents : les deux régimes de
+// contribution (classique par tranche d'effectif, et majorée) et le seuil de
+// sous-traitance qui permet d'écarter la contribution majorée.
+export function baremeParUnite(smicHoraire = SMIC_HORAIRE_BRUT) {
+  const arrondi = (n) => Math.round(n * 100) / 100;
+  return {
+    smicHoraire,
+    classique: TRANCHES_COEFFICIENT.map((t) => ({
+      tranche: t.label,
+      coefficient: t.coefficient,
+      montantParUnite: arrondi(t.coefficient * smicHoraire),
+    })),
+    majoree: { coefficient: COEFFICIENT_SURCONTRIBUTION, montantParUnite: arrondi(COEFFICIENT_SURCONTRIBUTION * smicHoraire) },
+    // Montant de main-d'œuvre (et non d'heures) confié à une EA / un ESAT /
+    // un TIH sur la période, au-delà duquel la contribution majorée ne
+    // s'applique pas.
+    seuilSousTraitance: arrondi(SEUIL_SOUS_TRAITANCE_SMIC * smicHoraire),
+    tauxDeductionSousTraitance: TAUX_DEDUCTION_SOUS_TRAITANCE,
   };
 }
 

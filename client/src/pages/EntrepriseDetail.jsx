@@ -455,7 +455,7 @@ export default function EntrepriseDetail() {
             className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-sm font-medium px-3 py-2 hover:bg-amber-100 dark:hover:bg-amber-900/40"
             title="Numériser la fiche de suivi prospect papier"
           >
-            📝 Fiche de suivi prospect
+            📝 Qualifier en Client Potentiel (CP)
           </button>
           <a
             href={`/api/entreprises/${id}/rapport-pdf`}
@@ -549,7 +549,7 @@ export default function EntrepriseDetail() {
           className="fixed top-6 right-6 z-50 flex items-start gap-2.5 rounded-xl bg-amber-600 text-white text-sm font-medium px-4 py-3 shadow-lg"
         >
           <span className="text-lg leading-none">✓</span>
-          <span>Fiche validée — dossier passé en « Fiche Potentielle ».</span>
+          <span>Fiche validée — dossier passé en « Client Potentiel (CP) », administrateur notifié.</span>
         </div>
       )}
 
@@ -1243,9 +1243,146 @@ export default function EntrepriseDetail() {
                 )}
               </div>
             )}
+
+            {oeth.bareme && <BaremeParUnite bareme={oeth.bareme} effectif={entreprise.effectif} surcontribution={oeth.surcontribution} />}
+            {!oeth.conforme && oeth.bareme && <SolutionAlternative oeth={oeth} effectif={entreprise.effectif} />}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const euros = (n) => `${Number(n || 0).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+
+// Index de la tranche d'effectif (20-249 / 250-749 / 750+) de l'entreprise.
+function indexTranche(effectif) {
+  if (effectif >= 750) return 2;
+  if (effectif >= 250) return 1;
+  return 0;
+}
+
+// Les deux régimes de contribution, par unité manquante (valeurs fournies par
+// le moteur serveur — oeth.bareme — au SMIC de l'exercice).
+function BaremeParUnite({ bareme, effectif, surcontribution }) {
+  const actif = surcontribution ? null : indexTranche(effectif);
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+        Barème par unité manquante (SMIC {euros(bareme.smicHoraire)})
+      </p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+        {bareme.classique.map((t, i) => (
+          <div
+            key={t.tranche}
+            className={`rounded-lg border px-3 py-2 ${
+              actif === i
+                ? "border-orange-400 bg-orange-50 dark:bg-orange-950/30 ring-1 ring-orange-300"
+                : "border-slate-200 dark:border-slate-700"
+            }`}
+          >
+            <p className="text-slate-500 dark:text-slate-400">Classique · {t.tranche} salariés</p>
+            <p className="font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+              {t.coefficient} × SMIC = {euros(t.montantParUnite)}
+            </p>
+          </div>
+        ))}
+        <div
+          className={`rounded-lg border px-3 py-2 ${
+            surcontribution ? "border-red-400 bg-red-50 dark:bg-red-950/30 ring-1 ring-red-300" : "border-slate-200 dark:border-slate-700"
+          }`}
+        >
+          <p className="text-slate-500 dark:text-slate-400">Majorée · aucune action</p>
+          <p className="font-bold text-red-700 dark:text-red-400 mt-0.5">
+            {bareme.majoree.coefficient} × SMIC = {euros(bareme.majoree.montantParUnite)}
+          </p>
+        </div>
+      </div>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+        Contribution classique : dès qu'une action existe (au moins un bénéficiaire employé, sous-traitance d'au moins{" "}
+        {euros(bareme.seuilSousTraitance)} ou accord agréé). Contribution majorée : aucune action sur plus de 3 années
+        consécutives, quelle que soit la taille de l'entreprise.
+      </p>
+    </div>
+  );
+}
+
+// Solution alternative : sous-traitance auprès d'une EA, d'un ESAT (ex. ESAT
+// Tremplin) ou d'un TIH. Le seuil légal est un MONTANT de main-d'œuvre
+// (600 × SMIC horaire), pas un nombre d'heures. Le montant de facture
+// nécessaire dépend de la part de main-d'œuvre dans le prix (hypothèse
+// réglable, à confirmer avec l'attestation annuelle de la structure).
+function SolutionAlternative({ oeth, effectif }) {
+  const [partMainOeuvre, setPartMainOeuvre] = useState(80);
+  const { bareme, deficit, surcontribution } = oeth;
+  const smic = bareme.smicHoraire;
+  const seuil = bareme.seuilSousTraitance;
+  const part = Math.min(100, Math.max(10, Number(partMainOeuvre) || 80)) / 100;
+  const factureNecessaire = Math.round((seuil / part) * 100) / 100;
+  const deduction = Math.round(seuil * bareme.tauxDeductionSousTraitance * 100) / 100;
+
+  // Contribution si la sous-traitance est mise en place : coefficient normal
+  // de la tranche, puis déduction de 30 % plafonnée à 50 % de la brute (75 %
+  // si le taux d'emploi direct atteint 3 %).
+  const coefClassique = bareme.classique[indexTranche(effectif)].coefficient;
+  const bruteAvecAction = Math.round(deficit * coefClassique * smic * 100) / 100;
+  const plafond = bruteAvecAction * ((oeth.tauxEmploi ?? 0) >= 3 ? 0.75 : 0.5);
+  const netteAvecAction = Math.max(0, Math.round((bruteAvecAction - Math.min(deduction, plafond)) * 100) / 100);
+  const ecart = Math.max(0, oeth.montantEstime - netteAvecAction);
+
+  return (
+    <div className="rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+        Solution alternative — sous-traitance EA / ESAT / TIH (ex. ESAT Tremplin)
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5 text-sm">
+        <span className="px-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-emerald-300 font-semibold">600 × {euros(smic)}</span>
+        <span className="text-slate-400">=</span>
+        <span className="px-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-emerald-300 font-semibold">
+          {euros(seuil)} de main-d'œuvre
+        </span>
+        <span className="text-slate-400">÷</span>
+        <label className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-emerald-300 font-semibold">
+          <input
+            type="number"
+            min="10"
+            max="100"
+            value={partMainOeuvre}
+            onChange={(e) => setPartMainOeuvre(e.target.value)}
+            className="w-12 bg-transparent text-right outline-none"
+            aria-label="Part de main-d'œuvre dans le prix (%)"
+          />
+          % de main-d'œuvre
+        </label>
+        <span className="text-slate-400">≈</span>
+        <span className="px-2 py-1 rounded-md bg-emerald-700 text-white font-bold">{euros(factureNecessaire)} HT de prestations</span>
+      </div>
+      <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1 leading-relaxed">
+        <li>
+          • Atteindre {euros(seuil)} de main-d'œuvre confiée sur la période <strong>écarte la contribution majorée</strong> :
+          on revient au coefficient {coefClassique} de la tranche.
+        </li>
+        <li>
+          • Déduction supplémentaire : 30 % de la main-d'œuvre, soit <strong>{euros(deduction)}</strong> (plafonnée à{" "}
+          {(oeth.tauxEmploi ?? 0) >= 3 ? "75" : "50"} % de la contribution brute).
+        </li>
+        {surcontribution ? (
+          <li>
+            • Contribution estimée : <strong>{euros(oeth.montantEstime)}</strong> aujourd'hui (majorée) →{" "}
+            <strong>{euros(netteAvecAction)}</strong> avec la solution ({deficit} × {coefClassique} × {euros(smic)} −{" "}
+            {euros(Math.min(deduction, plafond))}), soit <strong className="text-emerald-700 dark:text-emerald-400">{euros(ecart)} d'écart</strong>.
+          </li>
+        ) : (
+          <li>
+            • Contribution estimée : <strong>{euros(oeth.montantEstime)}</strong> → <strong>{euros(netteAvecAction)}</strong>{" "}
+            après déduction, soit <strong className="text-emerald-700 dark:text-emerald-400">{euros(ecart)} d'écart</strong>.
+          </li>
+        )}
+      </ul>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+        Seuil exprimé en montant de main-d'œuvre (600 fois le SMIC horaire), pas en heures. La part de main-d'œuvre et la
+        déduction sont à confirmer avec l'attestation annuelle de la structure.
+      </p>
     </div>
   );
 }

@@ -113,7 +113,7 @@ const ISSUES_APPEL = {
 };
 
 const SORTIES_DOSSIER = {
-  fiche: "Fiche Potentielle",
+  fiche: "Client Potentiel (CP)",
   fiche_one_shot: "Fiche one-shot → atelier",
   conforme: "Conforme — dossier réglé",
   refus: "Refus (dossier clos)",
@@ -1716,6 +1716,8 @@ app.post("/api/entreprises/:id/fiche-prospection", exigerAuth, chargerEntreprise
     montantTaxesAnnonce,
     montantAFaire,
     remarques,
+    unitesManquantes,
+    contactEmail,
   } = req.body;
 
   const fiche = {
@@ -1732,6 +1734,8 @@ app.post("/api/entreprises/:id/fiche-prospection", exigerAuth, chargerEntreprise
     montantTaxesAnnonce: Number(montantTaxesAnnonce) || 0,
     montantAFaire: Number(montantAFaire) || 0,
     remarques: String(remarques || "").trim(),
+    unitesManquantes: Number.isFinite(Number(unitesManquantes)) ? Number(unitesManquantes) : null,
+    contactEmail: String(contactEmail || "").trim(),
   };
 
   entreprise.fichesProspection = entreprise.fichesProspection || [];
@@ -1745,9 +1749,14 @@ app.post("/api/entreprises/:id/fiche-prospection", exigerAuth, chargerEntreprise
     issue: "fiche",
     issueLabel: SORTIES_DOSSIER.fiche,
     details:
-      `Fiche Potentielle soumise par ${fiche.agentNom}` +
+      `Client Potentiel (CP) qualifié par ${fiche.agentNom}` +
       (fiche.numeroDossier ? ` (dossier n°${fiche.numeroDossier})` : "") +
-      ` — ${fiche.nombreTravailleursHandicapes} travailleur(s) handicapé(s), ${fiche.montantTaxesAnnonce} € annoncés.` +
+      ` — ${fiche.nombreTravailleursHandicapes} travailleur(s) handicapé(s)` +
+      (fiche.unitesManquantes != null ? `, ${fiche.unitesManquantes} unité(s) manquante(s)` : "") +
+      `, contribution estimée ${fiche.montantTaxesAnnonce} €` +
+      (fiche.montantAFaire ? `, solution EA/ESAT/TIH ≈ ${fiche.montantAFaire} € HT` : "") +
+      (fiche.contactEmail ? `, dossier à envoyer à ${fiche.contactEmail}` : "") +
+      "." +
       (fiche.remarques ? ` Remarques : ${fiche.remarques}` : ""),
     dateProgrammee: null,
     dureeSecondes: null,
