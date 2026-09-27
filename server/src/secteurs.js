@@ -69,7 +69,10 @@ export const CATEGORIES = {
   industrie: {
     label: "Industrie / Production",
     motsCles: ["industrie", "production", "fabrication", "usine", "métallurgie"],
-    nafCodes: ["25.11Z", "28.99Z"],
+    // 25.11Z structures métalliques, 25.62B mécanique industrielle, 28.99B machines
+    // spécialisées, 22.29A pièces techniques en plastique, 33.12Z réparation de
+    // machines. (28.99Z, utilisé auparavant, n'existe pas : Sirene répondait 400.)
+    nafCodes: ["25.11Z", "25.62B", "28.99B", "22.29A", "33.12Z"],
     argumentaire:
       "Étudier d'abord l'aménagement de poste (RQTH) ; à défaut, la sous-traitance ESAT/EA reste une solution rapide.",
   },
