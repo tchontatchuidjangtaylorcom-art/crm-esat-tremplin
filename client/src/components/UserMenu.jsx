@@ -44,7 +44,9 @@ export default function UserMenu({ theme, onBasculerTheme }) {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    // flex-wrap : sur téléphone, les boutons passent à la ligne au lieu
+    // d'élargir la page (ce qui décalait le panneau des outils de vente).
+    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
       {utilisateur?.role === "admin" && (
         <>
           <select

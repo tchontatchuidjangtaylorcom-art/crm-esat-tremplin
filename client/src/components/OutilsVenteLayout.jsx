@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import BarreOutilsVente from "./BarreOutilsVente.jsx";
 import PanelOutilsVente from "./PanelOutilsVente.jsx";
+import { api } from "../api.js";
+import { prechargerContenusAide } from "../useContenuAide.js";
 
 // Enveloppe l'ensemble de l'application (tableau de bord ET fiche
 // entreprise) : la barre d'outils reste accessible partout, et le panneau
@@ -16,6 +18,16 @@ export default function OutilsVenteLayout({ children }) {
   const [outil, setOutil] = useState(() =>
     location.pathname.startsWith("/entreprise/") ? "argumentaire" : null
   );
+
+  // Argumentaire, script et modèles de mails téléchargés dès l'ouverture du
+  // CRM : ils s'affichent sans attente au premier clic, même sur mobile.
+  useEffect(() => {
+    prechargerContenusAide([
+      ["argumentaire-agefiph", api.getArgumentaireAgefiph],
+      ["script-vente", api.getScriptVente],
+      ["modeles-mails", api.getModelesMails],
+    ]);
+  }, []);
 
   // Permet à n'importe quel composant (ex: la fiche entreprise) d'ouvrir un
   // panneau sans dépendre directement de cet état, via un simple événement —
@@ -48,7 +60,10 @@ export default function OutilsVenteLayout({ children }) {
   }, [outil]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    // overflow-x-clip : aucun élément ne peut élargir la page au-delà de
+    // l'écran (sur Chrome Android, cela élargissait aussi le panneau plein
+    // écran des outils, dont le bouton ✕ sortait alors de l'écran).
+    <div className="min-h-screen flex flex-col overflow-x-clip">
       <div className="bandeau-tricolore">
         <span className="bg-marine-800" />
         <span className="bg-white" />
@@ -61,7 +76,7 @@ export default function OutilsVenteLayout({ children }) {
           <>
             {/* Mobile/tablette : panneau plein écran superposé, toujours
                 visible immédiatement quel que soit le défilement en cours. */}
-            <div className="lg:hidden fixed inset-0 z-50 bg-white dark:bg-slate-900 overflow-y-auto">
+            <div className="lg:hidden fixed inset-0 z-50 w-full max-w-[100vw] bg-white dark:bg-slate-900 overflow-y-auto overflow-x-hidden">
               <PanelOutilsVente outil={outil} onFermer={() => setOutil(null)} />
             </div>
             {/* Desktop : colonne dockée à droite, comme avant. */}
