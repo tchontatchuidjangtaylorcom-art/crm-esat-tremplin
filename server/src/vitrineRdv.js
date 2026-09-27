@@ -60,6 +60,9 @@ function creneauxLibres(dateIso) {
   return CRENEAUX.filter((h) => !pris.has(h));
 }
 
+// Signature normalisée des accusés de réception (sans adresse postale).
+const signature = () => `— Pôle OETH / AGEFIPH\n✉️ ${adresseMailPole()}${telephonePole() ? `\n📞 ${telephonePole()}` : ""}`;
+
 const texte = (v, max = 200) => String(v || "").trim().slice(0, max);
 const emailValide = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -157,7 +160,7 @@ export function enregistrerRoutesVitrineRdv(app) {
       texteVisiteur:
         `Bonjour ${prenom},\n\nVotre rendez-vous est bien enregistré : ${quand}.\n` +
         `Un expert vous contactera à cette date (par téléphone ou visioconférence, les informations de connexion vous seront communiquées).\n\n` +
-        `Pour modifier ou annuler, répondez simplement à ce message${telephonePole() ? ` ou appelez-nous au ${telephonePole()}` : ""}.\n\n— Pôle OETH / AGEFIPH`,
+        `Pour modifier ou annuler, répondez simplement à ce message${telephonePole() ? ` ou appelez-nous au ${telephonePole()}` : ""}.\n\n${signature()}`,
     });
 
     res.json({ ok: true, date, heure, dureeMinutes: DUREE_MINUTES });
@@ -210,7 +213,7 @@ export function enregistrerRoutesVitrineRdv(app) {
       sujetVisiteur: "Nous avons bien reçu votre demande de démo",
       texteVisiteur:
         `Bonjour ${demande.prenom},\n\nMerci pour votre demande. Un expert revient vers vous rapidement pour organiser la démonstration ` +
-        `(${demande.sujets.join(", ")}).\n\n— Pôle OETH / AGEFIPH`,
+        `(${demande.sujets.join(", ")}).\n\n${signature()}`,
     });
 
     res.json({ ok: true });

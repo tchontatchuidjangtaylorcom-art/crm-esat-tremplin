@@ -9,6 +9,6 @@
 export function construireSignature({ statutMail } = {}) {
   const ligneEmail = statutMail?.adresse ? `\n✉️ ${statutMail.adresse}` : "";
   const ligneTelephone = statutMail?.telephone ? `\n📞 ${statutMail.telephone}` : "";
-  const ligneAdresse = statutMail?.adressePostale ? `\n📍 ${statutMail.adressePostale}` : "";
-  return `— Pôle OETH / AGEFIPH${ligneEmail}${ligneTelephone}${ligneAdresse}`;
+  // Pas d'adresse postale : les bureaux changent, un conseiller la communique.
+  return `— Pôle OETH / AGEFIPH${ligneEmail}${ligneTelephone}`;
 }

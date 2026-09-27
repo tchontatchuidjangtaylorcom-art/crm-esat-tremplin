@@ -34,7 +34,6 @@ import {
   envoyerMail,
   signatureMail,
   adresseMailPole,
-  adressePostalePole,
   telephonePole,
   verifierConnexionSMTP,
 } from "./mail.js";
@@ -693,7 +692,7 @@ app.post("/api/vitrine/synthese-pdf", async (req, res) => {
       saisie,
       simulation: simulerContributionOeth(saisie),
       nomEntreprise,
-      poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
+      poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="simulation-oeth-${saisie.annee}.pdf"`);
@@ -741,6 +740,23 @@ app.post("/api/vitrine/contact", async (req, res) => {
       replyTo: email,
       fromName: "Simulateur OETH — landing page",
     });
+    // Accusé de réception au visiteur, envoyé depuis la boîte du pôle
+    // (contact@oeth-fiph.fr) ; un échec ici n'annule pas la demande, déjà
+    // transmise au pôle.
+    try {
+      await envoyerMail({
+        to: email,
+        subject: "Nous avons bien reçu votre demande — Pôle OETH / AGEFIPH",
+        text:
+          `Bonjour ${nom},\n\n` +
+          `Merci pour votre message${entreprise ? ` concernant ${entreprise}` : ""}. Un conseiller du pôle vous répond rapidement.\n\n` +
+          `Pour toute précision, répondez simplement à cet e-mail${telephonePole() ? ` ou appelez-nous au ${telephonePole()}` : ""}.\n\n` +
+          `— Pôle OETH / AGEFIPH\n✉️ ${adresseMailPole()}${telephonePole() ? `\n📞 ${telephonePole()}` : ""}`,
+        fromName: "Pôle OETH / AGEFIPH",
+      });
+    } catch (e) {
+      console.error("[vitrine] Accusé de réception impossible :", e.message);
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(502).json({ error: e.message });
@@ -1751,7 +1767,7 @@ app.get("/api/entreprises/:id/rapport-pdf", exigerAuth, chargerEntrepriseAutoris
       entreprise,
       oeth: entreprise.oeth,
       categorie: entreprise.categorie,
-      poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
+      poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
       genereParNom: req.utilisateur.prenom || req.utilisateur.nom || req.utilisateur.email,
     });
     const nomFichier = `rapport-${(entreprise.nom || "entreprise").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
@@ -1772,7 +1788,6 @@ app.get("/api/emails/statut", (req, res) => {
     adresse: adresseMailPole(),
     signature: signatureMail(),
     telephone: telephonePole(),
-    adressePostale: adressePostalePole(),
   });
 });
 
@@ -1843,7 +1858,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     const pdf = await genererSynthesePdf({
       entreprise,
       oeth: calculerObligationOeth(entreprise),
-      poleInfo: { email: adresseMailPole(), telephone: telephonePole(), adressePostale: adressePostalePole() },
+      poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
     });
     const nomFichier = `synthese-oeth-${(entreprise.nom || "entreprise").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
     piecesJointesEnvoi = [{ filename: nomFichier, content: pdf, contentType: "application/pdf" }];

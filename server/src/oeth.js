@@ -111,41 +111,37 @@ export function calculerNeutralisation(dateCreation, maintenant = new Date()) {
   };
 }
 
-// Calcule l'obligation OETH hors neutralisation, à partir du seul effectif.
+// Calcule l'obligation OETH hors neutralisation. Délègue au même moteur que le
+// simulateur public (simulerContributionOeth) : mêmes tranches (20-249 /
+// 250-749 / 750+), même règle de contribution majorée (1 500 × SMIC sans
+// aucune action), même SMIC de l'exercice en cours — une seule formule pour
+// le site, les fiches CRM, les mails et les PDF. Le CRM ne connaît pas les
+// déductions de l'entreprise : le montant est donc la contribution avant
+// déductions (sous-traitance, ECAP, dépenses), à affiner avec l'entreprise.
 function calculerObligationBrute(effectif, effectifBeneficiaire) {
-  const assujetti = Number.isFinite(effectif) && effectif >= SEUIL_ASSUJETTISSEMENT;
-  const beneficiairesRecrutes = Math.max(0, Number(effectifBeneficiaire) || 0);
-  const unitesRequises = calculerUnitesRequises(effectif);
-  const deficit = assujetti ? Math.max(0, unitesRequises - beneficiairesRecrutes) : 0;
-  const conforme = assujetti && deficit === 0;
-  const surcontribution = assujetti && unitesRequises > 0 && beneficiairesRecrutes === 0;
-
-  let coefficient = null;
-  let tranche = null;
-  if (assujetti && deficit > 0) {
-    if (surcontribution) {
-      coefficient = COEFFICIENT_SURCONTRIBUTION;
-    } else {
-      const t = trancheEffectif(effectif);
-      coefficient = t.coefficient;
-      tranche = t.label;
-    }
-  }
-
-  const montantEstime = coefficient ? Math.round(deficit * coefficient * SMIC_HORAIRE_BRUT) : 0;
+  const exercice = exerciceParDefaut();
+  const sim = simulerContributionOeth({
+    effectif,
+    boeth: effectifBeneficiaire,
+    smicHoraire: smicPourExercice(exercice),
+  });
 
   return {
     seuilAssujettissement: SEUIL_ASSUJETTISSEMENT,
-    assujetti,
-    unitesRequises,
-    beneficiairesRecrutes,
-    deficit,
-    conforme,
-    surcontribution,
-    tranche,
-    coefficient,
-    tauxHoraireSmic: SMIC_HORAIRE_BRUT,
-    montantEstime,
+    assujetti: sim.assujetti,
+    unitesRequises: sim.quota,
+    beneficiairesRecrutes: sim.boeth,
+    deficit: sim.manque,
+    conforme: sim.conforme,
+    surcontribution: sim.surcontribution,
+    tranche: sim.surcontribution ? null : sim.tranche,
+    coefficient: sim.coefficient,
+    tauxHoraireSmic: sim.smicHoraire,
+    exercice,
+    tauxEmploi: sim.tauxEmploi,
+    contributionBrute: sim.contributionBrute,
+    baseMaximale: sim.baseMaximale,
+    montantEstime: Math.round(sim.contributionNette),
   };
 }
 

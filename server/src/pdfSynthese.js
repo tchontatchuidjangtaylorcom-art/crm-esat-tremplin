@@ -34,7 +34,7 @@ function formatDateFr(iso) {
 
 // `entreprise` : fiche brute (nom, adresse, effectif...). `oeth` : résultat
 // de calculerObligationOeth() pour cette entreprise. `poleInfo` : { email,
-// telephone, adressePostale }. Signature de pied de page normalisée et
+// telephone } (jamais d'adresse postale). Signature de pied de page normalisée et
 // uniforme (identité générale du pôle uniquement) — jamais de nom d'agent
 // individuel, même logique que client/src/mailSignature.js côté mail.
 export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
@@ -70,7 +70,7 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
       .fillColor(GRIS_CLAIR)
       .font("Helvetica")
       .fontSize(8.5)
-      .text(`${poleInfo.adressePostale}\n${poleInfo.email}  ·  ${poleInfo.telephone}`, largeurPage - 250, 32, {
+      .text(`${poleInfo.email}\n${poleInfo.telephone}`, largeurPage - 250, 32, {
         width: 200,
         align: "right",
       });
@@ -128,6 +128,19 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
       ["Unités bénéficiaires requises (6 %)", `${oeth.unitesRequises}`],
       ["Travailleurs handicapés déjà employés", `${oeth.beneficiairesRecrutes}`],
       ["Déficit d'unités bénéficiaires", `${oeth.deficit}`],
+      // Détail du calcul (même moteur que le simulateur public, voir oeth.js).
+      ...(oeth.assujetti && oeth.deficit > 0 && oeth.coefficient
+        ? [
+            [
+              "Coefficient appliqué",
+              oeth.surcontribution
+                ? `${oeth.coefficient} × SMIC (contribution majorée)`
+                : `${oeth.coefficient} × SMIC (tranche ${oeth.tranche} salariés)`,
+            ],
+            [`SMIC horaire brut retenu${oeth.exercice ? ` (exercice ${oeth.exercice})` : ""}`, `${String(oeth.tauxHoraireSmic).replace(".", ",")} €`],
+            ["Calcul", `${oeth.deficit} × ${oeth.coefficient} × ${String(oeth.tauxHoraireSmic).replace(".", ",")} €`],
+          ]
+        : []),
     ];
 
     doc.font("Helvetica-Bold").fontSize(10).fillColor(BLEU).text("Indicateurs", 50, y);
@@ -170,7 +183,26 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
         width: largeurUtile - 30,
       });
 
-    y += 54 + 20;
+    y += 54 + 16;
+
+    // Explications utiles à l'entreprise : contribution majorée, déductions
+    // possibles, échéance DSN.
+    if (oeth.assujetti && oeth.deficit > 0) {
+      const notes = [
+        oeth.surcontribution
+          ? "Contribution majorée : faute d'action sur plus de 3 années consécutives (aucun bénéficiaire employé, pas de sous-traitance EA / ESAT / TIH d'au moins 600 × SMIC, pas d'accord agréé), chaque unité manquante est calculée à 1 500 × SMIC. Une seule de ces actions suffit à revenir au coefficient normal (400, 500 ou 600 × SMIC selon l'effectif)."
+          : null,
+        "Montant avant déductions : la sous-traitance EA / ESAT / TIH (30 % de la main-d'œuvre, DSN 061), les emplois ECAP (DSN 060) et certaines dépenses (DSN 062 à 072, dans la limite de 10 % de la contribution brute) peuvent le réduire.",
+        `Déclaration : la contribution de l'exercice ${oeth.exercice || ""} se déclare dans la DSN d'avril ${oeth.exercice ? oeth.exercice + 1 : "de l'année suivante"} (codes 065 à 068) et se règle à l'URSSAF.`,
+      ].filter(Boolean);
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(BLEU).text("À savoir", 50, y);
+      y += 16;
+      for (const note of notes) {
+        doc.font("Helvetica").fontSize(8.5).fillColor(GRIS_TEXTE).text(`•  ${note}`, 50, y, { width: largeurUtile });
+        y = doc.y + 6;
+      }
+      y += 8;
+    }
 
     // Disclaimer — évite toute confusion avec un document officiel URSSAF/AGEFIPH.
     doc
@@ -203,7 +235,7 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
       .font("Helvetica")
       .fontSize(8.5)
       .fillColor(GRIS_CLAIR)
-      .text(`${poleInfo.email}  ·  ${poleInfo.telephone}  ·  ${poleInfo.adressePostale}`, 50, yPied + 24);
+      .text(`${poleInfo.email}  ·  ${poleInfo.telephone}`, 50, yPied + 24);
 
     doc.end();
   });
@@ -244,7 +276,7 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       .fillColor(GRIS_CLAIR)
       .font("Helvetica")
       .fontSize(8.5)
-      .text(`${poleInfo.adressePostale}\n${poleInfo.email}  ·  ${poleInfo.telephone}`, largeurPage - 250, 32, {
+      .text(`${poleInfo.email}\n${poleInfo.telephone}`, largeurPage - 250, 32, {
         width: 200,
         align: "right",
       });
@@ -392,7 +424,7 @@ export function genererSimulationPdf({ saisie, simulation, nomEntreprise, poleIn
       .font("Helvetica")
       .fontSize(8.5)
       .fillColor(GRIS_CLAIR)
-      .text(`${poleInfo.email}  ·  ${poleInfo.telephone}  ·  ${poleInfo.adressePostale}`, 50, yPied + 24);
+      .text(`${poleInfo.email}  ·  ${poleInfo.telephone}`, 50, yPied + 24);
 
     doc.end();
   });

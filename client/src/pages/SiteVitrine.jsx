@@ -252,7 +252,6 @@ export default function SiteVitrine() {
       <footer id="contact" className="border-t border-slate-200 dark:border-slate-800 py-10">
         <div className="max-w-6xl mx-auto px-6 text-center text-sm text-slate-500 dark:text-slate-400 space-y-1">
           <p className="font-semibold text-slate-700 dark:text-slate-200">Pôle OETH / AGEFIPH</p>
-          {contactPole?.adressePostale && <p>{contactPole.adressePostale}</p>}
           <p>
             {contactPole?.adresse && <span>{contactPole.adresse}</span>}
             {contactPole?.adresse && contactPole?.telephone && <span> · </span>}

@@ -77,7 +77,7 @@ function construireHistorique(entreprise) {
 
 // `entreprise` : fiche complète (brute + calculs). `oeth` : résultat de
 // calculerObligationOeth(). `categorie` : classifierSecteur() de l'entreprise.
-// `poleInfo` : { email, telephone, adressePostale }. `genereParNom` : agent
+// `poleInfo` : { email, telephone } (jamais d'adresse postale). `genereParNom` : agent
 // qui télécharge le rapport (affiché en pied de page).
 export function genererRapportPdf({ entreprise, oeth, categorie, poleInfo, genereParNom }) {
   return new Promise((resolve, reject) => {
@@ -128,7 +128,7 @@ export function genererRapportPdf({ entreprise, oeth, categorie, poleInfo, gener
       .fillColor(GRIS_CLAIR)
       .font("Helvetica")
       .fontSize(8.5)
-      .text(`${poleInfo.adressePostale}\n${poleInfo.email}  ·  ${poleInfo.telephone}`, largeurPage - 250, 32, {
+      .text(`${poleInfo.email}\n${poleInfo.telephone}`, largeurPage - 250, 32, {
         width: 200,
         align: "right",
       });

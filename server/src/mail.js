@@ -152,14 +152,10 @@ export function adresseMailPole() {
   return config().from || "contact@oeth-fiph.fr";
 }
 
-// Coordonnées réelles du pôle affichées en signature des mails et sur le PDF
-// de synthèse joint (voir pdfSynthese.js) — renforcent la crédibilité des
-// messages envoyés aux entreprises. Valeurs par défaut = coordonnées
-// officielles communiquées par le pôle ; surchageables via .env si besoin.
-export function adressePostalePole() {
-  return process.env.POLE_ADRESSE || "47 rue Eugène Oudiné, 75013 Paris";
-}
-
+// Coordonnées du pôle affichées en signature des mails, sur les PDF et sur le
+// site : e-mail et téléphone uniquement. L'adresse postale n'est volontairement
+// JAMAIS publiée (les bureaux changent) — un conseiller la communique à
+// l'entreprise qui doit envoyer des documents.
 export function telephonePole() {
   return process.env.POLE_TELEPHONE || "+33 7 44 12 79 17";
 }
