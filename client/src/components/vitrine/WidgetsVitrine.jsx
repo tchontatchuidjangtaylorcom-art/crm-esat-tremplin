@@ -93,17 +93,24 @@ export default function WidgetsVitrine() {
           const theme = THEMES[w.nom];
           if (ouvert !== w.nom) {
             return (
-              <Onglet
-                key={w.nom}
-                etiquette={w.etiquette}
-                icone={w.icone}
-                theme={theme}
-                pulse={w.nom === "vigilance" && !vigilanceVue}
-                onClick={() => basculer(w.nom)}
-              />
+              // La FAQ est détachée un peu plus haut que Actualité / Vigilance.
+              <div key={w.nom} className={w.nom === "faq" ? "mb-8" : ""}>
+                <Onglet
+                  etiquette={w.etiquette}
+                  icone={w.icone}
+                  theme={theme}
+                  pulse={w.nom === "vigilance" && !vigilanceVue}
+                  onClick={() => basculer(w.nom)}
+                />
+              </div>
             );
           }
-          if (w.nom === "faq") return <PanneauFaq key={w.nom} theme={theme} onFermer={fermer} />;
+          if (w.nom === "faq")
+            return (
+              <div key={w.nom} className="mb-8">
+                <PanneauFaq theme={theme} onFermer={fermer} />
+              </div>
+            );
           return (
             <PanneauCarrousel
               key={w.nom}
