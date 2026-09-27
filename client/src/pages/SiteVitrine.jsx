@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "../api.js";
 import ToastActivite from "../components/vitrine/ToastActivite.jsx";
@@ -58,8 +58,6 @@ const RESSOURCES = [
 export default function SiteVitrine() {
   const [vitrine, setVitrine] = useState(null);
   const [contactPole, setContactPole] = useState(null);
-  const [clair, setClair] = useState(false);
-  const simulateurRef = useRef(null);
   const { hash } = useLocation();
 
   function allerAuSimulateur() {
@@ -69,19 +67,6 @@ export default function SiteVitrine() {
   useEffect(() => {
     api.getVitrine().then(setVitrine).catch(() => setVitrine({ statistiques: {}, entreprises: [] }));
     api.getStatutMail().then(setContactPole).catch(() => {});
-  }, []);
-
-  // La page s'ouvre directement sur le simulateur (fond noir) ; le récit
-  // immersif vit sur sa propre page, /vitrine/notre-demarche. La nav ne passe
-  // en version claire qu'une fois le simulateur entièrement dépassé.
-  useEffect(() => {
-    function onScroll() {
-      const bas = simulateurRef.current?.getBoundingClientRect().bottom ?? 0;
-      setClair(bas <= 64);
-    }
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // Ancres (#simulateur, #impact…) : aussi en arrivant depuis une autre page
@@ -103,20 +88,20 @@ export default function SiteVitrine() {
     <div className="bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100">
       {vitrine && <ToastActivite entreprises={entreprises} />}
 
-      <EnteteVitrine clair={clair} onSimuler={allerAuSimulateur} />
+      <EnteteVitrine onSimuler={allerAuSimulateur} />
 
       {/* Simulateur OETH / DOETH intégré — cœur de la landing page. */}
-      <div ref={simulateurRef} className="bg-black pt-14">
+      <div className="bg-slate-50 dark:bg-black pt-14">
         <SimulateurOeth />
       </div>
 
       {/* Contexte national — chiffres NATIONAUX sourcés (DARES/Agefiph/France
           Travail), volontairement distincts et clairement étiquetés comme
           tels : jamais présentés comme le portefeuille du pôle lui-même. */}
-      <section id="impact" className="bg-marine-950 text-white py-24 sm:py-28">
+      <section id="impact" className="bg-white dark:bg-marine-950 text-slate-900 dark:text-white py-24 sm:py-28">
         <div className="max-w-6xl mx-auto px-6">
           <RevelerAuScroll>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-marine-400 mb-3 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-marine-600 dark:text-marine-400 mb-3 text-center">
               Le contexte national
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold text-center mb-16">Pourquoi agir maintenant</h2>
@@ -130,17 +115,17 @@ export default function SiteVitrine() {
                       ? "border-amber-400/40 bg-amber-500/10"
                       : s.ton === "opportunite"
                         ? "border-emerald-400/30 bg-emerald-500/10"
-                        : "border-marine-700 bg-marine-900/60"
+                        : "border-slate-200 dark:border-marine-700 bg-white dark:bg-marine-900/60"
                   }`}
                 >
                   <p
                     className={`text-3xl sm:text-4xl font-bold tracking-tight ${
-                      s.ton === "alerte" ? "text-amber-300" : s.ton === "opportunite" ? "text-emerald-300" : "text-white"
+                      s.ton === "alerte" ? "text-amber-700 dark:text-amber-300" : s.ton === "opportunite" ? "text-emerald-700 dark:text-emerald-300" : "text-slate-900 dark:text-white"
                     }`}
                   >
                     <CompteurAnime valeur={s.valeur} suffixe={s.suffixe || ""} />
                   </p>
-                  <p className="text-sm text-marine-200/90 mt-3 leading-snug">{s.label}</p>
+                  <p className="text-sm text-marine-800/90 dark:text-marine-200/90 mt-3 leading-snug">{s.label}</p>
                 </div>
               </RevelerAuScroll>
             ))}
@@ -148,8 +133,8 @@ export default function SiteVitrine() {
 
           <RevelerAuScroll delai={400}>
             <div className="mt-10 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-6 py-6 sm:px-8 sm:py-7 flex flex-wrap items-center justify-between gap-5">
-              <p className="text-sm sm:text-base text-amber-100 max-w-2xl">
-                <strong className="text-amber-300">Ce que vous perdez : </strong>
+              <p className="text-sm sm:text-base text-amber-900 dark:text-amber-100 max-w-2xl">
+                <strong className="text-amber-700 dark:text-amber-300">Ce que vous perdez : </strong>
                 65 % des entreprises assujetties ne remplissent pas encore pleinement leur obligation légale de 6 %,
                 dont 28 % n'emploient aucun travailleur handicapé — chacune verse une contribution qui aurait pu
                 financer un recrutement direct.
@@ -164,7 +149,7 @@ export default function SiteVitrine() {
           </RevelerAuScroll>
 
           <RevelerAuScroll delai={500}>
-            <p className="text-[11px] text-marine-400/60 text-center mt-8 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-[11px] text-marine-700/60 dark:text-marine-400/60 text-center mt-8 max-w-3xl mx-auto leading-relaxed">
               {SOURCES_STATS_NATIONALES}
             </p>
           </RevelerAuScroll>
@@ -206,15 +191,15 @@ export default function SiteVitrine() {
 
       {/* Ce qui compte vraiment — ancienne étape finale du récit animé,
           déplacée ici pour laisser la place au simulateur en haut de page. */}
-      <section className="bg-marine-950 text-white py-24 sm:py-28">
+      <section className="bg-white dark:bg-marine-950 text-slate-900 dark:text-white py-24 sm:py-28">
         <RevelerAuScroll>
           <div className="max-w-3xl mx-auto px-6 text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-marine-400 mb-8">Ce qui compte vraiment</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-marine-600 dark:text-marine-400 mb-8">Ce qui compte vraiment</p>
             <h2 className="text-3xl sm:text-5xl font-bold leading-tight">
               Le recrutement direct change une vie professionnelle —{" "}
-              <span className="text-marine-300">pas seulement un chiffre de conformité.</span>
+              <span className="text-marine-600 dark:text-marine-300">pas seulement un chiffre de conformité.</span>
             </h2>
-            <p className="text-sm text-marine-200/80 mt-10 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-sm text-marine-800/80 dark:text-marine-200/80 mt-10 max-w-2xl mx-auto leading-relaxed">
               Le recrutement direct reste la voie la plus durable vers l'inclusion ; l'accompagnement Cap Emploi et les
               solutions ESAT/EA demeurent des leviers complémentaires précieux, en particulier pour les parcours qui ont
               besoin d'un cadre plus soutenant.

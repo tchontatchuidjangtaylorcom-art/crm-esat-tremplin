@@ -22,7 +22,7 @@ export default function CercleProgression({ pourcentage, ton = "neutre", taille 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: taille, height: taille }}>
       <svg width={taille} height={taille} className="-rotate-90">
-        <circle cx={taille / 2} cy={taille / 2} r={rayon} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={epaisseur} />
+        <circle cx={taille / 2} cy={taille / 2} r={rayon} fill="none" className="stroke-slate-900/10 dark:stroke-white/[0.08]" strokeWidth={epaisseur} />
         <circle
           cx={taille / 2}
           cy={taille / 2}
@@ -37,8 +37,8 @@ export default function CercleProgression({ pourcentage, ton = "neutre", taille 
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`${taille < 140 ? "text-xl" : "text-3xl"} font-bold text-white tracking-tight`}>{texteCentral ?? `${Math.round(pourcentage)}%`}</span>
-        {libelle && <span className="text-[10px] uppercase tracking-wide text-slate-400 mt-1 text-center px-4">{libelle}</span>}
+        <span className={`${taille < 140 ? "text-xl" : "text-3xl"} font-bold text-slate-900 dark:text-white tracking-tight`}>{texteCentral ?? `${Math.round(pourcentage)}%`}</span>
+        {libelle && <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-1 text-center px-4">{libelle}</span>}
       </div>
     </div>
   );

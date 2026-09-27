@@ -3,7 +3,7 @@ import { api } from "../../api.js";
 
 const JOURS_SEMAINE = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."];
 const CLASSE_INPUT =
-  "w-full rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-slate-500 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400";
+  "w-full rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/5 dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400";
 
 const moisCle = (iso) => iso.slice(0, 7);
 function libelleMois(cle) {
@@ -96,13 +96,13 @@ export default function PriseRendezVous({ onFermer }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-slate-900/40 dark:bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
       onClick={(e) => e.target === e.currentTarget && onFermer()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="rdv-titre"
     >
-      <div className="relative w-full max-w-3xl bg-marine-950 border border-white/10 rounded-2xl shadow-2xl my-8 overflow-hidden text-white">
+      <div className="relative w-full max-w-3xl bg-white dark:bg-marine-950 border border-slate-900/10 dark:border-white/10 rounded-2xl shadow-2xl my-8 overflow-hidden text-slate-900 dark:text-white">
         <div className="flex h-1">
           <span className="flex-1 bg-marine-500" />
           <span className="flex-1 bg-white" />
@@ -113,7 +113,7 @@ export default function PriseRendezVous({ onFermer }) {
           type="button"
           onClick={onFermer}
           aria-label="Fermer"
-          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-slate-300 hover:bg-white/10 hover:text-white transition"
+          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white transition"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -124,10 +124,10 @@ export default function PriseRendezVous({ onFermer }) {
           <h2 id="rdv-titre" className="text-2xl font-bold pr-10">
             Parler à un expert
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Choisissez un créneau pour échanger sur votre politique handicap, votre DOETH et vos besoins de pilotage.
           </p>
-          <div className="flex flex-wrap gap-4 mt-3 text-xs text-slate-300">
+          <div className="flex flex-wrap gap-4 mt-3 text-xs text-slate-600 dark:text-slate-300">
             <span>🕒 {dispo?.dureeMinutes || 45} min</span>
             <span>📹 Téléphone ou visioconférence — informations transmises à la confirmation</span>
             <span>🌍 Heure de Paris</span>
@@ -135,11 +135,11 @@ export default function PriseRendezVous({ onFermer }) {
 
           {etape === "creneau" && (
             <div className="mt-6 grid md:grid-cols-[1fr_220px] gap-6">
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                {erreurChargement && <p className="text-sm text-red-400">{erreurChargement}</p>}
-                {!dispo && !erreurChargement && <p className="text-sm text-slate-400">Chargement des disponibilités…</p>}
+              <div className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] p-4">
+                {erreurChargement && <p className="text-sm text-red-600 dark:text-red-400">{erreurChargement}</p>}
+                {!dispo && !erreurChargement && <p className="text-sm text-slate-500 dark:text-slate-400">Chargement des disponibilités…</p>}
                 {dispo && moisDisponibles.length === 0 && (
-                  <p className="text-sm text-slate-400">Aucun créneau disponible pour le moment. Écrivez-nous via le formulaire de démo.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Aucun créneau disponible pour le moment. Écrivez-nous via le formulaire de démo.</p>
                 )}
                 {dispo && mois && (
                   <>
@@ -148,7 +148,7 @@ export default function PriseRendezVous({ onFermer }) {
                         type="button"
                         disabled={indexMois <= 0}
                         onClick={() => setMois(moisDisponibles[indexMois - 1])}
-                        className="w-8 h-8 rounded-full hover:bg-white/10 disabled:opacity-30 transition"
+                        className="w-8 h-8 rounded-full hover:bg-slate-900/10 dark:hover:bg-white/10 disabled:opacity-30 transition"
                         aria-label="Mois précédent"
                       >
                         ‹
@@ -158,7 +158,7 @@ export default function PriseRendezVous({ onFermer }) {
                         type="button"
                         disabled={indexMois >= moisDisponibles.length - 1}
                         onClick={() => setMois(moisDisponibles[indexMois + 1])}
-                        className="w-8 h-8 rounded-full hover:bg-white/10 disabled:opacity-30 transition"
+                        className="w-8 h-8 rounded-full hover:bg-slate-900/10 dark:hover:bg-white/10 disabled:opacity-30 transition"
                         aria-label="Mois suivant"
                       >
                         ›
@@ -187,7 +187,7 @@ export default function PriseRendezVous({ onFermer }) {
                               choisi
                                 ? "bg-teal-400 text-marine-950 font-bold"
                                 : libre
-                                  ? "bg-teal-400/10 text-teal-200 font-semibold hover:bg-teal-400/25"
+                                  ? "bg-teal-400/10 text-teal-700 dark:text-teal-200 font-semibold hover:bg-teal-400/25"
                                   : "text-slate-600 cursor-default"
                             }`}
                           >
@@ -210,14 +210,14 @@ export default function PriseRendezVous({ onFermer }) {
                         type="button"
                         onClick={() => setHeure(h)}
                         className={`w-full rounded-xl border py-2.5 text-sm font-semibold transition ${
-                          heure === h ? "border-teal-400 bg-teal-400 text-marine-950" : "border-teal-400/40 text-teal-200 hover:bg-teal-400/10"
+                          heure === h ? "border-teal-400 bg-teal-400 text-marine-950" : "border-teal-400/40 text-teal-700 dark:text-teal-200 hover:bg-teal-400/10"
                         }`}
                       >
                         {h.replace(":", "h")}
                       </button>
                     ))}
                 </div>
-                {erreur && <p className="text-xs text-red-400 mt-3">{erreur}</p>}
+                {erreur && <p className="text-xs text-red-600 dark:text-red-400 mt-3">{erreur}</p>}
                 <button
                   type="button"
                   disabled={!jour || !heure}
@@ -225,7 +225,7 @@ export default function PriseRendezVous({ onFermer }) {
                     setErreur(null);
                     setEtape("coordonnees");
                   }}
-                  className="mt-4 w-full rounded-xl bg-white text-marine-900 hover:bg-marine-100 text-sm font-semibold py-3 transition disabled:opacity-30"
+                  className="mt-4 w-full rounded-xl bg-marine-800 dark:bg-white text-white dark:text-marine-900 hover:bg-marine-900 dark:hover:bg-marine-100 text-sm font-semibold py-3 transition disabled:opacity-30"
                 >
                   Continuer →
                 </button>
@@ -239,7 +239,7 @@ export default function PriseRendezVous({ onFermer }) {
                 <span>
                   📅 <strong className="capitalize">{dateLongue(jour)}</strong> à <strong>{heure.replace(":", "h")}</strong> (heure de Paris)
                 </span>
-                <button type="button" onClick={() => setEtape("creneau")} className="text-xs text-teal-300 hover:underline">
+                <button type="button" onClick={() => setEtape("creneau")} className="text-xs text-teal-700 dark:text-teal-300 hover:underline">
                   Changer de créneau
                 </button>
               </div>
@@ -258,7 +258,7 @@ export default function PriseRendezVous({ onFermer }) {
                 {/* Champ piège anti-robots, invisible pour les humains. */}
                 <input tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" {...champ("siteWeb")} />
               </div>
-              {erreur && <p className="text-sm text-red-400 mt-3">{erreur}</p>}
+              {erreur && <p className="text-sm text-red-600 dark:text-red-400 mt-3">{erreur}</p>}
               <button
                 type="submit"
                 disabled={envoi}
@@ -271,16 +271,16 @@ export default function PriseRendezVous({ onFermer }) {
 
           {etape === "confirme" && (
             <div className="mt-8 text-center py-6">
-              <div className="w-14 h-14 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center mx-auto text-2xl">✓</div>
+              <div className="w-14 h-14 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto text-2xl">✓</div>
               <p className="text-xl font-semibold mt-4">Rendez-vous confirmé</p>
-              <p className="text-sm text-slate-400 mt-2">
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
                 <span className="capitalize">{dateLongue(jour)}</span> à {heure.replace(":", "h")} (heure de Paris). Une confirmation
                 vous sera adressée à {form.email}.
               </p>
               <button
                 type="button"
                 onClick={onFermer}
-                className="mt-6 rounded-full border border-white/20 text-sm font-medium px-6 py-2.5 hover:bg-white/10 transition"
+                className="mt-6 rounded-full border border-slate-900/20 dark:border-white/20 text-sm font-medium px-6 py-2.5 hover:bg-slate-900/10 dark:hover:bg-white/10 transition"
               >
                 Fermer
               </button>

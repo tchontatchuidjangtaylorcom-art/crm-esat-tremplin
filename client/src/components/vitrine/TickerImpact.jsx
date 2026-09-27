@@ -33,8 +33,8 @@ export default function TickerImpact({ statistiques, entreprises, verre = false 
     <div
       className={
         verre
-          ? "overflow-hidden rounded-full border border-white/15 bg-white/[0.06] backdrop-blur-md"
-          : "bg-marine-900 text-white overflow-hidden border-b border-marine-800"
+          ? "overflow-hidden rounded-full border border-slate-900/15 dark:border-white/15 bg-slate-900/[0.06] dark:bg-white/[0.06] backdrop-blur-md"
+          : "bg-white dark:bg-marine-900 text-white overflow-hidden border-b border-slate-200 dark:border-marine-800"
       }
     >
       <div className="group flex whitespace-nowrap py-2.5">
@@ -42,10 +42,10 @@ export default function TickerImpact({ statistiques, entreprises, verre = false 
           {boucle.map((m, i) => (
             <span
               key={i}
-              className={`flex items-center text-xs sm:text-sm font-medium px-6 ${verre ? "text-slate-100" : ""}`}
+              className={`flex items-center text-xs sm:text-sm font-medium px-6 ${verre ? "text-slate-800 dark:text-slate-100" : ""}`}
             >
               {m}
-              <span className={`ml-6 ${verre ? "text-white/30" : "text-marine-500"}`} aria-hidden>
+              <span className={`ml-6 ${verre ? "text-slate-400 dark:text-white/30" : "text-marine-500"}`} aria-hidden>
                 •
               </span>
             </span>

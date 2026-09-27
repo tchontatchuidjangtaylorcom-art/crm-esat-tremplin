@@ -69,25 +69,25 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
           <div
             role="dialog"
             aria-label="Assistant OETH"
-            className="w-[370px] max-w-[calc(100vw-1.5rem)] h-[min(560px,calc(100vh-9rem))] rounded-2xl border border-white/10 bg-marine-950 text-white shadow-2xl overflow-hidden flex flex-col"
+            className="w-[370px] max-w-[calc(100vw-1.5rem)] h-[min(560px,calc(100vh-9rem))] rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 text-slate-900 dark:text-white shadow-2xl overflow-hidden flex flex-col"
           >
             <div className="flex h-1">
               <span className="flex-1 bg-marine-500" />
               <span className="flex-1 bg-white" />
               <span className="flex-1 bg-red-500" />
             </div>
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
-              <span className="w-9 h-9 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-300 flex items-center justify-center text-lg">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-900/10 dark:border-white/10">
+              <span className="w-9 h-9 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-700 dark:text-teal-300 flex items-center justify-center text-lg">
                 🤖
               </span>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm">Assistant OETH</p>
-                <p className="text-[11px] text-slate-400">Réponses automatiques · disponible 24 h/24</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">Réponses automatiques · disponible 24 h/24</p>
               </div>
               <button
                 type="button"
                 onClick={() => setMessages([ACCUEIL])}
-                className="rounded-md border border-white/15 text-[11px] px-2 py-1 text-slate-300 hover:bg-white/10"
+                className="rounded-md border border-slate-900/15 dark:border-white/15 text-[11px] px-2 py-1 text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10"
               >
                 Réinitialiser
               </button>
@@ -95,7 +95,7 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
                 type="button"
                 onClick={onFermer}
                 aria-label="Fermer"
-                className="w-7 h-7 rounded-md border border-white/15 flex items-center justify-center text-xs hover:bg-white/10"
+                className="w-7 h-7 rounded-md border border-slate-900/15 dark:border-white/15 flex items-center justify-center text-xs hover:bg-slate-900/10 dark:hover:bg-white/10"
               >
                 ✕
               </button>
@@ -108,10 +108,10 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
                     <p className="max-w-[85%] rounded-2xl rounded-br-md bg-teal-400 text-marine-950 text-sm px-3.5 py-2">{m.texte}</p>
                   </div>
                 ) : (
-                  <div key={i} className="max-w-[92%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.04] px-3.5 py-2.5">
-                    <p className="text-sm text-slate-200 leading-relaxed">{m.texte}</p>
+                  <div key={i} className="max-w-[92%] rounded-2xl rounded-bl-md border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.04] dark:bg-white/[0.04] px-3.5 py-2.5">
+                    <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{m.texte}</p>
                     {m.lien && (
-                      <Link to={m.lien.to} onClick={onFermer} className="inline-block text-xs font-semibold text-teal-300 hover:underline mt-2">
+                      <Link to={m.lien.to} onClick={onFermer} className="inline-block text-xs font-semibold text-teal-700 dark:text-teal-300 hover:underline mt-2">
                         {m.lien.label} →
                       </Link>
                     )}
@@ -126,7 +126,7 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
                         </button>
                         <a
                           href={`mailto:${EMAIL_OFFICIEL}`}
-                          className="rounded-lg border border-white/20 text-xs font-semibold px-3 py-1.5 hover:bg-white/10"
+                          className="rounded-lg border border-slate-900/20 dark:border-white/20 text-xs font-semibold px-3 py-1.5 hover:bg-slate-900/10 dark:hover:bg-white/10"
                         >
                           Nous écrire
                         </a>
@@ -137,7 +137,7 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
                 )
               )}
               {reflexion && (
-                <div className="inline-flex items-center gap-1 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5">
+                <div className="inline-flex items-center gap-1 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.04] dark:bg-white/[0.04] px-3.5 py-2.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:120ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:240ms]" />
@@ -146,14 +146,14 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
               <div ref={finRef} />
             </div>
 
-            <div className="px-3 pt-2 border-t border-white/10">
+            <div className="px-3 pt-2 border-t border-slate-900/10 dark:border-white/10">
               <div className="flex flex-wrap gap-1.5">
                 {RACCOURCIS.map((r) => (
                   <button
                     key={r.label}
                     type="button"
                     onClick={() => raccourci(r)}
-                    className="rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-200 text-[11px] font-medium px-2.5 py-1 hover:bg-teal-400/20"
+                    className="rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-700 dark:text-teal-200 text-[11px] font-medium px-2.5 py-1 hover:bg-teal-400/20"
                   >
                     {r.label}
                   </button>
@@ -171,7 +171,7 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
                   onChange={(e) => setSaisie(e.target.value)}
                   placeholder="Posez votre question OETH ou DOETH…"
                   aria-label="Votre question"
-                  className="flex-1 min-w-0 rounded-xl border border-white/10 bg-white/5 text-sm text-white placeholder:text-slate-500 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  className="flex-1 min-w-0 rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/5 dark:bg-white/5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400"
                 />
                 <button
                   type="submit"
@@ -196,7 +196,7 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
           aria-expanded={ouvert}
           className="flex items-center gap-2 rounded-2xl bg-marine-600 hover:bg-marine-500 text-white text-sm font-semibold pl-3 pr-4 py-2.5 shadow-2xl border border-marine-400/40 transition"
         >
-          <span className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">💬</span>
+          <span className="w-7 h-7 rounded-lg bg-slate-900/15 dark:bg-white/15 flex items-center justify-center">💬</span>
           Assistance OETH
         </button>
       </div>

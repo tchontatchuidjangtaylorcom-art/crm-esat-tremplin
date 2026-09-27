@@ -5,11 +5,14 @@ import { useEffect, useRef, useState } from "react";
 // (pas de réapparition en remontant) pour rester sobre plutôt que gadget.
 export default function RevelerAuScroll({ children, className = "", delai = 0 }) {
   const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
+  // Pas d'animation pour les visiteurs qui l'ont désactivée dans leur système.
+  const [visible, setVisible] = useState(
+    () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
+  );
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || visible) return;
     const observateur = new IntersectionObserver(
       ([entree]) => {
         if (entree.isIntersecting) {

@@ -18,7 +18,10 @@ export default function NotreDemarche() {
   }
 
   return (
-    <div className="bg-black text-white">
+    // Page toujours sombre, quel que soit le thème du site : le récit animé
+    // (SceneDarkTech) est une scène nocturne. La classe "dark" force les
+    // variantes sombres de tout ce qu'elle contient, en-tête compris.
+    <div className="dark bg-black text-white">
       <EnteteVitrine />
 
       <RecitImmersif onOuvrirSimulateur={allerAuSimulateur} />

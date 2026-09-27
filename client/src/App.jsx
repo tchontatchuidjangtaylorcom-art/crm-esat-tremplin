@@ -4,6 +4,7 @@ import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
 import Connexion from "./pages/Connexion.jsx";
 import AdminUtilisateurs from "./pages/AdminUtilisateurs.jsx";
 import SiteVitrine from "./pages/SiteVitrine.jsx";
+import { ThemeVitrineLayout } from "./components/vitrine/ThemeVitrine.jsx";
 import PilotageHandicap from "./pages/PilotageHandicap.jsx";
 import NotreDemarche from "./pages/NotreDemarche.jsx";
 import Vigilance from "./pages/Vigilance.jsx";
@@ -39,12 +40,15 @@ export default function App() {
                 Vit à /vitrine plutôt qu'à la racine "/" pour ne rien changer au
                 routage existant du CRM (déjà utilisé en production) ; le bouton
                 "Portail sécurisé" de la vitrine renvoie vers /connexion. */}
-            <Route path="/vitrine" element={<SiteVitrine />} />
-            <Route path="/vitrine/pilotage" element={<PilotageHandicap />} />
-            <Route path="/vitrine/notre-demarche" element={<NotreDemarche />} />
-            <Route path="/vitrine/vigilance" element={<Vigilance />} />
-            <Route path="/vitrine/actualites" element={<Actualites />} />
-            <Route path="/vitrine/faq" element={<Faq />} />
+            {/* Thème clair/sombre propre au site vitrine (voir ThemeVitrine.jsx). */}
+            <Route element={<ThemeVitrineLayout />}>
+              <Route path="/vitrine" element={<SiteVitrine />} />
+              <Route path="/vitrine/pilotage" element={<PilotageHandicap />} />
+              <Route path="/vitrine/notre-demarche" element={<NotreDemarche />} />
+              <Route path="/vitrine/vigilance" element={<Vigilance />} />
+              <Route path="/vitrine/actualites" element={<Actualites />} />
+              <Route path="/vitrine/faq" element={<Faq />} />
+            </Route>
 
             {/* Hors du habillage CRM (pas de barre d'outils vente) */}
             <Route path="/connexion" element={<Connexion />} />

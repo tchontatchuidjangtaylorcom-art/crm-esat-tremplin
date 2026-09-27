@@ -27,27 +27,27 @@ export const THEMES = {
     onglet: "bg-red-700 hover:bg-red-600 text-white border-red-500/60",
     panneau: "bg-red-700 text-white border-red-500/60",
     bande: "bg-red-800/80",
-    pastille: "bg-white/15 border-white/30",
+    pastille: "bg-slate-900/15 dark:bg-white/15 border-slate-900/30 dark:border-white/30",
     bouton: "bg-amber-200 text-red-900 hover:bg-amber-100",
-    fleche: "border-white/30 hover:bg-white/15",
+    fleche: "border-slate-900/30 dark:border-white/30 hover:bg-slate-900/15 dark:hover:bg-white/15",
     pulse: "bg-amber-300",
   },
   actualite: {
     onglet: "bg-amber-400 hover:bg-amber-300 text-amber-950 border-amber-200/70",
     panneau: "bg-[#f6e7cf] text-amber-950 border-amber-300",
     bande: "bg-amber-300/60",
-    pastille: "bg-white/50 border-amber-500/40",
+    pastille: "bg-slate-900/50 dark:bg-white/50 border-amber-500/40",
     bouton: "bg-amber-700 text-white hover:bg-amber-600",
     fleche: "border-amber-700/30 hover:bg-amber-200",
     pulse: "bg-amber-600",
   },
   faq: {
     onglet: "bg-teal-500 hover:bg-teal-400 text-marine-950 border-teal-200/70",
-    panneau: "bg-marine-950 text-white border-teal-400/40",
+    panneau: "bg-white dark:bg-marine-950 text-slate-900 dark:text-white border-teal-400/40",
     bande: "bg-teal-500/20",
     pastille: "bg-teal-400/20 border-teal-300/40",
     bouton: "bg-teal-400 text-marine-950 hover:bg-teal-300",
-    fleche: "border-white/20 hover:bg-white/10",
+    fleche: "border-slate-900/20 dark:border-white/20 hover:bg-slate-900/10 dark:hover:bg-white/10",
     pulse: "bg-teal-300",
   },
 };
@@ -247,19 +247,19 @@ function PanneauFaq({ theme, onFermer }) {
           <p className="font-bold leading-snug">Questions fréquentes</p>
           <BoutonFermer theme={theme} onFermer={onFermer} />
         </div>
-        <div className="mt-2 max-h-[46vh] overflow-y-auto divide-y divide-white/10 pr-1">
+        <div className="mt-2 max-h-[46vh] overflow-y-auto divide-y divide-slate-900/10 dark:divide-white/10 pr-1">
           {populaires.map((q) => (
             <div key={q.id} className="py-2">
               <button
                 type="button"
                 onClick={() => setDeplie((d) => (d === q.id ? null : q.id))}
                 aria-expanded={deplie === q.id}
-                className="w-full text-left text-[13px] font-semibold flex justify-between gap-2 hover:text-teal-200"
+                className="w-full text-left text-[13px] font-semibold flex justify-between gap-2 hover:text-teal-800 dark:hover:text-teal-200"
               >
                 {q.question}
-                <span className="text-teal-300">{deplie === q.id ? "−" : "+"}</span>
+                <span className="text-teal-700 dark:text-teal-300">{deplie === q.id ? "−" : "+"}</span>
               </button>
-              {deplie === q.id && <p className="text-xs text-slate-300 leading-relaxed mt-1.5">{q.reponse}</p>}
+              {deplie === q.id && <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-1.5">{q.reponse}</p>}
             </div>
           ))}
         </div>

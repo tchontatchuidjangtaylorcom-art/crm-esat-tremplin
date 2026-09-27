@@ -428,12 +428,12 @@ export default function SimulateurOeth() {
   const dash = (v) => (actif ? v : "—");
   const lecture = actif ? lectureTaux(s) : null;
   const statutLecture = !actif
-    ? { texte: "En attente", classe: "bg-white/10 text-slate-400" }
+    ? { texte: "En attente", classe: "bg-slate-900/10 dark:bg-white/10 text-slate-500 dark:text-slate-400" }
     : s.conforme
-      ? { texte: "Quota atteint", classe: "bg-emerald-400/15 text-emerald-300" }
+      ? { texte: "Quota atteint", classe: "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300" }
       : s.surcontribution
-        ? { texte: "Base majorée", classe: "bg-red-400/15 text-red-300" }
-        : { texte: "Contribution réduite", classe: "bg-teal-400/15 text-teal-300" };
+        ? { texte: "Base majorée", classe: "bg-red-400/15 text-red-700 dark:text-red-300" }
+        : { texte: "Contribution réduite", classe: "bg-teal-400/15 text-teal-700 dark:text-teal-300" };
 
   // Leviers pris en compte dans le calcul (ligne "Effet des actions").
   const actionsRenseignees =
@@ -511,13 +511,13 @@ export default function SimulateurOeth() {
   const partMobilisee = plafondDepenses > 0 ? Math.min(100, (depensesMobilisees / plafondDepenses) * 100) : 0;
 
   return (
-    <section ref={sectionRef} id="simulateur" className="relative bg-black text-white py-16 sm:py-24 scroll-mt-16">
+    <section ref={sectionRef} id="simulateur" className="relative bg-slate-50 dark:bg-black text-slate-900 dark:text-white py-16 sm:py-24 scroll-mt-16">
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] max-w-full h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
 
       <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 space-y-3">
         {/* ─────────── En-tête ─────────── */}
-        <div className="rounded-2xl border border-white/10 bg-marine-950 shadow-2xl overflow-hidden">
+        <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 shadow-2xl overflow-hidden">
           <div className="flex h-1">
             <span className="flex-1 bg-marine-500" />
             <span className="flex-1 bg-white" />
@@ -525,9 +525,9 @@ export default function SimulateurOeth() {
           </div>
           <div className="px-6 sm:px-8 py-6 flex flex-col items-center text-center gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-400">Simulateur OETH / DOETH</p>
-              <h2 className="font-bold text-white text-2xl sm:text-4xl mt-1.5">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
-              <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-2xl mx-auto">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-600 dark:text-marine-400">Simulateur OETH / DOETH</p>
+              <h2 className="font-bold text-slate-900 dark:text-white text-2xl sm:text-4xl mt-1.5">Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}</h2>
+              <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-2 max-w-2xl mx-auto">
                 Obtenez une estimation immédiate de votre contribution OETH {ANNEE_REFERENCE} à partir des données de votre
                 entreprise.
               </p>
@@ -541,10 +541,10 @@ export default function SimulateurOeth() {
         </div>
 
         {/* ─────────── Gain de temps : recherche d'entreprise (Sirene) ─────────── */}
-        <div className="rounded-2xl border border-teal-400/25 bg-gradient-to-r from-teal-400/[0.08] via-marine-950/80 to-marine-950/80 px-6 sm:px-8 py-5">
+        <div className="rounded-2xl border border-teal-400/25 bg-gradient-to-r from-teal-400/[0.08] via-white dark:via-marine-950/80 to-white dark:to-marine-950/80 px-6 sm:px-8 py-5">
           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
             <div className="flex items-start gap-3 lg:w-[38%]">
-              <span className="shrink-0 w-9 h-9 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-300 flex items-center justify-center">
+              <span className="shrink-0 w-9 h-9 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-700 dark:text-teal-300 flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
                 </svg>
@@ -552,9 +552,9 @@ export default function SimulateurOeth() {
               <div>
                 <p className="font-semibold">
                   Gagnez du temps : retrouvez votre entreprise{" "}
-                  <span className="font-normal text-slate-400">(facultatif)</span>
+                  <span className="font-normal text-slate-500 dark:text-slate-400">(facultatif)</span>
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Raison sociale ou SIREN : nous pré-remplissons le nom et un effectif estimé, que vous pouvez corriger.
                 </p>
               </div>
@@ -572,18 +572,18 @@ export default function SimulateurOeth() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
               </svg>
               {(recherche || erreurRecherche || resultats.length > 0) && (
-                <div className="absolute z-30 inset-x-0 top-full mt-2 rounded-xl border border-white/15 bg-marine-950 shadow-2xl p-2 max-h-64 overflow-y-auto">
+                <div className="absolute z-30 inset-x-0 top-full mt-2 rounded-xl border border-slate-900/15 dark:border-white/15 bg-white dark:bg-marine-950 shadow-2xl p-2 max-h-64 overflow-y-auto">
                   {recherche && <p className="text-xs text-slate-500 px-2 py-1.5">Recherche…</p>}
-                  {erreurRecherche && <p className="text-xs text-red-400 px-2 py-1.5">{erreurRecherche}</p>}
+                  {erreurRecherche && <p className="text-xs text-red-600 dark:text-red-400 px-2 py-1.5">{erreurRecherche}</p>}
                   {resultats.map((r) => (
                     <button
                       key={r.siren}
                       type="button"
                       onClick={() => preremplirDepuisRecherche(r)}
-                      className="w-full text-left rounded-lg hover:bg-white/10 transition px-3 py-2"
+                      className="w-full text-left rounded-lg hover:bg-slate-900/10 dark:hover:bg-white/10 transition px-3 py-2"
                     >
-                      <p className="text-sm font-medium text-white">{r.nom}</p>
-                      <p className="text-[11px] text-slate-400">{[r.ville, r.trancheEffectifLabel].filter(Boolean).join(" · ")}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{r.nom}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">{[r.ville, r.trancheEffectifLabel].filter(Boolean).join(" · ")}</p>
                     </button>
                   ))}
                 </div>
@@ -594,7 +594,7 @@ export default function SimulateurOeth() {
         </div>
 
         {/* ─────────── Étape 01 : l'essentiel ─────────── */}
-        <div className="rounded-2xl border border-white/10 bg-marine-950/80 px-6 sm:px-8 pt-5 pb-4">
+        <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-6 sm:px-8 pt-5 pb-4">
           <EnteteEtape
             numero="01"
             titre="Commencez avec 3 informations essentielles"
@@ -610,7 +610,7 @@ export default function SimulateurOeth() {
               aria-label="Année concernée"
               className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/[0.06] pl-3.5 pr-1 py-1 text-xs"
             >
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mr-1.5">Année concernée</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mr-1.5">Année concernée</span>
               {exercices.map((e) => {
                 const actifAnnee = e.annee === ANNEE_REFERENCE;
                 return (
@@ -623,7 +623,7 @@ export default function SimulateurOeth() {
                     className={`rounded-full px-3 py-1 font-semibold transition ${
                       actifAnnee
                         ? "bg-amber-400 text-marine-950 shadow-[0_0_14px_rgba(251,191,36,0.45)]"
-                        : "text-slate-300 hover:bg-white/10"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10"
                     }`}
                   >
                     {e.annee}
@@ -631,9 +631,9 @@ export default function SimulateurOeth() {
                 );
               })}
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SMIC horaire brut retenu</span>
-              <span className="font-semibold text-white tabular-nums">{smicTexte} €</span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-900/15 dark:border-white/15 bg-slate-900/[0.04] dark:bg-white/[0.04] px-3.5 py-1.5 text-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">SMIC horaire brut retenu</span>
+              <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{smicTexte} €</span>
             </span>
             <span className="text-[11px] text-slate-500">{exercice.note}</span>
           </div>
@@ -677,17 +677,17 @@ export default function SimulateurOeth() {
             />
           </div>
 
-          <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.02]">
+          <div className="mt-2 rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.02] dark:bg-white/[0.02]">
             <button
               type="button"
               onClick={() => setAideEssentielOuverte((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-slate-300 hover:text-white"
+              className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
             >
               Besoin d'aide pour identifier ces informations ?
-              <span className="text-marine-300 text-base leading-none">{aideEssentielOuverte ? "−" : "+"}</span>
+              <span className="text-marine-600 dark:text-marine-300 text-base leading-none">{aideEssentielOuverte ? "−" : "+"}</span>
             </button>
             {aideEssentielOuverte && (
-              <p className="px-4 pb-4 text-xs text-slate-400 leading-relaxed">
+              <p className="px-4 pb-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 L'effectif correspond à l'EMA OETH d'assujettissement communiqué par l'URSSAF (ou la MSA). Vous pouvez
                 ensuite renseigner soit votre taux d'emploi légal, soit votre EMA BOETH : le simulateur calcule
                 automatiquement l'autre valeur. Lorsque ces données proviennent de l'URSSAF ou de la MSA, elles intègrent
@@ -699,36 +699,36 @@ export default function SimulateurOeth() {
         </div>
 
         {/* ─────────── Étape 02 : déductions & cas particuliers ─────────── */}
-        <div ref={deductionsRef} className="rounded-2xl border border-white/10 bg-marine-950/80 scroll-mt-24">
+        <div ref={deductionsRef} className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 scroll-mt-24">
           <button
             type="button"
             onClick={() => setDeductionsOuvertes((v) => !v)}
             className="w-full flex items-center gap-3 px-6 sm:px-8 py-3 text-left"
             aria-expanded={deductionsOuvertes}
           >
-            <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-300 text-xs font-bold flex items-center justify-center">
+            <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-xs font-bold flex items-center justify-center">
               02
             </span>
             <span className="flex-1">
               <span className="block font-semibold">J'ai des déductions ou un cas particulier à renseigner</span>
-              <span className="block text-xs text-slate-400 mt-0.5">
+              <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Sous-traitance EA / ESAT / TIH, ECAP, dépenses déductibles, règle des 4 ans.
               </span>
             </span>
             {nbDeductionsRenseignees > 0 && (
-              <span className="hidden sm:inline rounded-full bg-teal-400/15 text-teal-300 text-[10px] font-semibold px-2.5 py-1">
+              <span className="hidden sm:inline rounded-full bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[10px] font-semibold px-2.5 py-1">
                 {nbDeductionsRenseignees} renseigné{nbDeductionsRenseignees > 1 ? "s" : ""}
               </span>
             )}
-            <span className="hidden sm:inline rounded-full border border-white/15 text-slate-400 text-[10px] font-semibold px-2.5 py-1">
+            <span className="hidden sm:inline rounded-full border border-slate-900/15 dark:border-white/15 text-slate-500 dark:text-slate-400 text-[10px] font-semibold px-2.5 py-1">
               Facultatif
             </span>
-            <span className={`text-marine-300 text-xl leading-none transition-transform ${deductionsOuvertes ? "rotate-45" : ""}`}>+</span>
+            <span className={`text-marine-600 dark:text-marine-300 text-xl leading-none transition-transform ${deductionsOuvertes ? "rotate-45" : ""}`}>+</span>
           </button>
 
           {deductionsOuvertes && (
-            <div className="px-6 sm:px-8 pb-6 border-t border-white/10 pt-5 space-y-4">
-              <p className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-slate-400">
+            <div className="px-6 sm:px-8 pb-6 border-t border-slate-900/10 dark:border-white/10 pt-5 space-y-4">
+              <p className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.02] dark:bg-white/[0.02] px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
                 Vous pouvez laisser tous ces montants vides si vous n'êtes pas concerné. Leur saisie permet simplement
                 d'affiner le calcul et de préparer votre récapitulatif DSN (codes indiqués sur chaque champ).
               </p>
@@ -784,7 +784,7 @@ export default function SimulateurOeth() {
                         type="button"
                         onClick={() => choisirSousTraitance(false)}
                         title="Pas de sous-traitance"
-                        className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                        className="shrink-0 rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/5 dark:bg-white/5 px-3 text-slate-500 dark:text-slate-400 hover:bg-slate-900/10 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white transition"
                       >
                         ✕
                       </button>
@@ -793,7 +793,7 @@ export default function SimulateurOeth() {
                 </CarteDeduction>
               </div>
 
-              <div className="flex flex-wrap items-end justify-between gap-2 pt-3 border-t border-white/10">
+              <div className="flex flex-wrap items-end justify-between gap-2 pt-3 border-t border-slate-900/10 dark:border-white/10">
                 <p className="font-semibold flex items-center">Dépenses déductibles{i("depenses")}</p>
                 <p className="text-xs text-slate-500">Montants HT engagés pendant l'exercice</p>
               </div>
@@ -813,19 +813,19 @@ export default function SimulateurOeth() {
                   </CarteDeduction>
                 ))}
               </div>
-              <p className="rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-100">
+              <p className="rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-900 dark:text-amber-100">
                 Les dépenses 062, 063, 064 et 072 sont ventilées séparément dans votre récapitulatif DSN. Le simulateur
                 applique automatiquement leur plafond global de 10 % de la contribution brute.
               </p>
 
               {/* Surcontribution : réponse directe, ou vérification guidée en
                   3 questions (règle des 4 ans) si le visiteur ne sait pas. */}
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 flex flex-col md:flex-row md:items-center gap-3">
+              <div className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] px-4 py-4 flex flex-col md:flex-row md:items-center gap-3">
                 <div className="flex-1">
                   <p className="text-sm font-semibold flex items-center">
                     Votre entreprise est-elle concernée par la surcontribution ?{i("surcontribution")}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Elle s'applique après plus de 3 années consécutives sans aucune action (aucun BOETH, pas d'achat
                     suffisant au secteur protégé, pas d'accord agréé).
                   </p>
@@ -835,16 +835,16 @@ export default function SimulateurOeth() {
                   onChange={(e) => choisirSurcontribution(e.target.value)}
                   className={`${CLASSE_INPUT} md:w-72 cursor-pointer`}
                 >
-                  <option className="bg-marine-950" value="">
+                  <option className="bg-white dark:bg-marine-950" value="">
                     Choisir…
                   </option>
-                  <option className="bg-marine-950" value="non">
+                  <option className="bg-white dark:bg-marine-950" value="non">
                     Non
                   </option>
-                  <option className="bg-marine-950" value="oui">
+                  <option className="bg-white dark:bg-marine-950" value="oui">
                     Oui
                   </option>
-                  <option className="bg-marine-950" value="inconnu">
+                  <option className="bg-white dark:bg-marine-950" value="inconnu">
                     Je ne sais pas — vérifier
                   </option>
                 </select>
@@ -883,7 +883,7 @@ export default function SimulateurOeth() {
                       }
                     >
                       {saisie.sousTraitance4Ans === true && (
-                        <label className="block mt-4 text-sm font-medium text-slate-200 max-w-md">
+                        <label className="block mt-4 text-sm font-medium text-slate-700 dark:text-slate-200 max-w-md">
                           Montant cumulé de main-d'œuvre sur 4 ans
                           <input
                             type="number"
@@ -898,7 +898,7 @@ export default function SimulateurOeth() {
                           <span className="block text-[11px] font-normal text-slate-500 mt-1">
                             Seuil {ANNEE_REFERENCE} : {formatMontant(seuilSousTraitance)}.
                             {s?.sousTraitance4AnsInsuffisante && (
-                              <span className="text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
+                              <span className="text-orange-600 dark:text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
                             )}
                           </span>
                         </label>
@@ -915,7 +915,7 @@ export default function SimulateurOeth() {
                       onChange={(v) => modifier("accordAgree", v)}
                     >
                       {saisie.accordAgree === true && (
-                        <p className="mt-3 text-xs text-slate-400">
+                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                           Avec un accord agréé, l'obligation est remplie par la mise en œuvre de son programme : le budget
                           correspondant finance les actions de l'accord au lieu d'être versé à l'URSSAF.
                         </p>
@@ -932,16 +932,16 @@ export default function SimulateurOeth() {
             bouton flottant (voir bas du composant) : il ne prend pas de place
             et les résultats remontent juste sous la saisie. */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-400">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
             <span>● Résultat immédiat</span>
             <span>● Sans coordonnées</span>
             <span>● Sans engagement</span>
           </div>
           <div className="flex flex-wrap gap-4 text-xs">
-            <button type="button" onClick={reinitialiser} className="text-slate-400 hover:text-white underline-offset-4 hover:underline">
+            <button type="button" onClick={reinitialiser} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white underline-offset-4 hover:underline">
               Nouvelle simulation
             </button>
-            <a href={GUIDE_OFFICIEL_URL} target="_blank" rel="noopener noreferrer" className="text-marine-300 hover:text-marine-200 hover:underline">
+            <a href={GUIDE_OFFICIEL_URL} target="_blank" rel="noopener noreferrer" className="text-marine-600 dark:text-marine-300 hover:text-marine-800 dark:hover:text-marine-200 hover:underline">
               Guide officiel OETH (URSSAF · PDF) ↗
             </a>
           </div>
@@ -953,18 +953,18 @@ export default function SimulateurOeth() {
         {(
           <div ref={resultatsRef} className="scroll-mt-20 pt-4">
             <div className="flex items-center gap-4 mb-5">
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-300 text-sm font-bold flex items-center justify-center">
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-700 dark:text-teal-300 text-sm font-bold flex items-center justify-center">
                 03
               </span>
               <div>
                 <p className="font-semibold text-lg">Vos résultats</p>
-                <p className="text-xs text-slate-400">Mis à jour en direct : modifiez une donnée ci-dessus, les chiffres suivent.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Mis à jour en direct : modifiez une donnée ci-dessus, les chiffres suivent.</p>
               </div>
             </div>
 
-            {erreurCalcul && <p className="text-sm text-red-400 mb-4">{erreurCalcul}</p>}
+            {erreurCalcul && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{erreurCalcul}</p>}
             {s && !s.assujetti && (
-              <p className="mb-5 rounded-xl bg-emerald-500/10 border border-emerald-400/30 p-4 text-sm text-emerald-200">
+              <p className="mb-5 rounded-xl bg-emerald-500/10 border border-emerald-400/30 p-4 text-sm text-emerald-700 dark:text-emerald-200">
                 Effectif inférieur à {s.seuilAssujettissement} salariés : l'entreprise n'est pas assujettie à la
                 contribution OETH (la déclaration mensuelle des bénéficiaires en DSN reste due).
               </p>
@@ -977,17 +977,17 @@ export default function SimulateurOeth() {
                   <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full bg-teal-400/10 blur-3xl" />
                   <div className="relative grid md:grid-cols-[1fr_auto] gap-6 items-center">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 flex items-center">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 flex items-center">
                         Contribution indicative après déductions{i("contribution")}
                       </p>
                       <p
                         className={`text-5xl sm:text-6xl font-bold tracking-tight mt-2 tabular-nums ${
-                          !actif ? "text-slate-600" : s.surcontribution ? "text-red-300" : s.contributionNette === 0 ? "text-emerald-300" : "text-white"
+                          !actif ? "text-slate-600" : s.surcontribution ? "text-red-700 dark:text-red-300" : s.contributionNette === 0 ? "text-emerald-700 dark:text-emerald-300" : "text-slate-900 dark:text-white"
                         }`}
                       >
                         {actif ? formatMontant(s.contributionNette) : "— €"}
                       </p>
-                      <p className="text-sm text-slate-400 mt-2 max-w-md leading-relaxed">
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-md leading-relaxed">
                         {lecture
                           ? lecture.message
                           : "Renseignez votre effectif ci-dessus : vos résultats s'affichent ici instantanément, à chaque saisie."}
@@ -1060,22 +1060,22 @@ export default function SimulateurOeth() {
                   ].map(([l, v, info, alerte]) => (
                     <div
                       key={l}
-                      className={`rounded-xl border px-3.5 py-3 ${alerte ? "border-red-400/30 bg-red-500/10" : "border-white/10 bg-white/[0.03]"}`}
+                      className={`rounded-xl border px-3.5 py-3 ${alerte ? "border-red-400/30 bg-red-500/10" : "border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03]"}`}
                     >
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center">
                         {l}
                         {info && i(info)}
                       </p>
-                      <p className={`text-base font-semibold mt-1 tabular-nums ${alerte ? "text-red-300" : "text-white"}`}>{v}</p>
+                      <p className={`text-base font-semibold mt-1 tabular-nums ${alerte ? "text-red-700 dark:text-red-300" : "text-slate-900 dark:text-white"}`}>{v}</p>
                     </div>
                   ))}
                 </div>
 
                 {/* Messages de situation */}
                 {actif && s.surcontribution && (
-                  <div className="rounded-xl border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-200 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="rounded-xl border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-800 dark:text-red-200 flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="flex-1">
-                      <p className="font-semibold text-red-300 flex items-center">Base majorée retenue par défaut{i("regle4ans")}</p>
+                      <p className="font-semibold text-red-700 dark:text-red-300 flex items-center">Base majorée retenue par défaut{i("regle4ans")}</p>
                       <p className="mt-1 text-xs leading-relaxed">
                         Sans BOETH employé sur les 4 dernières années, ni sous-traitance EA/ESAT/TIH d'au moins{" "}
                         {formatMontant(s.seuilSousTraitanceMin)} (600 × SMIC), ni accord agréé, la contribution est calculée
@@ -1085,7 +1085,7 @@ export default function SimulateurOeth() {
                     <button
                       type="button"
                       onClick={ouvrirDeductions}
-                      className="shrink-0 rounded-lg border border-red-300/40 text-red-100 text-xs font-semibold px-3.5 py-2 hover:bg-red-400/15 transition"
+                      className="shrink-0 rounded-lg border border-red-300/40 text-red-900 dark:text-red-100 text-xs font-semibold px-3.5 py-2 hover:bg-red-400/15 transition"
                     >
                       Préciser ma situation
                     </button>
@@ -1093,8 +1093,8 @@ export default function SimulateurOeth() {
                 )}
                 {actif && !s.surcontribution && s.economie > 0 && (
                   <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4 text-sm">
-                    <p className="font-semibold text-emerald-300">Effet positif des actions renseignées</p>
-                    <p className="mt-1 text-xs text-emerald-100/80 leading-relaxed">
+                    <p className="font-semibold text-emerald-700 dark:text-emerald-300">Effet positif des actions renseignées</p>
+                    <p className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-100/80 leading-relaxed">
                       Les éléments renseignés réduisent l'estimation de {formatMontant(s.economie)} par rapport à une
                       situation maximale avec coefficient 1 500 × SMIC.
                     </p>
@@ -1102,8 +1102,8 @@ export default function SimulateurOeth() {
                 )}
                 {actif && !s.surcontribution && !s.conforme && (
                   <div className="rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.08] p-4 text-sm">
-                    <p className="font-semibold text-amber-200">Quota légal non atteint, contribution réduite</p>
-                    <p className="mt-1 text-xs text-amber-100/80 leading-relaxed">
+                    <p className="font-semibold text-amber-800 dark:text-amber-200">Quota légal non atteint, contribution réduite</p>
+                    <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-100/80 leading-relaxed">
                       L'entreprise présente un manque estimé de {formatNombre(s.manque)} bénéficiaire(s). Les actions
                       renseignées écartent la majoration et les déductions applicables sont intégrées à l'estimation.
                     </p>
@@ -1111,8 +1111,8 @@ export default function SimulateurOeth() {
                 )}
                 {actif && s.conforme && (
                   <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4 text-sm">
-                    <p className="font-semibold text-emerald-300">Quota légal atteint</p>
-                    <p className="mt-1 text-xs text-emerald-100/80">Aucune contribution n'est due au titre de l'année {ANNEE_REFERENCE}.</p>
+                    <p className="font-semibold text-emerald-700 dark:text-emerald-300">Quota légal atteint</p>
+                    <p className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-100/80">Aucune contribution n'est due au titre de l'année {ANNEE_REFERENCE}.</p>
                   </div>
                 )}
 
@@ -1124,7 +1124,7 @@ export default function SimulateurOeth() {
                       {statutLecture.texte}
                     </span>
                   </div>
-                  <dl className="mt-3 text-sm divide-y divide-white/[0.07]">
+                  <dl className="mt-3 text-sm divide-y divide-slate-900/[0.07] dark:divide-white/[0.07]">
                     {[
                       ["Base réglementaire maximale", dash(formatMontant(s?.baseMaximale))],
                       [
@@ -1136,20 +1136,20 @@ export default function SimulateurOeth() {
                       ["Effet des actions renseignées", actif ? actionsRenseignees : "—"],
                     ].map(([l, v]) => (
                       <div key={l} className="flex justify-between gap-4 py-2.5">
-                        <dt className="text-slate-400">{l}</dt>
+                        <dt className="text-slate-500 dark:text-slate-400">{l}</dt>
                         <dd className="font-medium tabular-nums text-right">{v}</dd>
                       </div>
                     ))}
                     <div className="flex justify-between gap-4 pt-3">
-                      <dt className="font-semibold text-emerald-300">Économie estimée</dt>
-                      <dd className="font-bold text-emerald-300 tabular-nums">{dash(formatMontant(s?.economie))}</dd>
+                      <dt className="font-semibold text-emerald-700 dark:text-emerald-300">Économie estimée</dt>
+                      <dd className="font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{dash(formatMontant(s?.economie))}</dd>
                     </div>
                   </dl>
                   <p className="text-[11px] text-slate-500 mt-4 leading-relaxed">
                     La contribution {ANNEE_REFERENCE} se déclare dans la DSN d'avril {ANNEE_REFERENCE + 1} (échéance du 5 ou 15
                     mai). Estimation indicative selon les règles de droit commun : seule l'URSSAF calcule et recouvre la
                     contribution.{" "}
-                    <a href={PAGE_URSSAF_URL} target="_blank" rel="noopener noreferrer" className="text-marine-300 hover:underline">
+                    <a href={PAGE_URSSAF_URL} target="_blank" rel="noopener noreferrer" className="text-marine-600 dark:text-marine-300 hover:underline">
                       En savoir plus ↗
                     </a>
                   </p>
@@ -1158,11 +1158,11 @@ export default function SimulateurOeth() {
                 {/* Entreprise concernée */}
                 <Carte className="flex flex-col md:flex-row md:items-center gap-5">
                   <div className="flex-1">
-                    <span className="inline-block rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-300 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1">
+                    <span className="inline-block rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-700 dark:text-teal-300 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1">
                       Facultatif
                     </span>
                     <h3 className="font-semibold mt-2.5">Cette simulation concerne quelle entreprise ?</h3>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                       Un seul champ, sans bloquer vos résultats. Le nom est repris dans votre synthèse PDF et votre demande
                       d'analyse.
                     </p>
@@ -1182,7 +1182,7 @@ export default function SimulateurOeth() {
                       <button
                         type="button"
                         onClick={memoriserEntreprise}
-                        className="shrink-0 rounded-xl bg-white text-marine-900 hover:bg-marine-100 text-sm font-semibold px-4 transition"
+                        className="shrink-0 rounded-xl bg-marine-800 dark:bg-white text-white dark:text-marine-900 hover:bg-marine-900 dark:hover:bg-marine-100 text-sm font-semibold px-4 transition"
                       >
                         {entrepriseMemorisee ? "✓" : "Mémoriser"}
                       </button>
@@ -1192,17 +1192,17 @@ export default function SimulateurOeth() {
               </div>
 
               {/* Colonne synthèse & passage à l'action */}
-              <aside ref={asideRef} className="rounded-2xl border border-white/10 bg-marine-950 p-5 sm:p-6">
+              <aside ref={asideRef} className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 p-5 sm:p-6">
                 <span
                   className={`inline-block rounded-full text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 ${
-                    actif ? "bg-teal-400/15 text-teal-300" : "bg-white/10 text-slate-400"
+                    actif ? "bg-teal-400/15 text-teal-700 dark:text-teal-300" : "bg-slate-900/10 dark:bg-white/10 text-slate-500 dark:text-slate-400"
                   }`}
                 >
                   {actif ? "Votre simulation est prête" : "En attente de vos données"}
                 </span>
 
                 <div className="mt-4 rounded-xl border border-teal-400/25 bg-teal-400/[0.07] px-4 py-4">
-                  <p className="text-xs text-slate-300">Contribution nette estimée</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">Contribution nette estimée</p>
                   <p className="text-3xl font-bold tracking-tight mt-1 tabular-nums">{actif ? formatMontant(s.contributionNette) : "— €"}</p>
                 </div>
 
@@ -1214,21 +1214,21 @@ export default function SimulateurOeth() {
                 {actif && plafondDepenses > 0 && (
                   <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-500/[0.08] px-4 py-3">
                     <div className="flex justify-between gap-3">
-                      <p className="text-xs font-medium text-amber-100">Encore mobilisable via les dépenses déductibles</p>
-                      <p className="text-sm font-bold text-amber-200 tabular-nums">{formatMontant(encoreMobilisable)}</p>
+                      <p className="text-xs font-medium text-amber-900 dark:text-amber-100">Encore mobilisable via les dépenses déductibles</p>
+                      <p className="text-sm font-bold text-amber-800 dark:text-amber-200 tabular-nums">{formatMontant(encoreMobilisable)}</p>
                     </div>
                     <div className="h-1.5 rounded-full bg-amber-200/15 mt-2.5 overflow-hidden">
                       <div className="h-full bg-amber-300 rounded-full transition-all" style={{ width: `${partMobilisee}%` }} />
                     </div>
-                    <div className="flex justify-between text-[11px] text-amber-100/70 mt-1.5">
+                    <div className="flex justify-between text-[11px] text-amber-900/70 dark:text-amber-100/70 mt-1.5">
                       <span>Déjà mobilisé : {formatMontant(depensesMobilisees)}</span>
                       <span>Plafond 10 % : {formatMontant(plafondDepenses)}</span>
                     </div>
-                    <p className="text-[11px] text-amber-100/60 mt-1.5">ECAP et sous-traitance suivent d'autres règles.</p>
+                    <p className="text-[11px] text-amber-900/60 dark:text-amber-100/60 mt-1.5">ECAP et sous-traitance suivent d'autres règles.</p>
                   </div>
                 )}
 
-                <div className="border-t border-white/10 mt-5 pt-5">
+                <div className="border-t border-slate-900/10 dark:border-white/10 mt-5 pt-5">
                   <Etape numero="1" titre="Recevez votre synthèse complète">
                     Résultats, détail du calcul et rappel DSN, au format PDF.
                   </Etape>
@@ -1240,12 +1240,12 @@ export default function SimulateurOeth() {
                   >
                     {pdfEnCours ? "Génération…" : "Télécharger ma synthèse PDF"}
                   </button>
-                  {erreurPdf && <p className="text-xs text-red-400 mt-2">{erreurPdf}</p>}
+                  {erreurPdf && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erreurPdf}</p>}
 
                   <div className="flex items-center gap-3 my-5 text-[10px] uppercase tracking-wider text-slate-500">
-                    <span className="flex-1 h-px bg-white/10" />
+                    <span className="flex-1 h-px bg-slate-900/10 dark:bg-white/10" />
                     ou
-                    <span className="flex-1 h-px bg-white/10" />
+                    <span className="flex-1 h-px bg-slate-900/10 dark:bg-white/10" />
                   </div>
 
                   <Etape numero="2" titre="Analysez-la gratuitement avec un conseiller">
@@ -1256,14 +1256,14 @@ export default function SimulateurOeth() {
                     <button
                       type="button"
                       onClick={ouvrirContact}
-                      className="mt-4 w-full rounded-xl border border-white/25 text-sm font-semibold py-3 hover:bg-white/10 transition"
+                      className="mt-4 w-full rounded-xl border border-slate-900/25 dark:border-white/25 text-sm font-semibold py-3 hover:bg-slate-900/10 dark:hover:bg-white/10 transition"
                     >
                       Demander mon analyse gratuite
                     </button>
                   ) : envoye ? (
                     <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-center">
-                      <p className="font-semibold text-emerald-300 text-sm">Demande envoyée</p>
-                      <p className="text-xs text-slate-400 mt-1">Un conseiller du Pôle OETH / AGEFIPH vous recontacte prochainement.</p>
+                      <p className="font-semibold text-emerald-700 dark:text-emerald-300 text-sm">Demande envoyée</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Un conseiller du Pôle OETH / AGEFIPH vous recontacte prochainement.</p>
                     </div>
                   ) : (
                     <form onSubmit={envoyerContact} className="mt-4 space-y-2">
@@ -1297,20 +1297,20 @@ export default function SimulateurOeth() {
                         className={`${CLASSE_INPUT} resize-none`}
                       />
                       {erreurEnvoi && (
-                        <p className="text-xs text-red-400 bg-red-500/10 border border-red-400/30 rounded-lg p-3">{erreurEnvoi}</p>
+                        <p className="text-xs text-red-600 dark:text-red-400 bg-red-500/10 border border-red-400/30 rounded-lg p-3">{erreurEnvoi}</p>
                       )}
                       <div className="flex gap-2">
                         <button
                           type="submit"
                           disabled={envoiEnCours || !contact.nom.trim() || !contact.email.trim()}
-                          className="flex-1 rounded-xl bg-white text-marine-900 hover:bg-marine-100 text-sm font-semibold py-2.5 transition disabled:opacity-40"
+                          className="flex-1 rounded-xl bg-marine-800 dark:bg-white text-white dark:text-marine-900 hover:bg-marine-900 dark:hover:bg-marine-100 text-sm font-semibold py-2.5 transition disabled:opacity-40"
                         >
                           {envoiEnCours ? "Envoi…" : "Envoyer ma demande"}
                         </button>
                         <button
                           type="button"
                           onClick={() => setContactOuvert(false)}
-                          className="rounded-xl text-sm text-slate-400 px-3 hover:text-white transition"
+                          className="rounded-xl text-sm text-slate-500 dark:text-slate-400 px-3 hover:text-slate-900 dark:hover:text-white transition"
                         >
                           Annuler
                         </button>
@@ -1318,7 +1318,7 @@ export default function SimulateurOeth() {
                     </form>
                   )}
 
-                  <div className="flex gap-4 mt-4 text-[11px] text-slate-400">
+                  <div className="flex gap-4 mt-4 text-[11px] text-slate-500 dark:text-slate-400">
                     <span className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-teal-400" /> Gratuit
                     </span>
@@ -1335,14 +1335,14 @@ export default function SimulateurOeth() {
               <div className="flex flex-wrap items-end justify-between gap-2 mb-4">
                 <div>
                   <p className="text-lg font-semibold">Vos recommandations prioritaires</p>
-                  <p className="text-xs text-slate-400">Des leviers concrets, du plus rapide au plus structurant.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Des leviers concrets, du plus rapide au plus structurant.</p>
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {RECOMMANDATIONS.map((r, index) => (
                   <div
                     key={r.titre}
-                    className="relative rounded-2xl border border-white/10 bg-marine-950 p-5 flex flex-col overflow-hidden"
+                    className="relative rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 p-5 flex flex-col overflow-hidden"
                   >
                     <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: r.couleur }} />
                     <span
@@ -1352,14 +1352,14 @@ export default function SimulateurOeth() {
                       Priorité {index + 1}
                     </span>
                     <p className="font-semibold mt-3 leading-snug">{r.titre}</p>
-                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{r.texte}</p>
-                    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 flex-1">
-                      <p className="text-[11px] font-semibold text-slate-200">Comment nous pouvons vous accompagner</p>
-                      <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">{r.accompagnement}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">{r.texte}</p>
+                    <div className="mt-4 rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] p-3 flex-1">
+                      <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Comment nous pouvons vous accompagner</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">{r.accompagnement}</p>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {r.tags.map((t) => (
-                        <span key={t} className="rounded-md border border-white/10 bg-white/[0.03] text-[10px] text-slate-300 px-2 py-1">
+                        <span key={t} className="rounded-md border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] text-[10px] text-slate-600 dark:text-slate-300 px-2 py-1">
                           {t}
                         </span>
                       ))}
@@ -1377,14 +1377,14 @@ export default function SimulateurOeth() {
             </div>
 
             {/* ─────────── Synthèse DSN ─────────── */}
-            <div className="mt-8 rounded-2xl border border-white/10 bg-marine-950 p-5 sm:p-7">
+            <div className="mt-8 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 p-5 sm:p-7">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div>
-                  <span className="inline-block rounded-full bg-teal-400/15 text-teal-300 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
+                  <span className="inline-block rounded-full bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
                     Aide à la déclaration
                   </span>
                   <p className="text-lg font-semibold mt-2">Votre synthèse DSN pour préparer la DOETH</p>
-                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
                     Les principaux codes DSN associés à votre simulation, à transmettre à votre gestionnaire de paie pour
                     préparer la déclaration annuelle et rapprocher vos dépenses de la contribution estimée.
                   </p>
@@ -1394,7 +1394,7 @@ export default function SimulateurOeth() {
                     type="button"
                     onClick={copierSyntheseDsn}
                     disabled={!actif}
-                    className="rounded-lg border border-white/20 text-xs font-semibold px-3.5 py-2 hover:bg-white/10 transition disabled:opacity-40"
+                    className="rounded-lg border border-slate-900/20 dark:border-white/20 text-xs font-semibold px-3.5 py-2 hover:bg-slate-900/10 dark:hover:bg-white/10 transition disabled:opacity-40"
                   >
                     {syntheseCopiee ? "✓ Copiée" : "Copier la synthèse"}
                   </button>
@@ -1415,22 +1415,22 @@ export default function SimulateurOeth() {
                   ["Bloc principal", "S21.G00.82"],
                   ["Contribution réelle due estimée", dash(formatMontant(s?.contributionNette))],
                 ].map(([l, v]) => (
-                  <div key={l} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">{l}</p>
+                  <div key={l} className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] px-4 py-3">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">{l}</p>
                     <p className="text-sm font-bold mt-0.5 tabular-nums">{v}</p>
                   </div>
                 ))}
               </div>
 
-              <p className="mt-3 rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-100 leading-relaxed">
+              <p className="mt-3 rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-900 dark:text-amber-100 leading-relaxed">
                 Ces codes sont une aide au rapprochement. Avant dépôt, vérifiez les données mises à disposition par l'URSSAF
                 ou la MSA, l'existence d'un accord agréé, les plafonds de déduction et la qualification exacte de chaque
                 dépense. Les codes 065 à 068 se déclarent obligatoirement ensemble, arrondis à l'euro.
               </p>
 
-              <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+              <div className="mt-4 overflow-x-auto rounded-xl border border-slate-900/10 dark:border-white/10">
                 <table className="w-full text-sm min-w-[640px]">
-                  <thead className="bg-white/[0.04] text-[11px] uppercase tracking-wider text-slate-400">
+                  <thead className="bg-slate-900/[0.04] dark:bg-white/[0.04] text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     <tr>
                       <th className="text-left font-semibold px-4 py-2.5">Élément</th>
                       <th className="text-left font-semibold px-3 py-2.5">Rubrique DSN</th>
@@ -1439,16 +1439,16 @@ export default function SimulateurOeth() {
                       <th className="text-left font-semibold px-4 py-2.5">Statut</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/[0.06]">
+                  <tbody className="divide-y divide-slate-900/[0.06] dark:divide-white/[0.06]">
                     {lignesDsn.map((l) => (
                       <tr key={l.code} className={l.total ? "bg-teal-400/[0.04]" : ""}>
                         <td className="px-4 py-2.5">
                           <span className={l.total ? "font-semibold" : ""}>{l.element}</span>
                           <span className="block text-[11px] text-slate-500">{l.note}</span>
                         </td>
-                        <td className="px-3 py-2.5 font-mono text-[11px] text-slate-400">S21.G00.82.002</td>
+                        <td className="px-3 py-2.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">S21.G00.82.002</td>
                         <td className="px-3 py-2.5">
-                          <span className="rounded-md bg-teal-400/15 text-teal-300 text-[11px] font-bold px-2 py-0.5">{l.code}</span>
+                          <span className="rounded-md bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[11px] font-bold px-2 py-0.5">{l.code}</span>
                         </td>
                         <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
                           {actif ? `${Math.round(l.valeur).toLocaleString("fr-FR")} €` : "—"}
@@ -1457,10 +1457,10 @@ export default function SimulateurOeth() {
                           <span
                             className={`rounded-full text-[10px] font-semibold px-2.5 py-1 ${
                               l.statut === "Prérempli"
-                                ? "bg-emerald-400/15 text-emerald-300"
+                                ? "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300"
                                 : l.statut === "À valider"
-                                  ? "bg-amber-400/15 text-amber-300"
-                                  : "bg-white/10 text-slate-400"
+                                  ? "bg-amber-400/15 text-amber-700 dark:text-amber-300"
+                                  : "bg-slate-900/10 dark:bg-white/10 text-slate-500 dark:text-slate-400"
                             }`}
                           >
                             {actif ? l.statut : "—"}
@@ -1497,7 +1497,7 @@ export default function SimulateurOeth() {
                 </span>
                 <span className="block text-lg font-bold tabular-nums leading-tight">{formatMontant(s.contributionNette)}</span>
               </span>
-              <span className="rounded-xl bg-marine-950 text-teal-300 text-xs font-semibold px-3 py-2 whitespace-nowrap">
+              <span className="rounded-xl bg-white dark:bg-marine-950 text-teal-700 dark:text-teal-300 text-xs font-semibold px-3 py-2 whitespace-nowrap">
                 Voir le détail ↓
               </span>
             </>
@@ -1513,7 +1513,7 @@ export default function SimulateurOeth() {
 }
 
 const CLASSE_INPUT =
-  "w-full rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-slate-500 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500";
+  "w-full rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/5 dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500";
 
 const TEINTES = {
   emerald: "border-emerald-400/25 bg-emerald-400/[0.07]",
@@ -1523,7 +1523,7 @@ const TEINTES = {
 
 function Pastille({ couleur, children }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] text-[11px] text-slate-300 px-3 py-1.5">
+    <span className="inline-flex items-center gap-2 rounded-full border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.04] dark:bg-white/[0.04] text-[11px] text-slate-600 dark:text-slate-300 px-3 py-1.5">
       <span className={`w-1.5 h-1.5 rounded-full ${couleur}`} />
       {children}
     </span>
@@ -1533,12 +1533,12 @@ function Pastille({ couleur, children }) {
 function EnteteEtape({ numero, titre, sousTitre, children }) {
   return (
     <div className="flex flex-col md:flex-row md:items-start gap-4">
-      <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-300 text-xs font-bold flex items-center justify-center">
+      <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-xs font-bold flex items-center justify-center">
         {numero}
       </span>
       <div className="flex-1">
         <h3 className="text-lg sm:text-xl font-semibold">{titre}</h3>
-        <p className="text-sm text-slate-400 mt-1">{sousTitre}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{sousTitre}</p>
       </div>
       <div className="md:pt-1.5">{children}</div>
     </div>
@@ -1550,13 +1550,13 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
   return (
     <div
       className={`rounded-xl border p-4 transition ${
-        erreur ? "border-red-400/50 bg-red-500/[0.05]" : accent ? "border-teal-400/20 bg-teal-400/[0.03]" : "border-white/10 bg-white/[0.03]"
+        erreur ? "border-red-400/50 bg-red-500/[0.05]" : accent ? "border-teal-400/20 bg-teal-400/[0.03]" : "border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03]"
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-slate-200 flex items-center">{titre}</p>
+        <p className="text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center">{titre}</p>
         {badge && (
-          <span className="rounded-full bg-teal-400/15 text-teal-300 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5">{badge}</span>
+          <span className="rounded-full bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5">{badge}</span>
         )}
       </div>
       <div className="relative mt-2.5">
@@ -1568,11 +1568,11 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full rounded-lg border border-white/10 bg-black/30 text-white placeholder:text-slate-600 pl-3 pr-16 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="w-full rounded-lg border border-slate-900/10 dark:border-white/10 bg-white dark:bg-black/30 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 pl-3 pr-16 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">{unite}</span>
       </div>
-      <p className={`text-[11px] mt-2 leading-snug ${erreur ? "text-red-300" : "text-slate-500"}`}>{erreur || aide}</p>
+      <p className={`text-[11px] mt-2 leading-snug ${erreur ? "text-red-700 dark:text-red-300" : "text-slate-500"}`}>{erreur || aide}</p>
     </div>
   );
 }
@@ -1580,7 +1580,7 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
 // Anneau de pourcentage coloré (tableau de bord des résultats).
 function Anneau({ pourcentage, couleur, titre, detail, actif }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-marine-950 px-3 py-4 flex flex-col items-center text-center">
+    <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 px-3 py-4 flex flex-col items-center text-center">
       <CercleProgression
         pourcentage={actif ? pourcentage : 0}
         couleur={couleur}
@@ -1589,7 +1589,7 @@ function Anneau({ pourcentage, couleur, titre, detail, actif }) {
         texteCentral={actif ? `${Math.round(Math.min(999, pourcentage))} %` : "—"}
       />
       <p className="text-sm font-semibold mt-3">{titre}</p>
-      <p className="text-[11px] text-slate-400 mt-0.5">{detail}</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{detail}</p>
     </div>
   );
 }
@@ -1607,7 +1607,7 @@ function DonutRepartition({ total, segments }) {
     <div className="flex items-center gap-5">
       <div className="relative shrink-0" style={{ width: taille, height: taille }}>
         <svg width={taille} height={taille} className="-rotate-90">
-          <circle cx={taille / 2} cy={taille / 2} r={rayon} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={epaisseur} />
+          <circle cx={taille / 2} cy={taille / 2} r={rayon} fill="none" className="stroke-slate-900/10 dark:stroke-white/[0.08]" strokeWidth={epaisseur} />
           {visibles.map((seg) => {
             const longueur = (seg.valeur / total) * circonference;
             const cercle = (
@@ -1629,7 +1629,7 @@ function DonutRepartition({ total, segments }) {
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400">Brute</span>
+          <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Brute</span>
           <span className="text-sm font-bold tabular-nums">{formatMontant(total)}</span>
         </div>
       </div>
@@ -1637,7 +1637,7 @@ function DonutRepartition({ total, segments }) {
         {segments.map((seg) => (
           <li key={seg.label} className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: seg.couleur }} />
-            <span className="text-slate-400 w-24">{seg.label}</span>
+            <span className="text-slate-500 dark:text-slate-400 w-24">{seg.label}</span>
             <span className="font-semibold tabular-nums">{Math.round((seg.valeur / total) * 100)} %</span>
           </li>
         ))}
@@ -1650,40 +1650,40 @@ function DonutRepartition({ total, segments }) {
 // puis aide dépliable ("Comment le renseigner ?", "Voir des exemples").
 function CarteDeduction({ titre, dsn, question, reponse, children }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] p-4">
       <div className="flex flex-wrap items-center gap-2 mb-2.5">
         <p className="text-sm font-semibold flex items-center">{titre}</p>
-        <span className="rounded-md bg-teal-400/15 border border-teal-400/25 text-teal-300 text-[10px] font-bold tracking-wider px-2 py-0.5">
+        <span className="rounded-md bg-teal-400/15 border border-teal-400/25 text-teal-700 dark:text-teal-300 text-[10px] font-bold tracking-wider px-2 py-0.5">
           DSN {dsn}
         </span>
       </div>
       {children}
       <details className="group mt-2.5">
-        <summary className="cursor-pointer list-none text-xs font-medium text-teal-300 hover:text-teal-200 inline-flex items-center gap-1.5">
+        <summary className="cursor-pointer list-none text-xs font-medium text-teal-700 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-200 inline-flex items-center gap-1.5">
           <span className="text-[9px] transition-transform group-open:rotate-90">▶</span>
           {question}
         </summary>
-        <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{reponse}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">{reponse}</p>
       </details>
     </div>
   );
 }
 
 function Carte({ className = "", children }) {
-  return <div className={`rounded-2xl border border-white/10 bg-marine-950 p-6 ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 p-6 ${className}`}>{children}</div>;
 }
 
 function MiniCarte({ label, valeur, compact = false }) {
   return (
-    <div className={`rounded-xl border border-white/10 bg-white/[0.03] ${compact ? "px-3 py-2.5" : "px-4 py-3.5"}`}>
+    <div className={`rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] ${compact ? "px-3 py-2.5" : "px-4 py-3.5"}`}>
       {compact ? (
         <>
           <p className="text-sm font-bold tabular-nums">{valeur}</p>
-          <p className="text-[11px] text-slate-400">{label}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{label}</p>
         </>
       ) : (
         <>
-          <p className="text-xs text-slate-400">{label}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
           <p className="text-xl font-semibold mt-1 tabular-nums">{valeur}</p>
         </>
       )}
@@ -1694,7 +1694,7 @@ function MiniCarte({ label, valeur, compact = false }) {
 function Indicateur({ label, valeur, teinte }) {
   return (
     <div className={`rounded-xl border px-5 py-4 ${TEINTES[teinte]}`}>
-      <p className="text-xs text-slate-300 flex items-center">{label}</p>
+      <p className="text-xs text-slate-600 dark:text-slate-300 flex items-center">{label}</p>
       <p className="text-xl font-bold mt-1.5 tabular-nums">{valeur}</p>
     </div>
   );
@@ -1703,12 +1703,12 @@ function Indicateur({ label, valeur, teinte }) {
 function Etape({ numero, titre, children }) {
   return (
     <div className="flex gap-3">
-      <span className="shrink-0 w-7 h-7 rounded-lg bg-teal-400/15 text-teal-300 text-xs font-bold flex items-center justify-center">
+      <span className="shrink-0 w-7 h-7 rounded-lg bg-teal-400/15 text-teal-700 dark:text-teal-300 text-xs font-bold flex items-center justify-center">
         {numero}
       </span>
       <div>
         <p className="font-semibold">{titre}</p>
-        <p className="text-xs text-slate-400 mt-1 leading-relaxed">{children}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{children}</p>
       </div>
     </div>
   );
@@ -1719,18 +1719,18 @@ function Etape({ numero, titre, children }) {
 function Question({ intitule, nom, valeur, onChange, actif, children }) {
   return (
     <fieldset
-      className={`rounded-xl border bg-white/[0.03] px-5 py-4 transition ${
-        actif ? "border-white/10 border-l-4 border-l-marine-400" : "border-white/10"
+      className={`rounded-xl border bg-slate-900/[0.03] dark:bg-white/[0.03] px-5 py-4 transition ${
+        actif ? "border-slate-900/10 dark:border-white/10 border-l-4 border-l-marine-400" : "border-slate-900/10 dark:border-white/10"
       }`}
     >
       <legend className="sr-only">{typeof intitule === "string" ? intitule : nom}</legend>
-      <p className="text-sm text-slate-200 leading-relaxed">{intitule}</p>
+      <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{intitule}</p>
       <div className="flex gap-6 mt-3">
         {[
           { v: true, label: "Oui" },
           { v: false, label: "Non" },
         ].map((o) => (
-          <label key={o.label} className="inline-flex items-center gap-2 cursor-pointer text-sm text-slate-200">
+          <label key={o.label} className="inline-flex items-center gap-2 cursor-pointer text-sm text-slate-700 dark:text-slate-200">
             <input type="radio" name={nom} checked={valeur === o.v} onChange={() => onChange(o.v)} className="peer sr-only" />
             <span className="w-5 h-5 rounded-full border-2 border-slate-500 flex items-center justify-center peer-checked:border-marine-300 peer-focus-visible:ring-2 peer-focus-visible:ring-marine-500">
               <span className={`w-2.5 h-2.5 rounded-full ${valeur === o.v ? "bg-marine-300" : "bg-transparent"}`} />
@@ -1757,7 +1757,7 @@ function OuiNon({ valeur, onChange }) {
           onClick={() => onChange(valeur === o.v ? null : o.v)}
           aria-pressed={valeur === o.v}
           className={`flex-1 rounded-xl py-3 text-sm font-medium border transition ${
-            valeur === o.v ? "bg-marine-500 border-marine-400 text-white" : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+            valeur === o.v ? "bg-marine-500 border-marine-400 text-white" : "border-slate-900/10 dark:border-white/10 bg-slate-900/5 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10"
           }`}
         >
           {o.label}
@@ -1769,7 +1769,7 @@ function OuiNon({ valeur, onChange }) {
 
 function Champ({ label, aide, value, onChange, placeholder, step = "any" }) {
   return (
-    <label className="block text-xs text-slate-400">
+    <label className="block text-xs text-slate-500 dark:text-slate-400">
       {label}
       <input
         type="number"

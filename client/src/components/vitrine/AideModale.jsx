@@ -15,7 +15,7 @@ export function InfoBouton({ cle, onOuvrir }) {
       }}
       aria-label={`En savoir plus : ${AIDES[cle]?.titre || ""}`}
       title="En savoir plus"
-      className="inline-flex items-center justify-center w-4 h-4 ml-1.5 align-[-2px] rounded-full border border-marine-400/60 text-marine-300 text-[10px] font-bold leading-none hover:bg-marine-500 hover:text-white hover:border-marine-400 transition"
+      className="inline-flex items-center justify-center w-4 h-4 ml-1.5 align-[-2px] rounded-full border border-marine-400/60 text-marine-600 dark:text-marine-300 text-[10px] font-bold leading-none hover:bg-marine-500 hover:text-slate-900 dark:hover:text-white hover:border-marine-400 transition"
     >
       i
     </button>
@@ -80,13 +80,13 @@ export default function AideModale({ cle, onFermer }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
       onClick={(e) => e.target === e.currentTarget && onFermer()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="aide-titre"
     >
-      <div className="relative w-full max-w-lg bg-marine-950 border border-white/10 rounded-2xl shadow-2xl my-8 overflow-hidden text-white">
+      <div className="relative w-full max-w-lg bg-white dark:bg-marine-950 border border-slate-900/10 dark:border-white/10 rounded-2xl shadow-2xl my-8 overflow-hidden text-slate-900 dark:text-white">
         <div className="flex h-1">
           <span className="flex-1 bg-marine-500" />
           <span className="flex-1 bg-white" />
@@ -99,7 +99,7 @@ export default function AideModale({ cle, onFermer }) {
           onClick={onFermer}
           aria-label="Fermer"
           title="Fermer"
-          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-slate-300 hover:bg-white/10 hover:text-white transition"
+          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white transition"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -107,7 +107,7 @@ export default function AideModale({ cle, onFermer }) {
         </button>
 
         <div className="px-6 sm:px-7 pt-6 pb-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-400 pr-10">Comprendre</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-600 dark:text-marine-400 pr-10">Comprendre</p>
           <h3 id="aide-titre" className="font-bold text-xl mt-1 pr-10">
             {aide.titre}
           </h3>
@@ -117,7 +117,7 @@ export default function AideModale({ cle, onFermer }) {
               <button
                 type="button"
                 onClick={basculerLecture}
-                className="inline-flex items-center gap-2 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 text-sm font-medium px-4 py-2 transition"
+                className="inline-flex items-center gap-2 rounded-full bg-slate-900/10 dark:bg-white/10 hover:bg-slate-900/15 dark:hover:bg-white/15 border border-slate-900/10 dark:border-white/10 text-sm font-medium px-4 py-2 transition"
               >
                 <span aria-hidden>{lecture === "lecture" ? "⏸" : "🔊"}</span>
                 {lecture === "lecture" ? "Pause" : lecture === "pause" ? "Reprendre" : "Écouter"}
@@ -126,7 +126,7 @@ export default function AideModale({ cle, onFermer }) {
                 <button
                   type="button"
                   onClick={arreterLecture}
-                  className="rounded-full text-sm text-slate-400 hover:text-white px-3 py-2 transition"
+                  className="rounded-full text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-3 py-2 transition"
                 >
                   ⏹ Arrêter
                 </button>
@@ -136,20 +136,20 @@ export default function AideModale({ cle, onFermer }) {
 
           <div className="mt-5 space-y-4 text-sm leading-relaxed">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">C'est quoi ?</p>
-              <p className="text-slate-200">{aide.definition}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">C'est quoi ?</p>
+              <p className="text-slate-700 dark:text-slate-200">{aide.definition}</p>
             </div>
             <div className="rounded-xl border border-teal-400/20 bg-teal-400/[0.06] p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-teal-300 mb-1">Comment c'est calculé</p>
-              <p className="text-slate-200">{aide.calcul}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 dark:text-teal-300 mb-1">Comment c'est calculé</p>
+              <p className="text-slate-700 dark:text-slate-200">{aide.calcul}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Ce que ça change pour vous</p>
-              <p className="text-slate-300">{aide.conseil}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Ce que ça change pour vous</p>
+              <p className="text-slate-600 dark:text-slate-300">{aide.conseil}</p>
             </div>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-6 pt-4 border-t border-slate-900/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
               {aide.sources.map((s) => (
                 <a
@@ -157,7 +157,7 @@ export default function AideModale({ cle, onFermer }) {
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-marine-300 hover:text-marine-200 hover:underline"
+                  className="text-xs text-marine-600 dark:text-marine-300 hover:text-marine-800 dark:hover:text-marine-200 hover:underline"
                 >
                   {s.label} ↗
                 </a>
@@ -166,7 +166,7 @@ export default function AideModale({ cle, onFermer }) {
             <button
               type="button"
               onClick={onFermer}
-              className="rounded-full bg-white text-marine-900 hover:bg-marine-100 text-sm font-semibold px-5 py-2 transition"
+              className="rounded-full bg-marine-800 dark:bg-white text-white dark:text-marine-900 hover:bg-marine-900 dark:hover:bg-marine-100 text-sm font-semibold px-5 py-2 transition"
             >
               J'ai compris
             </button>

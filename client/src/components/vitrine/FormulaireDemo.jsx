@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../api.js";
 
 const CLASSE_INPUT =
-  "w-full rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-slate-500 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400";
+  "w-full rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/5 dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400";
 
 const VIDE = {
   prenom: "",
@@ -65,9 +65,9 @@ export default function FormulaireDemo() {
   if (envoye) {
     return (
       <div className="text-center py-10">
-        <div className="w-14 h-14 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center mx-auto text-2xl">✓</div>
+        <div className="w-14 h-14 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto text-2xl">✓</div>
         <p className="text-xl font-semibold mt-4">Demande envoyée</p>
-        <p className="text-sm text-slate-400 mt-2">Un expert revient vers vous rapidement pour organiser la démonstration.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Un expert revient vers vous rapidement pour organiser la démonstration.</p>
       </div>
     );
   }
@@ -75,52 +75,52 @@ export default function FormulaireDemo() {
   return (
     <form onSubmit={envoyer}>
       <p className="font-semibold">Parlons de vos besoins</p>
-      <p className="text-sm text-slate-400 mt-1">
+      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
         Laissez-nous vos coordonnées et les sujets qui vous intéressent : un expert revient vers vous rapidement.
       </p>
 
       <div className="grid sm:grid-cols-2 gap-3 mt-5">
-        <label className="text-xs text-slate-400">
+        <label className="text-xs text-slate-500 dark:text-slate-400">
           Prénom *
           <input required className={`mt-1.5 ${CLASSE_INPUT}`} {...champ("prenom")} />
         </label>
-        <label className="text-xs text-slate-400">
+        <label className="text-xs text-slate-500 dark:text-slate-400">
           Nom *
           <input required className={`mt-1.5 ${CLASSE_INPUT}`} {...champ("nom")} />
         </label>
-        <label className="text-xs text-slate-400">
+        <label className="text-xs text-slate-500 dark:text-slate-400">
           E-mail professionnel *
           <input required type="email" className={`mt-1.5 ${CLASSE_INPUT}`} {...champ("email")} />
         </label>
-        <label className="text-xs text-slate-400">
+        <label className="text-xs text-slate-500 dark:text-slate-400">
           Téléphone *
           <input required type="tel" className={`mt-1.5 ${CLASSE_INPUT}`} {...champ("telephone")} />
         </label>
-        <label className="text-xs text-slate-400">
+        <label className="text-xs text-slate-500 dark:text-slate-400">
           Entreprise / organisation *
           <input required className={`mt-1.5 ${CLASSE_INPUT}`} {...champ("entreprise")} />
         </label>
-        <label className="text-xs text-slate-400">
+        <label className="text-xs text-slate-500 dark:text-slate-400">
           Fonction *
           <select required className={`mt-1.5 ${CLASSE_INPUT} cursor-pointer`} {...champ("fonction")}>
-            <option className="bg-marine-950" value="">
+            <option className="bg-white dark:bg-marine-950" value="">
               Sélectionnez votre fonction
             </option>
             {options.fonctions.map((o) => (
-              <option key={o} className="bg-marine-950" value={o}>
+              <option key={o} className="bg-white dark:bg-marine-950" value={o}>
                 {o}
               </option>
             ))}
           </select>
         </label>
-        <label className="text-xs text-slate-400 sm:col-span-2">
+        <label className="text-xs text-slate-500 dark:text-slate-400 sm:col-span-2">
           Taille de l'organisation *
           <select required className={`mt-1.5 ${CLASSE_INPUT} cursor-pointer`} {...champ("taille")}>
-            <option className="bg-marine-950" value="">
+            <option className="bg-white dark:bg-marine-950" value="">
               Sélectionnez une tranche d'effectif
             </option>
             {options.tailles.map((o) => (
-              <option key={o} className="bg-marine-950" value={o}>
+              <option key={o} className="bg-white dark:bg-marine-950" value={o}>
                 {o}
               </option>
             ))}
@@ -128,7 +128,7 @@ export default function FormulaireDemo() {
         </label>
       </div>
 
-      <p className="text-xs text-slate-400 mt-4">Quels sujets vous intéressent ? *</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">Quels sujets vous intéressent ? *</p>
       <div className="flex flex-wrap gap-2 mt-2">
         {options.sujets.map((sujet) => {
           const actif = form.sujets.includes(sujet);
@@ -139,7 +139,7 @@ export default function FormulaireDemo() {
               onClick={() => basculerSujet(sujet)}
               aria-pressed={actif}
               className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
-                actif ? "border-teal-400 bg-teal-400/15 text-teal-200" : "border-white/15 text-slate-300 hover:bg-white/10"
+                actif ? "border-teal-400 bg-teal-400/15 text-teal-700 dark:text-teal-200" : "border-slate-900/15 dark:border-white/15 text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10"
               }`}
             >
               {actif ? "✓ " : ""}
@@ -149,7 +149,7 @@ export default function FormulaireDemo() {
         })}
       </div>
 
-      <label className="block text-xs text-slate-400 mt-4">
+      <label className="block text-xs text-slate-500 dark:text-slate-400 mt-4">
         Votre message
         <textarea
           rows={4}
@@ -162,7 +162,7 @@ export default function FormulaireDemo() {
       {/* Champ piège anti-robots, invisible pour les humains. */}
       <input tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" {...champ("siteWeb")} />
 
-      <label className="flex items-start gap-2.5 mt-4 text-xs text-slate-300 cursor-pointer">
+      <label className="flex items-start gap-2.5 mt-4 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
         <input
           type="checkbox"
           required
@@ -174,7 +174,7 @@ export default function FormulaireDemo() {
         d'autres fins sans mon accord.
       </label>
 
-      {erreur && <p className="text-sm text-red-400 mt-3">{erreur}</p>}
+      {erreur && <p className="text-sm text-red-600 dark:text-red-400 mt-3">{erreur}</p>}
       <button
         type="submit"
         disabled={envoi}
