@@ -88,7 +88,7 @@ export default function WidgetsVitrine() {
 
   return (
     <>
-      <div className="fixed right-0 bottom-24 sm:bottom-8 z-[60] flex flex-col items-end gap-2 pointer-events-none">
+      <div className="fixed right-0 bottom-24 sm:bottom-8 z-[60] flex flex-col items-end gap-1.5 sm:gap-2 pointer-events-none">
         {DROITE.map((w) => {
           const theme = THEMES[w.nom];
           if (ouvert !== w.nom) {
@@ -137,7 +137,8 @@ function Onglet({ etiquette, icone, theme, pulse, onClick }) {
       type="button"
       onClick={onClick}
       aria-label={`Ouvrir : ${etiquette}`}
-      className={`pointer-events-auto relative flex flex-col items-center justify-center gap-1 w-[68px] py-3 rounded-l-2xl border border-r-0 shadow-2xl transition ${theme.onglet}`}
+      title={etiquette}
+      className={`pointer-events-auto relative flex flex-col items-center justify-center gap-1 w-10 sm:w-[68px] py-2 sm:py-3 rounded-l-xl sm:rounded-l-2xl border border-r-0 shadow-2xl transition ${theme.onglet}`}
     >
       {pulse && (
         <span className="absolute -top-1 -left-1 flex h-3 w-3">
@@ -145,8 +146,9 @@ function Onglet({ etiquette, icone, theme, pulse, onClick }) {
           <span className={`relative inline-flex h-3 w-3 rounded-full ${theme.pulse}`} />
         </span>
       )}
-      <span className={`w-7 h-7 rounded-lg border flex items-center justify-center text-sm font-bold ${theme.pastille}`}>{icone}</span>
-      <span className="text-[9px] font-bold uppercase tracking-wider">{etiquette}</span>
+      <span className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg border flex items-center justify-center text-xs sm:text-sm font-bold ${theme.pastille}`}>{icone}</span>
+      {/* Sur téléphone, icône seule : onglets plus discrets. */}
+      <span className="hidden sm:block text-[9px] font-bold uppercase tracking-wider">{etiquette}</span>
     </button>
   );
 }

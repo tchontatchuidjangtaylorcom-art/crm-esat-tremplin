@@ -1664,7 +1664,8 @@ function EnteteEtape({ numero, titre, sousTitre, children }) {
       <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-xs font-bold flex items-center justify-center">
         {numero}
       </span>
-      <div className="flex-1">
+      {/* Masqué sur téléphone : les champs à remplir remontent à l'écran. */}
+      <div className="hidden sm:block flex-1">
         <h3 className="text-lg sm:text-xl font-semibold">{titre}</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{sousTitre}</p>
       </div>
