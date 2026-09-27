@@ -39,6 +39,7 @@ import {
 } from "./mail.js";
 import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
 import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
+import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
 import { genererRapportPdf } from "./pdfRapport.js";
 import {
   estRechercheIaConfiguree,
@@ -729,10 +730,13 @@ app.post("/api/vitrine/contact", async (req, res) => {
   if (!nom || !email || !email.includes("@")) {
     return res.status(400).json({ error: "Nom et adresse mail valide requis." });
   }
+
+  // La demande arrive d'abord dans le CRM (fiche entreprise, lot "Demandes
+  // site web", notification admin) : elle n'est donc jamais perdue, même si
+  // l'envoi d'e-mails n'est pas configuré.
+  await enregistrerDemandeSiteSansEchec({ type: "contact", nom, email, telephone, entreprise, message });
   if (!estEnvoiConfigure()) {
-    return res.status(503).json({
-      error: `Prise de contact indisponible pour le moment — écrivez-nous directement à ${adresseMailPole() || "l'adresse du pôle"}${telephonePole() ? ` ou au ${telephonePole()}` : ""}.`,
-    });
+    return res.json({ ok: true });
   }
 
   try {
@@ -768,7 +772,10 @@ app.post("/api/vitrine/contact", async (req, res) => {
     }
     res.json({ ok: true });
   } catch (e) {
-    res.status(502).json({ error: e.message });
+    // La demande est déjà enregistrée dans le CRM : on ne la fait pas échouer
+    // côté visiteur pour un simple incident d'envoi d'e-mail.
+    console.error("[vitrine] Notification e-mail du pôle impossible :", e.message);
+    res.json({ ok: true });
   }
 });
 
@@ -787,6 +794,12 @@ app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (r
   // l'alerte "nouveau lead assigné" du centre de notifications.
   if (req.entreprise.assigneA === req.utilisateur.id && req.entreprise.assignationVue === false) {
     req.entreprise.assignationVue = true;
+    await db.write();
+  }
+  // Demande reçue du site web : éteinte dès qu'un administrateur ou l'agent
+  // assigné ouvre la fiche.
+  if (req.entreprise.demandeSiteNonVue && (req.utilisateur.role === "admin" || req.entreprise.assigneA === req.utilisateur.id)) {
+    req.entreprise.demandeSiteNonVue = false;
     await db.write();
   }
   res.json(enrichir(req.entreprise));
@@ -2309,7 +2322,15 @@ function calculerNotifications(utilisateur) {
       ? alertesAbsenceEquipe(db.data.utilisateurs.filter((u) => u.statut === "valide" && u.id !== utilisateur.id))
       : [];
 
-  return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles, alertePresence, alertesPresenceEquipe };
+  // Demandes reçues du site public (rendez-vous, démo, contact, vigilance) :
+  // les admins voient toutes les demandes non traitées, un agent seulement
+  // celles des fiches qui lui sont assignées.
+  const demandesSite = mesEntreprises
+    .filter((e) => e.demandeSiteNonVue)
+    .map((e) => ({ id: e.id, nom: e.nom, type: e.demandesSite?.[0]?.libelle || "Demande site web", date: e.demandesSite?.[0]?.date || null }))
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles, alertePresence, alertesPresenceEquipe, demandesSite };
 }
 
 // `commeAgentId` (admin uniquement) : calcule les notifications d'un AUTRE

@@ -41,7 +41,9 @@ export default function NotificationCenter() {
 
   const alertesEquipe = data.alertesPresenceEquipe || [];
   const demandesAcces = data.demandesAcces || [];
+  const demandesSite = data.demandesSite || [];
   const total =
+    demandesSite.length +
     data.messagesNonLus +
     data.nouveauxLeads.length +
     data.rdvAVenir.length +
@@ -107,6 +109,25 @@ export default function NotificationCenter() {
                   </span>
                 </button>
               )}
+
+              {/* Demandes reçues du site web (rendez-vous, démo, contact,
+                  vigilance) : chacune ouvre la fiche entreprise créée. */}
+              {demandesSite.map((d) => (
+                <button
+                  key={`site-${d.id}`}
+                  onClick={() => {
+                    setOuvert(false);
+                    navigate(`/entreprise/${d.id}`);
+                  }}
+                  className="w-full text-left px-4 py-2.5 bg-teal-50/70 dark:bg-teal-950/30 hover:bg-teal-50 dark:hover:bg-teal-950/50 flex items-center gap-2"
+                >
+                  <span aria-hidden>🌐</span>
+                  <span className="text-teal-800 dark:text-teal-300 truncate">
+                    {d.type} : <strong>{d.nom}</strong>
+                    {d.date ? ` — ${formatDateHeure(d.date)}` : ""}
+                  </span>
+                </button>
+              ))}
 
               {demandesAcces.length > 0 && (
                 <button

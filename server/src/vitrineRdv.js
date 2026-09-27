@@ -5,6 +5,14 @@
 import crypto from "crypto";
 import db from "./db.js";
 import { envoyerMail, estEnvoiConfigure, adresseMailPole, telephonePole } from "./mail.js";
+import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
+
+// Date/heure de Paris → ISO UTC (gère l'heure d'été / d'hiver).
+function isoDepuisParis(date, heure) {
+  const supposeUtc = new Date(`${date}T${heure}:00Z`);
+  const vuAParis = new Date(supposeUtc.toLocaleString("sv-SE", { timeZone: "Europe/Paris" }).replace(" ", "T") + "Z");
+  return new Date(supposeUtc.getTime() - (vuAParis.getTime() - supposeUtc.getTime())).toISOString();
+}
 
 // Créneaux proposés (heure de Paris), du lundi au vendredi, 45 minutes.
 // Par défaut : horaires des experts, du lundi au vendredi de 8h45 à 18h
@@ -159,6 +167,24 @@ export function enregistrerRoutesVitrineRdv(app) {
     db.data.rendezVousVitrine.push(rdv);
     await db.write();
 
+    // Fiche CRM (création ou mise à jour) avec la date du rendez-vous.
+    const quandLibelle = `${dateLongueFr(date)} à ${heure.replace(":", "h")} (heure de Paris)`;
+    const resultatFiche = await enregistrerDemandeSiteSansEchec({
+      type: "rdv",
+      prenom,
+      nom,
+      email,
+      telephone,
+      entreprise,
+      message,
+      details: [`Rendez-vous réservé : ${quandLibelle}, ${DUREE_MINUTES} min`],
+    });
+    if (resultatFiche?.entreprise) {
+      resultatFiche.entreprise.dateRdv = isoDepuisParis(date, heure);
+      rdv.entrepriseId = resultatFiche.entreprise.id;
+      await db.write();
+    }
+
     const quand = `${dateLongueFr(date)} à ${heure.replace(":", "h")} (heure de Paris, ${DUREE_MINUTES} min)`;
     await notifier({
       sujetPole: `Nouveau rendez-vous expert — ${entreprise} — ${date} ${heure}`,
@@ -205,6 +231,20 @@ export function enregistrerRoutesVitrineRdv(app) {
 
     db.data.signalementsVigilance.push(signalement);
     await db.write();
+
+    await enregistrerDemandeSiteSansEchec({
+      type: "vigilance",
+      nom: signalement.nom,
+      email: signalement.email,
+      telephone: signalement.telephone,
+      entreprise: signalement.entreprise,
+      message: signalement.description,
+      details: [
+        `Canal de la sollicitation : ${signalement.canal}`,
+        signalement.interlocuteur ? `Interlocuteur / structure : ${signalement.interlocuteur}` : null,
+        signalement.coordonneesInterlocuteur ? `Numéro, e-mail ou site utilisé : ${signalement.coordonneesInterlocuteur}` : null,
+      ],
+    });
 
     await notifier({
       sujetPole: `Vigilance — sollicitation à vérifier (${signalement.entreprise})`,
@@ -258,6 +298,18 @@ export function enregistrerRoutesVitrineRdv(app) {
 
     db.data.demandesDemo.push(demande);
     await db.write();
+
+    await enregistrerDemandeSiteSansEchec({
+      type: "demo",
+      prenom: demande.prenom,
+      nom: demande.nom,
+      email: demande.email,
+      telephone: demande.telephone,
+      entreprise: demande.entreprise,
+      fonction: demande.fonction,
+      message: demande.message,
+      details: [`Taille : ${demande.taille}`, `Sujets : ${demande.sujets.join(", ")}`],
+    });
 
     await notifier({
       sujetPole: `Demande de démo — ${demande.entreprise} (${demande.taille})`,

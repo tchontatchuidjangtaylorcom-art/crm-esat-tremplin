@@ -213,8 +213,20 @@ export default function EntrepriseTable({
                   >
                     {e.nom}
                   </a>
+                  {e.origine === "site_web" && (
+                    <span
+                      title={e.demandesSite?.[0]?.libelle ? `Dernière demande : ${e.demandesSite[0].libelle}` : "Demande reçue du site web"}
+                      className={`ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold align-middle ${
+                        e.demandeSiteNonVue
+                          ? "bg-teal-500 text-white"
+                          : "bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300"
+                      }`}
+                    >
+                      🌐 Site web{e.demandeSiteNonVue ? " · nouveau" : ""}
+                    </span>
+                  )}
                   <span className="block text-[11px] text-slate-400 dark:text-slate-500">
-                    {e.effectif} sal. · {e.categorie?.label}
+                    {e.effectif ?? "?"} sal. · {e.categorie?.label}
                     {e.lot ? ` · ${e.lot}` : ""}
                   </span>
                 </td>
