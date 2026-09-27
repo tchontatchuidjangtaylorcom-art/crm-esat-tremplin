@@ -73,7 +73,7 @@ export default function Faq() {
       <EnteteVitrine />
 
       {/* En-tête */}
-      <section className="relative overflow-hidden pt-28 pb-8 lg:pt-32">
+      <section className="relative overflow-hidden pt-36 pb-8 lg:pt-32">
         <div aria-hidden className="pointer-events-none absolute -top-32 -left-24 w-[600px] h-[420px] rounded-full bg-teal-500/10 blur-3xl" />
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-teal-400/40 bg-teal-400/10 text-teal-700 dark:text-teal-300 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5">

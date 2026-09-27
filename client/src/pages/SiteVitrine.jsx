@@ -139,7 +139,7 @@ export default function SiteVitrine() {
       <EnteteVitrine onSimuler={allerAuSimulateur} />
 
       {/* Simulateur OETH / DOETH intégré — cœur de la landing page. */}
-      <div className="bg-slate-50 dark:bg-black pt-14">
+      <div className="bg-slate-50 dark:bg-black pt-20 lg:pt-14">
         <SimulateurOeth />
       </div>
 

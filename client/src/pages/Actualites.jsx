@@ -17,7 +17,7 @@ export default function Actualites() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-white">
       <EnteteVitrine />
-      <section className="relative overflow-hidden pt-28 pb-10 lg:pt-32">
+      <section className="relative overflow-hidden pt-36 pb-10 lg:pt-32">
         <div aria-hidden className="pointer-events-none absolute -top-32 right-0 w-[600px] h-[420px] rounded-full bg-amber-500/10 blur-3xl" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6">
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 text-amber-700 dark:text-amber-300 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5">

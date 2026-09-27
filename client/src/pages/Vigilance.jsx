@@ -95,7 +95,7 @@ export default function Vigilance() {
       <EnteteVitrine />
 
       {/* En-tête */}
-      <section className="relative overflow-hidden pt-28 pb-14 lg:pt-32 lg:pb-20">
+      <section className="relative overflow-hidden pt-36 pb-14 lg:pt-32 lg:pb-20">
         <div aria-hidden className="pointer-events-none absolute -top-32 -left-24 w-[640px] h-[480px] rounded-full bg-red-600/10 blur-3xl" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 grid lg:grid-cols-[1.4fr_1fr] gap-10 items-start">
           <div>
