@@ -162,8 +162,12 @@ function sitemapXml() {
 export function servirFrontend(app, distClient) {
   const fichierIndex = path.join(distClient, "index.html");
   let modele = null;
+  // Les commentaires HTML sont retirés avant l'injection : un commentaire
+  // contenant le mot "<title>" faisait remplacer le mauvais endroit et
+  // enfermait tout le reste de la page (scripts compris) dans un commentaire
+  // → page blanche.
   const lireModele = () => {
-    if (!modele) modele = fs.readFileSync(fichierIndex, "utf8");
+    if (!modele) modele = fs.readFileSync(fichierIndex, "utf8").replace(/<!--[\s\S]*?-->/g, "");
     return modele;
   };
 
