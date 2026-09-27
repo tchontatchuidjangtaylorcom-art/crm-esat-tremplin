@@ -88,7 +88,8 @@ export default function PilotageHandicap() {
       <header className="sticky top-0 z-40 bg-white/85 dark:bg-black/85 backdrop-blur border-b border-slate-900/10 dark:border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
           <Link to="/vitrine" className="text-sm font-semibold tracking-tight">
-            Pôle OETH <span className="text-slate-500 dark:text-white/50">/</span> AGEFIPH
+            Pôle OETH <span className="text-slate-500 dark:text-white/50">/</span> AGEFIPH{" "}
+            <span className="text-slate-500 dark:text-white/50">·</span> FIPHFP
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-xs text-slate-600 dark:text-white/80">
             <Link to="/vitrine#simulateur" className="hover:text-slate-900 dark:hover:text-white">

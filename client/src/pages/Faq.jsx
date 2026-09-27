@@ -170,11 +170,21 @@ export default function Faq() {
                           {ouverte ? (
                             <div className="px-5 pb-4">
                               <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{q.reponse}</p>
-                              {q.lien && (
-                                <Link to={q.lien.to} className="inline-block text-sm font-semibold text-teal-700 dark:text-teal-300 hover:underline mt-2">
-                                  {q.lien.label} →
-                                </Link>
-                              )}
+                              {q.lien &&
+                                (q.lien.href ? (
+                                  <a
+                                    href={q.lien.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-block text-sm font-semibold text-teal-700 dark:text-teal-300 hover:underline mt-2"
+                                  >
+                                    {q.lien.label} ↗
+                                  </a>
+                                ) : (
+                                  <Link to={q.lien.to} className="inline-block text-sm font-semibold text-teal-700 dark:text-teal-300 hover:underline mt-2">
+                                    {q.lien.label} →
+                                  </Link>
+                                ))}
                             </div>
                           ) : (
                             <div className="pb-2" />

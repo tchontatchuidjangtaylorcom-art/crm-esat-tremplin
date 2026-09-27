@@ -186,6 +186,9 @@ export default function SimulateurOeth() {
   const [envoye, setEnvoye] = useState(false);
 
   const [sousTraitance, setSousTraitance] = useState(null); // null | true | false
+  // Employeur privé (AGEFIPH / URSSAF) ou public (FIPHFP) : détecté via la
+  // recherche Sirene, modifiable par le visiteur.
+  const [secteur, setSecteur] = useState("prive"); // "prive" | "public"
   const [surcontributionChoix, setSurcontributionChoix] = useState(""); // "" | "oui" | "non" | "inconnu"
   const [syntheseCopiee, setSyntheseCopiee] = useState(false);
   const asideRef = useRef(null);
@@ -321,6 +324,7 @@ export default function SimulateurOeth() {
     setNomEntreprise(candidat.nom);
     setEntrepriseMemorisee(false);
     if (candidat.effectifEstime != null) changerEffectif(String(candidat.effectifEstime));
+    setSecteur(candidat.secteurPublic ? "public" : "prive");
     setRequete("");
     setResultats([]);
   }
@@ -358,6 +362,7 @@ export default function SimulateurOeth() {
     setSaisie(SAISIE_VIDE);
     setTauxSaisi("");
     setSousTraitance(null);
+    setSecteur("prive");
     setSurcontributionChoix("");
     setSimulation(null);
     setContactOuvert(false);
@@ -637,6 +642,51 @@ export default function SimulateurOeth() {
             </span>
             <span className="text-[11px] text-slate-500">{exercice.note}</span>
           </div>
+
+          {/* Type d'employeur : privé (AGEFIPH, déclaration DSN / URSSAF) ou
+              public (FIPHFP). Détecté automatiquement via la recherche. */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div
+              role="radiogroup"
+              aria-label="Type d'employeur"
+              className="inline-flex items-center gap-1 rounded-full border border-marine-400/40 bg-marine-500/[0.06] pl-3.5 pr-1 py-1 text-xs"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-marine-700 dark:text-marine-300 mr-1.5">Employeur</span>
+              {[
+                { v: "prive", label: "Privé · AGEFIPH" },
+                { v: "public", label: "Public · FIPHFP" },
+              ].map((o) => (
+                <button
+                  key={o.v}
+                  type="button"
+                  role="radio"
+                  aria-checked={secteur === o.v}
+                  onClick={() => setSecteur(o.v)}
+                  className={`rounded-full px-3 py-1 font-semibold transition ${
+                    secteur === o.v
+                      ? "bg-marine-500 text-white"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {secteur === "public" && (
+            <div className="mt-3 rounded-xl border border-sky-400/40 border-l-4 border-l-sky-400 bg-sky-500/[0.08] px-4 py-3 text-sm text-slate-700 dark:text-sky-100">
+              <p className="font-semibold text-sky-800 dark:text-sky-200">Employeur public : votre déclaration relève du FIPHFP</p>
+              <p className="mt-1 text-xs leading-relaxed">
+                Les employeurs publics (État, collectivités territoriales, établissements hospitaliers et autres établissements
+                publics) d'au moins 20 agents déclarent chaque année leur obligation d'emploi au FIPHFP, et non dans la DSN
+                auprès de l'URSSAF. Le taux de 6 % s'applique aussi, mais le calcul de la contribution suit des règles propres
+                à la fonction publique : l'estimation ci-dessous, fondée sur les règles du secteur privé, n'est qu'indicative.{" "}
+                <a href="https://www.fiphfp.fr/" target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+                  fiphfp.fr ↗
+                </a>
+              </p>
+            </div>
+          )}
 
           <div className="mt-3 grid md:grid-cols-3 gap-3">
             <CaseSaisie

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { BoutonThemeVitrine } from "./ThemeVitrine.jsx";
 
 // Liens de la navigation vitrine : "Notre démarche" est une page à part
@@ -15,11 +15,37 @@ const LIENS_NAV = [
   { label: "Contact", to: "/vitrine#contact" },
 ];
 
+// Section de la page principale actuellement à l'écran (défilement) : la
+// dernière dont le haut a dépassé le bas de l'en-tête.
+const SECTIONS_ACCUEIL = ["simulateur", "impact", "ressources", "contact"];
+function useSectionActive(actif) {
+  const [section, setSection] = useState(null);
+  useEffect(() => {
+    if (!actif) return undefined;
+    function calculer() {
+      let courante = null;
+      for (const id of SECTIONS_ACCUEIL) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= 140) courante = id;
+      }
+      // Tout en bas de page : le pied de page (contact) est la section active.
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) courante = "contact";
+      setSection(courante);
+    }
+    calculer();
+    window.addEventListener("scroll", calculer, { passive: true });
+    return () => window.removeEventListener("scroll", calculer);
+  }, [actif]);
+  return actif ? section : null;
+}
+
 // Navigation commune aux pages vitrine. Transparente tout en haut de page,
 // puis voile flouté (clair ou sombre selon le thème du site, voir
 // ThemeVitrine.jsx) dès qu'on défile.
 export default function EnteteVitrine({ onSimuler }) {
   const [defile, setDefile] = useState(false);
+  const { pathname } = useLocation();
+  const sectionActive = useSectionActive(pathname === "/vitrine");
 
   useEffect(() => {
     function onScroll() {
@@ -44,27 +70,30 @@ export default function EnteteVitrine({ onSimuler }) {
           to="/vitrine"
           className="text-sm font-semibold tracking-tight transition-colors shrink-0 text-slate-900 dark:text-white"
         >
-          Pôle OETH <span className="text-marine-500 dark:text-white/50">/</span> AGEFIPH
+          Pôle OETH <span className="text-marine-500 dark:text-white/50">/</span> AGEFIPH{" "}
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-7">
-          {LIENS_NAV.map((lien) => (
-            <NavLink
-              key={lien.to}
-              to={lien.to}
-              end
-              className={({ isActive }) => {
-                const actif = isActive && !lien.to.includes("#");
-                return `text-xs font-medium tracking-wide whitespace-nowrap transition ${
+        <nav className="hidden lg:flex items-center gap-1">
+          {LIENS_NAV.map((lien) => {
+            // Page courante (liens de page) ou section visible (ancres de
+            // /vitrine) : pastille bordée pour situer le visiteur.
+            const [chemin, ancre] = lien.to.split("#");
+            const actif = ancre ? pathname === chemin && sectionActive === ancre : pathname === chemin;
+            return (
+              <Link
+                key={lien.to}
+                to={lien.to}
+                aria-current={actif ? "page" : undefined}
+                className={`text-xs font-medium tracking-wide whitespace-nowrap rounded-full border px-3 py-1.5 transition ${
                   actif
-                    ? "text-marine-700 dark:text-white"
-                    : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
-                }`;
-              }}
-            >
-              {lien.label}
-            </NavLink>
-          ))}
+                    ? "border-marine-500/60 bg-marine-500/10 text-marine-800 dark:border-white/40 dark:bg-white/10 dark:text-white"
+                    : "border-transparent text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
+                }`}
+              >
+                {lien.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-3 shrink-0">

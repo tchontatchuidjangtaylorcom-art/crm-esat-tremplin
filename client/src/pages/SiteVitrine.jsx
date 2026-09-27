@@ -42,16 +42,64 @@ const STATS_NATIONALES = [
 const SOURCES_STATS_NATIONALES =
   "Sources : DARES, « L'obligation d'emploi des travailleurs handicapés en 2024 » ; Agefiph, tableau de bord « Emploi et chômage des personnes handicapées » 2024 ; France Travail, « Les demandeurs d'emploi bénéficiaires d'une reconnaissance de handicap en 2024 ». Chiffres nationaux, distincts du portefeuille propre du pôle.";
 
+// Sites officiels de référence (pages d'accueil, pour éviter les liens
+// profonds qui changent). Aucun partenariat revendiqué : ce sont des
+// ressources publiques utiles aux entreprises.
 const RESSOURCES = [
   {
+    nom: "URSSAF",
+    categorie: "Secteur privé · Recouvrement",
+    description: "Déclaration de l'OETH dans la DSN, effectifs mis à disposition et recouvrement de la contribution.",
+    url: "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/contribution-annuelle-oeth.html",
+  },
+  {
     nom: "Agefiph",
-    description: "Aides financières, conseil et accompagnement des entreprises pour l'emploi des personnes handicapées.",
+    categorie: "Secteur privé · Accompagnement",
+    description: "Aides financières, conseil et accompagnement des entreprises privées pour l'emploi des personnes handicapées.",
     url: "https://www.agefiph.fr/",
   },
   {
+    nom: "FIPHFP",
+    categorie: "Secteur public",
+    description:
+      "Fonds pour l'insertion des personnes handicapées dans la fonction publique : déclaration et aides pour les employeurs publics.",
+    url: "https://www.fiphfp.fr/",
+  },
+  {
     nom: "Cap Emploi",
+    categorie: "Recrutement & maintien",
     description: "Réseau national de placement spécialisé : accompagne recruteurs et candidats en situation de handicap.",
     url: "https://www.capemploi.info/",
+  },
+  {
+    nom: "Mon parcours handicap",
+    categorie: "Salariés · RQTH",
+    description: "Plateforme publique d'information sur les droits, la RQTH et les démarches des personnes handicapées.",
+    url: "https://www.monparcourshandicap.gouv.fr/",
+  },
+  {
+    nom: "Ministère du Travail",
+    categorie: "Réglementation",
+    description: "Textes et informations officielles sur l'obligation d'emploi des travailleurs handicapés.",
+    url: "https://travail-emploi.gouv.fr/",
+  },
+  {
+    nom: "net-entreprises.fr",
+    categorie: "Déclaration DSN",
+    description: "Portail des déclarations sociales : fiches pratiques DSN, dont les codes de la déclaration OETH.",
+    url: "https://www.net-entreprises.fr/",
+  },
+  {
+    nom: "MSA",
+    categorie: "Régime agricole",
+    description: "Déclaration et recouvrement de la contribution OETH pour les employeurs du régime agricole.",
+    url: "https://www.msa.fr/",
+  },
+  {
+    nom: "Annuaire des entreprises",
+    categorie: "Vérification",
+    description: "Annuaire officiel pour vérifier le SIRET et l'identité d'une structure (ESAT, EA, prestataire…).",
+    url: "https://annuaire-entreprises.data.gouv.fr/",
   },
 ];
 
@@ -216,16 +264,21 @@ export default function SiteVitrine() {
             Des passerelles directes vers les acteurs de référence de l'emploi des personnes handicapées.
           </p>
         </RevelerAuScroll>
-        <div className="grid sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {RESSOURCES.map((r, i) => (
-            <RevelerAuScroll key={r.nom} delai={i * 120}>
+            <RevelerAuScroll key={r.nom} delai={(i % 3) * 100}>
               <a
                 href={r.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block h-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition px-6 py-6"
+                className="group block h-full rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm hover:border-marine-500 dark:hover:border-marine-300 focus-visible:border-marine-500 hover:shadow-lg hover:-translate-y-0.5 transition px-6 py-6 outline-none"
               >
-                <p className="font-semibold text-marine-800 dark:text-marine-200">{r.nom} ↗</p>
+                <span className="inline-block rounded-full bg-marine-500/10 text-marine-700 dark:text-marine-200 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
+                  {r.categorie}
+                </span>
+                <p className="font-semibold text-marine-800 dark:text-marine-200 mt-3">
+                  {r.nom} <span className="inline-block transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5">↗</span>
+                </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5">{r.description}</p>
               </a>
             </RevelerAuScroll>

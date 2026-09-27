@@ -22,6 +22,12 @@ export const VIGILANCE = [
     action: { label: "Lire l'article", to: "/vitrine/vigilance" },
   },
   {
+    titre: "Employeur public ? C'est le FIPHFP",
+    texte:
+      "État, collectivités territoriales, hôpitaux et autres établissements publics déclarent leur obligation d'emploi au FIPHFP, et non à l'URSSAF. Méfiez-vous de toute demande de règlement qui ne passerait pas par ce circuit.",
+    action: { label: "Site du FIPHFP ↗", href: "https://www.fiphfp.fr/" },
+  },
+  {
     titre: "Vérifiez chaque sollicitation",
     texte:
       "Vous avez été contacté au sujet d'un « dossier OETH », d'une attestation ou d'un règlement ? Vérifiez l'origine de la demande avant d'y donner suite.",

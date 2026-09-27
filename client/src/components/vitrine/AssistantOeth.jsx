@@ -147,11 +147,21 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
                 ) : (
                   <div key={i} className="max-w-[92%] rounded-2xl rounded-bl-md border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.04] dark:bg-white/[0.04] px-3.5 py-2.5">
                     <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{m.texte}</p>
-                    {m.lien && (
-                      <Link to={m.lien.to} onClick={onFermer} className="inline-block text-xs font-semibold text-teal-700 dark:text-teal-300 hover:underline mt-2">
-                        {m.lien.label} →
-                      </Link>
-                    )}
+                    {m.lien &&
+                      (m.lien.href ? (
+                        <a
+                          href={m.lien.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block text-xs font-semibold text-teal-700 dark:text-teal-300 hover:underline mt-2"
+                        >
+                          {m.lien.label} ↗
+                        </a>
+                      ) : (
+                        <Link to={m.lien.to} onClick={onFermer} className="inline-block text-xs font-semibold text-teal-700 dark:text-teal-300 hover:underline mt-2">
+                          {m.lien.label} →
+                        </Link>
+                      ))}
                     {m.escalade && (
                       <div className="flex flex-wrap gap-2 mt-2.5">
                         <button

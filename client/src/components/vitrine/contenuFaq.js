@@ -16,6 +16,15 @@ export const FAQ = [
     populaire: true,
   },
   {
+    id: "employeur-public",
+    categorie: "L'obligation",
+    question: "Mon organisation est un employeur public : que dois-je faire ?",
+    reponse:
+      "Les employeurs publics (État, collectivités territoriales, établissements hospitaliers et autres établissements publics) d'au moins 20 agents sont aussi soumis au taux de 6 %, mais ils déclarent chaque année au FIPHFP (Fonds pour l'insertion des personnes handicapées dans la fonction publique), et non dans la DSN auprès de l'URSSAF. Le calcul de leur contribution suit des règles propres à la fonction publique.",
+    motsCles: ["public", "fiphfp", "fonction publique", "collectivite", "mairie", "hopital", "etat", "agents"],
+    lien: { label: "Site du FIPHFP", href: "https://www.fiphfp.fr/" },
+  },
+  {
     id: "boeth",
     categorie: "L'obligation",
     question: "Qu'est-ce qu'un BOETH ?",

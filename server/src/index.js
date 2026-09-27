@@ -613,6 +613,10 @@ app.get("/api/vitrine/simulation", async (req, res) => {
           effectifEstime: r.effectifEstime,
           dateCreation: r.dateCreation,
           actif: r.actif,
+          // Employeur public (INSEE : administration ou catégorie juridique
+          // 7xxx) : relève du FIPHFP, pas de la DSN / URSSAF.
+          secteurPublic: Boolean(r.secteurPublic),
+          formeJuridique: r.formeJuridique || null,
           oeth,
         };
       }),
