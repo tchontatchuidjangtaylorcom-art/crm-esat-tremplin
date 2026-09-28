@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import { useFicheOuverte } from "../ficheOuverte.js";
 
 // Les 3 solutions à présenter au client. Chaque fiche répond aux questions
 // d'un agent en plein appel : c'est quoi, quelles prestations concrètes, ce
@@ -103,6 +104,30 @@ export default function PanelEsatTremplin() {
   const [situation, setSituation] = useState("contribution"); // contribution | surcontribution
   const [dispositifOuvert, setDispositifOuvert] = useState("tremplin");
 
+  // Sur une fiche entreprise : champs pré-remplis avec son effectif et ses
+  // BOETH, et enregistrement direct sur la fiche après confirmation au
+  // téléphone (voir ficheOuverte.js / EntrepriseDetail).
+  const fiche = useFicheOuverte();
+  const [enregistrementFiche, setEnregistrementFiche] = useState(false);
+  useEffect(() => {
+    if (!fiche) return;
+    setEffectif(String(fiche.effectif ?? ""));
+    setBoeth(String(fiche.effectifBeneficiaire ?? 0));
+  }, [fiche?.id, fiche?.effectif, fiche?.effectifBeneficiaire]);
+  const ficheAJour =
+    fiche &&
+    Number(effectif || 0) === Number(fiche.effectif || 0) &&
+    Number(boeth || 0) === Number(fiche.effectifBeneficiaire || 0);
+  async function enregistrerSurFiche() {
+    if (!fiche) return;
+    setEnregistrementFiche(true);
+    try {
+      await fiche.enregistrer({ effectif: Number(effectif) || 0, effectifBeneficiaire: Number(boeth) || 0 });
+    } finally {
+      setEnregistrementFiche(false);
+    }
+  }
+
   useEffect(() => {
     api.getBaremeOeth().then(setBareme).catch((e) => setErreur(e.message));
   }, []);
@@ -146,6 +171,18 @@ export default function PanelEsatTremplin() {
             />
           </label>
         </div>
+
+        {fiche && (
+          <button
+            type="button"
+            onClick={enregistrerSurFiche}
+            disabled={ficheAJour || enregistrementFiche}
+            className="w-full rounded-lg bg-marine-700 hover:bg-marine-800 text-white text-xs font-semibold py-2 disabled:opacity-50"
+            title={`Enregistrer l'effectif et les BOETH sur la fiche ${fiche.nom}`}
+          >
+            {enregistrementFiche ? "Enregistrement…" : ficheAJour ? `✓ À jour sur la fiche` : `Enregistrer sur la fiche`}
+          </button>
+        )}
 
         <div className="flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden text-xs font-semibold">
           <button

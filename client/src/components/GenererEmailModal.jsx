@@ -18,12 +18,14 @@ import { construireSignature } from "../mailSignature.js";
 // Contrairement à MessagerieMail.jsx (fil complet, sur la fiche détaillée),
 // cette modale n'a qu'un but : envoyer un e-mail en un minimum de gestes
 // sans quitter le tableau.
-export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = true }) {
+// objetInitial / corpsInitial : e-mail déjà rédigé (ex. récapitulatif OETH
+// préparé depuis l'en-tête de la fiche), à relire avant envoi.
+export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = true, objetInitial = "", corpsInitial = "" }) {
   const [destinataire, setDestinataire] = useState(
     entreprise.contact?.email || entreprise.contact?.emailsAlternatifs?.[0]?.email || ""
   );
-  const [objet, setObjet] = useState("");
-  const [corps, setCorps] = useState("");
+  const [objet, setObjet] = useState(objetInitial);
+  const [corps, setCorps] = useState(corpsInitial);
   const [statutMail, setStatutMail] = useState(null);
   const [generationEnCours, setGenerationEnCours] = useState(autoGenerer);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);

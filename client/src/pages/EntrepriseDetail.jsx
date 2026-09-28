@@ -13,6 +13,9 @@ import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { erreurNumero, estNumeroAffichable } from "../telephone.js";
+import CalculObligationFiche from "../components/CalculObligationFiche.jsx";
+import GenererEmailModal from "../components/GenererEmailModal.jsx";
+import { publierFicheOuverte } from "../ficheOuverte.js";
 import {
   formatMontant,
   formatDate,
@@ -347,6 +350,25 @@ export default function EntrepriseDetail() {
     }
   }
 
+  // E-mail récapitulatif (effectif, 6 %, BOETH, contribution) à envoyer au
+  // client après l'appel — ouvert depuis la ligne de calcul de l'en-tête.
+  const [resumeEmail, setResumeEmail] = useState(null);
+
+  // Rend l'effectif / les BOETH de la fiche disponibles aux panneaux d'outils
+  // (calcul rapide ESAT Tremplin / TIH), qui peuvent aussi y enregistrer.
+  useEffect(() => {
+    if (!entreprise) return;
+    publierFicheOuverte({
+      id: entreprise.id,
+      nom: entreprise.nom,
+      effectif: entreprise.effectif,
+      effectifBeneficiaire: entreprise.effectifBeneficiaire,
+      enregistrer: (payload) => mettreAJourEffectifs(payload),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entreprise]);
+  useEffect(() => () => publierFicheOuverte(null), []);
+
   if (erreur && !entreprise) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
@@ -447,23 +469,24 @@ export default function EntrepriseDetail() {
               </a>
             ))}
         </div>
-        {oeth?.assujetti && (
-          <>
-            <div className="hidden sm:block h-6 w-px bg-slate-300 dark:bg-slate-600" />
-            <span
-              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
-                oeth.deficit > 0
-                  ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300"
-                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-              }`}
-            >
-              {oeth.deficit > 0
-                ? `${oeth.deficit} travailleur${oeth.deficit > 1 ? "s" : ""} handicapé${oeth.deficit > 1 ? "s" : ""} manquant${oeth.deficit > 1 ? "s" : ""} (sur ${oeth.unitesRequises})`
-                : "Conforme — quota atteint"}
-            </span>
-          </>
-        )}
+        <div className="hidden sm:block h-6 w-px bg-slate-300 dark:bg-slate-600" />
+        <CalculObligationFiche
+          entreprise={entreprise}
+          enregistrement={enregistrementEffectifs}
+          onEnregistrer={mettreAJourEffectifs}
+          onResume={setResumeEmail}
+        />
       </div>
+
+      {resumeEmail && (
+        <GenererEmailModal
+          entreprise={entreprise}
+          autoGenerer={false}
+          objetInitial={resumeEmail.objet}
+          corpsInitial={resumeEmail.corps}
+          onFermer={() => setResumeEmail(null)}
+        />
+      )}
 
       {ficheSuiviOuverte && (
         <FicheSuiviProspect
