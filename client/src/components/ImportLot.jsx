@@ -8,7 +8,7 @@ import { api } from "../api.js";
 // server/src/insee.js sur pourquoi ce n'est pas un modèle de langage qui
 // choisit les entreprises). Replié par défaut pour ne pas surcharger le
 // tableau de bord.
-export default function ImportLot({ categories, agents, onImporte }) {
+export default function ImportLot({ categories, agents, lots = [], lotsParSecteur = {}, onImporte }) {
   const [ouvert, setOuvert] = useState(false);
   const [mode, setMode] = useState("siren");
   const [lot, setLot] = useState("");
@@ -94,7 +94,13 @@ export default function ImportLot({ categories, agents, onImporte }) {
           </div>
 
           {mode === "secteur" && (
-            <GenererVagueSecteur categories={categories} agents={agents} onImporte={onImporte} />
+            <GenererVagueSecteur
+              categories={categories}
+              agents={agents}
+              lots={lots}
+              lotsParSecteur={lotsParSecteur}
+              onImporte={onImporte}
+            />
           )}
 
           {mode === "siren" && (
@@ -195,8 +201,41 @@ const DELAIS_REESSAI_MS = [3000, 10000, 30000];
 // server/src/insee.js pour le détail (délibérément pas une liste inventée
 // par un modèle de langage). Prévisualisation obligatoire avant import :
 // l'agent voit le nombre et un échantillon avant de créer quoi que ce soit.
-function GenererVagueSecteur({ categories, agents, onImporte }) {
+// Nom proposé pour une nouvelle vague : « <Secteur> <n> », n étant le
+// numéro suivant. Tient compte des vagues « <Secteur> n » existantes ET du
+// nombre de vagues déjà présentes dans ce secteur (y compris celles nommées
+// à la main, ex. « nettoyage 1 »), et évite tout nom déjà utilisé.
+function prochainNomVague(label, dejaDansSecteur, tousLesLots) {
+  if (!label) return "";
+  const prefixe = `${label} `.toLowerCase();
+  let max = dejaDansSecteur.length;
+  for (const l of tousLesLots) {
+    const nom = String(l).toLowerCase();
+    if (nom.startsWith(prefixe) && /^\d+$/.test(nom.slice(prefixe.length))) {
+      max = Math.max(max, Number(nom.slice(prefixe.length)));
+    }
+  }
+  const utilises = new Set(tousLesLots.map((l) => String(l).toLowerCase()));
+  let n = max + 1;
+  while (utilises.has(`${prefixe}${n}`)) n += 1;
+  return `${label} ${n}`;
+}
+
+function GenererVagueSecteur({ categories, agents, lots = [], lotsParSecteur = {}, onImporte }) {
   const [categorie, setCategorie] = useState("");
+
+  function nomPropose(cle, enPlus = []) {
+    const label = categories.find((c) => c.value === cle)?.label;
+    const dejaDansSecteur = [...new Set([...(lotsParSecteur[cle] || []), ...enPlus])];
+    return prochainNomVague(label, dejaDansSecteur, [...lots, ...dejaDansSecteur]);
+  }
+
+  // Changer de secteur remplace le nom de vague par le suivant pour ce
+  // secteur : évite de réutiliser par erreur le nom de la vague précédente.
+  function choisirCategorie(cle) {
+    setCategorie(cle);
+    setLot(nomPropose(cle));
+  }
   const [departement, setDepartement] = useState("");
   const [quantite, setQuantite] = useState(100);
   const [lot, setLot] = useState("");
@@ -290,6 +329,8 @@ function GenererVagueSecteur({ categories, agents, onImporte }) {
     setProgressionImport(null);
     setResultatImport(tousResultats);
     setDernierImportAvecIa(avecIa);
+    // Prochaine génération dans ce secteur : numéro suivant.
+    setLot(nomPropose(categorie, [lot.trim()]));
     setApercu(null);
     onImporte?.();
     setEnImport(false);
@@ -309,7 +350,7 @@ function GenererVagueSecteur({ categories, agents, onImporte }) {
           Secteur
           <select
             value={categorie}
-            onChange={(e) => setCategorie(e.target.value)}
+            onChange={(e) => choisirCategorie(e.target.value)}
             className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
           >
             <option value="">Choisir…</option>

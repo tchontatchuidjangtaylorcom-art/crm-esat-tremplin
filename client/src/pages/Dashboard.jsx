@@ -240,6 +240,44 @@ export default function Dashboard() {
     return c;
   }, [entreprises, prioritairesUniquement, filtreStatut, filtreCategorie, recherche]);
 
+  // Vagues regroupées par SECTEUR RÉEL des fiches (catégorie calculée), pas
+  // par nom de vague : une vague mal nommée (ex. « nettoyage 1 » contenant
+  // aussi des fiches Industrie) apparaît sous chacun des secteurs qu'elle
+  // contient, avec le bon compte. Mêmes filtres que les autres compteurs,
+  // sauf secteur et vague (c'est ce qu'on choisit ici).
+  const vaguesParSecteur = useMemo(() => {
+    const groupes = new Map();
+    for (const e of entreprises) {
+      if (!e.lot) continue;
+      if (prioritairesUniquement && !e.oeth?.assujetti) continue;
+      if (filtreStatut && e.statut !== filtreStatut) continue;
+      if (!correspondRecherche(e, recherche)) continue;
+      const cle = e.categorie?.cle || "autre";
+      if (!groupes.has(cle)) groupes.set(cle, new Map());
+      const lotsDuSecteur = groupes.get(cle);
+      lotsDuSecteur.set(e.lot, (lotsDuSecteur.get(e.lot) || 0) + 1);
+    }
+    return categories
+      .filter((c) => groupes.has(c.value))
+      .map((c) => {
+        const lotsDuSecteur = [...groupes.get(c.value)].map(([lot, nombre]) => ({ lot, nombre }));
+        lotsDuSecteur.sort((a, b) => a.lot.localeCompare(b.lot, "fr", { numeric: true }));
+        return { cle: c.value, label: c.label, total: lotsDuSecteur.reduce((t, l) => t + l.nombre, 0), lots: lotsDuSecteur };
+      });
+  }, [entreprises, categories, prioritairesUniquement, filtreStatut, recherche]);
+
+  // Toutes les vagues existantes par secteur, sans filtre : sert à proposer
+  // le prochain nom de vague (ex. « Sécurité 2 ») lors d'une génération.
+  const lotsParSecteur = useMemo(() => {
+    const m = {};
+    for (const e of toutesEntreprises) {
+      if (!e.lot) continue;
+      const cle = e.categorie?.cle || "autre";
+      (m[cle] ||= new Set()).add(e.lot);
+    }
+    return m;
+  }, [toutesEntreprises]);
+
   // Fiches qualifiées ce mois-ci : une sortie "fiche"/"fiche one-shot"/
   // "conforme" journalisée dans le mois courant, comptée une seule fois par
   // entreprise même si plusieurs sorties qualifiées s'y sont enchaînées.
@@ -369,7 +407,7 @@ export default function Dashboard() {
       {estAdmin && !commeAgentId && (
         <div className="mb-4">
           <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
-          <ImportLot categories={categories} agents={agentsAssignables} onImporte={charger} />
+          <ImportLot categories={categories} agents={agentsAssignables} lots={lots} lotsParSecteur={lotsParSecteur} onImporte={charger} />
         </div>
       )}
 
@@ -395,6 +433,11 @@ export default function Dashboard() {
           compteursLot={compteursLot}
           filtreLot={filtreLot}
           onFiltreLot={setFiltreLot}
+          vaguesParSecteur={vaguesParSecteur}
+          onFiltreVague={(cle, lot) => {
+            setFiltreCategorie(cle);
+            setFiltreLot(lot);
+          }}
         />
 
         <div className="flex-1 min-w-0">
