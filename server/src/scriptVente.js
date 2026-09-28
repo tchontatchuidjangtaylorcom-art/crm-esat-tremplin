@@ -18,9 +18,9 @@
 // spécifiquement le prospect (pratique commerciale trompeuse sinon).
 const AGENT = "[Prénom]"; // remplacé dynamiquement par ScriptVenteContenu.jsx
 
-export function getScriptVente() {
-  return {
-    sections: [
+// Contenu par défaut — voir getScriptVente ci-dessous pour la substitution
+// par un contenu personnalisé (édition super-admin, PUT /api/script-vente).
+export const SECTIONS_PAR_DEFAUT = [
       {
         titre: "1. Passer le rempart (accueil)",
         lignes: [
@@ -124,6 +124,12 @@ export function getScriptVente() {
           },
         ],
       },
-    ],
-  };
+];
+
+// `sections` : contenu personnalisé par un super-administrateur (voir
+// PUT /api/script-vente dans index.js), persisté dans
+// db.data.contenusEditables.scriptVente — absent/null tant que personne n'a
+// rien modifié, auquel cas SECTIONS_PAR_DEFAUT s'applique.
+export function getScriptVente(sections = null) {
+  return { sections: sections || SECTIONS_PAR_DEFAUT };
 }

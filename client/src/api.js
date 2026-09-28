@@ -185,9 +185,39 @@ export const api = {
 
   getArgumentaireAgefiph: () => fetch(`${BASE}/argumentaire-agefiph`).then(handle),
 
+  // Édition réservée aux super-administrateurs (voir exigerSuperAdmin côté
+  // serveur) — les boutons correspondants ne s'affichent que pour ce rôle,
+  // mais le serveur revalide de toute façon en cas d'appel direct.
+  modifierArgumentaireAgefiph: (contenu) =>
+    fetch(`${BASE}/argumentaire-agefiph`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(contenu),
+    }).then(handle),
+
+  reinitialiserArgumentaireAgefiph: () => fetch(`${BASE}/argumentaire-agefiph/reinitialiser`, { method: "POST" }).then(handle),
+
   getScriptVente: () => fetch(`${BASE}/script-vente`).then(handle),
 
+  modifierScriptVente: (sections) =>
+    fetch(`${BASE}/script-vente`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sections }),
+    }).then(handle),
+
+  reinitialiserScriptVente: () => fetch(`${BASE}/script-vente/reinitialiser`, { method: "POST" }).then(handle),
+
   getModelesMails: () => fetch(`${BASE}/modeles-mails`).then(handle),
+
+  modifierModelesMails: (modeles) =>
+    fetch(`${BASE}/modeles-mails`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modeles }),
+    }).then(handle),
+
+  reinitialiserModelesMails: () => fetch(`${BASE}/modeles-mails/reinitialiser`, { method: "POST" }).then(handle),
 
   // Public, sans authentification (landing page /vitrine).
   getVitrine: () => fetch(`${BASE}/vitrine`).then(handle),

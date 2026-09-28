@@ -98,6 +98,16 @@ export async function initDb() {
     db.data.presenceDebutSuivi = new Date().toISOString();
     aEcrire = true;
   }
+  // Contenus édités par un super-administrateur (argumentaire AGEFIPH, script
+  // de vente, modèles de mails — voir argumentaire.js/scriptVente.js/
+  // modelesMails.js et les routes PUT dans index.js) : chaque champ reste
+  // `null` tant que personne n'y a touché, auquel cas le contenu par défaut
+  // codé en dur s'applique — évite de dupliquer ce contenu dans db.json tant
+  // qu'il n'est pas réellement personnalisé.
+  if (!db.data.contenusEditables) {
+    db.data.contenusEditables = { argumentaire: null, scriptVente: null, modelesMails: null };
+    aEcrire = true;
+  }
   // Canal "Infos Générales" : visible de tous implicitement (voir
   // estMembreCanal côté index.js), pas besoin d'y lister chaque agent.
   if (!db.data.canaux.some((c) => c.id === CANAL_GENERAL_ID)) {

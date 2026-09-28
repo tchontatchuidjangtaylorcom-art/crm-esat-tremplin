@@ -66,6 +66,8 @@ import {
   NOM_COOKIE,
   exigerAuth,
   exigerAdmin,
+  exigerSuperAdmin,
+  estAdmin,
 } from "./auth.js";
 import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
@@ -177,7 +179,7 @@ function enrichir(entreprise) {
 // Un agent ne voit/traite que les dossiers qui lui sont assignés ;
 // l'administrateur garde une vue et un accès globaux sur tout le pipeline.
 function estVisiblePar(entreprise, utilisateur) {
-  return utilisateur.role === "admin" || entreprise.assigneA === utilisateur.id;
+  return estAdmin(utilisateur) || entreprise.assigneA === utilisateur.id;
 }
 
 // Attache req.entreprise si elle existe ET est visible par l'utilisateur
@@ -364,7 +366,7 @@ app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
       telephone: String(req.body.telephone || "").trim(),
       siret: siretSaisi,
       entrepriseLieeId: entrepriseLiee?.id || null,
-      role: req.body.role === "admin" ? "admin" : "agent",
+      role: ["admin", "super_admin"].includes(req.body.role) ? req.body.role : "agent",
       appUrl: APP_URL,
       motDePasse: req.body.motDePasse ? String(req.body.motDePasse) : null,
     });
@@ -428,7 +430,7 @@ app.post("/api/utilisateurs/:id/valider", exigerAdmin, async (req, res) => {
   if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
   const etaitEnAttente = utilisateur.statut === "en_attente";
   utilisateur.statut = "valide";
-  utilisateur.role = req.body.role === "admin" ? "admin" : "agent";
+  utilisateur.role = ["admin", "super_admin"].includes(req.body.role) ? req.body.role : "agent";
   utilisateur.dateValidation = new Date().toISOString();
   await db.write();
 
@@ -493,20 +495,77 @@ app.get("/api/ia/statut", (req, res) => {
 });
 
 // Aide-mémoire agent (affiche officielle du pôle AGEFIPH) : argumentaire,
-// dates clés et barème des unités bénéficiaires — contenu statique partagé
-// par le tiroir d'aide et la fiche entreprise.
+// dates clés et barème des unités bénéficiaires. Contenu par défaut codé en
+// dur, sauf s'il a été personnalisé par un super-administrateur (voir les
+// routes PUT plus bas, réservées à exigerSuperAdmin) — auquel cas la version
+// de db.data.contenusEditables prévaut.
 app.get("/api/argumentaire-agefiph", (req, res) => {
-  res.json(getArgumentaireAgefiph());
+  res.json(getArgumentaireAgefiph(db.data.contenusEditables?.argumentaire));
 });
 
-// Script de vente et modèles de mails : mêmes principes que l'argumentaire
-// AGEFIPH ci-dessus — contenu statique, source unique côté serveur.
+// Script de vente et modèles de mails : même principe que l'argumentaire
+// AGEFIPH ci-dessus.
 app.get("/api/script-vente", (req, res) => {
-  res.json(getScriptVente());
+  res.json(getScriptVente(db.data.contenusEditables?.scriptVente));
 });
 
 app.get("/api/modeles-mails", (req, res) => {
-  res.json(getModelesMails());
+  res.json(getModelesMails(db.data.contenusEditables?.modelesMails));
+});
+
+// Édition des 3 contenus ci-dessus — réservée aux super-administrateurs (voir
+// exigerSuperAdmin dans auth.js) : ce contenu est vu par TOUS les agents,
+// une erreur de frappe ou une suppression malheureuse les impacterait tous.
+// Chaque route valide juste la FORME générale (tableaux/champs attendus),
+// jamais le contenu métier lui-même — un super-admin reste responsable de ce
+// qu'il écrit, exactement comme pour n'importe quel contenu éditorial.
+app.put("/api/argumentaire-agefiph", exigerSuperAdmin, async (req, res) => {
+  const { quiSommesNous, objectif, pourquoiObligation, chronologie, devise } = req.body;
+  if (!objectif || !devise || !Array.isArray(pourquoiObligation) || !Array.isArray(chronologie)) {
+    return res.status(400).json({ error: "Champs manquants ou invalides (objectif, devise, pourquoiObligation[], chronologie[])." });
+  }
+  db.data.contenusEditables.argumentaire = { quiSommesNous, objectif, pourquoiObligation, chronologie, devise };
+  await db.write();
+  res.json(getArgumentaireAgefiph(db.data.contenusEditables.argumentaire));
+});
+
+app.post("/api/argumentaire-agefiph/reinitialiser", exigerSuperAdmin, async (req, res) => {
+  db.data.contenusEditables.argumentaire = null;
+  await db.write();
+  res.json(getArgumentaireAgefiph(null));
+});
+
+app.put("/api/script-vente", exigerSuperAdmin, async (req, res) => {
+  const { sections } = req.body;
+  if (!Array.isArray(sections) || sections.some((s) => !s.titre || !Array.isArray(s.lignes))) {
+    return res.status(400).json({ error: "sections doit être un tableau de { titre, lignes[] }." });
+  }
+  db.data.contenusEditables.scriptVente = sections;
+  await db.write();
+  res.json(getScriptVente(db.data.contenusEditables.scriptVente));
+});
+
+app.post("/api/script-vente/reinitialiser", exigerSuperAdmin, async (req, res) => {
+  db.data.contenusEditables.scriptVente = null;
+  await db.write();
+  res.json(getScriptVente(null));
+});
+
+app.put("/api/modeles-mails", exigerSuperAdmin, async (req, res) => {
+  const { modeles } = req.body;
+  if (!Array.isArray(modeles) || modeles.some((m) => !m.titre || !m.objet || !m.corps)) {
+    return res.status(400).json({ error: "modeles doit être un tableau de { titre, objet, corps }." });
+  }
+  const avecCles = modeles.map((m, i) => ({ cle: m.cle || `modele_${i}_${nanoid(6)}`, titre: m.titre, objet: m.objet, corps: m.corps }));
+  db.data.contenusEditables.modelesMails = avecCles;
+  await db.write();
+  res.json(getModelesMails(db.data.contenusEditables.modelesMails));
+});
+
+app.post("/api/modeles-mails/reinitialiser", exigerSuperAdmin, async (req, res) => {
+  db.data.contenusEditables.modelesMails = null;
+  await db.write();
+  res.json(getModelesMails(null));
 });
 
 // Résout le filtre d'agent effectif pour une requête : normalement
@@ -515,7 +574,7 @@ app.get("/api/modeles-mails", (req, res) => {
 // commeAgentId, réservé à req.utilisateur.role === "admin" pour qu'un agent
 // ne puisse jamais usurper la vue d'un autre en devinant l'ID).
 function resoudreCibleSupervision(req) {
-  if (req.utilisateur.role !== "admin" || !req.query.commeAgentId) return null;
+  if (!estAdmin(req.utilisateur) || !req.query.commeAgentId) return null;
   return trouverUtilisateurParId(req.query.commeAgentId);
 }
 
@@ -803,7 +862,7 @@ app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (r
   }
   // Demande reçue du site web : éteinte dès qu'un administrateur ou l'agent
   // assigné ouvre la fiche.
-  if (req.entreprise.demandeSiteNonVue && (req.utilisateur.role === "admin" || req.entreprise.assigneA === req.utilisateur.id)) {
+  if (req.entreprise.demandeSiteNonVue && (estAdmin(req.utilisateur) || req.entreprise.assigneA === req.utilisateur.id)) {
     req.entreprise.demandeSiteNonVue = false;
     await db.write();
   }
@@ -2338,7 +2397,7 @@ function calculerNotifications(utilisateur) {
   const messagesNonLus = mesCanaux.reduce((somme, c) => somme + compterNonLus(c, utilisateur), 0);
 
   const mesEntreprises =
-    utilisateur.role === "admin"
+    estAdmin(utilisateur)
       ? db.data.entreprises
       : db.data.entreprises.filter((e) => e.assigneA === utilisateur.id);
 
@@ -2374,7 +2433,7 @@ function calculerNotifications(utilisateur) {
   // la même alerte pour chaque agent de l'équipe concerné.
   const alertePresence = calculerKpiAgent(utilisateur).alerteAbsence;
   const alertesPresenceEquipe =
-    utilisateur.role === "admin"
+    estAdmin(utilisateur)
       ? alertesAbsenceEquipe(db.data.utilisateurs.filter((u) => u.statut === "valide" && u.id !== utilisateur.id))
       : [];
 
@@ -2394,7 +2453,7 @@ function calculerNotifications(utilisateur) {
 // RDV, jamais le contenu d'un message privé (voir plus haut).
 app.get("/api/notifications", exigerAuth, (req, res) => {
   let cible = req.utilisateur;
-  if (req.utilisateur.role === "admin" && req.query.commeAgentId) {
+  if (estAdmin(req.utilisateur) && req.query.commeAgentId) {
     const agent = trouverUtilisateurParId(req.query.commeAgentId);
     if (!agent) return res.status(404).json({ error: "Agent introuvable." });
     cible = agent;
@@ -2407,7 +2466,7 @@ app.get("/api/notifications", exigerAuth, (req, res) => {
   // demandes, une préoccupation d'administration indépendante de l'agent
   // consulté.
   const demandesAcces =
-    req.utilisateur.role === "admin"
+    estAdmin(req.utilisateur)
       ? db.data.utilisateurs
           .filter((u) => u.statut === "en_attente")
           .map((u) => ({ id: u.id, email: u.email, prenom: u.prenom, nom: u.nom, dateCreation: u.dateCreation }))
@@ -2434,7 +2493,7 @@ function lireDecalageSemaines(req) {
 // `commeAgentId` (admin uniquement) : KPIs d'un agent en Mode Manager.
 app.get("/api/presence/moi", exigerAuth, (req, res) => {
   let cible = req.utilisateur;
-  if (req.utilisateur.role === "admin" && req.query.commeAgentId) {
+  if (estAdmin(req.utilisateur) && req.query.commeAgentId) {
     const agent = trouverUtilisateurParId(req.query.commeAgentId);
     if (!agent) return res.status(404).json({ error: "Agent introuvable." });
     cible = agent;

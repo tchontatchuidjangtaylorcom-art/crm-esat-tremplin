@@ -292,6 +292,7 @@ export default function AdminUtilisateurs() {
             >
               <option value="agent">Agent</option>
               <option value="admin">Administrateur</option>
+              <option value="super_admin">Super-administrateur</option>
             </select>
           </label>
           <label className="block text-xs text-slate-500 dark:text-slate-400">
@@ -426,12 +427,21 @@ export default function AdminUtilisateurs() {
                           Valider
                         </button>
                       )}
-                      {u.statut === "valide" && u.role !== "admin" && (
+                      {u.statut === "valide" && u.role !== "admin" && u.role !== "super_admin" && (
                         <button
                           onClick={() => valider(u.id, "admin")}
                           className="text-xs text-marine-700 dark:text-marine-300 hover:underline mr-3"
                         >
                           Passer admin
+                        </button>
+                      )}
+                      {u.statut === "valide" && u.role !== "super_admin" && (
+                        <button
+                          onClick={() => valider(u.id, "super_admin")}
+                          title="Débloque l'édition de l'argumentaire AGEFIPH, du script de vente et des modèles de mails"
+                          className="text-xs text-amber-700 dark:text-amber-400 hover:underline mr-3"
+                        >
+                          Passer super-admin
                         </button>
                       )}
                       {u.statut !== "refuse" && (

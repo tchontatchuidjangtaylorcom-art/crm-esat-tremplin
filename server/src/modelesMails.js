@@ -23,9 +23,9 @@
 // jamais comme une menace du pôle lui-même ni comme une accusation ciblée de
 // "fausse déclaration" envers le destinataire : c'est exactement la nuance
 // qui distingue ce rappel du mécanisme de pretexting retiré ci-dessus.
-export function getModelesMails() {
-  return {
-    modeles: [
+// Contenu par défaut — voir getModelesMails ci-dessous pour la substitution
+// par un contenu personnalisé (édition super-admin, PUT /api/modeles-mails).
+export const MODELES_PAR_DEFAUT = [
       {
         cle: "urgence_ecrit_accueil",
         titre: "1. Suite à un échange avec l'accueil (écrit demandé)",
@@ -61,6 +61,12 @@ export function getModelesMails() {
         corps:
           "Bonjour,\n\nSuite à notre échange téléphonique, voici un récapitulatif des pistes évoquées pour votre obligation OETH :\n\n- Recrutement direct ou en alternance : Cap Emploi peut vous accompagner sur le sourcing de candidats.\n- Sous-traitance ou mise à disposition via un ESAT/EA de votre secteur.\n- ESAT Tremplin (600h pour 9 232 €) en complément d'une démarche de recrutement, pour réduire votre contribution.\n\nCes solutions ne s'excluent pas : le recrutement reste la voie la plus durable, les autres pistes viennent en appui.\n\nPour rappel, une conformité non régularisée auprès des organismes compétents expose à des majorations et à un éventuel redressement URSSAF sur la contribution OETH : mieux vaut vérifier vos chiffres et avancer sur ces pistes sans attendre.\n\nJe reste à votre disposition pour en discuter.\n\n{{SIGNATURE}}",
       },
-    ],
-  };
+];
+
+// `modeles` : contenu personnalisé par un super-administrateur (voir
+// PUT /api/modeles-mails dans index.js), persisté dans
+// db.data.contenusEditables.modelesMails — absent/null tant que personne n'a
+// rien modifié, auquel cas MODELES_PAR_DEFAUT s'applique.
+export function getModelesMails(modeles = null) {
+  return { modeles: modeles || MODELES_PAR_DEFAUT };
 }

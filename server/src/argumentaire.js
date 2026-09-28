@@ -61,13 +61,20 @@ export function trouverLigneBareme(effectif) {
   );
 }
 
-export function getArgumentaireAgefiph() {
+// `editable` : contenu personnalisé par un super-administrateur (voir
+// PUT /api/argumentaire-agefiph dans index.js, réservé à exigerSuperAdmin) et
+// persisté dans db.data.contenusEditables.argumentaire — absent/null tant que
+// personne n'a rien modifié, auquel cas les constantes par défaut ci-dessus
+// s'appliquent. `calcul`/`bareme` ne sont JAMAIS éditables : ce sont des
+// valeurs dérivées mathématiquement du moteur OETH (oeth.js), les rendre
+// modifiables romprait leur exactitude.
+export function getArgumentaireAgefiph(editable = null) {
   return {
-    quiSommesNous: QUI_SOMMES_NOUS,
-    objectif: OBJECTIF,
-    pourquoiObligation: POURQUOI_OBLIGATION,
-    chronologie: CHRONOLOGIE,
-    devise: DEVISE,
+    quiSommesNous: editable?.quiSommesNous || QUI_SOMMES_NOUS,
+    objectif: editable?.objectif || OBJECTIF,
+    pourquoiObligation: editable?.pourquoiObligation || POURQUOI_OBLIGATION,
+    chronologie: editable?.chronologie || CHRONOLOGIE,
+    devise: editable?.devise || DEVISE,
     calcul: {
       formule: "Effectif × 6 %",
       tauxLegal: TAUX_LEGAL,

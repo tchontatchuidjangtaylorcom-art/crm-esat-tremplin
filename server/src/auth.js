@@ -142,7 +142,7 @@ export async function creerUtilisateurParAdmin(
     telephone: telephone.trim() || null,
     siret: siret.trim() || null,
     entrepriseLieeId: entrepriseLieeId || null,
-    role: role === "admin" ? "admin" : "agent",
+    role: ["admin", "super_admin"].includes(role) ? role : "agent",
     statut: "valide",
     motDePasseHash,
     dateCreation: new Date().toISOString(),
@@ -348,10 +348,30 @@ export function exigerAuth(req, res, next) {
   }
 }
 
+// Le rôle "super_admin" hérite de tout ce que peut faire un "admin" (voir
+// exigerAdmin ci-dessous) et débloque en plus l'édition des contenus
+// partagés (argumentaire AGEFIPH, script de vente, modèles de mails — voir
+// exigerSuperAdmin et les routes PUT correspondantes dans index.js) :
+// contenu vu par TOUS les agents, une erreur de frappe ou une suppression
+// malheureuse impacterait tout le monde, d'où un troisième palier plutôt que
+// d'ouvrir ça à n'importe quel admin.
+export function estAdmin(utilisateur) {
+  return utilisateur?.role === "admin" || utilisateur?.role === "super_admin";
+}
+
 export function exigerAdmin(req, res, next) {
   exigerAuth(req, res, () => {
-    if (req.utilisateur.role !== "admin") {
+    if (!estAdmin(req.utilisateur)) {
       return res.status(403).json({ error: "Réservé aux administrateurs." });
+    }
+    next();
+  });
+}
+
+export function exigerSuperAdmin(req, res, next) {
+  exigerAuth(req, res, () => {
+    if (req.utilisateur.role !== "super_admin") {
+      return res.status(403).json({ error: "Réservé aux super-administrateurs." });
     }
     next();
   });

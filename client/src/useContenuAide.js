@@ -39,6 +39,19 @@ export function prechargerContenusAide(liste) {
   for (const [cle, fetcher] of liste) charger(cle, fetcher).catch(() => {});
 }
 
+// Met à jour le cache (mémoire + appareil) après une édition réussie côté
+// super-admin (voir EditeurArgumentaire/EditeurScriptVente/EditeurModelesMails
+// dans PanelOutilsVente.jsx) — pour que le panneau en lecture affiche
+// immédiatement la nouvelle version sans recharger la page.
+export function definirContenuAide(cle, data) {
+  caches.set(cle, data);
+  try {
+    localStorage.setItem(PREFIXE_STOCKAGE + cle, JSON.stringify(data));
+  } catch {
+    // Stockage plein ou indisponible : le cache mémoire suffit.
+  }
+}
+
 // Charge un contenu d'aide statique (argumentaire AGEFIPH, script de vente,
 // modèles de mails…) et le partage entre tous les composants qui le
 // consomment. La dernière version reçue est gardée sur l'appareil : elle

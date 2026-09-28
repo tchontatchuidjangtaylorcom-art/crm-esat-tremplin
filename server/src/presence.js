@@ -1,4 +1,5 @@
 import db from "./db.js";
+import { estAdmin } from "./auth.js";
 
 // Suivi du temps de travail et de la présence des agents.
 //
@@ -279,8 +280,8 @@ export function calculerKpiEquipe(utilisateurs, options = {}) {
       const alerteA = a.alerteAbsence || a.aujourdHui.retard ? 0 : 1;
       const alerteB = b.alerteAbsence || b.aujourdHui.retard ? 0 : 1;
       if (alerteA !== alerteB) return alerteA - alerteB;
-      const adminA = a.utilisateur.role === "admin" ? 1 : 0;
-      const adminB = b.utilisateur.role === "admin" ? 1 : 0;
+      const adminA = estAdmin(a.utilisateur) ? 1 : 0;
+      const adminB = estAdmin(b.utilisateur) ? 1 : 0;
       if (adminA !== adminB) return adminA - adminB;
       return `${a.utilisateur.prenom} ${a.utilisateur.nom}`.localeCompare(`${b.utilisateur.prenom} ${b.utilisateur.nom}`, "fr");
     });
