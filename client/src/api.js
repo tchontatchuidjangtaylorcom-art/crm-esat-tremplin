@@ -176,6 +176,22 @@ export const api = {
 
   genererEmailIA: (id) => fetch(`${BASE}/entreprises/${id}/generer-email`, { method: "POST" }).then(handle),
 
+  // Outil "ESAT Tremplin / TIH" du CRM (voir PanelEsatTremplin.jsx) : barème
+  // de contribution par unité manquante, au SMIC actuel — même moteur que le
+  // simulateur public et les fiches entreprise.
+  getBaremeOeth: () => fetch(`${BASE}/oeth/bareme`).then(handle),
+
+  // Assistant de questions "domaine" (bouton flottant au-dessus du chat
+  // d'équipe, voir AssistantDomaineCrm.jsx) : question libre sur l'OETH, la
+  // contribution/surcontribution, ESAT Tremplin ou TIH — sans lien avec une
+  // entreprise précise.
+  demanderAssistantDomaine: (question) =>
+    fetch(`${BASE}/assistant-domaine`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    }).then(handle),
+
   analyserDicteeIA: (id, transcription) =>
     fetch(`${BASE}/entreprises/${id}/dictee-ia`, {
       method: "POST",

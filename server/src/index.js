@@ -13,6 +13,7 @@ import {
   exercicesDisponibles,
   exerciceParDefaut,
   smicPourExercice,
+  baremeParUnite,
 } from "./oeth.js";
 import { classifierSecteur, listerCategories, determinerCollecteur, CATEGORIES } from "./secteurs.js";
 import {
@@ -49,6 +50,7 @@ import {
   poserQuestionContact,
   analyserDictee,
   genererEmailProspection,
+  repondreQuestionDomaine,
   listerModelesDisponibles,
   detailErreur as detailErreurIa,
 } from "./rechercheContact.js";
@@ -1989,6 +1991,39 @@ app.post("/api/entreprises/:id/question-contact-ia", exigerAuth, chargerEntrepri
     res.json(resultat);
   } catch (e) {
     console.error(`[ia] Échec de la question contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
+    const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
+    res.status(statutHttp).json(corpsErreurIa(e));
+  }
+});
+
+// Barème de contribution "par unité manquante" au SMIC actuel — alimente
+// l'outil interne "ESAT Tremplin / TIH" du CRM (voir PanelEsatTremplin.jsx) :
+// mêmes tranches et mêmes montants que le simulateur public et les fiches
+// (calculerObligationOeth), pour qu'un agent cite toujours le bon chiffre en
+// appel sans calculatrice ni risque d'écart avec le reste du CRM.
+app.get("/api/oeth/bareme", exigerAuth, (req, res) => {
+  res.json(baremeParUnite());
+});
+
+// Assistant de questions "domaine" (AssistantDomaineCrm.jsx, bouton flottant
+// au-dessus du chat d'équipe) : question libre de connaissance métier OETH /
+// contribution / surcontribution / ESAT Tremplin / TIH, sans lien avec une
+// entreprise précise — voir repondreQuestionDomaine (tous les chiffres cités
+// viennent de oeth.js, jamais inventés par le modèle).
+app.post("/api/assistant-domaine", exigerAuth, async (req, res) => {
+  const question = String(req.body.question || "").trim();
+  if (!question) return res.status(400).json({ error: "Question vide." });
+  if (question.length > 500) return res.status(400).json({ error: "Question trop longue (500 caractères maximum)." });
+
+  if (!estRechercheIaConfiguree()) {
+    return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
+  }
+
+  try {
+    const resultat = await repondreQuestionDomaine(question);
+    res.json(resultat);
+  } catch (e) {
+    console.error(`[ia] Échec de l'assistant domaine :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
     res.status(statutHttp).json(corpsErreurIa(e));
   }

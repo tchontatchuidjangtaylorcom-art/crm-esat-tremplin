@@ -8,11 +8,13 @@ import ModelesMailsContenu from "./ModelesMailsContenu.jsx";
 import EditeurArgumentaire from "./EditeurArgumentaire.jsx";
 import EditeurScriptVente from "./EditeurScriptVente.jsx";
 import EditeurModelesMails from "./EditeurModelesMails.jsx";
+import PanelEsatTremplin from "./PanelEsatTremplin.jsx";
 
 const TITRES = {
   argumentaire: "Argumentaire AGEFIPH",
   script: "Script de vente",
   mails: "Modèles de mails",
+  esat: "ESAT Tremplin / TIH",
 };
 
 function PanelArgumentaire({ modeEdition, onEnregistre, onAnnuler }) {
@@ -76,7 +78,7 @@ export default function PanelOutilsVente({ outil, onFermer }) {
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-5 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-700">
         <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{TITRES[outil]}</h2>
         <div className="flex items-center gap-3 shrink-0">
-          {estSuperAdmin && !modeEdition && (
+          {estSuperAdmin && !modeEdition && outil !== "esat" && (
             <button
               type="button"
               onClick={() => setModeEdition(true)}
@@ -109,6 +111,7 @@ export default function PanelOutilsVente({ outil, onFermer }) {
         {outil === "mails" && (
           <PanelModelesMails modeEdition={modeEdition} onEnregistre={() => setModeEdition(false)} onAnnuler={() => setModeEdition(false)} />
         )}
+        {outil === "esat" && <PanelEsatTremplin />}
       </div>
     </div>
   );

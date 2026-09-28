@@ -14,6 +14,7 @@ import RequireAuth from "./components/RequireAuth.jsx";
 import { AuthProvider } from "./AuthContext.jsx";
 import { ChatProvider } from "./chat/ChatContext.jsx";
 import ChatWidget from "./chat/ChatWidget.jsx";
+import AssistantDomaineCrm from "./components/AssistantDomaineCrm.jsx";
 import { SupervisionProvider } from "./SupervisionContext.jsx";
 import { PresenceProvider } from "./PresenceContext.jsx";
 import MesKpis from "./pages/MesKpis.jsx";
@@ -65,6 +66,7 @@ export default function CrmApp() {
                         </Routes>
                       </OutilsVenteLayout>
                       <ChatWidget />
+                      <AssistantDomaineCrm />
                     </SupervisionProvider>
                   </ChatProvider>
                 </RequireAuth>

@@ -27,6 +27,13 @@ const OUTILS = [
     pastille: "bg-orange-500",
     actif: "border-orange-500 text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30",
   },
+  {
+    cle: "esat",
+    label: "ESAT Tremplin / TIH",
+    court: "ESAT",
+    pastille: "bg-teal-500",
+    actif: "border-teal-500 text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30",
+  },
 ];
 
 export default function BarreOutilsVente({ outilActif, onSelect }) {

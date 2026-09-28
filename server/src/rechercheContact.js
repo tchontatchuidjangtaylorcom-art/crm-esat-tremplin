@@ -19,6 +19,7 @@
 // automatiquement) : un numéro ou une catégorie hallucinés seraient pires
 // qu'une fiche laissée à corriger manuellement.
 import { CATEGORIES, listerCategories } from "./secteurs.js";
+import { baremeParUnite, SEUIL_ASSUJETTISSEMENT, TAUX_LEGAL, DUREE_NEUTRALISATION_ANNEES } from "./oeth.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const VERSION_API = "2023-06-01";
@@ -796,4 +797,144 @@ export async function genererEmailProspection(entreprise) {
   }
   const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
   return avecRetry429(() => appelerClaudeEmail(entreprise, cle, modele), entreprise.nom);
+}
+
+// Assistant de questions "domaine" (OETH / contribution / surcontribution /
+// ESAT Tremplin / TIH) : contrairement aux fonctions ci-dessus (qui portent
+// sur UNE entreprise précise), l'agent pose ici une question générale de
+// connaissance métier (ex : "à partir de combien de salariés on passe à 500
+// SMIC ?"), typiquement pour préparer ou sécuriser un argumentaire pendant un
+// appel — voir AssistantDomaineCrm.jsx (bouton flottant du CRM, au-dessus du
+// chat d'équipe). Pas d'outil de recherche web ici : tous les chiffres utiles
+// (barème, seuils, SMIC courant) sont injectés directement dans le prompt
+// depuis oeth.js (seule source de vérité déjà utilisée par le simulateur et
+// les fiches), pour qu'il ne puisse jamais répondre avec un montant obsolète
+// ou halluciné.
+function construirePromptDomaine(question) {
+  const bareme = baremeParUnite();
+  const lignesBareme = bareme.classique
+    .map((t) => `- ${t.tranche} salariés : ${t.montantParUnite} € par unité manquante (coefficient ${t.coefficient} × SMIC)`)
+    .join("\n");
+
+  return (
+    `Tu es un assistant qui aide les agents du Pôle OETH/AGEFIPH à répondre à des questions de connaissance métier ` +
+    `pendant ou avant un appel commercial : obligation d'emploi des travailleurs handicapés (OETH), contribution, ` +
+    `surcontribution, dispositifs ESAT Tremplin et TIH (Travailleurs Indépendants Handicapés).\n\n` +
+    `Données de référence EXACTES et À JOUR — n'utilise JAMAIS un chiffre différent de ceux-ci, n'en invente aucun :\n` +
+    `- Seuil d'assujettissement : ${SEUIL_ASSUJETTISSEMENT} salariés\n` +
+    `- Taux légal : ${TAUX_LEGAL * 100} % de l'effectif\n` +
+    `- SMIC horaire retenu : ${bareme.smicHoraire} €\n` +
+    `- Barème de contribution par unité manquante, selon la taille de l'entreprise :\n${lignesBareme}\n` +
+    `- Surcontribution (aucune action sur les 4 dernières années : aucun recrutement, aucune sous-traitance ` +
+    `EA/ESAT/TIH suffisante, aucun accord agréé) : ${bareme.majoree.montantParUnite} € par unité manquante ` +
+    `(coefficient ${bareme.majoree.coefficient} × SMIC) — le montant le plus élevé, à réserver aux entreprises en ` +
+    `inaction totale.\n` +
+    `- Seuil de sous-traitance EA/ESAT/TIH permettant d'écarter la surcontribution : ${bareme.seuilSousTraitance} € ` +
+    `de coût de main-d'œuvre sur la période (déduction de ${bareme.tauxDeductionSousTraitance * 100} % du coût réel, ` +
+    `plafonnée selon le taux d'emploi de l'entreprise).\n` +
+    `- Neutralisation légale : une entreprise créée depuis moins de ${DUREE_NEUTRALISATION_ANNEES} ans n'a aucune ` +
+    `obligation OETH, quel que soit son effectif.\n` +
+    `- ESAT Tremplin : minimum légal de 600 heures de prestation (modulable à 400 heures selon les unités déjà ` +
+    `couvertes), déduction d'environ 80 % du coût de la prestation, protection contre la surcontribution pendant ` +
+    `3 ans — à la différence d'un ESAT classique, qui ne déduit qu'environ 30 % du coût et exige un nouvel effort ` +
+    `chaque année. Investissement total approximatif pour le minimum légal (600 h × SMIC + matières premières) : ` +
+    `environ 9 232 €.\n` +
+    `- TIH (Travailleurs Indépendants Handicapés) : dispositif alternatif de sous-traitance auprès d'un travailleur ` +
+    `handicapé indépendant, soumis aux mêmes règles de seuil que l'EA/ESAT ci-dessus.\n\n` +
+    `Question de l'agent : "${question}"\n\n` +
+    `Réponds en français, en 2 à 5 phrases maximum, directement utilisable au téléphone ou pour se préparer avant ` +
+    `un appel. Si la question sort du champ OETH/contribution/ESAT/TIH/AGEFIPH, dis-le clairement plutôt que ` +
+    `d'inventer une réponse hors sujet.\n` +
+    `Termine IMPÉRATIVEMENT ta réponse par une seule ligne contenant uniquement un objet JSON strict, sans texte ` +
+    `autour, exactement au format :\n{"reponse": "<texte à afficher tel quel>"}`
+  );
+}
+
+function extraireResultatDomaine(corpsReponse) {
+  const texte = (corpsReponse.content || [])
+    .filter((bloc) => bloc.type === "text")
+    .map((bloc) => bloc.text || "")
+    .join("\n");
+
+  const bloc = extraireBlocJsonParCle(texte, "reponse");
+  if (!bloc) {
+    const erreur = new Error("Réponse de l'IA illisible (pas de JSON de résultat trouvé).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = texte.slice(0, 500);
+    throw erreur;
+  }
+
+  let resultat;
+  try {
+    resultat = JSON.parse(bloc);
+  } catch {
+    const erreur = new Error("Réponse de l'IA illisible (JSON invalide).");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    erreur.response = bloc;
+    throw erreur;
+  }
+
+  if (!resultat.reponse) {
+    const erreur = new Error("L'IA n'a renvoyé aucune réponse exploitable.");
+    erreur.code = "REPONSE_IA_INVALIDE";
+    throw erreur;
+  }
+  return { reponse: String(resultat.reponse) };
+}
+
+async function appelerClaudeDomaine(question, cle, modele) {
+  const controleur = new AbortController();
+  const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
+  let reponse;
+  try {
+    reponse = await fetch(API_URL, {
+      method: "POST",
+      headers: enTetes(cle),
+      body: JSON.stringify({
+        model: modele,
+        max_tokens: 512,
+        // Pas d'outil de recherche web : réponse construite uniquement à
+        // partir des chiffres injectés ci-dessus (voir construirePromptDomaine).
+        messages: [{ role: "user", content: construirePromptDomaine(question) }],
+      }),
+      signal: controleur.signal,
+    });
+  } catch (e) {
+    if (e.name === "AbortError") {
+      const erreur = new Error(`Délai de réponse IA dépassé (${TIMEOUT_MS}ms).`);
+      erreur.code = "TIMEOUT_MANUEL";
+      throw erreur;
+    }
+    throw e;
+  } finally {
+    clearTimeout(idAbort);
+  }
+
+  const corps = await reponse.json().catch(() => ({}));
+  if (!reponse.ok) {
+    const erreur = new Error(
+      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+    );
+    erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    signalerCreditsEpuises(erreur, corps);
+    erreur.responseCode = reponse.status;
+    erreur.response = JSON.stringify(corps).slice(0, 500);
+    erreur.reponseHttp = reponse;
+    throw erreur;
+  }
+
+  return extraireResultatDomaine(corps);
+}
+
+// Assistant de questions "domaine" — voir construirePromptDomaine ci-dessus.
+// Ne persiste rien, aucun lien avec une entreprise précise.
+export async function repondreQuestionDomaine(question) {
+  const cle = cleApi();
+  if (!cle) {
+    const erreur = new Error("Recherche IA non configurée (renseignez ANTHROPIC_API_KEY).");
+    erreur.code = "IA_NON_CONFIGUREE";
+    throw erreur;
+  }
+  const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
+  return avecRetry429(() => appelerClaudeDomaine(question, cle, modele), "assistant-domaine");
 }
