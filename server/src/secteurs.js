@@ -41,6 +41,30 @@ export const CATEGORIES = {
     argumentaire:
       "Postes tertiaires peu pénibles : l'embauche directe ou l'alternance sont souvent envisageables en priorité.",
   },
+  // Informatique + ingénierie ajoutés ensemble : deux secteurs au même profil
+  // (postes tertiaires qualifiés, effectif souvent > 20, peu de sensibilisation
+  // à l'obligation d'emploi malgré une bonne santé financière) — parmi les
+  // moins conformes OETH d'après les bilans AGEFIPH, alors que l'embauche
+  // directe avec aménagement de poste (RQTH, télétravail) y est en général
+  // tout à fait possible. 62.02A = conseil/conception en amont, 62.01Z =
+  // production de code (les deux codes indiqués par le pôle) ; 62.02B/62.03Z/
+  // 62.09Z/63.11Z/63.12Z couvrent le reste de la division "programmation,
+  // conseil et autres activités informatiques" (tierce maintenance, gestion
+  // d'infrastructure, hébergement, portails web).
+  informatique: {
+    label: "Informatique / Numérique",
+    motsCles: ["informatique", "logiciel", "numérique", "numerique", "développement web", "developpement web", "SSII", "ESN", "digital"],
+    nafCodes: ["62.01Z", "62.02A", "62.02B", "62.03Z", "62.09Z", "63.11Z", "63.12Z"],
+    argumentaire:
+      "Postes tertiaires qualifiés (développement, support, infrastructure) : l'embauche directe avec aménagement de poste (RQTH, télétravail) est le levier principal, secteur en tension de recrutement mais historiquement peu sensibilisé à l'obligation d'emploi ; côté sous-traitance, un ESAT/EA peut prendre en charge des prestations connexes (numérisation, saisie de données, tests logiciels, support niveau 1).",
+  },
+  ingenierie: {
+    label: "Ingénierie / Bureaux d'études",
+    motsCles: ["ingénierie", "ingenierie", "bureau d'études", "bureau d'etudes", "étude technique", "etude technique"],
+    nafCodes: ["71.12A", "71.12B"],
+    argumentaire:
+      "Postes techniques qualifiés (études, dessin, contrôle) : même profil que l'informatique — l'embauche directe avec aménagement de poste est le levier principal ; la sous-traitance ESAT/EA reste possible pour la numérisation de plans, la saisie de données ou le contrôle qualité documentaire.",
+  },
   commerce: {
     label: "Commerce",
     motsCles: ["commerce", "vente", "distribution", "négoce", "magasin"],
