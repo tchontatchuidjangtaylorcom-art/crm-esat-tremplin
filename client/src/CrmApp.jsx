@@ -9,6 +9,7 @@ import { DialerProvider } from "./telephony/DialerContext.jsx";
 import CallPanel from "./telephony/CallPanel.jsx";
 import OutilsVenteLayout from "./components/OutilsVenteLayout.jsx";
 import NotificationsMail from "./components/NotificationsMail.jsx";
+import AlerteCreditsIA from "./components/AlerteCreditsIA.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import { AuthProvider } from "./AuthContext.jsx";
 import { ChatProvider } from "./chat/ChatContext.jsx";
@@ -73,6 +74,7 @@ export default function CrmApp() {
           </PresenceProvider>
           <CallPanel />
           <NotificationsMail />
+          <AlerteCreditsIA />
         </DialerProvider>
       </CallProvider>
     </AuthProvider>

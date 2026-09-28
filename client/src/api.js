@@ -3,9 +3,40 @@ const BASE = "/api";
 async function handle(res) {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Erreur HTTP ${res.status}`);
+    // 502/503/504 sans message de notre API : c'est l'hébergeur (Render) qui
+    // répond à la place du serveur, le temps qu'il redémarre (déploiement ou
+    // relance automatique) — quelques dizaines de secondes en général.
+    if (!body.error && [502, 503, 504].includes(res.status)) {
+      const erreur = new Error(
+        "Le serveur redémarre (mise à jour ou relance automatique) — réessayez dans une trentaine de secondes."
+      );
+      erreur.code = "SERVEUR_INDISPONIBLE";
+      throw erreur;
+    }
+    const erreur = new Error(body.error || `Erreur HTTP ${res.status}`);
+    erreur.code = body.code;
+    // Crédit de l'API Claude épuisé : affiche le bandeau de recharge
+    // (voir AlerteCreditsIA.jsx), quel que soit l'écran qui a déclenché l'appel.
+    if (body.lienRecharge) {
+      erreur.lienRecharge = body.lienRecharge;
+      window.dispatchEvent(new CustomEvent("ia:credits-epuises", { detail: { lien: body.lienRecharge, message: body.error } }));
+    }
+    throw erreur;
   }
   return res.json();
+}
+
+// Requêtes en lecture seule : si le serveur est en train de redémarrer, on
+// patiente et on réessaie automatiquement plutôt que d'afficher une erreur.
+async function avecReprise(appel, { tentatives = 3, delaiMs = 8000 } = {}) {
+  for (let essai = 0; ; essai++) {
+    try {
+      return await appel();
+    } catch (e) {
+      if (e.code !== "SERVEUR_INDISPONIBLE" || essai >= tentatives) throw e;
+      await new Promise((resolve) => setTimeout(resolve, delaiMs));
+    }
+  }
 }
 
 export const api = {
@@ -62,12 +93,16 @@ export const api = {
       body: JSON.stringify({ lot, sirens, assigneA: assigneA || null }),
     }).then(handle),
 
+  // Recherche seule (rien n'est créé côté serveur) : réessai automatique
+  // pendant un redémarrage du serveur.
   rechercherProspectsParSecteur: (categorie, { departement, limite } = {}) =>
-    fetch(`${BASE}/leads/secteur/rechercher`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categorie, departement: departement || null, limite }),
-    }).then(handle),
+    avecReprise(() =>
+      fetch(`${BASE}/leads/secteur/rechercher`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categorie, departement: departement || null, limite }),
+      }).then(handle)
+    ),
 
   importerProspectsParSecteur: (categorie, lot, sirens, assigneA, rechercheTelephoneIA = true) =>
     fetch(`${BASE}/leads/secteur/importer`, {

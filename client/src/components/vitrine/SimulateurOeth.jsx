@@ -1688,16 +1688,20 @@ function CalculSixPourcent({ effectif }) {
   const eff = Number(String(effectif).replace(",", "."));
   const assujetti = Number.isFinite(eff) && eff >= 20;
   const exact = assujetti ? eff * 0.06 : null;
+  // Une seule ligne, à la hauteur du champ de saisie : n'ajoute aucune
+  // hauteur à la case. Le détail du calcul est dans l'infobulle.
   return (
-    <div className="shrink-0 w-[7.5rem] rounded-lg border border-amber-400/40 bg-amber-400/[0.08] px-2 py-1 text-center flex flex-col justify-center">
-      <p className="text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Obligation 6 %</p>
-      <p className="text-base font-bold leading-tight tabular-nums text-slate-900 dark:text-white">
-        {assujetti ? Math.floor(exact) : "—"}
-        <span className="text-[10px] font-medium text-slate-500 ml-1">BOETH</span>
-      </p>
-      <p className="text-[9px] text-slate-500 tabular-nums">
-        {assujetti ? `${exact.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} arrondi` : "dès 20 salariés"}
-      </p>
+    <div
+      title={
+        assujetti
+          ? `${eff.toLocaleString("fr-FR")} × 6 % = ${exact.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}, arrondi à ${Math.floor(exact)}`
+          : "Obligation calculée à partir de 20 salariés"
+      }
+      className="shrink-0 flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-400/40 bg-amber-400/[0.08] px-2.5"
+    >
+      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">6 %</span>
+      <span className="text-base font-bold tabular-nums text-slate-900 dark:text-white">{assujetti ? Math.floor(exact) : "—"}</span>
+      <span className="text-[10px] font-medium text-slate-500">BOETH</span>
     </div>
   );
 }

@@ -101,6 +101,7 @@ export async function listerModelesDisponibles() {
   if (!reponse.ok) {
     const erreur = new Error(corps.error?.message || `L'API Anthropic a répondu ${reponse.status}.`);
     erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    signalerCreditsEpuises(erreur, corps);
     erreur.responseCode = reponse.status;
     throw erreur;
   }
@@ -114,6 +115,25 @@ export function detailErreur(e) {
     responseCode: e.responseCode,
     response: e.response,
   };
+}
+
+// Page de facturation de la console Anthropic : les fonctions IA du CRM
+// consomment des crédits de l'API (ANTHROPIC_API_KEY), distincts de tout
+// abonnement claude.ai. Le rechargement automatique s'y active aussi.
+export const LIEN_RECHARGE_CREDITS_IA = "https://console.anthropic.com/settings/billing";
+
+// Crédit épuisé : l'API répond 400 "Your credit balance is too low…" (ou
+// une erreur de type billing_error). Message clair + lien de recharge, pour
+// que l'admin sache quoi faire au lieu d'un message technique en anglais.
+function signalerCreditsEpuises(erreur, corps) {
+  const texte = `${corps?.error?.type || ""} ${corps?.error?.message || ""}`;
+  if (corps?.error?.type === "billing_error" || /credit balance|purchase credits/i.test(texte)) {
+    erreur.code = "CREDITS_IA_EPUISES";
+    erreur.message =
+      "Crédits de l'API Claude épuisés : les fonctions IA sont en pause jusqu'à la recharge du compte Anthropic.";
+    erreur.lienRecharge = LIEN_RECHARGE_CREDITS_IA;
+  }
+  return erreur;
 }
 
 // L'outil de recherche web d'Anthropic ne voit PAS la page de résultats
@@ -362,6 +382,7 @@ async function appelerClaudeQuestion(entreprise, question, cle, modele) {
       corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
     );
     erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    signalerCreditsEpuises(erreur, corps);
     erreur.responseCode = reponse.status;
     erreur.response = JSON.stringify(corps).slice(0, 500);
     erreur.reponseHttp = reponse;
@@ -521,6 +542,7 @@ async function appelerClaudeDictee(entreprise, transcription, cle, modele) {
       corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
     );
     erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    signalerCreditsEpuises(erreur, corps);
     erreur.responseCode = reponse.status;
     erreur.response = JSON.stringify(corps).slice(0, 500);
     erreur.reponseHttp = reponse;
@@ -591,6 +613,7 @@ async function appelerClaude(entreprise, cle, modele) {
           corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
         );
         erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+        signalerCreditsEpuises(erreur, corps);
         erreur.responseCode = reponse.status;
         erreur.response = JSON.stringify(corps).slice(0, 500);
         erreur.reponseHttp = reponse;
@@ -748,6 +771,7 @@ async function appelerClaudeEmail(entreprise, cle, modele) {
       corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
     );
     erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+    signalerCreditsEpuises(erreur, corps);
     erreur.responseCode = reponse.status;
     erreur.response = JSON.stringify(corps).slice(0, 500);
     erreur.reponseHttp = reponse;

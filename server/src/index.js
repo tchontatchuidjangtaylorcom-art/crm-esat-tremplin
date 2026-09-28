@@ -987,6 +987,13 @@ const ECHECS_CONSECUTIFS_MAX = 5;
 
 // File des enrichissements déclenchés par /api/leads/secteur/importer : un
 // seul tourne à la fois (voir la note à l'appel).
+// Corps JSON d'une erreur IA renvoyée au frontend : `lienRecharge` (crédit
+// Anthropic épuisé, voir rechercheContact.js) déclenche côté client le
+// bandeau "Recharger les crédits".
+function corpsErreurIa(e) {
+  return { error: e.message, code: e.code, ...(e.lienRecharge ? { lienRecharge: e.lienRecharge } : {}) };
+}
+
 let fileEnrichissementImport = Promise.resolve();
 
 // Trace, sur la fiche, la dernière recherche IA de téléphone — pour que
@@ -1071,9 +1078,11 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
   let interrompu = null;
   for (const entreprise of entreprises) {
     let trouve = false;
+  let lienRecharge = null;
     let erreurMessage = null;
     try {
       const resultat = await rechercherContactAlternatif(entreprise);
+    let erreurCredits = null;
       marquerRechercheTelephone(entreprise, resultat.telephone ? "trouve" : "introuvable");
       if (resultat.telephone) {
         appliquerResultatRechercheIA(entreprise, resultat);
@@ -1084,9 +1093,10 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
     } catch (e) {
       erreurMessage = e.message;
       echecsConsecutifs += 1;
-      // Pas de trace si l'IA n'est pas configurée : ce n'est pas la fiche
-      // qui pose problème.
-      if (e.code !== "IA_NON_CONFIGUREE") {
+      if (e.code === "CREDITS_IA_EPUISES") erreurCredits = e;
+      // Pas de trace si l'IA n'est pas configurée ou le crédit épuisé : ce
+      // n'est pas la fiche qui pose problème (elle sera retentée ensuite).
+      if (e.code !== "IA_NON_CONFIGUREE" && e.code !== "CREDITS_IA_EPUISES") {
         marquerRechercheTelephone(entreprise, "erreur", e.message);
         await db.write().catch(() => {});
       }
@@ -1099,6 +1109,15 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
 
     if (echecsConsecutifs >= ECHECS_CONSECUTIFS_MAX) {
       interrompu = /Délai de recherche IA dépassé/.test(erreurMessage)
+    // Crédit épuisé : inutile de continuer, chaque fiche suivante
+    // échouerait de la même façon.
+    if (erreurCredits) {
+      interrompu = `${erreurCredits.message} Rechargez le compte puis relancez l'enrichissement.`;
+      lienRecharge = erreurCredits.lienRecharge;
+      console.error(`[ia] Enrichissement en lot interrompu : ${interrompu}`);
+      break;
+    }
+
         ? `Interrompu après ${echecsConsecutifs} recherches trop lentes d'affilée (${erreurMessage}) — essayez un modèle plus rapide dans ANTHROPIC_MODEL (claude-sonnet-5 conseillé).`
         : `Interrompu après ${echecsConsecutifs} échecs consécutifs (dernière erreur : ${erreurMessage}) — vérifiez la configuration Anthropic (ANTHROPIC_API_KEY / ANTHROPIC_MODEL) ou le crédit disponible.`;
       console.error(`[ia] Enrichissement en lot interrompu : ${interrompu}`);
@@ -1107,7 +1126,7 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
 
     await new Promise((resolve) => setTimeout(resolve, DELAI_ENTRE_APPELS_IA_MS));
   }
-  return { interrompu };
+  return { interrompu, lienRecharge };
 }
 
 // État du dernier/actuel enrichissement téléphone en lot déclenché depuis le
@@ -1186,6 +1205,7 @@ app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
       if (resultat?.interrompu) etatEnrichissementLot.interrompu = resultat.interrompu;
     })
     .catch((e) => console.error("[ia] Échec de l'enrichissement en lot :", e.message))
+      if (resultat?.lienRecharge) etatEnrichissementLot.lienRecharge = resultat.lienRecharge;
     .finally(() => {
       etatEnrichissementLot.enCours = false;
       etatEnrichissementLot.termine = new Date().toISOString();
@@ -1884,7 +1904,7 @@ app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepris
   } catch (e) {
     console.error(`[ia] Échec de recherche de contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
-    res.status(statutHttp).json({ error: e.message });
+    res.status(statutHttp).json(corpsErreurIa(e));
   }
 });
 
@@ -1911,7 +1931,7 @@ app.post("/api/entreprises/:id/question-contact-ia", exigerAuth, chargerEntrepri
   } catch (e) {
     console.error(`[ia] Échec de la question contact pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
-    res.status(statutHttp).json({ error: e.message });
+    res.status(statutHttp).json(corpsErreurIa(e));
   }
 });
 
@@ -1941,7 +1961,7 @@ app.post("/api/entreprises/:id/dictee-ia", exigerAuth, chargerEntrepriseAutorise
   } catch (e) {
     console.error(`[ia] Échec d'analyse de dictée pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
-    res.status(statutHttp).json({ error: e.message });
+    res.status(statutHttp).json(corpsErreurIa(e));
   }
 });
 
@@ -1966,7 +1986,7 @@ app.post("/api/entreprises/:id/generer-email", exigerAuth, chargerEntrepriseAuto
   } catch (e) {
     console.error(`[ia] Échec de génération d'e-mail pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
-    res.status(statutHttp).json({ error: e.message });
+    res.status(statutHttp).json(corpsErreurIa(e));
   }
 });
 
@@ -1981,7 +2001,7 @@ app.get("/api/ia/modeles-disponibles", exigerAdmin, async (req, res) => {
     res.json({ modeles });
   } catch (e) {
     const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : 502;
-    res.status(statutHttp).json({ error: e.message });
+    res.status(statutHttp).json(corpsErreurIa(e));
   }
 });
 

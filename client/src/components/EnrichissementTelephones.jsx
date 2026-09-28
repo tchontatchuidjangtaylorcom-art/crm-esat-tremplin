@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import BoutonRechargeCredits from "./BoutonRechargeCredits.jsx";
 
 // Enrichissement en lot des fiches déjà présentes dans le CRM qui n'ont
 // toujours aucun numéro de téléphone — typiquement les leads importés par
@@ -150,6 +151,14 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
       {statut?.interrompu && (
         <div className="w-full">
           <p className="text-sm text-amber-600 dark:text-amber-400">⚠️ {statut.interrompu}</p>
+          {statut.lienRecharge && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <BoutonRechargeCredits lien={statut.lienRecharge} />
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Astuce : activez le « rechargement automatique » sur cette page pour ne plus être bloqué.
+              </span>
+            </div>
+          )}
           <button
             onClick={verifierModelesDisponibles}
             disabled={chargementModeles}
