@@ -985,8 +985,6 @@ const DELAI_ENTRE_APPELS_IA_MS = Number(process.env.ANTHROPIC_ENRICHISSEMENT_DEL
 // laisser tourner un lot de 100 fiches pour zéro résultat.
 const ECHECS_CONSECUTIFS_MAX = 5;
 
-// File des enrichissements déclenchés par /api/leads/secteur/importer : un
-// seul tourne à la fois (voir la note à l'appel).
 // Corps JSON d'une erreur IA renvoyée au frontend : `lienRecharge` (crédit
 // Anthropic épuisé, voir rechercheContact.js) déclenche côté client le
 // bandeau "Recharger les crédits".
@@ -994,6 +992,8 @@ function corpsErreurIa(e) {
   return { error: e.message, code: e.code, ...(e.lienRecharge ? { lienRecharge: e.lienRecharge } : {}) };
 }
 
+// File des enrichissements déclenchés par /api/leads/secteur/importer : un
+// seul tourne à la fois (voir la note à l'appel).
 let fileEnrichissementImport = Promise.resolve();
 
 // Trace, sur la fiche, la dernière recherche IA de téléphone — pour que
@@ -1076,13 +1076,13 @@ function appliquerResultatRechercheIA(entreprise, resultat) {
 async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
   let echecsConsecutifs = 0;
   let interrompu = null;
+  let lienRecharge = null;
   for (const entreprise of entreprises) {
     let trouve = false;
-  let lienRecharge = null;
     let erreurMessage = null;
+    let erreurCredits = null;
     try {
       const resultat = await rechercherContactAlternatif(entreprise);
-    let erreurCredits = null;
       marquerRechercheTelephone(entreprise, resultat.telephone ? "trouve" : "introuvable");
       if (resultat.telephone) {
         appliquerResultatRechercheIA(entreprise, resultat);
@@ -1107,8 +1107,6 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
     }
     onProgres?.({ trouve, erreur: erreurMessage });
 
-    if (echecsConsecutifs >= ECHECS_CONSECUTIFS_MAX) {
-      interrompu = /Délai de recherche IA dépassé/.test(erreurMessage)
     // Crédit épuisé : inutile de continuer, chaque fiche suivante
     // échouerait de la même façon.
     if (erreurCredits) {
@@ -1118,6 +1116,8 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
       break;
     }
 
+    if (echecsConsecutifs >= ECHECS_CONSECUTIFS_MAX) {
+      interrompu = /Délai de recherche IA dépassé/.test(erreurMessage)
         ? `Interrompu après ${echecsConsecutifs} recherches trop lentes d'affilée (${erreurMessage}) — essayez un modèle plus rapide dans ANTHROPIC_MODEL (claude-sonnet-5 conseillé).`
         : `Interrompu après ${echecsConsecutifs} échecs consécutifs (dernière erreur : ${erreurMessage}) — vérifiez la configuration Anthropic (ANTHROPIC_API_KEY / ANTHROPIC_MODEL) ou le crédit disponible.`;
       console.error(`[ia] Enrichissement en lot interrompu : ${interrompu}`);
@@ -1203,9 +1203,9 @@ app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
   })
     .then((resultat) => {
       if (resultat?.interrompu) etatEnrichissementLot.interrompu = resultat.interrompu;
+      if (resultat?.lienRecharge) etatEnrichissementLot.lienRecharge = resultat.lienRecharge;
     })
     .catch((e) => console.error("[ia] Échec de l'enrichissement en lot :", e.message))
-      if (resultat?.lienRecharge) etatEnrichissementLot.lienRecharge = resultat.lienRecharge;
     .finally(() => {
       etatEnrichissementLot.enCours = false;
       etatEnrichissementLot.termine = new Date().toISOString();
