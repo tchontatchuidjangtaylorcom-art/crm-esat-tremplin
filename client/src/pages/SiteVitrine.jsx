@@ -139,7 +139,8 @@ export default function SiteVitrine() {
       <EnteteVitrine onSimuler={allerAuSimulateur} />
 
       {/* Simulateur OETH / DOETH intégré — cœur de la landing page. */}
-      <div className="bg-slate-50 dark:bg-black pt-20 lg:pt-14">
+      {/* Réserve la hauteur de l'en-tête fixe : sur deux rangées sous 1280 px, une seule au-delà. */}
+      <div className="bg-slate-50 dark:bg-black pt-28 xl:pt-14">
         <SimulateurOeth />
       </div>
 

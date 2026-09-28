@@ -538,7 +538,7 @@ export default function SimulateurOeth() {
   const partMobilisee = plafondDepenses > 0 ? Math.min(100, (depensesMobilisees / plafondDepenses) * 100) : 0;
 
   return (
-    <section ref={sectionRef} id="simulateur" className="relative bg-slate-50 dark:bg-black text-slate-900 dark:text-white py-16 sm:py-24 scroll-mt-16">
+    <section ref={sectionRef} id="simulateur" className="relative bg-slate-50 dark:bg-black text-slate-900 dark:text-white pt-4 sm:pt-5 pb-16 sm:pb-24 scroll-mt-16">
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] max-w-full h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
 
@@ -550,7 +550,7 @@ export default function SimulateurOeth() {
             <span className="flex-1 bg-white" />
             <span className="flex-1 bg-red-500" />
           </div>
-          <div className="px-4 sm:px-8 py-5 sm:py-6 flex flex-col items-center text-center gap-3 sm:gap-4">
+          <div className="px-4 sm:px-8 py-5 flex flex-col items-center text-center gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-600 dark:text-marine-400">
                 Obligation d'emploi des travailleurs handicapés
@@ -559,10 +559,6 @@ export default function SimulateurOeth() {
               <h1 className="font-bold text-slate-900 dark:text-white text-2xl sm:text-4xl mt-1.5">
                 Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}
               </h1>
-              <p className="hidden sm:block text-base text-slate-500 dark:text-slate-400 mt-2 max-w-2xl mx-auto">
-                Obtenez une estimation immédiate de votre contribution OETH {ANNEE_REFERENCE} à partir des données de votre
-                entreprise.
-              </p>
             </div>
             {/* Sur une seule ligne sur téléphone (libellés courts). */}
             <div className="flex flex-nowrap sm:flex-wrap justify-center gap-1.5 sm:gap-2">
@@ -581,7 +577,7 @@ export default function SimulateurOeth() {
               setRechercheOuverte(true);
               setTimeout(() => champRechercheRef.current?.focus(), 50);
             }}
-            className="sm:hidden w-full flex items-center gap-3 rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-left"
+            className="w-full flex items-center gap-3 rounded-2xl border border-emerald-400/40 bg-emerald-500/10 hover:bg-emerald-500/15 px-4 sm:px-6 py-3 text-left transition"
           >
             <span className="shrink-0 rounded-full bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1">
               Important
@@ -594,7 +590,7 @@ export default function SimulateurOeth() {
             </svg>
           </button>
         )}
-        <div className={`${rechercheOuverte ? "block" : "hidden"} sm:block rounded-2xl border border-teal-400/25 bg-gradient-to-r from-teal-400/[0.08] via-white dark:via-marine-950/80 to-white dark:to-marine-950/80 px-6 sm:px-8 py-5`}>
+        <div className={`${rechercheOuverte ? "block" : "hidden"} rounded-2xl border border-teal-400/25 bg-gradient-to-r from-teal-400/[0.08] via-white dark:via-marine-950/80 to-white dark:to-marine-950/80 px-6 sm:px-8 py-5`}>
           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
             <div className="flex items-start gap-3 lg:w-[38%]">
               <span className="shrink-0 w-9 h-9 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-700 dark:text-teal-300 flex items-center justify-center">
@@ -653,7 +649,6 @@ export default function SimulateurOeth() {
             <EnteteEtape
               numero="01"
               titre="Commencez avec 3 informations essentielles"
-              sousTitre="Renseignez votre effectif, puis votre taux d'emploi ou votre EMA BOETH : les deux sont liés, saisir l'un calcule l'autre."
             />
           </div>
 
@@ -701,12 +696,8 @@ export default function SimulateurOeth() {
               </span>
               <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{smicTexte} €</span>
             </span>
-            <span className="w-full sm:w-auto text-[11px] text-slate-500">{exercice.note}</span>
-          </div>
-
-          {/* Type d'employeur : privé (AGEFIPH, déclaration DSN / URSSAF) ou
-              public (FIPHFP). Détecté automatiquement via la recherche. */}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {/* Type d'employeur : privé (AGEFIPH, déclaration DSN / URSSAF) ou
+                public (FIPHFP). Détecté automatiquement via la recherche. */}
             <div
               role="radiogroup"
               aria-label="Type d'employeur"
@@ -733,7 +724,9 @@ export default function SimulateurOeth() {
                 </button>
               ))}
             </div>
+            <span className="w-full text-[11px] text-slate-500">{exercice.note}</span>
           </div>
+
           {secteur === "public" && (
             <div className="mt-3 rounded-xl border border-sky-400/40 border-l-4 border-l-sky-400 bg-sky-500/[0.08] px-4 py-3 text-sm text-slate-700 dark:text-sky-100">
               <p className="font-semibold text-sky-800 dark:text-sky-200">Employeur public : votre déclaration relève du FIPHFP</p>
@@ -757,6 +750,7 @@ export default function SimulateurOeth() {
               onChange={changerEffectif}
               placeholder="Minimum 20"
               min="20"
+              complement={<CalculSixPourcent effectif={saisie.effectif} />}
               aide="Effectif moyen annuel retenu pour l'OETH (minimum 20 salariés)."
               erreur={
                 erreurEffectif
@@ -1679,7 +1673,7 @@ function EnteteEtape({ numero, titre, sousTitre, children }) {
       {/* Masqué sur téléphone : les champs à remplir remontent à l'écran. */}
       <div className="hidden sm:block flex-1">
         <h3 className="text-lg sm:text-xl font-semibold">{titre}</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{sousTitre}</p>
+        {sousTitre && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{sousTitre}</p>}
       </div>
       <div className="md:pt-1.5">{children}</div>
     </div>
@@ -1687,7 +1681,28 @@ function EnteteEtape({ numero, titre, sousTitre, children }) {
 }
 
 // Case de saisie de l'étape 01 (titre, badge "Lié", unité dans le champ).
-function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, accent = false, erreur = null, min = "0" }) {
+// Obligation d'emploi calculée instantanément : 6 % de l'effectif, arrondi à
+// l'entier inférieur (même règle que le calcul complet, voir server/src/oeth.js),
+// seulement à partir de 20 salariés.
+function CalculSixPourcent({ effectif }) {
+  const eff = Number(String(effectif).replace(",", "."));
+  const assujetti = Number.isFinite(eff) && eff >= 20;
+  const exact = assujetti ? eff * 0.06 : null;
+  return (
+    <div className="shrink-0 w-[7.5rem] rounded-lg border border-amber-400/40 bg-amber-400/[0.08] px-2 py-1 text-center flex flex-col justify-center">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Obligation 6 %</p>
+      <p className="text-base font-bold leading-tight tabular-nums text-slate-900 dark:text-white">
+        {assujetti ? Math.floor(exact) : "—"}
+        <span className="text-[10px] font-medium text-slate-500 ml-1">BOETH</span>
+      </p>
+      <p className="text-[9px] text-slate-500 tabular-nums">
+        {assujetti ? `${exact.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} arrondi` : "dès 20 salariés"}
+      </p>
+    </div>
+  );
+}
+
+function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, accent = false, erreur = null, min = "0", complement = null }) {
   return (
     <div
       className={`rounded-xl border p-4 transition ${
@@ -1700,7 +1715,8 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
           <span className="rounded-full bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5">{badge}</span>
         )}
       </div>
-      <div className="relative mt-2.5">
+      <div className="mt-2.5 flex items-stretch gap-2">
+      <div className="relative flex-1 min-w-0">
         <input
           type="number"
           min={min}
@@ -1712,6 +1728,8 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
           className="w-full rounded-lg border border-slate-900/10 dark:border-white/10 bg-white dark:bg-black/30 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 pl-3 pr-16 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">{unite}</span>
+      </div>
+      {complement}
       </div>
       <p className={`text-[11px] mt-2 leading-snug ${erreur ? "text-red-700 dark:text-red-300" : "text-slate-500"}`}>{erreur || aide}</p>
     </div>
