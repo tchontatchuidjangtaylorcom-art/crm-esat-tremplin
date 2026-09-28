@@ -107,16 +107,16 @@ export default function EnteteVitrine({ onSimuler }) {
         menuOuvert ? "bg-white dark:bg-black border-b border-slate-900/10 dark:border-white/10" : fond
       }`}
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 lg:py-4 flex items-center justify-between gap-3 lg:gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 xl:py-4 flex items-center justify-between gap-3 lg:gap-4">
         <Link
           to="/vitrine"
-          className="text-[13px] sm:text-sm font-semibold tracking-tight transition-colors min-w-0 text-slate-900 dark:text-white"
+          className="text-[13px] sm:text-sm font-semibold tracking-tight transition-colors shrink-0 whitespace-nowrap text-slate-900 dark:text-white"
         >
           Pôle OETH <span className="text-marine-500 dark:text-white/50">/</span> AGEFIPH{" "}
           <span className="text-marine-500 dark:text-white/50">/</span> FIPHFP
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-1">
+        <nav className="hidden xl:flex items-center gap-0.5 xl:gap-1 min-w-0">
           {LIENS_NAV.map((lien) => {
             // Page courante (liens de page) ou section visible (ancres de
             // /vitrine) : pastille bordée pour situer le visiteur.
@@ -126,7 +126,7 @@ export default function EnteteVitrine({ onSimuler }) {
                 key={lien.to}
                 to={lien.to}
                 aria-current={actif ? "page" : undefined}
-                className={`text-xs font-medium tracking-wide whitespace-nowrap rounded-full border px-3 py-1.5 transition ${
+                className={`text-xs font-medium tracking-wide whitespace-nowrap rounded-full border px-2.5 xl:px-3 py-1.5 transition ${
                   actif
                     ? "border-marine-500/60 bg-marine-500/10 text-marine-800 dark:border-white/40 dark:bg-white/10 dark:text-white"
                     : "border-transparent text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
@@ -143,12 +143,12 @@ export default function EnteteVitrine({ onSimuler }) {
           <Link
             to="/connexion"
             title="Portail sécurisé (agents)"
-            className="hidden lg:flex items-center gap-1.5 text-xs font-medium transition text-slate-500 hover:text-slate-900 dark:text-white/60 dark:hover:text-white"
+            className="hidden xl:flex items-center gap-1.5 text-xs font-medium transition text-slate-500 hover:text-slate-900 dark:text-white/60 dark:hover:text-white"
           >
             <IconeCadenas />
             Portail sécurisé
           </Link>
-          <span className="hidden lg:inline-flex">{boutonSimuler(boutonClasses)}</span>
+          <span className="hidden xl:inline-flex">{boutonSimuler(boutonClasses)}</span>
 
           {/* Mobile / tablette : menu ☰ regroupant les liens masqués. */}
           <button
@@ -157,7 +157,7 @@ export default function EnteteVitrine({ onSimuler }) {
             aria-expanded={menuOuvert}
             aria-controls="menu-vitrine-mobile"
             aria-label={menuOuvert ? "Fermer le menu" : "Ouvrir le menu"}
-            className="lg:hidden w-10 h-10 rounded-full border border-slate-900/15 dark:border-white/20 flex items-center justify-center text-slate-800 dark:text-white hover:bg-slate-900/5 dark:hover:bg-white/10 transition"
+            className="xl:hidden w-10 h-10 rounded-full border border-slate-900/15 dark:border-white/20 flex items-center justify-center text-slate-800 dark:text-white hover:bg-slate-900/5 dark:hover:bg-white/10 transition"
           >
             {menuOuvert ? (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
@@ -174,14 +174,14 @@ export default function EnteteVitrine({ onSimuler }) {
 
       {/* Mobile / tablette : bouton principal centré sous le nom du site. */}
       {!menuOuvert && (
-        <div className="lg:hidden flex justify-center px-4 pb-2.5 -mt-0.5">
+        <div className="xl:hidden flex justify-center px-4 pb-2.5 -mt-0.5">
           {boutonSimuler("rounded-full text-sm font-semibold px-6 py-2 transition bg-marine-800 text-white hover:bg-marine-900 dark:bg-white dark:text-marine-900 dark:hover:bg-marine-100 shadow-lg")}
         </div>
       )}
 
       {/* Menu déroulant mobile. */}
       {menuOuvert && (
-        <nav id="menu-vitrine-mobile" className="lg:hidden max-h-[calc(100vh-4rem)] overflow-y-auto px-4 pb-5">
+        <nav id="menu-vitrine-mobile" className="xl:hidden max-h-[calc(100vh-4rem)] overflow-y-auto px-4 pb-5">
           <ul className="space-y-1">
             {LIENS_NAV.map((lien) => {
               const actif = estActif(lien);
