@@ -56,8 +56,10 @@ export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" }
   const existant = trouverUtilisateurParEmail(propre);
 
   if (existant) {
-    if (estAdminForce && (existant.role !== "admin" || existant.statut !== "valide")) {
-      existant.role = "admin";
+    // Un super-administrateur listé dans ADMIN_EMAILS garde son rôle : la
+    // liste garantit un accès admin minimum, elle ne rétrograde jamais.
+    if (estAdminForce && (!estAdmin(existant) || existant.statut !== "valide")) {
+      existant.role = estAdmin(existant) ? existant.role : "admin";
       existant.statut = "valide";
       existant.dateValidation = existant.dateValidation || new Date().toISOString();
       await db.write();

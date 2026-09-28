@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -18,7 +19,7 @@ function idUnique() {
 // librement, seul un admin voit le bouton "×".
 export default function GestionEmails({ entreprise, onMaj }) {
   const { utilisateur } = useAuth();
-  const estAdmin = utilisateur?.role === "admin";
+  const estAdminConnecte = estAdmin(utilisateur);
   const [emailPrincipal, setEmailPrincipal] = useState(entreprise.contact?.email || "");
   const [nouvelEmail, setNouvelEmail] = useState("");
   const [nouvelleNote, setNouvelleNote] = useState("");
@@ -119,7 +120,7 @@ export default function GestionEmails({ entreprise, onMaj }) {
                 >
                   Principal
                 </button>
-                {estAdmin && (
+                {estAdminConnecte && (
                   <button
                     type="button"
                     onClick={() => retirer(alt)}

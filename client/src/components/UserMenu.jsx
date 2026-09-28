@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 import { useIdentiteActuelle } from "../identite.js";
 import { useSupervision } from "../SupervisionContext.jsx";
 import { usePresence } from "../PresenceContext.jsx";
@@ -20,7 +21,7 @@ export default function UserMenu({ theme, onBasculerTheme }) {
   const [agents, setAgents] = useState([]);
 
   useEffect(() => {
-    if (utilisateur?.role !== "admin") return;
+    if (!estAdmin(utilisateur)) return;
     api
       .listUtilisateurs()
       .then((liste) => setAgents(liste.filter((u) => u.statut === "valide" && u.id !== utilisateur.id)))
@@ -47,7 +48,7 @@ export default function UserMenu({ theme, onBasculerTheme }) {
     // flex-wrap : sur téléphone, les boutons passent à la ligne au lieu
     // d'élargir la page (ce qui décalait le panneau des outils de vente).
     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-      {utilisateur?.role === "admin" && (
+      {estAdmin(utilisateur) && (
         <>
           <select
             value={agentSupervise?.id || ""}

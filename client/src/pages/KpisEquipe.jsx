@@ -150,7 +150,7 @@ export default function KpisEquipe() {
                       <td className="px-4 py-2.5">
                         <div className="font-medium text-slate-800 dark:text-slate-100">
                           {m.utilisateur.prenom} {m.utilisateur.nom}
-                          {m.utilisateur.role === "admin" && (
+                          {(m.utilisateur.role === "admin" || m.utilisateur.role === "super_admin") && (
                             <span className="ml-1.5 text-[10px] font-semibold uppercase text-marine-600 dark:text-marine-300">admin</span>
                           )}
                         </div>

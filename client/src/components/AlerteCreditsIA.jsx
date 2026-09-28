@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 import BoutonRechargeCredits from "./BoutonRechargeCredits.jsx";
 
 // Bandeau global affiché dès qu'une fonction IA échoue faute de crédit sur
@@ -18,7 +19,7 @@ export default function AlerteCreditsIA() {
   }, []);
 
   if (!alerte) return null;
-  const estAdmin = utilisateur?.role === "admin";
+  const estAdminConnecte = estAdmin(utilisateur);
 
   return (
     <div
@@ -31,12 +32,12 @@ export default function AlerteCreditsIA() {
       <div className="flex-1 min-w-[220px]">
         <p className="text-sm font-semibold text-red-800 dark:text-red-300">{alerte.message}</p>
         <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
-          {estAdmin
+          {estAdminConnecte
             ? "Rechargez le compte Anthropic (activez aussi le « rechargement automatique » pour ne plus être bloqué), puis relancez l'action."
             : "Prévenez votre administrateur : lui seul peut recharger le compte."}
         </p>
       </div>
-      {estAdmin && <BoutonRechargeCredits lien={alerte.lien} />}
+      {estAdminConnecte && <BoutonRechargeCredits lien={alerte.lien} />}
       <button
         onClick={() => setAlerte(null)}
         title="Fermer"

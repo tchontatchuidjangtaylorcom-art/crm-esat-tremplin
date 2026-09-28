@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 import { estNumeroTelephone, estNumeroAffichable } from "../telephone.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 
@@ -21,7 +22,7 @@ function idUnique() {
 // n'importe quelle modification du dossier par l'agent qui y a accès).
 export default function GestionContacts({ entreprise, onMaj }) {
   const { utilisateur } = useAuth();
-  const estAdmin = utilisateur?.role === "admin";
+  const estAdminConnecte = estAdmin(utilisateur);
   const [nomPrincipal, setNomPrincipal] = useState(entreprise.contact?.nom || "");
   const [fonctionPrincipal, setFonctionPrincipal] = useState(entreprise.contact?.fonction || "");
   const [nouveauNom, setNouveauNom] = useState("");
@@ -227,7 +228,7 @@ export default function GestionContacts({ entreprise, onMaj }) {
                   >
                     Principal
                   </button>
-                  {estAdmin && (
+                  {estAdminConnecte && (
                     <button
                       type="button"
                       onClick={() => retirer(c)}

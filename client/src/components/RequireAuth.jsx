@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 
 // Sur le nom de domaine public (oeth-fiph.fr, www.oeth-fiph.fr), un visiteur
 // non connecté qui arrive sur la racine voit la vitrine (simulateur), pas la
@@ -27,7 +28,7 @@ export default function RequireAuth({ children, adminSeulement = false }) {
     }
     return <Navigate to="/connexion" replace />;
   }
-  if (adminSeulement && utilisateur.role !== "admin") {
+  if (adminSeulement && !estAdmin(utilisateur)) {
     return <Navigate to="/" replace />;
   }
   return children;

@@ -555,7 +555,7 @@ export default function Dashboard() {
                 </option>
                 {agentsAssignables.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.prenom || a.email} {a.role === "admin" ? "(admin)" : ""}
+                    {a.prenom || a.email} {a.role === "admin" || a.role === "super_admin" ? "(admin)" : ""}
                   </option>
                 ))}
               </select>

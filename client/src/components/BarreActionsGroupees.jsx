@@ -80,7 +80,7 @@ export default function BarreActionsGroupees({
             <option value="aucun">Retirer l'assignation</option>
             {agents?.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.prenom || a.email} {a.role === "admin" ? "(admin)" : ""}
+                {a.prenom || a.email} {a.role === "admin" || a.role === "super_admin" ? "(admin)" : ""}
               </option>
             ))}
           </select>

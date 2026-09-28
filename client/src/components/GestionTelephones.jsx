@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { erreurNumero, estNumeroAffichable } from "../telephone.js";
@@ -21,7 +22,7 @@ function idUnique() {
 // seul un admin voit le bouton "×".
 export default function GestionTelephones({ entreprise, onMaj, compact = false }) {
   const { utilisateur } = useAuth();
-  const estAdmin = utilisateur?.role === "admin";
+  const estAdminConnecte = estAdmin(utilisateur);
   const [nouveauNumero, setNouveauNumero] = useState("");
   const [nouvelleNote, setNouvelleNote] = useState("");
   const [enCours, setEnCours] = useState(false);
@@ -118,7 +119,7 @@ export default function GestionTelephones({ entreprise, onMaj, compact = false }
                 >
                   Prioritaire
                 </button>
-                {estAdmin && (
+                {estAdminConnecte && (
                   <button
                     type="button"
                     onClick={() => retirer(alt)}

@@ -1,5 +1,6 @@
 import { useAuth } from "./AuthContext.jsx";
 import { AGENT_ACTUEL } from "./agent.js";
+import { libelleRole } from "./roles.js";
 
 // Dérive l'identité affichable de l'agent actuellement connecté à partir de
 // la session réelle (AuthContext / `/api/auth/moi`), pour que le prénom
@@ -15,7 +16,7 @@ export function useIdentiteActuelle() {
   return {
     prenom: utilisateur.prenom || utilisateur.email.split("@")[0],
     nom: utilisateur.nom || "",
-    role: utilisateur.role === "admin" ? "Administrateur" : "Télépro",
+    role: libelleRole(utilisateur.role),
     bureau: utilisateur.email,
   };
 }
