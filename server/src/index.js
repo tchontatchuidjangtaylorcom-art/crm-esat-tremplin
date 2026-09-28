@@ -1615,7 +1615,7 @@ app.post("/api/entreprises/:id/assigner", exigerAdmin, async (req, res) => {
   // Nouvelle affectation à un agent différent : déclenche l'alerte "nouveau
   // lead assigné" (voir /api/notifications) jusqu'à ce qu'il ouvre la fiche.
   if (utilisateurId && utilisateurId !== entreprise.assigneA) {
-    entreprise.assignationVue = false;
+    entreprise.assignationVue = utilisateurId === req.utilisateur.id; // s'assigner soi-même : pas d'alerte
     entreprise.dateAssignation = new Date().toISOString();
   }
   entreprise.assigneA = utilisateurId;
@@ -1638,7 +1638,7 @@ app.post("/api/lots/:lot/assigner", exigerAdmin, async (req, res) => {
   const cibles = db.data.entreprises.filter((e) => e.lot === lot);
   for (const e of cibles) {
     if (utilisateurId && utilisateurId !== e.assigneA) {
-      e.assignationVue = false;
+      e.assignationVue = utilisateurId === req.utilisateur.id;
       e.dateAssignation = new Date().toISOString();
     }
     e.assigneA = utilisateurId;
@@ -1727,7 +1727,7 @@ app.post("/api/entreprises/assigner-groupe", exigerAdmin, async (req, res) => {
   const cibles = db.data.entreprises.filter((e) => ids.includes(e.id));
   for (const e of cibles) {
     if (utilisateurId && utilisateurId !== e.assigneA) {
-      e.assignationVue = false;
+      e.assignationVue = utilisateurId === req.utilisateur.id;
       e.dateAssignation = new Date().toISOString();
     }
     e.assigneA = utilisateurId;

@@ -60,14 +60,52 @@ export default function Dashboard() {
   const { theme, basculer } = useTheme();
   const { utilisateur } = useAuth();
   const { agentSupervise } = useSupervision();
-  const estAdmin = utilisateur?.role === "admin";
+  const estAdmin = utilisateur?.role === "admin" || utilisateur?.role === "super_admin";
   // Mode Manager : un admin consulte le pipeline "comme si" il était l'agent
   // choisi (voir UserMenu > "Voir le compte de…") — jamais l'inverse.
   const commeAgentId = estAdmin ? agentSupervise?.id : null;
-  const [entreprises, setEntreprises] = useState([]);
+  const [toutesEntreprises, setEntreprises] = useState([]);
+  // Périmètre de travail d'un admin, qui voit tout le pipeline : "tous",
+  // "moi" (les leads qu'il s'est assignés, pour les appeler comme un agent)
+  // ou "non_assignes" (à distribuer). Un agent ne reçoit de toute façon que
+  // ses propres leads du serveur ; en Mode Manager, on montre ceux de
+  // l'agent supervisé, sans ce filtre.
+  const [perimetre, setPerimetreState] = useState(() => {
+    try {
+      return localStorage.getItem("crm-perimetre-leads") || "tous";
+    } catch {
+      return "tous";
+    }
+  });
+  function setPerimetre(valeur) {
+    setPerimetreState(valeur);
+    try {
+      localStorage.setItem("crm-perimetre-leads", valeur);
+    } catch {
+      // stockage indisponible : le choix vaut pour la session en cours
+    }
+  }
+  const perimetreActif = estAdmin && !commeAgentId ? perimetre : "tous";
+  const entreprises = useMemo(() => {
+    if (perimetreActif === "moi") return toutesEntreprises.filter((e) => e.assigneA === utilisateur?.id);
+    if (perimetreActif === "non_assignes") return toutesEntreprises.filter((e) => !e.assigneA);
+    return toutesEntreprises;
+  }, [toutesEntreprises, perimetreActif, utilisateur?.id]);
+  const nbMesLeads = useMemo(
+    () => toutesEntreprises.filter((e) => e.assigneA === utilisateur?.id).length,
+    [toutesEntreprises, utilisateur?.id]
+  );
+  const nbNonAssignes = useMemo(() => toutesEntreprises.filter((e) => !e.assigneA).length, [toutesEntreprises]);
   const [categories, setCategories] = useState([]);
   const [lots, setLots] = useState([]);
   const [agents, setAgents] = useState([]);
+  // Liste d'assignation : l'admin connecté en tête, sous "Moi", pour
+  // s'attribuer un lead (ou une vague) en un clic.
+  const agentsAssignables = useMemo(() => {
+    const moi = agents.find((a) => a.id === utilisateur?.id);
+    if (!moi) return agents;
+    return [{ ...moi, prenom: `Moi (${moi.prenom || moi.email})`, role: null }, ...agents.filter((a) => a.id !== moi.id)];
+  }, [agents, utilisateur?.id]);
   const [archives, setArchives] = useState([]);
   const [nbArchivees, setNbArchivees] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -208,7 +246,7 @@ export default function Dashboard() {
   const nbQualifieesCeMois = useMemo(() => {
     const maintenant = new Date();
     let n = 0;
-    for (const e of [...entreprises, ...archives]) {
+    for (const e of [...toutesEntreprises, ...archives]) {
       const aUneSortieQualifieeCeMois = (e.historiqueAppels || []).some((h) => {
         if (h.type !== "sortie" || !STATUTS_QUALIFIES.has(h.issue)) return false;
         const d = new Date(h.date);
@@ -217,11 +255,11 @@ export default function Dashboard() {
       if (aUneSortieQualifieeCeMois) n++;
     }
     return n;
-  }, [entreprises, archives]);
+  }, [toutesEntreprises, archives]);
 
   const nbPrioritaires = useMemo(() => entreprises.filter((e) => e.oeth?.assujetti).length, [entreprises]);
 
-  const nbSansTelephone = useMemo(() => entreprises.filter((e) => !e.contact?.telephone).length, [entreprises]);
+  const nbSansTelephone = useMemo(() => toutesEntreprises.filter((e) => !e.contact?.telephone).length, [toutesEntreprises]);
 
   const entreprisesFiltrees = useMemo(() => {
     let liste = entreprises.filter((e) => {
@@ -331,12 +369,21 @@ export default function Dashboard() {
       {estAdmin && !commeAgentId && (
         <div className="mb-4">
           <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
-          <ImportLot categories={categories} agents={agents} onImporte={charger} />
+          <ImportLot categories={categories} agents={agentsAssignables} onImporte={charger} />
         </div>
       )}
 
-      {/* Demande de leads en libre-service, pour les agents. */}
-      {!estAdmin && <DemandeLeads categories={categories} onMaj={charger} />}
+      {/* Demande de leads en libre-service : agents, et admins qui prospectent
+          eux-mêmes (fiches attribuées à leur propre compte — elles
+          apparaissent alors dans "Mes leads"). Pas en Mode Manager : la
+          demande serait faite au nom de l'admin, pas de l'agent consulté. */}
+      {!commeAgentId && (
+        <DemandeLeads
+          categories={categories}
+          onMaj={charger}
+          onDemandeEnvoyee={estAdmin ? () => setPerimetre("moi") : undefined}
+        />
+      )}
 
       <div className="flex flex-col lg:flex-row gap-6">
         <Sidebar
@@ -364,6 +411,41 @@ export default function Dashboard() {
               });
             }}
           />
+
+          {estAdmin && !commeAgentId && (
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div
+                role="tablist"
+                aria-label="Périmètre des leads affichés"
+                className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-0.5"
+              >
+                {[
+                  { valeur: "tous", label: "Tous les leads", nombre: toutesEntreprises.length },
+                  { valeur: "moi", label: "👤 Mes leads", nombre: nbMesLeads },
+                  { valeur: "non_assignes", label: "Non assignés", nombre: nbNonAssignes },
+                ].map((o) => (
+                  <button
+                    key={o.valeur}
+                    role="tab"
+                    aria-selected={perimetreActif === o.valeur}
+                    onClick={() => setPerimetre(o.valeur)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition whitespace-nowrap ${
+                      perimetreActif === o.valeur
+                        ? "bg-marine-800 text-white dark:bg-marine-200 dark:text-marine-900"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {o.label} <span className="opacity-70">({o.nombre})</span>
+                  </button>
+                ))}
+              </div>
+              {perimetreActif === "moi" && (
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Leads que vous vous êtes assignés — la téléphonie n'appelle que ceux-ci.
+                </span>
+              )}
+            </div>
+          )}
 
           <DialerPanel entreprises={entreprisesFiltrees} />
 
@@ -428,7 +510,7 @@ export default function Dashboard() {
                 <option value="" disabled>
                   Choisir un agent…
                 </option>
-                {agents.map((a) => (
+                {agentsAssignables.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.prenom || a.email} {a.role === "admin" ? "(admin)" : ""}
                   </option>
@@ -451,7 +533,7 @@ export default function Dashboard() {
                 nbSelectionnes={selection.size}
                 nbFiltre={entreprisesFiltrees.length}
                 estAdmin={estAdmin}
-                agents={agents}
+                agents={agentsAssignables}
                 onAssigner={assignerSelectionGroupee}
                 onChangerStatut={changerStatutSelectionGroupee}
                 onSelectionnerToutFiltre={selectionnerToutFiltre}
@@ -461,7 +543,7 @@ export default function Dashboard() {
               <EntrepriseTable
                 entreprises={entreprisesPage}
                 estAdmin={estAdmin}
-                agents={agents}
+                agents={agentsAssignables}
                 onAssigner={assignerEntreprise}
                 selection={selection}
                 onToggleSelection={basculerSelection}

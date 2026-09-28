@@ -5,7 +5,7 @@ import { api } from "../api.js";
 // assignées du secteur choisi, puis génère le complément depuis Sirene en
 // arrière-plan s'il en manque (voir /api/leads/demande côté serveur). Évite
 // qu'un agent reste sans fiches quand aucun manager n'est disponible.
-export default function DemandeLeads({ categories, onMaj }) {
+export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee }) {
   const [etat, setEtat] = useState(null);
   const [categorie, setCategorie] = useState("");
   const [departement, setDepartement] = useState("");
@@ -40,6 +40,7 @@ export default function DemandeLeads({ categories, onMaj }) {
       const e = await api.demanderLeads(categorie, departement.trim());
       setEtat(e);
       onMaj?.();
+      onDemandeEnvoyee?.();
     } catch (e) {
       // 502/503/504 ou coupure réseau : le serveur redémarre (déploiement) ou
       // ne répond plus — message compréhensible plutôt qu'un code HTTP brut.
