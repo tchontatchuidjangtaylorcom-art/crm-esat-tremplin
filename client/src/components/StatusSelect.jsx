@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { STATUTS, STATUTS_ARCHIVES } from "../constants.js";
+import { STATUTS, STATUTS_ARCHIVES, ISSUES_APPEL } from "../constants.js";
 import { api } from "../api.js";
 import { diffuserEntrepriseMaj, diffuserEntrepriseArchivee } from "../telephony/CallContext.jsx";
 
@@ -13,8 +13,19 @@ import { diffuserEntrepriseMaj, diffuserEntrepriseArchivee } from "../telephony/
 // groupé (une sélection d'un seul dossier) — donc la même règle d'archivage
 // automatique sur conforme/refus/mort, avec la même confirmation qu'à la
 // sélection multiple.
+// Statuts qui demandent une date (rappel, rendez-vous) : "Me rappelle",
+// "À rappeler", "RDV". Choisis depuis le badge, ils ouvrent une petite
+// fenêtre pour saisir la date, puis passent par la route des issues d'appel
+// (/api/entreprises/:id/appels), qui enregistre dateRappel / dateRdv —
+// comme le faisait le module AGIR, retiré de la fiche.
+const STATUTS_AVEC_DATE = new Set(ISSUES_APPEL.filter((i) => i.needsDate).map((i) => i.value));
+
 export default function StatusSelect({ entreprise }) {
   const [enCours, setEnCours] = useState(false);
+  const [aDater, setADater] = useState(null);
+  const [date, setDate] = useState("");
+  const [details, setDetails] = useState("");
+  const [erreurDate, setErreurDate] = useState(null);
   const info = STATUTS[entreprise.statut] || {
     label: entreprise.statut,
     badge: "bg-gray-100 text-gray-700 border border-gray-300",
@@ -24,6 +35,15 @@ export default function StatusSelect({ entreprise }) {
     ev.stopPropagation();
     const nouveauStatut = ev.target.value;
     if (!nouveauStatut || nouveauStatut === entreprise.statut) return;
+
+    if (STATUTS_AVEC_DATE.has(nouveauStatut)) {
+      ev.target.value = entreprise.statut;
+      setADater(nouveauStatut);
+      setDate("");
+      setDetails("");
+      setErreurDate(null);
+      return;
+    }
 
     if (
       STATUTS_ARCHIVES.includes(nouveauStatut) &&
@@ -49,8 +69,75 @@ export default function StatusSelect({ entreprise }) {
     }
   }
 
+  async function validerDate(ev) {
+    ev.preventDefault();
+    if (!date) {
+      setErreurDate("Choisissez une date.");
+      return;
+    }
+    setEnCours(true);
+    try {
+      const maj = await api.enregistrerAppel(entreprise.id, { issue: aDater, date, details: details.trim() || null });
+      diffuserEntrepriseMaj(maj);
+      setADater(null);
+    } catch (e) {
+      setErreurDate(e.message);
+    } finally {
+      setEnCours(false);
+    }
+  }
+
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" onClick={(ev) => ev.stopPropagation()}>
+      {aDater && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4" onClick={() => setADater(null)}>
+          <form
+            onSubmit={validerDate}
+            onClick={(ev) => ev.stopPropagation()}
+            className="w-full max-w-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl p-5 space-y-3 text-left"
+          >
+            <p className="font-semibold text-slate-800 dark:text-slate-100">
+              {STATUTS[aDater]?.label} — {entreprise.nom}
+            </p>
+            <label className="block text-xs text-slate-500 dark:text-slate-400">
+              {aDater === "rdv" ? "Date et heure du rendez-vous" : "Date et heure du rappel"}
+              <input
+                type="datetime-local"
+                autoFocus
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-xs text-slate-500 dark:text-slate-400">
+              Détails (facultatif)
+              <textarea
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                rows={2}
+                className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+              />
+            </label>
+            {erreurDate && <p className="text-sm text-red-600 dark:text-red-400">{erreurDate}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setADater(null)}
+                className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm text-slate-600 dark:text-slate-300"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={enCours}
+                className="rounded-lg bg-marine-700 hover:bg-marine-800 text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                Enregistrer
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       <select
         value={entreprise.statut}
         onChange={changer}

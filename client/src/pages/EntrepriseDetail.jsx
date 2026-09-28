@@ -14,8 +14,6 @@ import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { erreurNumero, estNumeroAffichable } from "../telephone.js";
 import {
-  ISSUES_APPEL,
-  SORTIES_DOSSIER,
   formatMontant,
   formatDate,
   formatDateHeure,
@@ -68,13 +66,6 @@ export default function EntrepriseDetail() {
     const idTimer = setTimeout(() => setToastFiche(false), 4000);
     return () => clearTimeout(idTimer);
   }, [toastFiche]);
-
-  const [issueChoisie, setIssueChoisie] = useState("");
-  const [dateIssue, setDateIssue] = useState("");
-  const [detailsIssue, setDetailsIssue] = useState("");
-
-  const [sortieChoisie, setSortieChoisie] = useState("");
-  const [detailsSortie, setDetailsSortie] = useState("");
 
   const [nouveauCommentaire, setNouveauCommentaire] = useState("");
   const [enregistrement, setEnregistrement] = useState(false);
@@ -132,59 +123,6 @@ export default function EntrepriseDetail() {
       window.removeEventListener("entreprise:archivee", onArchive);
     };
   }, [id, navigate]);
-
-  async function soumettreIssueAppel(ev) {
-    ev.preventDefault();
-    if (!issueChoisie) return;
-    const infoIssue = ISSUES_APPEL.find((i) => i.value === issueChoisie);
-    if (infoIssue?.needsDate && !dateIssue) {
-      setErreur("Merci de choisir une date pour cette issue d'appel.");
-      return;
-    }
-    setEnregistrement(true);
-    try {
-      const updated = await api.enregistrerAppel(id, {
-        issue: issueChoisie,
-        date: dateIssue || null,
-        details: detailsIssue || null,
-      });
-      setEntreprise(updated);
-      setIssueChoisie("");
-      setDateIssue("");
-      setDetailsIssue("");
-      setErreur(null);
-    } catch (e) {
-      setErreur(e.message);
-    } finally {
-      setEnregistrement(false);
-    }
-  }
-
-  async function soumettreSortieDossier(ev) {
-    ev.preventDefault();
-    if (!sortieChoisie) return;
-    setEnregistrement(true);
-    try {
-      const { archive, entreprise: updated } = await api.enregistrerSortie(id, {
-        sortie: sortieChoisie,
-        details: detailsSortie || null,
-      });
-      if (archive) {
-        // Dossier "mort" : archivé côté serveur, retiré du pipeline actif —
-        // retour au tableau de bord, la fiche n'y est plus consultable en direct.
-        navigate("/");
-        return;
-      }
-      setEntreprise(updated);
-      setSortieChoisie("");
-      setDetailsSortie("");
-      setErreur(null);
-    } catch (e) {
-      setErreur(e.message);
-    } finally {
-      setEnregistrement(false);
-    }
-  }
 
   async function soumettreCommentaire(ev) {
     ev.preventDefault();
@@ -408,8 +346,6 @@ export default function EntrepriseDetail() {
       setEnregistrementTelephone(false);
     }
   }
-
-  const infoIssueSelectionnee = ISSUES_APPEL.find((i) => i.value === issueChoisie);
 
   if (erreur && !entreprise) {
     return (
@@ -712,93 +648,9 @@ export default function EntrepriseDetail() {
 
         </section>
 
-        {/* Colonne module AGIR + messagerie */}
+        {/* Colonne Espace IA + messagerie (le module AGIR a été retiré : le
+            statut se change depuis le badge en en-tête, voir StatusSelect) */}
         <section className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Module AGIR</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Nouvelle issue d'appel */}
-              <form onSubmit={soumettreIssueAppel} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-                <label className="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
-                  Nouvelle issue d'appel
-                </label>
-                <select
-                  value={issueChoisie}
-                  onChange={(e) => setIssueChoisie(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
-                >
-                  <option value="">Sélectionner…</option>
-                  {ISSUES_APPEL.map((i) => (
-                    <option key={i.value} value={i.value}>
-                      {i.label}
-                    </option>
-                  ))}
-                </select>
-
-                {infoIssueSelectionnee?.needsDate && (
-                  <input
-                    type="datetime-local"
-                    value={dateIssue}
-                    onChange={(e) => setDateIssue(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
-                  />
-                )}
-
-                <textarea
-                  value={detailsIssue}
-                  onChange={(e) => setDetailsIssue(e.target.value)}
-                  placeholder="Détails (facultatif)"
-                  rows={2}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
-                />
-
-                <button
-                  type="submit"
-                  disabled={!issueChoisie || enregistrement}
-                  className="w-full rounded-lg bg-slate-900 text-white text-sm font-medium py-2 disabled:opacity-40"
-                >
-                  Enregistrer l'issue
-                </button>
-              </form>
-
-              {/* Sortie du dossier */}
-              <form onSubmit={soumettreSortieDossier} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-                <label className="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
-                  Sortie du dossier
-                </label>
-                <select
-                  value={sortieChoisie}
-                  onChange={(e) => setSortieChoisie(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
-                >
-                  <option value="">Sélectionner…</option>
-                  {SORTIES_DOSSIER.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-
-                <textarea
-                  value={detailsSortie}
-                  onChange={(e) => setDetailsSortie(e.target.value)}
-                  placeholder="Détails (facultatif)"
-                  rows={2}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm mb-2"
-                />
-
-                <button
-                  type="submit"
-                  disabled={!sortieChoisie || enregistrement}
-                  className="w-full rounded-lg bg-red-600 text-white text-sm font-medium py-2 disabled:opacity-40"
-                >
-                  Clore / envoyer en atelier
-                </button>
-              </form>
-            </div>
-          </div>
-
           {/* Espace IA : contact alternatif en cas de numéro invalide */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Espace IA — Contact alternatif</h2>
