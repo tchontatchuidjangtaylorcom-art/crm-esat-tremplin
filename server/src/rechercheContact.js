@@ -448,10 +448,13 @@ function construirePromptDictee(entreprise, transcription) {
     `terminer avec cette entreprise : ${identite}.\n` +
     `Voici sa dictée brute, telle que transcrite automatiquement par reconnaissance vocale (peut contenir des ` +
     `hésitations, du langage parlé, des répétitions, des fautes de transcription) :\n"${transcription}"\n\n` +
-    `Rédige un compte-rendu professionnel et concis (3 à 5 phrases maximum) à partir de cette dictée. Restitue ` +
-    `FIDÈLEMENT ce que l'agent a dit — ne complète JAMAIS avec une information qu'il n'a pas mentionnée, ne déduis ` +
-    `rien au-delà de ce qui est dit explicitement. Corrige seulement la forme (orthographe, ponctuation, tournures ` +
-    `orales), jamais le fond.\n` +
+    `Rédige un compte-rendu ULTRA-COMPACT à partir de cette dictée : UNE SEULE PHRASE (20 mots maximum), assez ` +
+    `dense pour qu'un collègue ou un manager comprenne d'un coup d'œil ce qui s'est passé avec ce lead sans avoir ` +
+    `à relire la dictée. Va droit à l'essentiel (résultat de l'appel, contact obtenu, prochaine étape si ` +
+    `mentionnée) — aucune formule creuse du type "aucun autre élément n'a été précisé". Restitue FIDÈLEMENT ce que ` +
+    `l'agent a dit — ne complète JAMAIS avec une information qu'il n'a pas mentionnée, ne déduis rien au-delà de ` +
+    `ce qui est dit explicitement. Corrige seulement la forme (orthographe, ponctuation, tournures orales), ` +
+    `jamais le fond.\n` +
     `Si la dictée mentionne un ou plusieurs contacts nominatifs (nom de personne + fonction, ex : "j'ai eu Madame ` +
     `Dupont des RH"), extrais-les. Si elle mentionne aussi un numéro de téléphone ou une adresse mail dits à voix ` +
     `haute, extrais-les, rattachés au bon contact si possible.\n` +
