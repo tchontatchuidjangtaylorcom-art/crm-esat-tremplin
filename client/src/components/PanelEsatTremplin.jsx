@@ -292,9 +292,7 @@ export default function PanelEsatTremplin() {
                     surlignee ? "bg-marine-100 dark:bg-marine-900/50 ring-1 ring-marine-400" : "bg-slate-50 dark:bg-slate-900"
                   }`}
                 >
-                  <span className="text-slate-600 dark:text-slate-300 whitespace-nowrap" title={`${t.tranche} salariés`}>
-                    {t.tranche} s
-                  </span>
+                  <span className="text-slate-600 dark:text-slate-300 whitespace-nowrap">{t.tranche} salariés</span>
                   {/* D'où vient le montant : coefficient (heures) × SMIC horaire. */}
                   <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">
                     {t.coefficient} h × SMIC
