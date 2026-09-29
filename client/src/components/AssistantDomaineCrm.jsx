@@ -8,9 +8,9 @@ function idUnique() {
 const ACCUEIL_TEXTE =
   "Posez-moi une question sur l'OETH, la contribution, la surcontribution, ESAT Tremplin ou TIH — je réponds à partir des chiffres exacts du CRM (barème, SMIC, seuils), jamais approximés.";
 
-// Bouton flottant "Assistance OETH", empilé au-dessus du chat d'équipe (voir
-// ChatWidget.jsx, fixé à bottom-4 : celui-ci est à bottom-24 pour ne jamais
-// le recouvrir). Contrairement au chat d'équipe, ce n'est pas une messagerie
+// Bouton flottant rond "Assist", centré en bas de l'écran : il ne recouvre
+// ni les panneaux d'outils (argumentaire, script, ESAT…) ancrés à droite, ni
+// le chat d'équipe (ChatWidget.jsx, en bas à droite), même ouvert. Contrairement au chat d'équipe, ce n'est pas une messagerie
 // entre collègues : chaque question part vers l'IA (repondreQuestionDomaine
 // côté serveur), qui répond UNIQUEMENT à partir des chiffres réels injectés
 // dans son prompt (voir rechercheContact.js) — jamais une réponse inventée,
@@ -50,17 +50,17 @@ export default function AssistantDomaineCrm() {
     return (
       <button
         onClick={() => setOuvert(true)}
-        className="fixed bottom-24 right-4 z-40 flex items-center gap-2 rounded-full bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold pl-3 pr-4 py-2.5 shadow-2xl transition"
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-14 h-14 rounded-full bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-2xl flex items-center justify-center transition"
         title="Assistance OETH — questions de connaissance métier"
+        aria-label="Ouvrir l'assistance OETH"
       >
-        <span className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">🎓</span>
-        Assistance OETH
+        Assist
       </button>
     );
   }
 
   return (
-    <div className="fixed bottom-24 right-4 z-40 w-[380px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-8rem)] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[380px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-2rem)] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
         <span className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 flex items-center justify-center">
           🎓

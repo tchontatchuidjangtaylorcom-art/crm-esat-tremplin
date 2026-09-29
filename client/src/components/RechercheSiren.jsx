@@ -47,10 +47,14 @@ export default function RechercheSiren({ onEntreprise }) {
   return (
     <form
       onSubmit={soumettre}
-      className="flex flex-wrap items-end gap-3 mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-4"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm px-4 py-3"
     >
-      <label className="text-xs text-slate-500 dark:text-slate-400">
-        Nouveau lead par SIREN (enrichissement automatique — répertoire Sirene INSEE)
+      {/* Sur une seule ligne : libellé, champ et bouton côte à côte. */}
+      <label
+        className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
+        title="Enrichissement automatique depuis le répertoire Sirene (INSEE)"
+      >
+        <span className="whitespace-nowrap">Nouveau lead par SIREN</span>
         <input
           type="text"
           inputMode="numeric"
@@ -58,7 +62,7 @@ export default function RechercheSiren({ onEntreprise }) {
           value={siren}
           onChange={(e) => setSiren(e.target.value)}
           maxLength={20}
-          className="mt-1 w-64 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+          className="w-64 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
         />
       </label>
       <button
@@ -66,7 +70,7 @@ export default function RechercheSiren({ onEntreprise }) {
         disabled={enCours}
         className="rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
       >
-        {enCours ? "Recherche…" : "Rechercher & qualifier"}
+        {enCours ? "Recherche…" : "Rechercher"}
       </button>
       {message && (
         <span
