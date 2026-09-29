@@ -109,6 +109,47 @@ export async function listerModelesDisponibles() {
   return (corps.data || []).map((m) => ({ id: m.id, displayName: m.display_name || null }));
 }
 
+// Erreurs passagères côté Anthropic (surcharge, indisponibilité, trop de
+// requêtes simultanées) : on patiente et on réessaie avant d'abandonner —
+// une seule réponse 503 ne doit pas faire échouer la recherche de l'agent.
+const STATUTS_PASSAGERS = new Set([429, 500, 502, 503, 504, 529]);
+const TENTATIVES_API = 3;
+
+async function fetchAnthropic(url, options) {
+  for (let tentative = 1; ; tentative++) {
+    const reponse = await fetch(url, options);
+    if (!STATUTS_PASSAGERS.has(reponse.status) || tentative >= TENTATIVES_API || options?.signal?.aborted) {
+      return reponse;
+    }
+    const retryAfter = Number(reponse.headers.get("retry-after"));
+    const attente = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 8000) : 2000 * tentative;
+    console.warn(`[ia] Anthropic a répondu ${reponse.status} — nouvel essai dans ${attente} ms (${tentative}/${TENTATIVES_API - 1}).`);
+    await new Promise((resolve) => setTimeout(resolve, attente));
+  }
+}
+
+// Message lisible selon la cause réelle : une surcharge passagère
+// d'Anthropic (503/529) n'est pas un problème de modèle ni de configuration.
+function messageErreurApi(status, corps, modele) {
+  const type = corps?.error?.type;
+  if (status === 529 || status >= 500 || type === "overloaded_error" || type === "api_error") {
+    return `Le service Claude (Anthropic) est momentanément surchargé ou indisponible (HTTP ${status}). Ce n'est pas un problème de configuration du CRM : réessayez dans quelques instants.`;
+  }
+  if (status === 429 || type === "rate_limit_error") {
+    return "Trop de demandes envoyées à Claude en même temps (HTTP 429) : réessayez dans une minute.";
+  }
+  if (status === 401 || type === "authentication_error") {
+    return "Clé API Anthropic refusée (HTTP 401) : vérifiez ANTHROPIC_API_KEY dans les variables Render.";
+  }
+  if (status === 403 || type === "permission_error") {
+    return "Cette clé Anthropic n'a pas accès à ce service (HTTP 403) : vérifiez les droits de la clé.";
+  }
+  if (status === 404 || type === "not_found_error") {
+    return `Modèle "${modele}" introuvable pour cette clé (HTTP 404) : vérifiez ANTHROPIC_MODEL dans les variables Render.`;
+  }
+  return corps?.error?.message || `L'API Anthropic a répondu ${status}.`;
+}
+
 export function detailErreur(e) {
   return {
     message: e.message,
@@ -355,7 +396,7 @@ async function appelerClaudeQuestion(entreprise, question, cle, modele) {
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
   try {
-    reponse = await fetch(API_URL, {
+    reponse = await fetchAnthropic(API_URL, {
       method: "POST",
       headers: enTetes(cle),
       body: JSON.stringify({
@@ -380,7 +421,7 @@ async function appelerClaudeQuestion(entreprise, question, cle, modele) {
   const corps = await reponse.json().catch(() => ({}));
   if (!reponse.ok) {
     const erreur = new Error(
-      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+      messageErreurApi(reponse.status, corps, modele)
     );
     erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
     signalerCreditsEpuises(erreur, corps);
@@ -516,7 +557,7 @@ async function appelerClaudeDictee(entreprise, transcription, cle, modele) {
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
   try {
-    reponse = await fetch(API_URL, {
+    reponse = await fetchAnthropic(API_URL, {
       method: "POST",
       headers: enTetes(cle),
       body: JSON.stringify({
@@ -543,7 +584,7 @@ async function appelerClaudeDictee(entreprise, transcription, cle, modele) {
   const corps = await reponse.json().catch(() => ({}));
   if (!reponse.ok) {
     const erreur = new Error(
-      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+      messageErreurApi(reponse.status, corps, modele)
     );
     erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
     signalerCreditsEpuises(erreur, corps);
@@ -586,7 +627,7 @@ async function appelerClaude(entreprise, cle, modele) {
     for (let tour = 0; tour < 4; tour++) {
       let reponse;
       try {
-        reponse = await fetch(API_URL, {
+        reponse = await fetchAnthropic(API_URL, {
           method: "POST",
           headers: enTetes(cle),
           body: JSON.stringify({
@@ -614,7 +655,7 @@ async function appelerClaude(entreprise, cle, modele) {
       const corps = await reponse.json().catch(() => ({}));
       if (!reponse.ok) {
         const erreur = new Error(
-          corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+          messageErreurApi(reponse.status, corps, modele)
         );
         erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
         signalerCreditsEpuises(erreur, corps);
@@ -745,7 +786,7 @@ async function appelerClaudeEmail(entreprise, cle, modele) {
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
   try {
-    reponse = await fetch(API_URL, {
+    reponse = await fetchAnthropic(API_URL, {
       method: "POST",
       headers: enTetes(cle),
       // Pas d'outil de recherche web ici : contrairement à la recherche de
@@ -772,7 +813,7 @@ async function appelerClaudeEmail(entreprise, cle, modele) {
   const corps = await reponse.json().catch(() => ({}));
   if (!reponse.ok) {
     const erreur = new Error(
-      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+      messageErreurApi(reponse.status, corps, modele)
     );
     erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
     signalerCreditsEpuises(erreur, corps);
@@ -890,7 +931,7 @@ async function appelerClaudeDomaine(question, cle, modele) {
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
   try {
-    reponse = await fetch(API_URL, {
+    reponse = await fetchAnthropic(API_URL, {
       method: "POST",
       headers: enTetes(cle),
       body: JSON.stringify({
@@ -916,7 +957,7 @@ async function appelerClaudeDomaine(question, cle, modele) {
   const corps = await reponse.json().catch(() => ({}));
   if (!reponse.ok) {
     const erreur = new Error(
-      corps.error?.message || `L'API Anthropic a répondu ${reponse.status} (modèle "${modele}" invalide/indisponible ?).`
+      messageErreurApi(reponse.status, corps, modele)
     );
     erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
     signalerCreditsEpuises(erreur, corps);
