@@ -62,6 +62,11 @@ function formatMontant(n) {
   return `${Math.round(n || 0).toLocaleString("fr-FR")} €`;
 }
 
+// SMIC horaire avec ses centimes (12,31 €), contrairement aux montants.
+function formatSmic(n) {
+  return `${(n || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+}
+
 // Parse une étiquette de tranche ("20-249" ou "750+") en bornes numériques.
 function effectifDansTranche(effectif, label) {
   if (label.endsWith("+")) return effectif >= Number(label.slice(0, -1));
@@ -273,7 +278,9 @@ export default function PanelEsatTremplin() {
 
       {/* Barème de référence */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Barème par unité manquante</p>
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+          Barème par unité manquante (UM) — heures × SMIC horaire ({formatSmic(bareme.smicHoraire)})
+        </p>
         {!surco ? (
           <div className="space-y-1.5">
             {bareme.classique.map((t) => {
@@ -281,13 +288,22 @@ export default function PanelEsatTremplin() {
               return (
                 <div
                   key={t.tranche}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg ${
+                  className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg ${
                     surlignee ? "bg-marine-100 dark:bg-marine-900/50 ring-1 ring-marine-400" : "bg-slate-50 dark:bg-slate-900"
                   }`}
                 >
-                  <span className="text-slate-600 dark:text-slate-300">{t.tranche} salariés</span>
-                  <span className={`font-bold ${surlignee ? "text-marine-800 dark:text-marine-200" : "text-slate-700 dark:text-slate-300"}`}>
-                    {formatMontant(t.montantParUnite)} / unité manquante
+                  <span className="text-slate-600 dark:text-slate-300 whitespace-nowrap" title={`${t.tranche} salariés`}>
+                    {t.tranche} s
+                  </span>
+                  {/* D'où vient le montant : coefficient (heures) × SMIC horaire. */}
+                  <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">
+                    {t.coefficient} h × SMIC
+                  </span>
+                  <span
+                    className={`font-bold whitespace-nowrap tabular-nums ${surlignee ? "text-marine-800 dark:text-marine-200" : "text-slate-700 dark:text-slate-300"}`}
+                    title={`${t.coefficient} × ${formatSmic(bareme.smicHoraire)} par unité manquante`}
+                  >
+                    {formatMontant(t.montantParUnite)} / UM
                   </span>
                 </div>
               );
@@ -298,7 +314,8 @@ export default function PanelEsatTremplin() {
             <p className="flex items-center justify-between">
               <span className="text-amber-800 dark:text-amber-300">Aucune action sur 4 ans</span>
               <span className="font-bold text-amber-800 dark:text-amber-300">
-                {formatMontant(bareme.majoree.montantParUnite)} / unité manquante
+                <span className="text-xs font-normal mr-1.5">{bareme.majoree.coefficient} h × SMIC =</span>
+                {formatMontant(bareme.majoree.montantParUnite)} / UM
               </span>
             </p>
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5">
