@@ -9,6 +9,7 @@ import GestionContacts from "../components/GestionContacts.jsx";
 import GestionEmails from "../components/GestionEmails.jsx";
 import AssistantContactIA from "../components/AssistantContactIA.jsx";
 import DicteeCommentaire from "../components/DicteeCommentaire.jsx";
+import ActionsRapidesStatut from "../components/ActionsRapidesStatut.jsx";
 import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
@@ -833,6 +834,8 @@ export default function EntrepriseDetail() {
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Messagerie & historique</h2>
 
             <DicteeCommentaire entreprise={entreprise} onMaj={setEntreprise} prenomAgent={prenomAgent} />
+
+            <ActionsRapidesStatut entreprise={entreprise} onMaj={setEntreprise} prenomAgent={prenomAgent} />
 
             <form onSubmit={soumettreCommentaire} className="flex gap-2 mb-4">
               <input
