@@ -1190,13 +1190,13 @@ async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
   return { interrompu, lienRecharge };
 }
 
-// État du dernier/actuel enrichissement téléphone en lot déclenché depuis le
-// bouton admin (voir /api/leads/enrichir-telephones ci-dessous) — mémoire
-// process uniquement, pas persisté en base : sert seulement à bloquer un
-// double lancement concurrent et à exposer une progression au frontend
-// (polling de /statut), pas à survivre à un redémarrage du serveur.
-let etatEnrichissementLot = {
+// État du dernier/actuel enrichissement téléphone en lot, par utilisateur
+// (voir /api/leads/enrichir-telephones ci-dessous) — mémoire process
+// uniquement, pas persisté en base : sert seulement à bloquer un double
+// lancement et à exposer une progression au frontend (polling de /statut).
+const ETAT_ENRICHISSEMENT_VIDE = {
   enCours: false,
+  enAttente: false,
   total: 0,
   traites: 0,
   trouves: 0,
@@ -1206,80 +1206,107 @@ let etatEnrichissementLot = {
   demarre: null,
   termine: null,
 };
+const etatsEnrichissement = new Map();
+// Fiches déjà programmées dans un lot (en file ou en cours) : un admin et un
+// agent qui lancent en même temps ne font jamais chercher deux fois la même.
+const fichesEnEnrichissement = new Set();
+// Un agent ne lance la recherche que sur ses propres fiches, par paquets
+// raisonnables : chaque fiche consomme des crédits Claude.
+const MAX_FICHES_ENRICHISSEMENT_AGENT = 30;
+
+function etatEnrichissement(utilisateurId) {
+  return etatsEnrichissement.get(utilisateurId) || ETAT_ENRICHISSEMENT_VIDE;
+}
+
+// Périmètre de recherche : tout le pipeline pour un admin, ses propres
+// fiches pour un agent.
+function fichesSansTelephone(utilisateur) {
+  return db.data.entreprises.filter(
+    (e) => !e.contact?.telephone && (estAdmin(utilisateur) || e.assigneA === utilisateur.id)
+  );
+}
 
 // Enrichit en lot les fiches déjà présentes dans le CRM (actives, hors
 // archives) qui n'ont toujours aucun numéro de téléphone — typiquement des
 // leads importés par secteur avant l'ajout de la recherche automatique à
 // l'import (voir /api/leads/secteur/importer), ou dont la recherche
-// automatique n'a rien trouvé à l'époque. Action admin explicite (bouton
-// dédié côté frontend) plutôt qu'automatique : elle peut déclencher des
-// dizaines/centaines d'appels IA sur tout le pipeline existant, à ne pas
-// lancer sans le vouloir. Tourne en arrière-plan comme l'enrichissement à
-// l'import (même raison : trop long pour bloquer une requête HTTP).
-app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
+// automatique n'a rien trouvé à l'époque. Action explicite (bouton) plutôt
+// qu'automatique : chaque fiche déclenche des appels IA facturés. Un admin
+// couvre tout le pipeline ; un agent, ses propres fiches (30 au plus par
+// lancement). Tous les lots passent par la même file que l'enrichissement à
+// l'import : un seul à la fois, jamais de rafale de requêtes vers Anthropic.
+app.post("/api/leads/enrichir-telephones", exigerAuth, async (req, res) => {
+  const utilisateur = req.utilisateur;
   if (!estRechercheIaConfiguree()) {
     return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
   }
-  if (etatEnrichissementLot.enCours) {
-    return res.status(409).json({ error: "Un enrichissement est déjà en cours.", ...etatEnrichissementLot });
+  const precedent = etatEnrichissement(utilisateur.id);
+  if (precedent.enCours) {
+    return res.status(409).json({ error: "Un enrichissement est déjà en cours.", ...precedent });
   }
 
   // Par défaut, seules les fiches jamais cherchées (ou en échec passager)
   // sont traitées, les plus récentes d'abord ; `inclureDejaTentees` relance
   // aussi celles où Claude n'avait rien trouvé.
   const inclureDejaTentees = req.body?.inclureDejaTentees === true;
-  const cibles = db.data.entreprises
-    .filter((e) => !e.contact?.telephone && (inclureDejaTentees || !estDejaTenteeSansSucces(e)))
+  let cibles = fichesSansTelephone(utilisateur)
+    .filter((e) => !fichesEnEnrichissement.has(e.id) && (inclureDejaTentees || !estDejaTenteeSansSucces(e)))
     .reverse();
+  if (!estAdmin(utilisateur)) cibles = cibles.slice(0, MAX_FICHES_ENRICHISSEMENT_AGENT);
   if (cibles.length === 0) {
     return res.json({
-      ...etatEnrichissementLot,
+      ...precedent,
       total: 0,
-      message: "Aucune nouvelle fiche à enrichir : toutes les fiches sans numéro ont déjà été recherchées.",
+      message: "Aucune nouvelle fiche à enrichir : toutes les fiches sans numéro ont déjà été recherchées (ou sont en cours).",
     });
   }
 
-  etatEnrichissementLot = {
-    enCours: true,
-    total: cibles.length,
-    traites: 0,
-    trouves: 0,
-    erreurs: 0,
-    derniereErreur: null,
-    interrompu: null,
-    demarre: new Date().toISOString(),
-    termine: null,
-  };
-  res.status(202).json(etatEnrichissementLot);
+  const etat = { ...ETAT_ENRICHISSEMENT_VIDE, enCours: true, enAttente: true, total: cibles.length, demarre: new Date().toISOString() };
+  etatsEnrichissement.set(utilisateur.id, etat);
+  for (const e of cibles) fichesEnEnrichissement.add(e.id);
+  res.status(202).json(etat);
 
-  enrichirTelephonesViaIA(cibles, {
-    onProgres: ({ trouve, erreur }) => {
-      etatEnrichissementLot.traites += 1;
-      if (trouve) etatEnrichissementLot.trouves += 1;
-      if (erreur) {
-        etatEnrichissementLot.erreurs += 1;
-        etatEnrichissementLot.derniereErreur = erreur;
-      }
-    },
-  })
+  fileEnrichissementImport = fileEnrichissementImport
+    .then(() => {
+      etat.enAttente = false;
+      return enrichirTelephonesViaIA(cibles, {
+        onProgres: ({ trouve, erreur }) => {
+          etat.traites += 1;
+          if (trouve) etat.trouves += 1;
+          if (erreur) {
+            etat.erreurs += 1;
+            etat.derniereErreur = erreur;
+          }
+        },
+      });
+    })
     .then((resultat) => {
-      if (resultat?.interrompu) etatEnrichissementLot.interrompu = resultat.interrompu;
-      if (resultat?.lienRecharge) etatEnrichissementLot.lienRecharge = resultat.lienRecharge;
+      if (resultat?.interrompu) etat.interrompu = resultat.interrompu;
+      if (resultat?.lienRecharge) etat.lienRecharge = resultat.lienRecharge;
     })
     .catch((e) => console.error("[ia] Échec de l'enrichissement en lot :", e.message))
     .finally(() => {
-      etatEnrichissementLot.enCours = false;
-      etatEnrichissementLot.termine = new Date().toISOString();
+      for (const e of cibles) fichesEnEnrichissement.delete(e.id);
+      etat.enCours = false;
+      etat.enAttente = false;
+      etat.termine = new Date().toISOString();
     });
 });
 
 // Suivi de progression de l'enrichissement en lot ci-dessus — le frontend
 // interroge cette route toutes les quelques secondes pendant qu'un
-// enrichissement tourne, pour afficher une barre de progression.
-app.get("/api/leads/enrichir-telephones/statut", exigerAdmin, (req, res) => {
-  const sansTelephone = db.data.entreprises.filter((e) => !e.contact?.telephone);
+// enrichissement tourne, pour afficher une barre de progression. Compteurs
+// calculés sur le périmètre de l'utilisateur (tout le pipeline pour un
+// admin, ses fiches pour un agent).
+app.get("/api/leads/enrichir-telephones/statut", exigerAuth, (req, res) => {
+  const sansTelephone = fichesSansTelephone(req.utilisateur);
   const dejaTentees = sansTelephone.filter(estDejaTenteeSansSucces).length;
-  res.json({ ...etatEnrichissementLot, aTraiter: sansTelephone.length - dejaTentees, dejaTentees });
+  res.json({
+    ...etatEnrichissement(req.utilisateur.id),
+    aTraiter: sansTelephone.length - dejaTentees,
+    dejaTentees,
+    maxParLancement: estAdmin(req.utilisateur) ? null : MAX_FICHES_ENRICHISSEMENT_AGENT,
+  });
 });
 
 // Génération d'une vague de prospects par secteur : recherche de candidats

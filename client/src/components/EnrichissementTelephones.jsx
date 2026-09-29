@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import BoutonRechargeCredits from "./BoutonRechargeCredits.jsx";
+import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 
 // Enrichissement en lot des fiches déjà présentes dans le CRM qui n'ont
 // toujours aucun numéro de téléphone — typiquement les leads importés par
@@ -12,6 +14,10 @@ import BoutonRechargeCredits from "./BoutonRechargeCredits.jsx";
 // arrière-plan côté serveur ; ce composant se contente d'interroger
 // périodiquement /api/leads/enrichir-telephones/statut pendant qu'il tourne.
 export default function EnrichissementTelephones({ manquants, onMaj }) {
+  const { utilisateur } = useAuth();
+  // Un admin couvre tout le pipeline ; un agent, ses propres fiches, avec un
+  // plafond par lancement (voir /api/leads/enrichir-telephones).
+  const admin = estAdmin(utilisateur);
   const [iaConfiguree, setIaConfiguree] = useState(null);
   const [statut, setStatut] = useState(null);
   const [erreur, setErreur] = useState(null);
@@ -96,7 +102,9 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
   return (
     <div className="mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm px-4 py-3 flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-slate-600 dark:text-slate-300">
-        {statut?.enCours ? (
+        {statut?.enCours && statut.enAttente ? (
+          <>⏳ En file d'attente : la recherche de vos {statut.total} fiches démarre dès que la précédente est terminée.</>
+        ) : statut?.enCours ? (
           <>
             🤖 Enrichissement IA en cours… {statut.traites} / {statut.total} fiche{statut.total > 1 ? "s" : ""}{" "}
             traitée{statut.traites > 1 ? "s" : ""} ({statut.trouves} numéro{statut.trouves > 1 ? "s" : ""} trouvé
@@ -105,8 +113,9 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
           </>
         ) : (
           <>
-            <strong>{manquants}</strong> fiche{manquants > 1 ? "s" : ""} sans numéro de téléphone dans le pipeline
-            actif{dejaTentees > 0 ? (
+            <strong>{manquants}</strong> fiche{manquants > 1 ? "s" : ""} sans numéro de téléphone{" "}
+            {admin ? "dans le pipeline actif" : "parmi vos fiches"}
+            {dejaTentees > 0 ? (
               <>
                 {" "}
                 — <strong>{aTraiter}</strong> jamais recherchée{aTraiter > 1 ? "s" : ""},{" "}
@@ -136,8 +145,15 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
         >
           {statut?.enCours
             ? "Enrichissement…"
-            : `🤖 Lancer l'enrichissement Claude des nouvelles fiches (${aTraiter})`}
+            : admin
+              ? `🤖 Lancer l'enrichissement Claude des nouvelles fiches (${aTraiter})`
+              : `🤖 Trouver les numéros avec Claude (${Math.min(aTraiter, statut?.maxParLancement || aTraiter)})`}
         </button>
+        {!admin && statut?.maxParLancement && aTraiter > statut.maxParLancement && !statut?.enCours && (
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">
+            {statut.maxParLancement} fiches maximum par lancement — relancez ensuite pour les suivantes.
+          </span>
+        )}
         {dejaTentees > 0 && !statut?.enCours && (
           <button
             onClick={() => lancer(true)}
@@ -151,14 +167,20 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
       {statut?.interrompu && (
         <div className="w-full">
           <p className="text-sm text-amber-600 dark:text-amber-400">⚠️ {statut.interrompu}</p>
-          {statut.lienRecharge && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <BoutonRechargeCredits lien={statut.lienRecharge} />
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                Astuce : activez le « rechargement automatique » sur cette page pour ne plus être bloqué.
-              </span>
-            </div>
-          )}
+          {statut.lienRecharge &&
+            (admin ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <BoutonRechargeCredits lien={statut.lienRecharge} />
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Astuce : activez le « rechargement automatique » sur cette page pour ne plus être bloqué.
+                </span>
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Prévenez votre administrateur : lui seul peut recharger le compte.
+              </p>
+            ))}
+          {admin && (
           <button
             onClick={verifierModelesDisponibles}
             disabled={chargementModeles}
@@ -166,6 +188,7 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
           >
             {chargementModeles ? "Vérification…" : "Voir les modèles Anthropic disponibles pour cette clé"}
           </button>
+          )}
           {erreurModeles && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erreurModeles}</p>}
           {modelesDisponibles && (
             <div className="mt-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
