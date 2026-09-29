@@ -50,9 +50,10 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
 
     // Bandeau tricolore (repère visuel, voir note en tête de fichier).
     const tiers = largeurPage / 3;
-    doc.rect(0, 0, tiers, 8).fill("#0055A4");
-    doc.rect(tiers, 0, tiers, 8).fill("#FFFFFF");
-    doc.rect(tiers * 2, 0, tiers, 8).fill("#EF4135");
+    doc.rect(0, 0, tiers, 12).fill("#0055A4");
+    doc.rect(tiers, 0, tiers, 12).fill("#FFFFFF");
+    doc.rect(tiers * 2, 0, tiers, 12).fill("#EF4135");
+    doc.rect(tiers, 0, tiers, 12).lineWidth(0.6).strokeColor("#cbd5e1").stroke();
 
     // En-tête pôle.
     doc
@@ -95,6 +96,17 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
       .font("Helvetica")
       .fontSize(8.5)
       .text(`Document établi le ${formatDateFr(new Date().toISOString())}`, 50, doc.y + 4);
+    doc
+      .fillColor(BLEU)
+      .font("Helvetica-Oblique")
+      .fontSize(9)
+      .text(
+        "Estimation établie à partir des informations dont nous disposons à ce jour. Un échange avec vous nous permettra de " +
+          "confirmer et de mettre à jour ces données (effectif, bénéficiaires employés, sous-traitance, dépenses déductibles).",
+        50,
+        doc.y + 6,
+        { width: largeurUtile }
+      );
 
     // Bloc entreprise destinataire.
     let y = doc.y + 16;
@@ -117,28 +129,36 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
       doc.text(`SIRET : ${entreprise.siret}`, 65, y + 42);
     }
 
+    // Contribution "classique" : coefficient de la tranche d'effectif
+    // (400 / 500 / 600 × SMIC), et montant en cas de surcontribution
+    // (1 500 × SMIC) présenté en N.B.
+    const smic = oeth.tauxHoraireSmic;
+    const smicTexte = `${String(smic).replace(".", ",")} €`;
+    const effectif = Number(entreprise.effectif) || 0;
+    const coefClassique = effectif <= 249 ? 400 : effectif <= 749 ? 500 : 600;
+    const trancheClassique = effectif <= 249 ? "20-249" : effectif <= 749 ? "250-749" : "750+";
+    const montantClassique = Math.round(oeth.deficit * coefClassique * smic);
+    const parUniteMajoree = Math.round(1500 * smic);
+    const montantMajore = Math.round(oeth.deficit * 1500 * smic);
+    const avecDeficit = oeth.assujetti && oeth.deficit > 0;
+
     // Tableau des indicateurs OETH.
     y = y + hauteurBloc + 24;
     const statutLabel = oeth.conforme ? "Conforme" : oeth.assujetti ? "Non conforme — contribution due" : "Non assujetti";
     const statutCouleur = oeth.conforme ? VERT : oeth.assujetti ? ROUGE : GRIS_TEXTE;
 
     const lignes = [
-      ["Effectif déclaré", `${entreprise.effectif ?? "-"} salarié(s)`],
+      ["Effectif retenu (à confirmer)", `${entreprise.effectif ?? "-"} salarié(s)`],
       ["Seuil d'assujettissement OETH", `${oeth.seuilAssujettissement} salariés`],
       ["Unités bénéficiaires requises (6 %)", `${oeth.unitesRequises}`],
       ["Travailleurs handicapés déjà employés", `${oeth.beneficiairesRecrutes}`],
       ["Déficit d'unités bénéficiaires", `${oeth.deficit}`],
       // Détail du calcul (même moteur que le simulateur public, voir oeth.js).
-      ...(oeth.assujetti && oeth.deficit > 0 && oeth.coefficient
+      ...(avecDeficit
         ? [
-            [
-              "Coefficient appliqué",
-              oeth.surcontribution
-                ? `${oeth.coefficient} × SMIC (contribution majorée)`
-                : `${oeth.coefficient} × SMIC (tranche ${oeth.tranche} salariés)`,
-            ],
-            [`SMIC horaire brut retenu${oeth.exercice ? ` (exercice ${oeth.exercice})` : ""}`, `${String(oeth.tauxHoraireSmic).replace(".", ",")} €`],
-            ["Calcul", `${oeth.deficit} × ${oeth.coefficient} × ${String(oeth.tauxHoraireSmic).replace(".", ",")} €`],
+            ["Coefficient appliqué", `${coefClassique} × SMIC (tranche ${trancheClassique} salariés)`],
+            [`SMIC horaire brut retenu${oeth.exercice ? ` (exercice ${oeth.exercice})` : ""}`, smicTexte],
+            ["Calcul", `${oeth.deficit} × ${coefClassique} × ${smicTexte}`],
           ]
         : []),
     ];
@@ -179,19 +199,34 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
       .font("Helvetica-Bold")
       .fontSize(13)
       .fillColor(BLEU)
-      .text(`Montant estimé de la contribution : ${formatMontant(oeth.montantEstime)}`, 65, y + 28, {
+      .text(`Montant estimé de la contribution : ${formatMontant(avecDeficit ? montantClassique : 0)}`, 65, y + 28, {
         width: largeurUtile - 30,
       });
 
-    y += 54 + 16;
+    y += 54 + 12;
+
+    if (avecDeficit) {
+      const texteNb =
+        "N.B. — Surcontribution possible : à la clôture de votre dossier, l'organisme compétent (URSSAF, ou MSA pour le régime " +
+        "agricole) peut retenir la contribution majorée s'il constate qu'aucune action n'a été menée sur les 4 dernières années " +
+        "(aucun bénéficiaire employé, pas de sous-traitance EA / ESAT / TIH d'au moins 600 × SMIC, pas d'accord agréé). " +
+        `Chaque unité manquante est alors calculée à 1 500 × SMIC, soit ${formatMontant(parUniteMajoree)} par unité : ` +
+        `${oeth.deficit} × ${formatMontant(parUniteMajoree)} = ${formatMontant(montantMajore)}.` +
+        (oeth.beneficiairesRecrutes === 0
+          ? " D'après les informations dont nous disposons (aucun bénéficiaire déclaré), ce cas pourrait vous concerner."
+          : "");
+      doc.font("Helvetica").fontSize(8.5);
+      const hauteurNb = doc.heightOfString(texteNb, { width: largeurUtile - 24 }) + 16;
+      doc.roundedRect(50, y, largeurUtile, hauteurNb, 4).fillAndStroke("#fffbeb", "#fcd34d");
+      doc.fillColor("#92400e").text(texteNb, 62, y + 8, { width: largeurUtile - 24 });
+      y += hauteurNb + 14;
+    }
 
     // Explications utiles à l'entreprise : contribution majorée, déductions
     // possibles, échéance DSN.
     if (oeth.assujetti && oeth.deficit > 0) {
       const notes = [
-        oeth.surcontribution
-          ? "Contribution majorée : faute d'action sur plus de 3 années consécutives (aucun bénéficiaire employé, pas de sous-traitance EA / ESAT / TIH d'au moins 600 × SMIC, pas d'accord agréé), chaque unité manquante est calculée à 1 500 × SMIC. Une seule de ces actions suffit à revenir au coefficient normal (400, 500 ou 600 × SMIC selon l'effectif)."
-          : null,
+        "Une seule action suffit à éviter la surcontribution : employer un bénéficiaire, sous-traiter au moins 600 × SMIC auprès d'une EA / d'un ESAT / d'un TIH, ou conclure un accord agréé.",
         "Montant avant déductions : la sous-traitance EA / ESAT / TIH (30 % de la main-d'œuvre, DSN 061), les emplois ECAP (DSN 060) et certaines dépenses (DSN 062 à 072, dans la limite de 10 % de la contribution brute) peuvent le réduire.",
         `Déclaration : la contribution de l'exercice ${oeth.exercice || ""} se déclare dans la DSN d'avril ${oeth.exercice ? oeth.exercice + 1 : "de l'année suivante"} (codes 065 à 068) et se règle à l'URSSAF.`,
       ].filter(Boolean);
