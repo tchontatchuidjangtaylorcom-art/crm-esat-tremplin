@@ -281,19 +281,23 @@ export default function Dashboard() {
   // Fiches qualifiées ce mois-ci : une sortie "fiche"/"fiche one-shot"/
   // "conforme" journalisée dans le mois courant, comptée une seule fois par
   // entreprise même si plusieurs sorties qualifiées s'y sont enchaînées.
-  const nbQualifieesCeMois = useMemo(() => {
+  // La liste (pas seulement le nombre) sert au détail dépliable de l'objectif :
+  // qualification retenue = la plus récente du mois pour chaque entreprise.
+  const fichesQualifieesCeMois = useMemo(() => {
     const maintenant = new Date();
-    let n = 0;
+    const idsArchives = new Set(archives.map((e) => e.id));
+    const liste = [];
     for (const e of [...toutesEntreprises, ...archives]) {
-      const aUneSortieQualifieeCeMois = (e.historiqueAppels || []).some((h) => {
+      const sortie = (e.historiqueAppels || []).find((h) => {
         if (h.type !== "sortie" || !STATUTS_QUALIFIES.has(h.issue)) return false;
         const d = new Date(h.date);
         return d.getFullYear() === maintenant.getFullYear() && d.getMonth() === maintenant.getMonth();
       });
-      if (aUneSortieQualifieeCeMois) n++;
+      if (sortie) liste.push({ entreprise: e, sortie, archivee: idsArchives.has(e.id) });
     }
-    return n;
+    return liste.sort((a, b) => new Date(b.sortie.date) - new Date(a.sortie.date));
   }, [toutesEntreprises, archives]);
+  const nbQualifieesCeMois = fichesQualifieesCeMois.length;
 
   const nbPrioritaires = useMemo(() => entreprises.filter((e) => e.oeth?.assujetti).length, [entreprises]);
 
@@ -391,7 +395,12 @@ export default function Dashboard() {
 
       <BanniereSupervision />
 
-      <KpiObjectifMensuel valeur={nbQualifieesCeMois} min={OBJECTIF_MENSUEL_MIN} max={OBJECTIF_MENSUEL_MAX} />
+      <KpiObjectifMensuel
+        valeur={nbQualifieesCeMois}
+        min={OBJECTIF_MENSUEL_MIN}
+        max={OBJECTIF_MENSUEL_MAX}
+        fiches={fichesQualifieesCeMois}
+      />
 
       {erreur && (
         <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
