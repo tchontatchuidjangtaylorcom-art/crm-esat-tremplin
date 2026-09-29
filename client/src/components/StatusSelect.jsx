@@ -2,6 +2,7 @@ import { useState } from "react";
 import { STATUTS, STATUTS_ARCHIVES, ISSUES_APPEL } from "../constants.js";
 import { api } from "../api.js";
 import { diffuserEntrepriseMaj, diffuserEntrepriseArchivee } from "../telephony/CallContext.jsx";
+import ChampDateHeure from "./ChampDateHeure.jsx";
 
 // Badge de statut cliquable, utilisé à la fois dans le tableau principal et
 // en en-tête de la fiche détaillée : un <select> natif habillé aux couleurs
@@ -72,7 +73,7 @@ export default function StatusSelect({ entreprise }) {
   async function validerDate(ev) {
     ev.preventDefault();
     if (!date) {
-      setErreurDate("Choisissez une date.");
+      setErreurDate("Choisissez une date et une heure (ex : 14:30).");
       return;
     }
     setEnCours(true);
@@ -94,21 +95,36 @@ export default function StatusSelect({ entreprise }) {
           <form
             onSubmit={validerDate}
             onClick={(ev) => ev.stopPropagation()}
-            className="w-full max-w-sm rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl p-5 space-y-3 text-left"
+            className="w-full max-w-md rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl p-5 space-y-3 text-left"
           >
-            <p className="font-semibold text-slate-800 dark:text-slate-100">
-              {STATUTS[aDater]?.label} — {entreprise.nom}
-            </p>
-            <label className="block text-xs text-slate-500 dark:text-slate-400">
-              {aDater === "rdv" ? "Date et heure du rendez-vous" : "Date et heure du rappel"}
-              <input
-                type="datetime-local"
-                autoFocus
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
-              />
-            </label>
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-semibold text-slate-800 dark:text-slate-100">
+                {STATUTS[aDater]?.label} — {entreprise.nom}
+              </p>
+              {/* Boutons en haut : jamais recouverts par le calendrier ouvert. */}
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setADater(null)}
+                  className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={enCours}
+                  className="rounded-lg bg-marine-700 hover:bg-marine-800 text-white px-4 py-1.5 text-sm font-medium disabled:opacity-50"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+            <ChampDateHeure
+              value={date}
+              onChange={setDate}
+              autoFocus
+              libelleDate={aDater === "rdv" ? "Date du rendez-vous" : "Date du rappel"}
+            />
             <label className="block text-xs text-slate-500 dark:text-slate-400">
               Détails (facultatif)
               <textarea
@@ -119,22 +135,6 @@ export default function StatusSelect({ entreprise }) {
               />
             </label>
             {erreurDate && <p className="text-sm text-red-600 dark:text-red-400">{erreurDate}</p>}
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setADater(null)}
-                className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm text-slate-600 dark:text-slate-300"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                disabled={enCours}
-                className="rounded-lg bg-marine-700 hover:bg-marine-800 text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
-              >
-                Enregistrer
-              </button>
-            </div>
           </form>
         </div>
       )}

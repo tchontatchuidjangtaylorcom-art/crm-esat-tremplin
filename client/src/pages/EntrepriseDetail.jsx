@@ -10,6 +10,7 @@ import GestionEmails from "../components/GestionEmails.jsx";
 import AssistantContactIA from "../components/AssistantContactIA.jsx";
 import DicteeCommentaire from "../components/DicteeCommentaire.jsx";
 import ActionsRapidesStatut from "../components/ActionsRapidesStatut.jsx";
+import ChampDateHeure from "../components/ChampDateHeure.jsx";
 import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
@@ -562,29 +563,18 @@ export default function EntrepriseDetail() {
               <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
                 Échéance / prochaine relance
               </p>
-              <form onSubmit={soumettreEcheance} className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
-                <label className="text-xs text-slate-500 dark:text-slate-400">
-                  Rappel prévu
-                  <input
-                    type="datetime-local"
-                    value={dateRappelSaisie}
-                    onChange={(e) => setDateRappelSaisie(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
-                  />
-                </label>
-                <label className="text-xs text-slate-500 dark:text-slate-400">
-                  RDV
-                  <input
-                    type="datetime-local"
-                    value={dateRdvSaisie}
-                    onChange={(e) => setDateRdvSaisie(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
-                  />
-                </label>
+              <form onSubmit={soumettreEcheance} className="space-y-2 mb-1">
+                <ChampDateHeure
+                  value={dateRappelSaisie}
+                  onChange={setDateRappelSaisie}
+                  raccourcis={false}
+                  libelleDate="Rappel prévu"
+                />
+                <ChampDateHeure value={dateRdvSaisie} onChange={setDateRdvSaisie} raccourcis={false} libelleDate="RDV" />
                 <button
                   type="submit"
                   disabled={enregistrementEcheance}
-                  className="col-span-1 sm:col-span-2 rounded-lg bg-slate-900 text-white text-xs font-medium py-1.5 disabled:opacity-40"
+                  className="w-full rounded-lg bg-slate-900 text-white text-xs font-medium py-1.5 disabled:opacity-40"
                 >
                   Enregistrer l'échéance
                 </button>

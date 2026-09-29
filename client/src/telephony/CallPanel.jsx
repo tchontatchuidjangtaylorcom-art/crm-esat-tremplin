@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTelephonie } from "./CallContext.jsx";
 import { ISSUES_FIN_APPEL, formatDuree } from "../constants.js";
+import ChampDateHeure from "../components/ChampDateHeure.jsx";
 
 export default function CallPanel() {
   const { appel, raccrocher, fermer, enregistrerIssue } = useTelephonie();
@@ -125,14 +126,7 @@ export default function CallPanel() {
               </optgroup>
             </select>
 
-            {infoIssue?.needsDate && (
-              <input
-                type="datetime-local"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
-              />
-            )}
+            {infoIssue?.needsDate && <ChampDateHeure value={date} onChange={setDate} />}
 
             <textarea
               value={details}

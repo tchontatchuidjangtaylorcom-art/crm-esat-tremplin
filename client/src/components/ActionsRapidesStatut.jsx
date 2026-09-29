@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { diffuserEntrepriseArchivee, diffuserEntrepriseMaj } from "../telephony/CallContext.jsx";
+import ChampDateHeure from "./ChampDateHeure.jsx";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -80,7 +81,7 @@ const ACTIONS = [
   },
 ];
 
-const LIBELLE_DATE = { a_rappeler: "Date du rappel", me_rappelle: "Date à laquelle il/elle rappelle", rdv: "Date du rendez-vous" };
+const LIBELLE_DATE = { a_rappeler: "Date du rappel", me_rappelle: "Date où il/elle rappelle", rdv: "Date du rendez-vous" };
 
 export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent }) {
   const [enCours, setEnCours] = useState(null);
@@ -176,7 +177,7 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
     if (action.type === "mail" && email.trim() && !EMAIL_VALIDE.test(email.trim())) {
       return setErreur("Adresse e-mail invalide.");
     }
-    if (action.type === "date" && !date) return setErreur("Choisissez une date.");
+    if (action.type === "date" && !date) return setErreur("Choisissez une date et une heure (ex : 14:30).");
     executer(action, { texte, email, date });
   }
 
@@ -215,9 +216,29 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
             onClick={(ev) => ev.stopPropagation()}
             className="w-full max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-5 space-y-3"
           >
-            <h3 className="font-semibold text-slate-800 dark:text-slate-100">
-              {fenetre.action.label} — {entreprise.nom}
-            </h3>
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
+                {fenetre.action.label} — {entreprise.nom}
+              </h3>
+              {/* Boutons en haut : jamais recouverts par le calendrier ouvert. */}
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFenetre(null)}
+                  disabled={Boolean(enCours)}
+                  className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={Boolean(enCours)}
+                  className="rounded-lg bg-marine-800 hover:bg-marine-900 text-white px-4 py-1.5 text-sm font-medium disabled:opacity-40"
+                >
+                  {enCours ? "Enregistrement…" : "Enregistrer"}
+                </button>
+              </div>
+            </div>
 
             {fenetre.action.type === "mail" ? (
               <>
@@ -244,16 +265,12 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
               </>
             ) : (
               <>
-                <label className="block text-xs text-slate-600 dark:text-slate-300">
-                  {LIBELLE_DATE[fenetre.action.issue]}
-                  <input
-                    autoFocus
-                    type="datetime-local"
-                    value={fenetre.date}
-                    onChange={(e) => setFenetre({ ...fenetre, date: e.target.value })}
-                    className={`mt-1 ${champ}`}
-                  />
-                </label>
+                <ChampDateHeure
+                  autoFocus
+                  value={fenetre.date}
+                  onChange={(valeur) => setFenetre((f) => ({ ...f, date: valeur }))}
+                  libelleDate={LIBELLE_DATE[fenetre.action.issue]}
+                />
                 <label className="block text-xs text-slate-600 dark:text-slate-300">
                   Précision (facultatif)
                   <input
@@ -268,24 +285,6 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
             )}
 
             {erreur && <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setFenetre(null)}
-                disabled={Boolean(enCours)}
-                className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-600 dark:text-slate-300"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                disabled={Boolean(enCours)}
-                className="rounded-lg bg-marine-800 hover:bg-marine-900 text-white px-4 py-2 text-sm font-medium disabled:opacity-40"
-              >
-                {enCours ? "Enregistrement…" : "Enregistrer"}
-              </button>
-            </div>
           </form>
         </div>
       )}
