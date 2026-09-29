@@ -725,6 +725,13 @@ function lireSaisieSimulation(body = {}) {
     // Exercice choisi par le visiteur : le SMIC retenu en découle, toujours
     // côté serveur (liste fermée, jamais un montant fourni par le client).
     annee: exercicesDisponibles().some((e) => e.annee === Number(body.annee)) ? Number(body.annee) : exerciceParDefaut(),
+    // Étape obligatoire "Votre situation" : assujettissement (5 ans au-dessus
+    // du seuil de 20 salariés) — année entre 1987 et l'année en cours.
+    anneeSeuil20:
+      Number.isInteger(Number(body.anneeSeuil20)) && Number(body.anneeSeuil20) >= 1987 && Number(body.anneeSeuil20) <= new Date().getFullYear()
+        ? Number(body.anneeSeuil20)
+        : null,
+    moinsDe20: body.moinsDe20 === true,
   };
   saisie.smicHoraire = smicPourExercice(saisie.annee);
   saisie.depensesDeductibles =

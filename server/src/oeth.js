@@ -236,6 +236,13 @@ export function simulerContributionOeth({
   montantSousTraitance4Ans = 0,
   accordAgree = null,
   surcontributionDeclaree = null, // true | false | null (null = déduite des réponses)
+  // Assujettissement (loi PACTE, art. L130-1 CSS) : le seuil de 20 salariés
+  // n'est pris en compte qu'après 5 années civiles consécutives au-dessus du
+  // seuil. `anneeSeuil20` = première année de ces années consécutives ;
+  // `moinsDe20` = l'entreprise déclare moins de 20 salariés.
+  annee = null,
+  anneeSeuil20 = null,
+  moinsDe20 = false,
   smicHoraire = SMIC_HORAIRE_BRUT,
 } = {}) {
   const eff = positif(effectif);
@@ -244,7 +251,11 @@ export function simulerContributionOeth({
   const ecap = Math.floor(positif(nbEcap));
   const depenses = positif(depensesDeductibles);
 
-  const assujetti = eff >= SEUIL_ASSUJETTISSEMENT;
+  // Ex. seuil atteint en 2022 et maintenu : assujettie à partir de 2027.
+  const anneeAssujettissement = Number.isFinite(Number(anneeSeuil20)) && anneeSeuil20 ? Number(anneeSeuil20) + 5 : null;
+  const neutralisation = Boolean(anneeAssujettissement && annee && Number(annee) < anneeAssujettissement);
+  const motifNonAssujetti = moinsDe20 ? "moins20" : neutralisation ? "neutralisation" : eff < SEUIL_ASSUJETTISSEMENT ? "moins20" : null;
+  const assujetti = eff >= SEUIL_ASSUJETTISSEMENT && !moinsDe20 && !neutralisation;
   const quota = assujetti ? Math.floor(eff * TAUX_LEGAL) : 0;
   const manque = assujetti ? Math.max(0, arrondi2(quota - beneficiaires)) : 0;
   const tauxEmploi = eff > 0 ? arrondi2((beneficiaires / eff) * 100) : 0;
@@ -295,6 +306,8 @@ export function simulerContributionOeth({
     seuilAssujettissement: SEUIL_ASSUJETTISSEMENT,
     effectif: eff,
     assujetti,
+    motifNonAssujetti,
+    anneeAssujettissement,
     quota,
     boeth: beneficiaires,
     manque,

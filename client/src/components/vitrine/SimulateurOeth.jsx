@@ -33,7 +33,11 @@ const SAISIE_VIDE = {
   accordAgree: null,
   surcontributionDeclaree: null,
   annee: EXERCICE_PAR_DEFAUT,
+  anneeSeuil20: null, // étape 00 : première année à 20 salariés ou plus
+  moinsDe20: false,
 };
+
+const SITUATION_VIDE = { seuil: "", annees: {}, action: "" };
 
 // Dépenses déductibles ventilées par code DSN (bloc S21.G00.82), plafond
 // global de 10 % de la contribution brute appliqué côté serveur.
@@ -191,6 +195,8 @@ export default function SimulateurOeth() {
   // recherche Sirene, modifiable par le visiteur.
   const [secteur, setSecteur] = useState("prive"); // "prive" | "public"
   const [surcontributionChoix, setSurcontributionChoix] = useState(""); // "" | "oui" | "non" | "inconnu"
+  // Étape 00 obligatoire : { seuil: "" | "moins20" | "AAAA", annees: {AAAA: bool}, action: "" | "st" | "accord" | "aucune" }
+  const [situation, setSituation] = useState(SITUATION_VIDE);
   const [syntheseCopiee, setSyntheseCopiee] = useState(false);
   const asideRef = useRef(null);
   const [aideOuverte, setAideOuverte] = useState(null); // clé de fiche (aideSimulateur.js)
@@ -230,6 +236,61 @@ export default function SimulateurOeth() {
   const exercice = exercices.find((e) => e.annee === ANNEE_REFERENCE) || exercices[exercices.length - 1];
   const smicTexte = exercice.smic.toLocaleString("fr-FR", { minimumFractionDigits: 2 });
   const seuilSousTraitance = Math.round(600 * exercice.smic);
+
+  // ── Étape 00 (obligatoire) : assujettissement puis régime ──────────────
+  // Règle des 5 ans (loi PACTE) : seuil atteint l'année A → assujettie à
+  // partir de A + 5. Règle des 4 ans : 4 années sans aucun BOETH (ni
+  // sous-traitance ≥ 600 × SMIC, ni accord agréé) → surcontribution.
+  const anneeSeuilNum = /^\d{4}$/.test(situation.seuil) ? Number(situation.seuil) : null;
+  const neutralisee = Boolean(anneeSeuilNum && anneeSeuilNum + 5 > ANNEE_REFERENCE);
+  const anneesRegle = [ANNEE_REFERENCE - 3, ANNEE_REFERENCE - 2, ANNEE_REFERENCE - 1, ANNEE_REFERENCE];
+  const reponsesAnnees = anneesRegle.map((a) => situation.annees[a]);
+  const toutesAnneesRepondues = reponsesAnnees.every((v) => v === true || v === false);
+  const auMoinsUneAnneeOui = reponsesAnnees.some((v) => v === true);
+  const toutesAnneesNon = toutesAnneesRepondues && !auMoinsUneAnneeOui;
+  const situationComplete =
+    situation.seuil === "moins20" ||
+    neutralisee ||
+    Boolean(anneeSeuilNum && (auMoinsUneAnneeOui || (toutesAnneesNon && situation.action)));
+
+  const regime =
+    situation.seuil === "moins20"
+      ? { ton: "vert", titre: "Non assujettie", texte: "Moins de 20 salariés : pas de contribution OETH. Vous pouvez tout de même simuler pour anticiper." }
+      : neutralisee
+        ? {
+            ton: "vert",
+            titre: `Pas encore assujettie en ${ANNEE_REFERENCE}`,
+            texte: `Assujettissement à partir de ${anneeSeuilNum + 5}. La simulation ci-dessous vous montre ce que représenterait l'obligation.`,
+          }
+        : auMoinsUneAnneeOui || (toutesAnneesNon && situation.action && situation.action !== "aucune")
+          ? {
+              ton: "orange",
+              titre: "Régime : contribution classique",
+              texte: "Une action a eu lieu sur les 4 dernières années : coefficient de 400, 500 ou 600 × SMIC selon l'effectif, par unité manquante.",
+            }
+          : {
+              ton: "rouge",
+              titre: "Régime : surcontribution (1 500 × SMIC)",
+              texte: `Aucune action de ${anneesRegle[0]} à ${anneesRegle[3]} : chaque unité manquante coûte 1 500 × SMIC. Une seule action (un recrutement, de la sous-traitance EA/ESAT/TIH d'au moins ${formatMontant(seuilSousTraitance)} ou un accord agréé) suffit à revenir au régime classique.`,
+            };
+
+  // Réponses de l'étape 00 → données transmises au calcul serveur.
+  useEffect(() => {
+    setSaisie((prec) => ({
+      ...prec,
+      moinsDe20: situation.seuil === "moins20",
+      anneeSeuil20: anneeSeuilNum,
+      aEmployeBoeth4Ans: auMoinsUneAnneeOui ? true : toutesAnneesNon ? false : null,
+      sousTraitance4Ans: toutesAnneesNon && situation.action ? situation.action === "st" : null,
+      accordAgree: toutesAnneesNon && situation.action ? situation.action === "accord" : null,
+      surcontributionDeclaree: null,
+    }));
+  }, [situation.seuil, anneeSeuilNum, auMoinsUneAnneeOui, toutesAnneesNon, situation.action]);
+
+  // Changer d'exercice change les 4 années de la règle : on redemande.
+  useEffect(() => {
+    setSituation((st) => ({ ...st, annees: {}, action: "" }));
+  }, [ANNEE_REFERENCE]);
 
   // Barre mobile : affichée quand le simulateur est à l'écran mais que le
   // bloc résultats ne l'est pas.
@@ -352,6 +413,10 @@ export default function SimulateurOeth() {
   }
 
   function calculer() {
+    if (!situationComplete) {
+      document.getElementById("etape-situation")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     if (!effectifRenseigne) {
       setErreurEffectif(true);
       return;
@@ -370,6 +435,7 @@ export default function SimulateurOeth() {
     setSousTraitance(null);
     setSecteur("prive");
     setSurcontributionChoix("");
+    setSituation(SITUATION_VIDE);
     setSimulation(null);
     setContactOuvert(false);
     setEnvoye(false);
@@ -390,6 +456,11 @@ export default function SimulateurOeth() {
   // Bouton de fin de page : vérifie les champs nécessaires avant de
   // télécharger ; sinon remonte à l'étape 01 et signale le champ manquant.
   function telechargerSyntheseFinale() {
+    if (!situationComplete) {
+      setMessageSynthese("Pour télécharger votre synthèse, répondez d'abord à l'étape 00 « Votre situation au regard de la loi ».");
+      document.getElementById("etape-situation")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     const effectif = Number(saisie.effectif);
     if (!effectifRenseigne || !Number.isFinite(effectif) || effectif < 20) {
       setErreurEffectif(true);
@@ -569,6 +640,187 @@ export default function SimulateurOeth() {
           </div>
         </div>
 
+        {/* ─────────── Étape 00 : votre situation (obligatoire) ───────────
+            Loi PACTE (art. L130-1 CSS) : le seuil de 20 salariés ne compte
+            qu'après 5 années civiles consécutives au-dessus du seuil ; puis
+            règle des 4 ans (art. L5212-10 du Code du travail) : sans aucune
+            action pendant plus de 3 ans, contribution majorée à 1 500 × SMIC.
+            Tant que cette étape n'est pas complète, la suite est verrouillée. */}
+        <div
+          id="etape-situation"
+          className={`scroll-mt-24 rounded-2xl border-2 px-6 sm:px-8 pt-5 pb-6 transition ${
+            situationComplete
+              ? "border-emerald-400/50 bg-white dark:bg-marine-950/80"
+              : "border-amber-400/70 bg-amber-50/60 dark:bg-amber-500/[0.06]"
+          }`}
+        >
+          <div className="flex flex-col md:flex-row md:items-start gap-4">
+            <span className="shrink-0 w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/50 text-amber-700 dark:text-amber-300 text-sm font-bold flex items-center justify-center">
+              00
+            </span>
+            <div className="flex-1">
+              <h2 className="text-lg sm:text-xl font-semibold flex items-center flex-wrap gap-2">
+                Votre situation au regard de la loi
+                <span className="rounded-full bg-amber-400 text-amber-950 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
+                  Obligatoire
+                </span>
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Deux questions pour savoir si votre entreprise est assujettie, et si elle relève de la contribution classique
+                ou de la surcontribution. Répondez-y avant de renseigner vos effectifs.
+              </p>
+            </div>
+          </div>
+
+          {/* Question 1 : assujettissement (règle des 5 ans) */}
+          <div className="mt-5 rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
+            <label className="block">
+              <span className="text-sm font-semibold flex items-center">
+                1. Depuis quelle année votre entreprise compte-t-elle au moins 20 salariés sans interruption ?{i("effectif")}
+              </span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Si l'entreprise a 20 salariés depuis sa création, indiquez l'année de création. L'obligation ne s'applique
+                qu'après 5 années civiles consécutives au-dessus du seuil.
+              </span>
+              <select
+                value={situation.seuil}
+                onChange={(e) => setSituation((st) => ({ ...st, seuil: e.target.value }))}
+                className={`mt-2 ${CLASSE_INPUT} sm:w-96 cursor-pointer`}
+              >
+                <option className="bg-white dark:bg-marine-950" value="">
+                  Choisir…
+                </option>
+                <option className="bg-white dark:bg-marine-950" value="moins20">
+                  L'entreprise a moins de 20 salariés
+                </option>
+                {Array.from({ length: 11 }, (_, k) => ANNEE_REFERENCE - k).map((a) => (
+                  <option key={a} className="bg-white dark:bg-marine-950" value={String(a)}>
+                    Depuis {a}
+                  </option>
+                ))}
+                <option className="bg-white dark:bg-marine-950" value={String(ANNEE_REFERENCE - 11)}>
+                  Avant {ANNEE_REFERENCE - 10}
+                </option>
+              </select>
+            </label>
+            {situation.seuil === "moins20" && (
+              <p className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-400/30 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
+                Moins de 20 salariés : l'entreprise n'est pas assujettie à l'obligation d'emploi (la déclaration mensuelle des
+                bénéficiaires en DSN reste due).
+              </p>
+            )}
+            {anneeSeuilNum && neutralisee && (
+              <p className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-400/30 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
+                Seuil atteint en {anneeSeuilNum} : période de 5 ans en cours. L'entreprise n'est{" "}
+                <strong>pas encore assujettie</strong> pour {ANNEE_REFERENCE} ; elle le sera à partir de{" "}
+                <strong>{anneeSeuilNum + 5}</strong> si l'effectif reste au moins à 20 salariés. C'est le moment d'anticiper.
+              </p>
+            )}
+          </div>
+
+          {/* Question 2 : régime (règle des 4 ans) — seulement si assujettie */}
+          {anneeSeuilNum && !neutralisee && (
+            <div className="mt-3 rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold flex items-center">
+                2. Pour chaque année, l'entreprise a-t-elle employé au moins un travailleur handicapé (BOETH) ?
+                {i("surcontribution")}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Si la réponse est « Non » pour les 4 années {anneesRegle[0]} à {anneesRegle[3]}, la surcontribution peut
+                s'appliquer. Dès qu'une année est à « Oui », l'entreprise reste en contribution classique.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                {anneesRegle.map((a) => (
+                  <div key={a} className="rounded-lg border border-slate-900/10 dark:border-white/10 px-3 py-2.5">
+                    <p className="text-sm font-bold">{a}</p>
+                    <div className="flex gap-1.5 mt-1.5">
+                      {[
+                        { v: true, label: "Oui" },
+                        { v: false, label: "Non" },
+                      ].map((o) => (
+                        <button
+                          key={o.label}
+                          type="button"
+                          aria-pressed={situation.annees[a] === o.v}
+                          onClick={() => setSituation((st) => ({ ...st, annees: { ...st.annees, [a]: o.v } }))}
+                          className={`flex-1 rounded-md py-1.5 text-xs font-semibold border transition ${
+                            situation.annees[a] === o.v
+                              ? o.v
+                                ? "bg-emerald-500 border-emerald-400 text-white"
+                                : "bg-red-500 border-red-400 text-white"
+                              : "border-slate-900/15 dark:border-white/15 text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/10"
+                          }`}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {toutesAnneesNon && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold">
+                    Sur cette période, l'entreprise a-t-elle eu une autre action reconnue par la loi ?
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {[
+                      { v: "st", label: `Sous-traitance EA / ESAT / TIH ≥ ${formatMontant(seuilSousTraitance)} (600 × SMIC)` },
+                      { v: "accord", label: "Accord agréé" },
+                      { v: "aucune", label: "Aucune de ces actions" },
+                    ].map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        aria-pressed={situation.action === o.v}
+                        onClick={() => setSituation((st) => ({ ...st, action: o.v }))}
+                        className={`rounded-full px-3.5 py-1.5 text-xs font-semibold border transition ${
+                          situation.action === o.v
+                            ? "bg-marine-500 border-marine-400 text-white"
+                            : "border-slate-900/15 dark:border-white/15 text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/10"
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Verdict */}
+          {situationComplete && (
+            <div
+              className={`mt-3 rounded-xl border px-4 py-3 text-sm ${
+                regime.ton === "rouge"
+                  ? "border-red-400/50 bg-red-500/10 text-red-800 dark:text-red-200"
+                  : regime.ton === "orange"
+                    ? "border-orange-400/50 bg-orange-500/10 text-orange-900 dark:text-orange-100"
+                    : "border-emerald-400/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
+              }`}
+            >
+              <p className="font-bold">{regime.titre}</p>
+              <p className="mt-0.5 text-xs leading-relaxed">{regime.texte}</p>
+            </div>
+          )}
+        </div>
+
+        {/* La suite du simulateur reste verrouillée tant que l'étape 00 n'est pas complète. */}
+        <div className="relative space-y-3" aria-disabled={!situationComplete}>
+          {!situationComplete && (
+            <div className="absolute inset-0 z-20 flex items-start justify-center pt-10">
+              <button
+                type="button"
+                onClick={() => document.getElementById("etape-situation")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="rounded-full bg-amber-400 text-amber-950 text-sm font-bold px-5 py-2.5 shadow-xl"
+              >
+                🔒 Répondez d'abord à l'étape 00 ci-dessus
+              </button>
+            </div>
+          )}
+          <div className={situationComplete ? "space-y-3" : "space-y-3 opacity-40 pointer-events-none select-none blur-[1px]"}>
         {/* ─────────── Gain de temps : recherche d'entreprise (Sirene) ─────────── */}
         {!rechercheOuverte && (
           <button
@@ -923,114 +1175,15 @@ export default function SimulateurOeth() {
                 applique automatiquement leur plafond global de 10 % de la contribution brute.
               </p>
 
-              {/* Surcontribution : réponse directe, ou vérification guidée en
-                  3 questions (règle des 4 ans) si le visiteur ne sait pas. */}
-              <div className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] px-4 py-4 flex flex-col md:flex-row md:items-center gap-3">
-                <div className="flex-1">
-                  <p className="text-sm font-semibold flex items-center">
-                    Votre entreprise est-elle concernée par la surcontribution ?{i("surcontribution")}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Elle s'applique après plus de 3 années consécutives sans aucune action (aucun BOETH, pas d'achat
-                    suffisant au secteur protégé, pas d'accord agréé).
-                  </p>
-                </div>
-                <select
-                  value={surcontributionChoix}
-                  onChange={(e) => choisirSurcontribution(e.target.value)}
-                  className={`${CLASSE_INPUT} md:w-72 cursor-pointer`}
-                >
-                  <option className="bg-white dark:bg-marine-950" value="">
-                    Choisir…
-                  </option>
-                  <option className="bg-white dark:bg-marine-950" value="non">
-                    Non
-                  </option>
-                  <option className="bg-white dark:bg-marine-950" value="oui">
-                    Oui
-                  </option>
-                  <option className="bg-white dark:bg-marine-950" value="inconnu">
-                    Je ne sais pas — vérifier
-                  </option>
-                </select>
-              </div>
-
-              {/* Règle des 4 ans — questions en cascade, affichées quand le
-                  visiteur ne sait pas s'il est concerné. */}
-              {surcontributionChoix === "inconnu" && (
-                <div className="space-y-3">
-                  <Question
-                    actif={saisie.aEmployeBoeth4Ans === null}
-                    intitule={
-                      <>
-                        Au cours des 4 dernières années, l'entreprise a-t-elle employé au moins un bénéficiaire de
-                        l'obligation d'emploi ? <span className="text-slate-500">(nouvelle période DOETH)</span>
-                        {i("regle4ans")}
-                      </>
-                    }
-                    nom="q-boeth-4ans"
-                    valeur={saisie.aEmployeBoeth4Ans}
-                    onChange={(v) => modifier("aEmployeBoeth4Ans", v)}
-                  />
-
-                  {saisie.aEmployeBoeth4Ans !== null && (
-                    <Question
-                      actif={saisie.sousTraitance4Ans === null}
-                      intitule="Au cours des 4 dernières années, l'entreprise a-t-elle réalisé des achats ou de la sous-traitance auprès d'une EA, d'un ESAT ou d'un TIH pour un montant supérieur ou égal à 600 × SMIC horaire ?"
-                      nom="q-st-4ans"
-                      valeur={saisie.sousTraitance4Ans}
-                      onChange={(v) =>
-                        setSaisie((prec) => ({
-                          ...prec,
-                          sousTraitance4Ans: v,
-                          ...(v === false ? { montantSousTraitance4Ans: "" } : {}),
-                        }))
-                      }
-                    >
-                      {saisie.sousTraitance4Ans === true && (
-                        <label className="block mt-4 text-sm font-medium text-slate-700 dark:text-slate-200 max-w-md">
-                          Montant cumulé de main-d'œuvre sur 4 ans
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            inputMode="decimal"
-                            value={saisie.montantSousTraitance4Ans}
-                            onChange={(e) => modifier("montantSousTraitance4Ans", e.target.value)}
-                            placeholder="Ex. 7386"
-                            className={`mt-1.5 ${CLASSE_INPUT}`}
-                          />
-                          <span className="block text-[11px] font-normal text-slate-500 mt-1">
-                            Seuil {ANNEE_REFERENCE} : {formatMontant(seuilSousTraitance)}.
-                            {s?.sousTraitance4AnsInsuffisante && (
-                              <span className="text-orange-600 dark:text-orange-300"> Montant inférieur au seuil : la base majorée reste appliquée.</span>
-                            )}
-                          </span>
-                        </label>
-                      )}
-                    </Question>
-                  )}
-
-                  {saisie.aEmployeBoeth4Ans !== null && saisie.sousTraitance4Ans !== null && (
-                    <Question
-                      actif={saisie.accordAgree === null}
-                      intitule="L'entreprise dispose-t-elle d'un accord agréé applicable sur la période concernée ?"
-                      nom="q-accord"
-                      valeur={saisie.accordAgree}
-                      onChange={(v) => modifier("accordAgree", v)}
-                    >
-                      {saisie.accordAgree === true && (
-                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                          Avec un accord agréé, l'obligation est remplie par la mise en œuvre de son programme : le budget
-                          correspondant finance les actions de l'accord au lieu d'être versé à l'URSSAF.
-                        </p>
-                      )}
-                    </Question>
-                  )}
-                </div>
-              )}
+              {/* Régime (contribution classique ou surcontribution) : déterminé à
+                  l'étape 00 obligatoire en haut du simulateur. */}
+              <p className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+                Contribution classique ou surcontribution : votre régime est déterminé à l'étape 00 (règle des 4 ans).
+              </p>
             </div>
           )}
+        </div>
+          </div>
         </div>
 
         {/* Liens utilitaires — l'appel "Calculer ma contribution" est un
@@ -1070,8 +1223,9 @@ export default function SimulateurOeth() {
             {erreurCalcul && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{erreurCalcul}</p>}
             {s && !s.assujetti && (
               <p className="mb-5 rounded-xl bg-emerald-500/10 border border-emerald-400/30 p-4 text-sm text-emerald-700 dark:text-emerald-200">
-                Effectif inférieur à {s.seuilAssujettissement} salariés : l'entreprise n'est pas assujettie à la
-                contribution OETH (la déclaration mensuelle des bénéficiaires en DSN reste due).
+                {s.motifNonAssujetti === "neutralisation"
+                  ? `Seuil de 20 salariés franchi depuis moins de 5 ans : l'entreprise n'est pas encore assujettie pour ${ANNEE_REFERENCE} (assujettissement à partir de ${s.anneeAssujettissement}). La déclaration mensuelle des bénéficiaires en DSN reste due.`
+                  : `Moins de ${s.seuilAssujettissement} salariés : l'entreprise n'est pas assujettie à la contribution OETH (la déclaration mensuelle des bénéficiaires en DSN reste due).`}
               </p>
             )}
 
