@@ -16,6 +16,7 @@ import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { erreurNumero, estNumeroAffichable } from "../telephone.js";
 import CalculObligationFiche from "../components/CalculObligationFiche.jsx";
+import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
 import {
@@ -408,6 +409,7 @@ export default function EntrepriseDetail() {
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
           </p>
+          <BoutonRechercheNumeros entreprise={entreprise} onMaj={setEntreprise} />
         </div>
         <div className="flex items-center gap-3">
           <button
