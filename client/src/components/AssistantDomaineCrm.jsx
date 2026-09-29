@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
+import { usePresence } from "../PresenceContext.jsx";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -8,7 +9,7 @@ function idUnique() {
 const ACCUEIL_TEXTE =
   "Posez-moi une question sur l'OETH, la contribution, la surcontribution, ESAT Tremplin ou TIH — je réponds à partir des chiffres exacts du CRM (barème, SMIC, seuils), jamais approximés.";
 
-// Bouton flottant rond "Assist", centré en bas de l'écran : il ne recouvre
+// Bouton flottant rond "Assist", en bas à gauche de l'écran : il ne recouvre
 // ni les panneaux d'outils (argumentaire, script, ESAT…) ancrés à droite, ni
 // le chat d'équipe (ChatWidget.jsx, en bas à droite), même ouvert. Contrairement au chat d'équipe, ce n'est pas une messagerie
 // entre collègues : chaque question part vers l'IA (repondreQuestionDomaine
@@ -18,6 +19,10 @@ const ACCUEIL_TEXTE =
 // d'appel, contrairement à AssistantContactIA.jsx qui porte sur UNE fiche).
 export default function AssistantDomaineCrm() {
   const [ouvert, setOuvert] = useState(false);
+  // Le bandeau "Chrono en pause" (PresenceContext) occupe aussi le coin bas
+  // gauche : on remonte alors le bouton juste au-dessus.
+  const { enPause } = usePresence();
+  const bas = enPause ? "bottom-16" : "bottom-4";
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState("");
   const [enCours, setEnCours] = useState(false);
@@ -50,7 +55,7 @@ export default function AssistantDomaineCrm() {
     return (
       <button
         onClick={() => setOuvert(true)}
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-14 h-14 rounded-full bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-2xl flex items-center justify-center transition"
+        className={`fixed ${bas} left-4 z-40 w-14 h-14 rounded-full bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-2xl flex items-center justify-center transition`}
         title="Assistance OETH — questions de connaissance métier"
         aria-label="Ouvrir l'assistance OETH"
       >
@@ -60,7 +65,7 @@ export default function AssistantDomaineCrm() {
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[380px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-2rem)] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed bottom-4 left-4 z-40 w-[380px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-2rem)] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
         <span className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 flex items-center justify-center">
           🎓
