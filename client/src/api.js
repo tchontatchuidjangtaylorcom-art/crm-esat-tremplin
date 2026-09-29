@@ -407,6 +407,8 @@ export const api = {
       body: JSON.stringify({ utilisateurId }),
     }).then(handle),
 
+  getEcheances: () => fetch(`${BASE}/echeances`).then(handle),
+
   getNotifications: (commeAgentId) =>
     fetch(`${BASE}/notifications${commeAgentId ? `?commeAgentId=${commeAgentId}` : ""}`).then(handle),
 

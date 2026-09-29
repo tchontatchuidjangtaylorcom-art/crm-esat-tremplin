@@ -40,6 +40,7 @@ import {
 } from "./mail.js";
 import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
 import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
+import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
@@ -785,6 +786,7 @@ app.post("/api/vitrine/synthese-pdf", async (req, res) => {
 // qualifie ensuite manuellement, comme n'importe quelle demande entrante).
 // Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
 enregistrerRoutesVitrineRdv(app);
+enregistrerRoutesRechercheNumeros(app, { exigerAuth, chargerEntrepriseAutorisee, findEntreprise });
 
 app.post("/api/vitrine/contact", async (req, res) => {
   const nom = String(req.body.nom || "").trim();
@@ -2509,6 +2511,41 @@ function calculerNotifications(utilisateur) {
 
   return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles, alertePresence, alertesPresenceEquipe, demandesSite };
 }
+
+// Rappels et rendez-vous à venir (ou manqués) de l'utilisateur, pour l'alerte
+// sonore à l'heure prévue (voir client/src/components/RappelsEcheances.jsx) :
+// ses propres fiches, plus les fiches non assignées pour un admin (celui qui
+// les traite lui-même). Seules comptent les échéances encore d'actualité :
+// statut toujours "RDV" / "À rappeler" / "Me rappelle" — dès que l'agent
+// enregistre l'issue de l'appel, l'échéance disparaît. Les dates sont
+// renvoyées telles que saisies ("AAAA-MM-JJTHH:MM", heure locale de l'agent) :
+// c'est le navigateur qui calcule l'instant exact ; la fenêtre large ci-dessous
+// absorbe le décalage horaire du serveur (UTC).
+app.get("/api/echeances", exigerAuth, (req, res) => {
+  const utilisateur = req.utilisateur;
+  const maintenant = Date.now();
+  const debut = maintenant - 14 * 3600 * 1000;
+  const fin = maintenant + 26 * 3600 * 1000;
+  const echeances = [];
+  for (const e of db.data.entreprises) {
+    const concernee = e.assigneA === utilisateur.id || (estAdmin(utilisateur) && !e.assigneA);
+    if (!concernee) continue;
+    const date = e.statut === "rdv" ? e.dateRdv : e.statut === "a_rappeler" || e.statut === "me_rappelle" ? e.dateRappel : null;
+    const instant = date ? new Date(date).getTime() : NaN;
+    if (!Number.isFinite(instant) || instant < debut || instant > fin) continue;
+    echeances.push({
+      id: e.id,
+      nom: e.nom,
+      type: e.statut,
+      date,
+      telephone: e.contact?.telephone || null,
+      contactNom: e.contact?.nom && e.contact.nom !== "-" ? e.contact.nom : null,
+      contactFonction: e.contact?.fonction && e.contact.fonction !== "-" ? e.contact.fonction : null,
+    });
+  }
+  echeances.sort((a, b) => new Date(a.date) - new Date(b.date));
+  res.json(echeances);
+});
 
 // `commeAgentId` (admin uniquement) : calcule les notifications d'un AUTRE
 // agent pour le Mode Manager — uniquement des compteurs/listes de leads et
