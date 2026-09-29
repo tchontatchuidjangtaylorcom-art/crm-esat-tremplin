@@ -27,15 +27,25 @@ export default function GestionTelephones({ entreprise, onMaj, compact = false }
   const [nouvelleNote, setNouvelleNote] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
+  // Remplacement du numéro principal (ex. numéro devenu invalide).
+  const [remplacement, setRemplacement] = useState(null);
 
   const contact = entreprise.contact || {};
   const alternates = contact.telephonesAlternatifs || [];
 
-  async function sauvegarderContact(partiel) {
+  // `noteHistorique` : trace ajoutée à l'historique de la fiche (qui a
+  // remplacé / supprimé quel numéro), puisque l'ancien numéro disparaît.
+  async function sauvegarderContact(partiel, noteHistorique = null) {
     setEnCours(true);
     setErreur(null);
     try {
-      const updated = await api.patchEntreprise(entreprise.id, { contact: { ...contact, ...partiel } });
+      let updated = await api.patchEntreprise(entreprise.id, { contact: { ...contact, ...partiel } });
+      if (noteHistorique) {
+        updated = await api.ajouterCommentaire(entreprise.id, {
+          texte: noteHistorique,
+          auteur: utilisateur?.prenom || utilisateur?.email || "Agent",
+        });
+      }
       onMaj?.(updated);
       jouerSonConfirmation();
     } catch (e) {
@@ -85,6 +95,42 @@ export default function GestionTelephones({ entreprise, onMaj, compact = false }
     sauvegarderContact({ telephone: alt.numero, telephoneInvalide: false, telephonesAlternatifs: autres });
   }
 
+  function remplacerPrincipal(ev) {
+    ev?.preventDefault?.();
+    const numero = (remplacement || "").trim();
+    if (!numero) return;
+    const refus = erreurNumero(numero);
+    if (refus) {
+      setErreur(refus);
+      return;
+    }
+    const ancien = contact.telephone;
+    // Si le nouveau numéro était déjà dans les numéros supplémentaires, on
+    // l'en retire (il devient le principal).
+    const autres = alternates.filter((a) => a.numero.replace(/\D/g, "") !== numero.replace(/\D/g, ""));
+    sauvegarderContact(
+      { telephone: numero, telephoneInvalide: false, telephonesAlternatifs: autres },
+      estNumeroAffichable(ancien) ? `Numéro principal remplacé : ${ancien} → ${numero}.` : `Numéro principal ajouté : ${numero}.`
+    );
+    setRemplacement(null);
+  }
+
+  // Suppression du numéro principal (admins) : le premier numéro
+  // supplémentaire, s'il y en a un, devient le principal.
+  function supprimerPrincipal() {
+    const ancien = contact.telephone;
+    if (!window.confirm(`Supprimer le numéro principal ${ancien} ?`)) return;
+    const [suivant, ...reste] = alternates;
+    sauvegarderContact(
+      suivant
+        ? { telephone: suivant.numero, telephoneInvalide: false, telephonesAlternatifs: reste }
+        : { telephone: "", telephoneInvalide: false },
+      suivant
+        ? `Numéro principal supprimé : ${ancien} (remplacé par ${suivant.numero}).`
+        : `Numéro principal supprimé : ${ancien}.`
+    );
+  }
+
   function retirer(alt) {
     sauvegarderContact({ telephonesAlternatifs: alternates.filter((a) => a.id !== alt.id) });
   }
@@ -95,8 +141,71 @@ export default function GestionTelephones({ entreprise, onMaj, compact = false }
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Numéro principal : <BoutonAppel entreprise={entreprise} variant="lien" />
         </p>
-        {enCours && <span className="text-[10px] text-slate-400">Enregistrement…</span>}
+        <span className="flex items-center gap-1 shrink-0">
+          {enCours && <span className="text-[10px] text-slate-400">Enregistrement…</span>}
+          {estNumeroAffichable(contact.telephone) && remplacement === null && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setRemplacement("");
+                  setErreur(null);
+                }}
+                className="rounded-full bg-marine-100 dark:bg-marine-950/50 text-marine-800 dark:text-marine-300 text-xs px-2 py-0.5 hover:bg-marine-200 dark:hover:bg-marine-900"
+                title="Remplacer le numéro principal (ex. numéro qui ne fonctionne plus)"
+              >
+                Remplacer
+              </button>
+              {estAdminConnecte && (
+                <button
+                  type="button"
+                  onClick={supprimerPrincipal}
+                  className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-1 text-xs"
+                  title="Supprimer le numéro principal"
+                >
+                  ×
+                </button>
+              )}
+            </>
+          )}
+        </span>
       </div>
+
+      {remplacement !== null && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-marine-50 dark:bg-marine-950/30 border border-marine-200 dark:border-marine-800 p-2">
+          <input
+            type="tel"
+            inputMode="tel"
+            autoFocus
+            placeholder={`Nouveau numéro à la place de ${contact.telephone}`}
+            value={remplacement}
+            onChange={(e) => {
+              setRemplacement(e.target.value);
+              setErreur(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") remplacerPrincipal(e);
+              if (e.key === "Escape") setRemplacement(null);
+            }}
+            className="flex-1 min-w-[160px] rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs"
+          />
+          <button
+            type="button"
+            onClick={remplacerPrincipal}
+            disabled={!remplacement.trim() || enCours}
+            className="rounded-lg bg-marine-700 hover:bg-marine-800 text-white text-xs font-medium px-3 py-1.5 disabled:opacity-40"
+          >
+            Remplacer
+          </button>
+          <button
+            type="button"
+            onClick={() => setRemplacement(null)}
+            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-1"
+          >
+            Annuler
+          </button>
+        </div>
+      )}
 
       {erreur && <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>}
 
