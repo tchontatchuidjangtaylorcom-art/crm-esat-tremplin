@@ -187,39 +187,69 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
         .stroke();
     }
 
-    // Statut + montant, mis en avant.
+    // Statut, mis en avant (le montant est dans le tableau comparatif
+    // contribution / surcontribution quand des unités manquent).
     y += 8;
-    doc.roundedRect(50, y, largeurUtile, 54, 4).fill("#f8fafc");
+    // Avec unités manquantes : simple ligne de statut (place pour le tableau).
+    const hauteurStatut = avecDeficit ? 16 : 54;
+    if (!avecDeficit) doc.roundedRect(50, y, largeurUtile, hauteurStatut, 4).fill("#f8fafc");
     doc
       .font("Helvetica-Bold")
       .fontSize(10)
       .fillColor(statutCouleur)
-      .text(`Statut : ${statutLabel}`, 65, y + 10);
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(13)
-      .fillColor(BLEU)
-      .text(`Montant estimé de la contribution : ${formatMontant(avecDeficit ? montantClassique : 0)}`, 65, y + 28, {
-        width: largeurUtile - 30,
-      });
+      .text(`Statut : ${statutLabel}`, avecDeficit ? 50 : 65, avecDeficit ? y : y + 10);
+    if (!avecDeficit) {
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(13)
+        .fillColor(BLEU)
+        .text(`Montant estimé de la contribution : ${formatMontant(0)}`, 65, y + 28, { width: largeurUtile - 30 });
+    }
 
-    y += 54 + 12;
+    y += hauteurStatut + 12;
 
     if (avecDeficit) {
+      // Tableau à deux colonnes : contribution (coefficient de la tranche)
+      // et surcontribution (1 500 × SMIC), côte à côte.
+      const largeurCase = (largeurUtile - 10) / 2;
+      const hauteurCase = 70;
+      const cases = [
+        {
+          x: 50,
+          fond: "#eff6ff",
+          bord: "#bfdbfe",
+          couleur: BLEU,
+          titre: "CONTRIBUTION ESTIMÉE",
+          montant: montantClassique,
+          detail: `${oeth.deficit} × ${coefClassique} × SMIC (${smicTexte})`,
+        },
+        {
+          x: 50 + largeurCase + 10,
+          fond: "#fffbeb",
+          bord: "#fcd34d",
+          couleur: "#92400e",
+          titre: "SURCONTRIBUTION POSSIBLE",
+          montant: montantMajore,
+          detail: `${oeth.deficit} × 1 500 × SMIC = ${formatMontant(parUniteMajoree)} par unité`,
+        },
+      ];
+      for (const c of cases) {
+        doc.roundedRect(c.x, y, largeurCase, hauteurCase, 4).fillAndStroke(c.fond, c.bord);
+        doc.font("Helvetica-Bold").fontSize(8).fillColor(c.couleur).text(c.titre, c.x + 12, y + 10, { width: largeurCase - 24 });
+        doc.font("Helvetica-Bold").fontSize(16).fillColor(c.couleur).text(formatMontant(c.montant), c.x + 12, y + 24, { width: largeurCase - 24 });
+        doc.font("Helvetica").fontSize(8).fillColor(GRIS_CLAIR).text(c.detail, c.x + 12, y + 48, { width: largeurCase - 24 });
+      }
+      y += hauteurCase + 8;
+
       const texteNb =
-        "N.B. — Surcontribution possible : à la clôture de votre dossier, l'organisme compétent (URSSAF, ou MSA pour le régime " +
-        "agricole) peut retenir la contribution majorée s'il constate qu'aucune action n'a été menée sur les 4 dernières années " +
-        "(aucun bénéficiaire employé, pas de sous-traitance EA / ESAT / TIH d'au moins 600 × SMIC, pas d'accord agréé). " +
-        `Chaque unité manquante est alors calculée à 1 500 × SMIC, soit ${formatMontant(parUniteMajoree)} par unité : ` +
-        `${oeth.deficit} × ${formatMontant(parUniteMajoree)} = ${formatMontant(montantMajore)}.` +
+        "La surcontribution peut être retenue à la clôture de votre dossier par l'organisme compétent (URSSAF, ou MSA pour le régime " +
+        "agricole) s'il constate qu'aucune action n'a été menée sur les 4 dernières années (aucun bénéficiaire employé, pas de " +
+        "sous-traitance EA / ESAT / TIH d'au moins 600 × SMIC, pas d'accord agréé)." +
         (oeth.beneficiairesRecrutes === 0
           ? " D'après les informations dont nous disposons (aucun bénéficiaire déclaré), ce cas pourrait vous concerner."
           : "");
-      doc.font("Helvetica").fontSize(8.5);
-      const hauteurNb = doc.heightOfString(texteNb, { width: largeurUtile - 24 }) + 16;
-      doc.roundedRect(50, y, largeurUtile, hauteurNb, 4).fillAndStroke("#fffbeb", "#fcd34d");
-      doc.fillColor("#92400e").text(texteNb, 62, y + 8, { width: largeurUtile - 24 });
-      y += hauteurNb + 14;
+      doc.font("Helvetica").fontSize(8.5).fillColor("#92400e").text(texteNb, 50, y, { width: largeurUtile });
+      y = doc.y + 14;
     }
 
     // Explications utiles à l'entreprise : contribution majorée, déductions
@@ -273,7 +303,11 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
       );
 
     // Pied de page — signature normalisée du pôle (pas de nom d'agent).
-    const yPied = doc.page.height - 90;
+    // Descend si le contenu est long, pour ne jamais recouvrir la mention.
+    const yPied = Math.max(doc.page.height - 90, Math.min(doc.y + 12, doc.page.height - 52));
+    // Sans cela, PDFKit créerait une nouvelle page pour la signature si elle
+    // passe sous la marge basse.
+    doc.page.margins.bottom = 0;
     doc
       .moveTo(50, yPied)
       .lineTo(largeurPage - 50, yPied)

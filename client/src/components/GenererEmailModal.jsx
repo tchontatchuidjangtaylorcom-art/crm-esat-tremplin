@@ -78,6 +78,39 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statutMail]);
 
+  // Mise en page officielle (bandeau du pôle, récapitulatif contribution /
+  // surcontribution, boutons simulation et conseiller — voir
+  // server/src/emailOfficiel.js), et envoi de test à sa propre adresse.
+  const [formatOfficiel, setFormatOfficiel] = useState(true);
+  const [testEnCours, setTestEnCours] = useState(false);
+  const [testEnvoye, setTestEnvoye] = useState(null);
+
+  async function appelEnvoi(corpsRequete) {
+    const res = await fetch(`/api/entreprises/${entreprise.id}/emails/envoyer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpsRequete),
+    });
+    const donnees = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(donnees.error || `Erreur HTTP ${res.status}`);
+    return donnees;
+  }
+
+  async function envoyerTest() {
+    if (!objet.trim() || !corps.trim() || testEnCours) return;
+    setTestEnCours(true);
+    setErreur(null);
+    setTestEnvoye(null);
+    try {
+      const r = await appelEnvoi({ objet, corps, joindrePdf: true, formatOfficiel, testVersMoi: true });
+      setTestEnvoye(r.destinataire);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setTestEnCours(false);
+    }
+  }
+
   async function envoyer(ev) {
     ev.preventDefault();
     const adresse = destinataire.trim();
@@ -85,7 +118,7 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = 
     setEnvoiEnCours(true);
     setErreur(null);
     try {
-      let updated = await api.envoyerEmail(entreprise.id, { objet, corps, joindrePdf: true, destinataire: adresse });
+      let updated = await appelEnvoi({ objet, corps, joindrePdf: true, destinataire: adresse, formatOfficiel });
       // Cette modale n'apparaît que quand la fiche n'a encore aucune adresse
       // connue — l'adresse qu'on vient d'utiliser devient donc l'adresse
       // principale, pour ne pas la faire ressaisir à la prochaine relance.
@@ -180,7 +213,35 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = 
               />
             </label>
 
-            <div className="flex justify-end gap-2">
+            <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formatOfficiel}
+                onChange={(e) => setFormatOfficiel(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <strong>Mise en page officielle</strong> — bandeau du Pôle OETH / AGEFIPH, récapitulatif contribution /
+                surcontribution, boutons « Faire ma simulation » et « Parler à un conseiller ». Synthèse PDF jointe.
+              </span>
+            </label>
+
+            {testEnvoye && (
+              <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                ✓ Test envoyé à {testEnvoye} (objet précédé de [TEST]) — rien n'a été enregistré sur la fiche.
+              </p>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={envoyerTest}
+                disabled={!objet.trim() || !corps.trim() || testEnCours || envoiEnCours}
+                className="mr-auto rounded-lg border border-marine-300 dark:border-marine-700 text-marine-800 dark:text-marine-200 text-sm px-3 py-1.5 hover:bg-marine-50 dark:hover:bg-marine-950/40 disabled:opacity-40"
+                title="Envoie cet e-mail à votre propre adresse, pour vérifier le rendu"
+              >
+                {testEnCours ? "Envoi du test…" : "M'envoyer un test"}
+              </button>
               <button
                 type="button"
                 onClick={onFermer}
