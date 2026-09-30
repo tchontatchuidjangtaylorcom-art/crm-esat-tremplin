@@ -88,13 +88,13 @@ export default function WidgetsVitrine() {
 
   return (
     <>
-      <div className="fixed right-0 bottom-24 sm:bottom-8 z-[60] flex flex-col items-end gap-1.5 sm:gap-2 pointer-events-none">
+      <div className="fixed right-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:bottom-8 z-[60] flex flex-col items-end gap-1.5 sm:gap-2 pointer-events-none">
         {DROITE.map((w) => {
           const theme = THEMES[w.nom];
           if (ouvert !== w.nom) {
             return (
               // La FAQ est détachée un peu plus haut que Actualité / Vigilance.
-              <div key={w.nom} className={w.nom === "faq" ? "mb-8" : ""}>
+              <div key={w.nom} className={w.nom === "faq" ? "mb-3 sm:mb-8" : ""}>
                 <Onglet
                   etiquette={w.etiquette}
                   icone={w.icone}
@@ -107,7 +107,7 @@ export default function WidgetsVitrine() {
           }
           if (w.nom === "faq")
             return (
-              <div key={w.nom} className="mb-8">
+              <div key={w.nom} className="mb-3 sm:mb-8">
                 <PanneauFaq theme={theme} onFermer={fermer} />
               </div>
             );

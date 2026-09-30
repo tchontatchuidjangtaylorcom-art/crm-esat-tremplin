@@ -97,7 +97,7 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
 
   return (
     <>
-      <div className="fixed left-3 sm:left-4 bottom-24 sm:bottom-5 z-[60] flex flex-col items-start gap-2">
+      <div className="fixed left-3 sm:left-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:bottom-5 z-[60] flex flex-col items-start gap-2">
         {ouvert && (
           <div
             role="dialog"
@@ -248,10 +248,12 @@ export default function AssistantOeth({ ouvert, onBasculer, onFermer }) {
           type="button"
           onClick={onBasculer}
           aria-expanded={ouvert}
-          className="flex items-center gap-2 rounded-2xl bg-marine-600 hover:bg-marine-500 text-white text-sm font-semibold pl-3 pr-4 py-2.5 shadow-2xl border border-marine-400/40 transition"
+          className="flex items-center gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl bg-marine-600 hover:bg-marine-500 text-white text-xs sm:text-sm font-semibold pl-2 pr-3 sm:pl-3 sm:pr-4 py-1.5 sm:py-2.5 shadow-2xl border border-marine-400/40 transition"
         >
-          <span className="w-7 h-7 rounded-lg bg-slate-900/15 dark:bg-white/15 flex items-center justify-center">💬</span>
-          Assistance OETH
+          <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg bg-slate-900/15 dark:bg-white/15 flex items-center justify-center text-xs sm:text-sm">💬</span>
+          {/* Libellé court sur téléphone pour ne pas masquer la page. */}
+          <span className="sm:hidden">Assist. OETH</span>
+          <span className="hidden sm:inline">Assistance OETH</span>
         </button>
       </div>
 

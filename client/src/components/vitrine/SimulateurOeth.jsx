@@ -745,13 +745,13 @@ export default function SimulateurOeth() {
             <span className="flex-1 bg-white" />
             <span className="flex-1 bg-red-500" />
           </div>
-          <div className="px-4 sm:px-8 py-5 flex flex-col items-center text-center gap-3">
+          <div className="px-4 sm:px-8 py-3 sm:py-5 flex flex-col items-center text-center gap-2 sm:gap-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-marine-600 dark:text-marine-400">
+              <p className="text-[9px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] sm:tracking-[0.2em] text-marine-600 dark:text-marine-400">
                 Obligation d'emploi des travailleurs handicapés
               </p>
               {/* Titre principal (H1) de la page /vitrine — mots-clés OETH / DOETH. */}
-              <h1 className="font-bold text-slate-900 dark:text-white text-2xl sm:text-4xl mt-1.5">
+              <h1 className="font-bold text-slate-900 dark:text-white text-lg sm:text-4xl mt-1 sm:mt-1.5">
                 Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}
               </h1>
             </div>
@@ -781,8 +781,9 @@ export default function SimulateurOeth() {
             <span className="shrink-0 rounded-full bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
               Important
             </span>
-            <span className="flex-1 text-sm font-semibold">
-              Gagnez du temps : retrouvez votre entreprise
+            <span className="flex-1 text-xs sm:text-sm font-semibold">
+              <span className="sm:hidden">Retrouvez votre entreprise (SIREN)</span>
+              <span className="hidden sm:inline">Gagnez du temps : retrouvez votre entreprise</span>
               <span className="hidden sm:inline font-normal text-slate-500 dark:text-slate-400"> — par raison sociale ou SIREN</span>
             </span>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 transition-transform ${rechercheOuverte ? "rotate-180" : ""}`}>
@@ -886,7 +887,7 @@ export default function SimulateurOeth() {
             quand la partie 1 est complète. */}
         <div
           id="etape-situation"
-          className={`scroll-mt-24 rounded-2xl border-2 px-5 sm:px-8 pt-5 pb-6 transition ${
+          className={`scroll-mt-24 rounded-2xl border-2 px-4 sm:px-8 pt-4 sm:pt-5 pb-5 sm:pb-6 transition ${
             situationComplete
               ? "border-emerald-400/50 bg-white dark:bg-marine-950/80"
               : "border-amber-400/70 bg-amber-50/60 dark:bg-amber-500/[0.06]"
@@ -895,7 +896,7 @@ export default function SimulateurOeth() {
           <EntetePartie
             numero="1"
             titre="Votre situation au regard de la loi"
-            sousTitre="Quelques questions pour savoir si votre entreprise est assujettie, et si elle relève de la contribution classique ou de la surcontribution. Chaque réponse ouvre la suivante."
+            sousTitre="Quelques questions pour savoir si votre entreprise est assujettie et à quel régime. Chaque réponse ouvre la suivante."
             complete={situationComplete}
             obligatoire
           />
@@ -968,7 +969,6 @@ export default function SimulateurOeth() {
                 </button>
               ))}
             </div>
-            <span className="w-full text-[11px] text-slate-500">{exercice.note}</span>
           </div>
 
           {secteur === "public" && (
@@ -1228,7 +1228,7 @@ export default function SimulateurOeth() {
 
         {/* ─────────── Partie 2 : vos effectifs ─────────── */}
         {situationComplete ? (
-          <div id="etape-essentiel" className="scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-5 sm:px-8 pt-5 pb-4">
+          <div id="etape-essentiel" className="scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-4 sm:px-8 pt-4 sm:pt-5 pb-4">
             <EntetePartie
               numero="2"
               titre="Remplissez vos effectifs"
@@ -2046,7 +2046,7 @@ export default function SimulateurOeth() {
       {/* Tant que le parcours est incomplet, aucun montant n'est affiché : un
           clic explique ce qu'il reste à remplir et y conduit. */}
       {sectionVisible && !resultatsVisibles && !parcoursComplet && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100vw-2rem)] flex flex-col items-center gap-2">
+        <div className="fixed left-3 right-14 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:bottom-5 z-50 sm:w-max sm:max-w-[calc(100vw-2rem)] flex flex-col items-stretch sm:items-center gap-2">
           {messageFlottant && elementManquant && (
             <div role="status" className="relative rounded-xl border border-amber-400/60 bg-white dark:bg-marine-950 text-slate-800 dark:text-slate-100 text-xs sm:text-sm px-4 py-3 pr-9 shadow-2xl max-w-md">
               <p className="font-semibold text-amber-700 dark:text-amber-300">Encore une étape pour obtenir une estimation cohérente</p>
@@ -2067,13 +2067,13 @@ export default function SimulateurOeth() {
               setMessageFlottant(true);
               document.getElementById(elementManquant.cible)?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
-            className="flex items-center gap-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-marine-950 pl-5 pr-4 py-3 shadow-[0_12px_40px_rgba(251,191,36,0.35)] transition"
+            className="flex items-center justify-between gap-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-marine-950 pl-4 pr-3 sm:pl-5 sm:pr-4 py-2 sm:py-3 shadow-[0_12px_40px_rgba(251,191,36,0.35)] transition"
           >
             <span className="text-left">
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-marine-900/70">Contribution estimée</span>
-              <span className="block text-sm font-bold leading-tight">Complétez le parcours</span>
+              <span className="block text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-marine-900/70">Contribution estimée</span>
+              <span className="block text-[13px] sm:text-sm font-bold leading-tight whitespace-nowrap">Complétez le parcours</span>
             </span>
-            <span className="rounded-xl bg-white dark:bg-marine-950 text-amber-700 dark:text-amber-300 text-xs font-semibold px-3 py-2 whitespace-nowrap">
+            <span className="rounded-xl bg-white dark:bg-marine-950 text-amber-700 dark:text-amber-300 text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap">
               Que manque-t-il ?
             </span>
           </button>
@@ -2083,7 +2083,7 @@ export default function SimulateurOeth() {
         <button
           type="button"
           onClick={calculer}
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 rounded-2xl bg-teal-400 hover:bg-teal-300 text-marine-950 pl-5 pr-4 py-3 shadow-[0_12px_40px_rgba(45,212,191,0.4)] ring-1 ring-teal-200/40 transition max-w-[calc(100vw-2rem)]"
+          className="fixed left-3 right-14 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:bottom-5 z-50 flex items-center justify-between gap-3 sm:gap-4 rounded-2xl bg-teal-400 hover:bg-teal-300 text-marine-950 pl-4 pr-3 sm:pl-5 sm:pr-4 py-2 sm:py-3 shadow-[0_12px_40px_rgba(45,212,191,0.4)] ring-1 ring-teal-200/40 transition max-w-[calc(100vw-2rem)]"
         >
           {actif ? (
             <>
@@ -2136,11 +2136,13 @@ function Pastille({ couleur, court, children }) {
 
 // En-tête d'une partie du parcours : numéro (coché une fois complète),
 // surtitre "Partie N", titre et sous-titre.
+// Sur téléphone, le sous-titre passe sous le numéro et prend toute la largeur.
 function EntetePartie({ numero, titre, sousTitre, complete = false, obligatoire = false }) {
   return (
-    <div className="flex items-start gap-4">
+    <div>
+    <div className="flex items-center sm:items-start gap-3 sm:gap-4">
       <span
-        className={`shrink-0 w-10 h-10 rounded-xl border text-sm font-bold flex items-center justify-center ${
+        className={`shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center ${
           complete
             ? "bg-emerald-500 border-emerald-400 text-white"
             : "bg-marine-500/15 border-marine-400/30 text-marine-600 dark:text-marine-300"
@@ -2150,17 +2152,24 @@ function EntetePartie({ numero, titre, sousTitre, complete = false, obligatoire 
         {complete ? "✓" : `0${numero}`}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-marine-600 dark:text-marine-400">Partie {numero}</p>
-        <h2 className="text-lg sm:text-xl font-semibold flex items-center flex-wrap gap-2">
+        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.18em] text-marine-600 dark:text-marine-400 flex items-center gap-2">
+          Partie {numero}
+          {obligatoire && (
+            <span className="sm:hidden rounded-full bg-amber-400 text-amber-950 text-[8px] font-bold tracking-wider px-1.5 py-px">Obligatoire</span>
+          )}
+        </p>
+        <h2 className="text-base sm:text-xl font-semibold leading-snug flex items-center flex-wrap gap-2">
           {titre}
           {obligatoire && (
-            <span className="rounded-full bg-amber-400 text-amber-950 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
+            <span className="hidden sm:inline rounded-full bg-amber-400 text-amber-950 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
               Obligatoire
             </span>
           )}
         </h2>
-        {sousTitre && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{sousTitre}</p>}
+        {sousTitre && <p className="hidden sm:block text-sm text-slate-500 dark:text-slate-400 mt-1">{sousTitre}</p>}
       </div>
+    </div>
+    {sousTitre && <p className="sm:hidden text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">{sousTitre}</p>}
     </div>
   );
 }
