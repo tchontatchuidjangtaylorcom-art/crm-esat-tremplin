@@ -73,6 +73,16 @@ function bouton(href, texte, plein) {
 // `corps` : texte rédigé par l'agent ; `poleInfo` : { email, telephone }.
 export function genererEmailOfficielHtml({ entreprise, oeth, corps, poleInfo }) {
   const nom = echapper(entreprise.nom || "votre entreprise");
+  // Référence unique à chaque envoi : Gmail replie derrière "•••" tout
+  // contenu identique à un message précédent du même fil (ex. une relance
+  // après un premier e-mail) — une ligne qui change à chaque envoi l'en empêche.
+  const maintenant = new Date();
+  const reference = `OETH-${maintenant.getTime().toString(36).toUpperCase()}`;
+  const dateEnvoi = maintenant.toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
+    dateStyle: "short",
+    timeStyle: "short",
+  });
   const effectif = Number(entreprise.effectif) || 0;
   const smic = oeth.tauxHoraireSmic;
   const avecDeficit = oeth.assujetti && oeth.deficit > 0;
@@ -118,7 +128,7 @@ export function genererEmailOfficielHtml({ entreprise, oeth, corps, poleInfo }) 
 <body style="margin:0;padding:0;background:#f1f5f9;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;">
 <tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="680" cellpadding="0" cellspacing="0" style="width:680px;max-width:100%;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
 
   <tr><td style="padding:0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
@@ -137,6 +147,7 @@ export function genererEmailOfficielHtml({ entreprise, oeth, corps, poleInfo }) 
   <tr><td align="center" style="background:${BLEU};padding:20px 24px;">
     <div style="font-size:19px;font-weight:700;color:#ffffff;line-height:1.35;">Votre situation OETH</div>
     <div style="font-size:14px;color:#dbeafe;margin-top:4px;">${nom}</div>
+    <div style="font-size:11px;color:#93c5fd;margin-top:8px;">Réf. ${reference} · envoyé le ${dateEnvoi}</div>
   </td></tr>
 
   <tr><td style="padding:28px 32px 8px;">
@@ -184,6 +195,7 @@ export function genererEmailOfficielHtml({ entreprise, oeth, corps, poleInfo }) 
       ni un document émanant de l'AGEFIPH ; seule l'URSSAF est compétente pour notifier et recouvrer la contribution OETH.
       Si vous avez reçu ce message par erreur, merci de nous en informer à ${echapper(poleInfo.email)}.
     </p>
+    <p style="margin:6px 0 0;font-size:10px;color:#94a3b8;">Réf. ${reference}</p>
   </td></tr>
 
 </table>
