@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../api.js";
 import CercleProgression from "./CercleProgression.jsx";
 import AideModale, { InfoBouton } from "./AideModale.jsx";
+import PriseRendezVous from "./PriseRendezVous.jsx";
 
 // Exercices proposés et SMIC retenu : fournis par le serveur
 // (/api/vitrine/referentiel, calculés d'après la date du jour et
@@ -33,11 +34,13 @@ const SAISIE_VIDE = {
   accordAgree: null,
   surcontributionDeclaree: null,
   annee: EXERCICE_PAR_DEFAUT,
-  anneeSeuil20: null, // étape 00 : première année à 20 salariés ou plus
+  anneeSeuil20: null, // partie 1 : première année à 20 salariés ou plus
   moinsDe20: false,
 };
 
-const SITUATION_VIDE = { seuil: "", annees: {}, action: "" };
+// declarations : déclarations OETH des années précédentes effectuées ?
+// true | false | "inconnu" | null (non répondu).
+const SITUATION_VIDE = { seuil: "", annees: {}, action: "", declarations: null };
 
 // Dépenses déductibles ventilées par code DSN (bloc S21.G00.82), plafond
 // global de 10 % de la contribution brute appliqué côté serveur.
@@ -158,13 +161,16 @@ function lectureTaux(s) {
 }
 
 // Simulateur OETH / DOETH de la landing page publique (section #simulateur),
-// en parcours par étapes :
-//   01 — 3 informations essentielles (effectif, taux d'emploi ⇄ EMA BOETH
-//        liés, SMIC) ;
-//   02 — déductions et cas particuliers, repliés par défaut (facultatif) ;
-//   03 — résultats, révélés par "Calculer ma contribution" puis mis à jour
-//        en direct à chaque modification. Pas de défilement interne : tout
-//        le bloc résultats tient dans la page.
+// en parcours progressif, du haut vers le bas — chaque partie s'ouvre quand
+// la précédente est complète :
+//   en tête — recherche d'entreprise (Sirene) : pré-remplit nom, effectif,
+//             secteur et année de création (règle des 5 ans) ;
+//   01 — votre situation au regard de la loi (assujettissement, règle des
+//        4 ans, BOETH de l'exercice, déclarations passées) ;
+//   02 — vos effectifs (effectif, taux ⇄ EMA BOETH liés ; BOETH verrouillé
+//        à 0 si la partie 1 indique aucun BOETH sur l'exercice) ;
+//   03 — déductions et cas particuliers (masquée si aucune action déclarée) ;
+//   puis les résultats, mis à jour en direct.
 // Calcul via /api/vitrine/calculer (simulerContributionOeth côté serveur —
 // seule source de vérité de la formule légale, jamais dupliquée ici).
 export default function SimulateurOeth() {
@@ -195,8 +201,15 @@ export default function SimulateurOeth() {
   // recherche Sirene, modifiable par le visiteur.
   const [secteur, setSecteur] = useState("prive"); // "prive" | "public"
   const [surcontributionChoix, setSurcontributionChoix] = useState(""); // "" | "oui" | "non" | "inconnu"
-  // Étape 00 obligatoire : { seuil: "" | "moins20" | "AAAA", annees: {AAAA: bool}, action: "" | "st" | "accord" | "aucune" }
+  // Partie 1 obligatoire : { seuil: "" | "moins20" | "AAAA", annees: {AAAA: bool}, action: "" | "st" | "accord" | "aucune" }
   const [situation, setSituation] = useState(SITUATION_VIDE);
+  // Entreprise retrouvée via Sirene : { nom, siren, ville, dateCreation }.
+  const [entrepriseTrouvee, setEntrepriseTrouvee] = useState(null);
+  const [rdvOuvert, setRdvOuvert] = useState(false);
+  const fermerRdv = useCallback(() => setRdvOuvert(false), []);
+  // Partie 3 masquée quand aucune action n'est déclarée ; le visiteur peut
+  // tout de même l'afficher (ECAP, dépenses).
+  const [partie3Forcee, setPartie3Forcee] = useState(false);
   const [syntheseCopiee, setSyntheseCopiee] = useState(false);
   const asideRef = useRef(null);
   const [aideOuverte, setAideOuverte] = useState(null); // clé de fiche (aideSimulateur.js)
@@ -216,9 +229,6 @@ export default function SimulateurOeth() {
       .catch(() => {});
   }, []);
   const [requete, setRequete] = useState("");
-  // Sur téléphone, la recherche d'entreprise est repliée derrière un bouton
-  // pour que la saisie des 3 informations essentielles remonte à l'écran.
-  const [rechercheOuverte, setRechercheOuverte] = useState(false);
   const champRechercheRef = useRef(null);
   const [resultats, setResultats] = useState([]);
   const [recherche, setRecherche] = useState(false);
@@ -237,7 +247,7 @@ export default function SimulateurOeth() {
   const smicTexte = exercice.smic.toLocaleString("fr-FR", { minimumFractionDigits: 2 });
   const seuilSousTraitance = Math.round(600 * exercice.smic);
 
-  // ── Étape 00 (obligatoire) : assujettissement puis régime ──────────────
+  // ── Partie 1 (obligatoire) : assujettissement puis régime ──────────────
   // Règle des 5 ans (loi PACTE) : seuil atteint l'année A → assujettie à
   // partir de A + 5. Règle des 4 ans : 4 années sans aucun BOETH (ni
   // sous-traitance ≥ 600 × SMIC, ni accord agréé) → surcontribution.
@@ -248,10 +258,28 @@ export default function SimulateurOeth() {
   const toutesAnneesRepondues = reponsesAnnees.every((v) => v === true || v === false);
   const auMoinsUneAnneeOui = reponsesAnnees.some((v) => v === true);
   const toutesAnneesNon = toutesAnneesRepondues && !auMoinsUneAnneeOui;
+  const assujettie = Boolean(anneeSeuilNum && !neutralisee);
+  // Réponse pour l'exercice simulé lui-même : "Oui" → on demande le nombre
+  // de BOETH ; "Non" → BOETH verrouillé à 0 en partie 2.
+  const reponseExercice = situation.annees[ANNEE_REFERENCE];
+  const boethVerrouille = assujettie && reponseExercice === false;
+  const boethExerciceRenseigne = saisie.boeth.trim() !== "" && Number(saisie.boeth) > 0;
+  const regimeConnu = toutesAnneesRepondues && (auMoinsUneAnneeOui || Boolean(situation.action));
   const situationComplete =
     situation.seuil === "moins20" ||
     neutralisee ||
-    Boolean(anneeSeuilNum && (auMoinsUneAnneeOui || (toutesAnneesNon && situation.action)));
+    Boolean(
+      assujettie &&
+        regimeConnu &&
+        (reponseExercice !== true || boethExerciceRenseigne) &&
+        situation.declarations !== null
+    );
+  const effectifValide = effectifRenseigne && Number(saisie.effectif) >= 20;
+  const partie2Complete = situationComplete && effectifValide;
+  // Aucune action sur les 4 ans (ni BOETH, ni sous-traitance, ni accord) :
+  // la partie 3 est masquée, le visiteur l'a déjà dit.
+  const aucuneAction = assujettie && toutesAnneesNon && situation.action === "aucune";
+  const partie3Visible = !aucuneAction || partie3Forcee;
 
   const regime =
     situation.seuil === "moins20"
@@ -274,7 +302,7 @@ export default function SimulateurOeth() {
               texte: `Aucune action de ${anneesRegle[0]} à ${anneesRegle[3]} : chaque unité manquante coûte 1 500 × SMIC. Une seule action (un recrutement, de la sous-traitance EA/ESAT/TIH d'au moins ${formatMontant(seuilSousTraitance)} ou un accord agréé) suffit à revenir au régime classique.`,
             };
 
-  // Réponses de l'étape 00 → données transmises au calcul serveur.
+  // Réponses de la partie 1 → données transmises au calcul serveur.
   useEffect(() => {
     setSaisie((prec) => ({
       ...prec,
@@ -291,6 +319,26 @@ export default function SimulateurOeth() {
   useEffect(() => {
     setSituation((st) => ({ ...st, annees: {}, action: "" }));
   }, [ANNEE_REFERENCE]);
+
+  // Synchronisation partie 1 → partie 2 : "Non" pour l'exercice = aucun
+  // BOETH, donc taux et EMA BOETH fixés à 0 (non modifiables). Repasser à
+  // "Oui" libère les champs pour saisir le nombre réel.
+  useEffect(() => {
+    if (boethVerrouille) {
+      setSaisie((prec) => ({ ...prec, boeth: "0" }));
+      setTauxSaisi("0");
+    } else {
+      setSaisie((prec) => (prec.boeth === "0" ? { ...prec, boeth: "" } : prec));
+      setTauxSaisi((t) => (t === "0" ? "" : t));
+    }
+  }, [boethVerrouille]);
+
+  // Sous-traitance déclarée en partie 1 → la carte correspondante de la
+  // partie 3 s'ouvre directement sur le montant.
+  useEffect(() => {
+    if (situation.action === "st") setSousTraitance((v) => (v === null ? true : v));
+    if (situation.action === "aucune") setSousTraitance((v) => (v === true ? v : false));
+  }, [situation.action]);
 
   // Barre mobile : affichée quand le simulateur est à l'écran mais que le
   // bloc résultats ne l'est pas.
@@ -392,8 +440,31 @@ export default function SimulateurOeth() {
     setEntrepriseMemorisee(false);
     if (candidat.effectifEstime != null) changerEffectif(String(candidat.effectifEstime));
     setSecteur(candidat.secteurPublic ? "public" : "prive");
+    setEntrepriseTrouvee({ nom: candidat.nom, siren: candidat.siren, ville: candidat.ville, dateCreation: candidat.dateCreation || null });
+    // Règle des 5 ans : hypothèse d'un effectif d'au moins 20 salariés dès
+    // la création (modifiable en partie 1). Tranche INSEE < 20 → moins de 20.
+    const anneeCreation = Number(String(candidat.dateCreation || "").slice(0, 4));
+    let seuil = "";
+    if (candidat.effectifEstime != null && candidat.effectifEstime < 20) seuil = "moins20";
+    else if (anneeCreation >= 1900) seuil = String(Math.max(anneeCreation, ANNEE_REFERENCE - 11));
+    if (seuil) setSituation((st) => ({ ...st, seuil }));
     setRequete("");
     setResultats([]);
+  }
+
+  // Verdict affiché sous l'entreprise retrouvée (date de création Sirene).
+  function verdictCreation(dateCreation) {
+    const annee = Number(String(dateCreation || "").slice(0, 4));
+    if (!annee) return null;
+    if (annee + 5 > ANNEE_REFERENCE)
+      return {
+        ok: false,
+        texte: `Créée en ${annee} : moins de 5 ans d'existence. L'entreprise n'est pas encore assujettie à la contribution en ${ANNEE_REFERENCE} ; elle le sera au plus tôt à partir de ${annee + 5}, si l'effectif atteint au moins 20 salariés.`,
+      };
+    return {
+      ok: true,
+      texte: `Créée en ${annee} : plus de 5 ans d'existence. Avec au moins 20 salariés depuis 5 ans, l'entreprise est assujettie à l'OETH en ${ANNEE_REFERENCE}.`,
+    };
   }
 
   // "Oui" / "Non" : réponse directe transmise au calcul. "Je ne sais pas" :
@@ -436,6 +507,8 @@ export default function SimulateurOeth() {
     setSecteur("prive");
     setSurcontributionChoix("");
     setSituation(SITUATION_VIDE);
+    setEntrepriseTrouvee(null);
+    setPartie3Forcee(false);
     setSimulation(null);
     setContactOuvert(false);
     setEnvoye(false);
@@ -454,10 +527,10 @@ export default function SimulateurOeth() {
   }
 
   // Bouton de fin de page : vérifie les champs nécessaires avant de
-  // télécharger ; sinon remonte à l'étape 01 et signale le champ manquant.
+  // télécharger ; sinon remonte à la partie 2 et signale le champ manquant.
   function telechargerSyntheseFinale() {
     if (!situationComplete) {
-      setMessageSynthese("Pour télécharger votre synthèse, répondez d'abord à l'étape 00 « Votre situation au regard de la loi ».");
+      setMessageSynthese("Pour télécharger votre synthèse, complétez d'abord la partie 1 « Votre situation au regard de la loi ».");
       document.getElementById("etape-situation")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
@@ -640,223 +713,21 @@ export default function SimulateurOeth() {
           </div>
         </div>
 
-        {/* ─────────── Étape 00 : votre situation (obligatoire) ───────────
-            Loi PACTE (art. L130-1 CSS) : le seuil de 20 salariés ne compte
-            qu'après 5 années civiles consécutives au-dessus du seuil ; puis
-            règle des 4 ans (art. L5212-10 du Code du travail) : sans aucune
-            action pendant plus de 3 ans, contribution majorée à 1 500 × SMIC.
-            Tant que cette étape n'est pas complète, la suite est verrouillée. */}
-        <div
-          id="etape-situation"
-          className={`scroll-mt-24 rounded-2xl border-2 px-6 sm:px-8 pt-5 pb-6 transition ${
-            situationComplete
-              ? "border-emerald-400/50 bg-white dark:bg-marine-950/80"
-              : "border-amber-400/70 bg-amber-50/60 dark:bg-amber-500/[0.06]"
-          }`}
-        >
-          <div className="flex flex-col md:flex-row md:items-start gap-4">
-            <span className="shrink-0 w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/50 text-amber-700 dark:text-amber-300 text-sm font-bold flex items-center justify-center">
-              00
-            </span>
-            <div className="flex-1">
-              <h2 className="text-lg sm:text-xl font-semibold flex items-center flex-wrap gap-2">
-                Votre situation au regard de la loi
-                <span className="rounded-full bg-amber-400 text-amber-950 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
-                  Obligatoire
-                </span>
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                Deux questions pour savoir si votre entreprise est assujettie, et si elle relève de la contribution classique
-                ou de la surcontribution. Répondez-y avant de renseigner vos effectifs.
-              </p>
-            </div>
-          </div>
-
-          {/* Question 1 : assujettissement (règle des 5 ans) */}
-          <div className="mt-5 rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
-            <label className="block">
-              <span className="text-sm font-semibold flex items-center">
-                1. Depuis quelle année votre entreprise compte-t-elle au moins 20 salariés sans interruption ?{i("effectif")}
-              </span>
-              <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Si l'entreprise a 20 salariés depuis sa création, indiquez l'année de création. L'obligation ne s'applique
-                qu'après 5 années civiles consécutives au-dessus du seuil.
-              </span>
-              <select
-                value={situation.seuil}
-                onChange={(e) => setSituation((st) => ({ ...st, seuil: e.target.value }))}
-                className={`mt-2 ${CLASSE_INPUT} sm:w-96 cursor-pointer`}
-              >
-                <option className="bg-white dark:bg-marine-950" value="">
-                  Choisir…
-                </option>
-                <option className="bg-white dark:bg-marine-950" value="moins20">
-                  L'entreprise a moins de 20 salariés
-                </option>
-                {Array.from({ length: 11 }, (_, k) => ANNEE_REFERENCE - k).map((a) => (
-                  <option key={a} className="bg-white dark:bg-marine-950" value={String(a)}>
-                    Depuis {a}
-                  </option>
-                ))}
-                <option className="bg-white dark:bg-marine-950" value={String(ANNEE_REFERENCE - 11)}>
-                  Avant {ANNEE_REFERENCE - 10}
-                </option>
-              </select>
-            </label>
-            {situation.seuil === "moins20" && (
-              <p className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-400/30 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
-                Moins de 20 salariés : l'entreprise n'est pas assujettie à l'obligation d'emploi (la déclaration mensuelle des
-                bénéficiaires en DSN reste due).
-              </p>
-            )}
-            {anneeSeuilNum && neutralisee && (
-              <p className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-400/30 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
-                Seuil atteint en {anneeSeuilNum} : période de 5 ans en cours. L'entreprise n'est{" "}
-                <strong>pas encore assujettie</strong> pour {ANNEE_REFERENCE} ; elle le sera à partir de{" "}
-                <strong>{anneeSeuilNum + 5}</strong> si l'effectif reste au moins à 20 salariés. C'est le moment d'anticiper.
-              </p>
-            )}
-          </div>
-
-          {/* Question 2 : régime (règle des 4 ans) — seulement si assujettie */}
-          {anneeSeuilNum && !neutralisee && (
-            <div className="mt-3 rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
-              <p className="text-sm font-semibold flex items-center">
-                2. Pour chaque année, l'entreprise a-t-elle employé au moins un travailleur handicapé (BOETH) ?
-                {i("surcontribution")}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Si la réponse est « Non » pour les 4 années {anneesRegle[0]} à {anneesRegle[3]}, la surcontribution peut
-                s'appliquer. Dès qu'une année est à « Oui », l'entreprise reste en contribution classique.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                {anneesRegle.map((a) => (
-                  <div key={a} className="rounded-lg border border-slate-900/10 dark:border-white/10 px-3 py-2.5">
-                    <p className="text-sm font-bold">{a}</p>
-                    <div className="flex gap-1.5 mt-1.5">
-                      {[
-                        { v: true, label: "Oui" },
-                        { v: false, label: "Non" },
-                      ].map((o) => (
-                        <button
-                          key={o.label}
-                          type="button"
-                          aria-pressed={situation.annees[a] === o.v}
-                          onClick={() => setSituation((st) => ({ ...st, annees: { ...st.annees, [a]: o.v } }))}
-                          className={`flex-1 rounded-md py-1.5 text-xs font-semibold border transition ${
-                            situation.annees[a] === o.v
-                              ? o.v
-                                ? "bg-emerald-500 border-emerald-400 text-white"
-                                : "bg-red-500 border-red-400 text-white"
-                              : "border-slate-900/15 dark:border-white/15 text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/10"
-                          }`}
-                        >
-                          {o.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {toutesAnneesNon && (
-                <div className="mt-3">
-                  <p className="text-sm font-semibold">
-                    Sur cette période, l'entreprise a-t-elle eu une autre action reconnue par la loi ?
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {[
-                      { v: "st", label: `Sous-traitance EA / ESAT / TIH ≥ ${formatMontant(seuilSousTraitance)} (600 × SMIC)` },
-                      { v: "accord", label: "Accord agréé" },
-                      { v: "aucune", label: "Aucune de ces actions" },
-                    ].map((o) => (
-                      <button
-                        key={o.v}
-                        type="button"
-                        aria-pressed={situation.action === o.v}
-                        onClick={() => setSituation((st) => ({ ...st, action: o.v }))}
-                        className={`rounded-full px-3.5 py-1.5 text-xs font-semibold border transition ${
-                          situation.action === o.v
-                            ? "bg-marine-500 border-marine-400 text-white"
-                            : "border-slate-900/15 dark:border-white/15 text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/10"
-                        }`}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Verdict */}
-          {situationComplete && (
-            <div
-              className={`mt-3 rounded-xl border px-4 py-3 text-sm ${
-                regime.ton === "rouge"
-                  ? "border-red-400/50 bg-red-500/10 text-red-800 dark:text-red-200"
-                  : regime.ton === "orange"
-                    ? "border-orange-400/50 bg-orange-500/10 text-orange-900 dark:text-orange-100"
-                    : "border-emerald-400/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
-              }`}
-            >
-              <p className="font-bold">{regime.titre}</p>
-              <p className="mt-0.5 text-xs leading-relaxed">{regime.texte}</p>
-            </div>
-          )}
-        </div>
-
-        {/* La suite du simulateur reste verrouillée tant que l'étape 00 n'est pas complète. */}
-        <div className="relative space-y-3" aria-disabled={!situationComplete}>
-          {!situationComplete && (
-            <div className="absolute inset-0 z-20 flex items-start justify-center pt-10">
-              <button
-                type="button"
-                onClick={() => document.getElementById("etape-situation")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                className="rounded-full bg-amber-400 text-amber-950 text-sm font-bold px-5 py-2.5 shadow-xl"
-              >
-                🔒 Répondez d'abord à l'étape 00 ci-dessus
-              </button>
-            </div>
-          )}
-          <div className={situationComplete ? "space-y-3" : "space-y-3 opacity-40 pointer-events-none select-none blur-[1px]"}>
-        {/* ─────────── Gain de temps : recherche d'entreprise (Sirene) ─────────── */}
-        {!rechercheOuverte && (
-          <button
-            type="button"
-            onClick={() => {
-              setRechercheOuverte(true);
-              setTimeout(() => champRechercheRef.current?.focus(), 50);
-            }}
-            className="w-full flex items-center gap-3 rounded-2xl border border-emerald-400/40 bg-emerald-500/10 hover:bg-emerald-500/15 px-4 sm:px-6 py-3 text-left transition"
-          >
-            <span className="shrink-0 rounded-full bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1">
-              Important
-            </span>
-            <span className="flex-1 text-sm font-semibold text-slate-900 dark:text-white">
-              Gagnez du temps : retrouvez votre entreprise
-            </span>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-            </svg>
-          </button>
-        )}
-        <div className={`${rechercheOuverte ? "block" : "hidden"} rounded-2xl border border-teal-400/25 bg-gradient-to-r from-teal-400/[0.08] via-white dark:via-marine-950/80 to-white dark:to-marine-950/80 px-6 sm:px-8 py-5`}>
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            <div className="flex items-start gap-3 lg:w-[38%]">
-              <span className="shrink-0 w-9 h-9 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-700 dark:text-teal-300 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
-                </svg>
+        {/* ─────────── En tête : retrouvez votre entreprise (Sirene) ───────────
+            Pré-remplit le nom, l'effectif estimé, le secteur (privé / public)
+            et, via la date de création, la question 1 de la partie 1 (règle
+            des 5 ans). Facultatif : tout reste modifiable. */}
+        <div className="rounded-2xl border-2 border-emerald-400/40 bg-gradient-to-r from-emerald-400/[0.08] via-white dark:via-marine-950/80 to-white dark:to-marine-950/80 px-5 sm:px-8 py-5">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+            <div className="flex items-start gap-3 lg:w-[40%]">
+              <span className="shrink-0 rounded-full bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 mt-0.5">
+                Important
               </span>
               <div>
-                <p className="font-semibold">
-                  Gagnez du temps : retrouvez votre entreprise{" "}
-                  <span className="font-normal text-slate-500 dark:text-slate-400">(facultatif)</span>
-                </p>
+                <p className="font-semibold">Gagnez du temps : retrouvez votre entreprise</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Raison sociale ou SIREN : nous pré-remplissons le nom et un effectif estimé, que vous pouvez corriger.
+                  Raison sociale ou SIREN : nous pré-remplissons le nom, un effectif estimé et la date de création, qui
+                  indique si l'entreprise est assujettie. Tout reste modifiable.
                 </p>
               </div>
             </div>
@@ -885,31 +756,80 @@ export default function SimulateurOeth() {
                       className="w-full text-left rounded-lg hover:bg-slate-900/10 dark:hover:bg-white/10 transition px-3 py-2"
                     >
                       <p className="text-sm font-medium text-slate-900 dark:text-white">{r.nom}</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">{[r.ville, r.trancheEffectifLabel].filter(Boolean).join(" · ")}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {[r.ville, r.trancheEffectifLabel, r.dateCreation && `créée en ${String(r.dateCreation).slice(0, 4)}`]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
                     </button>
                   ))}
                 </div>
               )}
-              <p className="text-[11px] text-slate-500 mt-1.5">Répertoire public Sirene (INSEE) — aucune donnée n'est enregistrée.</p>
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                Répertoire public Sirene (INSEE) — aucune donnée n'est enregistrée. Facultatif : vous pouvez répondre
+                directement à la partie 1.
+              </p>
             </div>
           </div>
+
+          {entrepriseTrouvee &&
+            (() => {
+              const v = verdictCreation(entrepriseTrouvee.dateCreation);
+              return (
+                <div
+                  className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                    !v
+                      ? "border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03]"
+                      : v.ok
+                        ? "border-marine-400/40 bg-marine-500/[0.07]"
+                        : "border-emerald-400/40 bg-emerald-500/10"
+                  }`}
+                >
+                  <p className="font-semibold">
+                    {entrepriseTrouvee.nom}
+                    <span className="ml-2 font-normal text-xs text-slate-500 dark:text-slate-400">
+                      {[entrepriseTrouvee.siren && `SIREN ${entrepriseTrouvee.siren}`, entrepriseTrouvee.ville].filter(Boolean).join(" · ")}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-700 dark:text-slate-200">
+                    {v ? v.texte : "Date de création non communiquée par le répertoire Sirene : répondez à la question 1 ci-dessous."}
+                  </p>
+                  {v && (
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      Question 1 pré-remplie avec l'année de création : corrigez-la si le seuil de 20 salariés a été atteint
+                      plus tard.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
         </div>
 
-        {/* ─────────── Étape 01 : l'essentiel ─────────── */}
-        <div id="etape-essentiel" className="scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-4 sm:px-8 pt-4 sm:pt-5 pb-4">
-          <div className="hidden sm:block">
-            <EnteteEtape
-              numero="01"
-              titre="Commencez avec 3 informations essentielles"
-            />
-          </div>
+        {/* ─────────── Partie 1 : votre situation au regard de la loi ───────────
+            Loi PACTE (art. L130-1 CSS) : le seuil de 20 salariés ne compte
+            qu'après 5 années civiles consécutives au-dessus du seuil ; puis
+            règle des 4 ans (art. L5212-10 du Code du travail) : sans aucune
+            action pendant plus de 3 ans, contribution majorée à 1 500 × SMIC.
+            Chaque réponse ouvre la question suivante ; la partie 2 s'ouvre
+            quand la partie 1 est complète. */}
+        <div
+          id="etape-situation"
+          className={`scroll-mt-24 rounded-2xl border-2 px-5 sm:px-8 pt-5 pb-6 transition ${
+            situationComplete
+              ? "border-emerald-400/50 bg-white dark:bg-marine-950/80"
+              : "border-amber-400/70 bg-amber-50/60 dark:bg-amber-500/[0.06]"
+          }`}
+        >
+          <EntetePartie
+            numero="1"
+            titre="Votre situation au regard de la loi"
+            sousTitre="Quelques questions pour savoir si votre entreprise est assujettie, et si elle relève de la contribution classique ou de la surcontribution. Chaque réponse ouvre la suivante."
+            complete={situationComplete}
+            obligatoire
+          />
 
-          {/* Référentiel appliqué : année et SMIC, au-dessus des saisies. */}
-          {/* Sur téléphone : "01", année et SMIC sur une seule ligne (libellés courts). */}
-          <div className="sm:mt-4 flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="sm:hidden shrink-0 w-7 h-7 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-xs font-bold flex items-center justify-center">
-              01
-            </span>
+          {/* Exercice simulé, SMIC retenu et type d'employeur. */}
+          <div className="mt-4 flex flex-wrap items-center gap-1.5 sm:gap-2">
             {/* Choix de l'exercice (liste fournie par le serveur d'après la
                 date du jour) : le SMIC retenu et tout le calcul suivent. */}
             <div
@@ -994,82 +914,346 @@ export default function SimulateurOeth() {
             </div>
           )}
 
-          <div className="mt-3 grid md:grid-cols-3 gap-3">
-            <CaseSaisie
-              titre={<>Effectif d'assujettissement{i("effectif")}</>}
-              unite="salariés"
-              value={saisie.effectif}
-              onChange={changerEffectif}
-              placeholder="Minimum 20"
-              min="20"
-              complement={<CalculSixPourcent effectif={saisie.effectif} />}
-              aide="Effectif moyen annuel retenu pour l'OETH (minimum 20 salariés)."
-              erreur={
-                erreurEffectif
-                  ? "Renseignez votre effectif (minimum 20) pour calculer."
-                  : effectifRenseigne && Number(saisie.effectif) < 20
-                    ? "Minimum 20 salariés : en dessous, l'entreprise n'est pas redevable de la contribution OETH."
-                    : null
-              }
-            />
-            <CaseSaisie
-              titre={<>Taux d'emploi BOETH{i("objectif")}</>}
-              badge="Lié"
-              unite="%"
-              value={tauxSaisi}
-              onChange={changerTaux}
-              placeholder="Ex. 1"
-              aide="Taux légal, valorisation seniors incluse."
-              accent
-            />
-            <CaseSaisie
-              titre={<>EMA BOETH pris en compte{i("boeth")}</>}
-              badge="Lié"
-              unite="BOETH"
-              value={saisie.boeth}
-              onChange={changerBoeth}
-              placeholder="Ex. 0,34"
-              aide="Bénéficiaires de l'obligation d'emploi pris en compte dans la déclaration."
-              accent
-            />
-          </div>
-
-          <div className="mt-2 rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.02] dark:bg-white/[0.02]">
-            <button
-              type="button"
-              onClick={() => setAideEssentielOuverte((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-            >
-              Besoin d'aide pour identifier ces informations ?
-              <span className="text-marine-600 dark:text-marine-300 text-base leading-none">{aideEssentielOuverte ? "−" : "+"}</span>
-            </button>
-            {aideEssentielOuverte && (
-              <p className="px-4 pb-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                L'effectif correspond à l'EMA OETH d'assujettissement communiqué par l'URSSAF (ou la MSA). Vous pouvez
-                ensuite renseigner soit votre taux d'emploi légal, soit votre EMA BOETH : le simulateur calcule
-                automatiquement l'autre valeur. Lorsque ces données proviennent de l'URSSAF ou de la MSA, elles intègrent
-                déjà la valorisation applicable aux BOETH de 50 ans et plus. Cliquez sur les icônes ⓘ pour une explication
-                détaillée de chaque terme, à lire ou à écouter.
+          {/* Question 1 : assujettissement (règle des 5 ans) */}
+          <div className="mt-4 rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
+            <label className="block">
+              <span className="text-sm font-semibold flex items-center">
+                1. Depuis quelle année votre entreprise compte-t-elle au moins 20 salariés sans interruption ?{i("effectif")}
+              </span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Si l'entreprise a 20 salariés depuis sa création, indiquez l'année de création. L'obligation ne s'applique
+                qu'après 5 années civiles consécutives au-dessus du seuil.
+              </span>
+              <select
+                value={situation.seuil}
+                onChange={(e) => setSituation((st) => ({ ...st, seuil: e.target.value }))}
+                className={`mt-2 ${CLASSE_INPUT} sm:w-96 cursor-pointer`}
+              >
+                <option className="bg-white dark:bg-marine-950" value="">
+                  Choisir…
+                </option>
+                <option className="bg-white dark:bg-marine-950" value="moins20">
+                  L'entreprise a moins de 20 salariés
+                </option>
+                {Array.from({ length: 11 }, (_, k) => ANNEE_REFERENCE - k).map((a) => (
+                  <option key={a} className="bg-white dark:bg-marine-950" value={String(a)}>
+                    Depuis {a}
+                  </option>
+                ))}
+                <option className="bg-white dark:bg-marine-950" value={String(ANNEE_REFERENCE - 11)}>
+                  Avant {ANNEE_REFERENCE - 10}
+                </option>
+              </select>
+            </label>
+            {situation.seuil === "moins20" && (
+              <p className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-400/30 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
+                Moins de 20 salariés : l'entreprise n'est pas assujettie à l'obligation d'emploi (la déclaration mensuelle des
+                bénéficiaires en DSN reste due).
+              </p>
+            )}
+            {anneeSeuilNum && neutralisee && (
+              <p className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-400/30 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
+                Seuil atteint en {anneeSeuilNum} : période de 5 ans en cours. L'entreprise n'est{" "}
+                <strong>pas encore assujettie</strong> pour {ANNEE_REFERENCE} ; elle le sera à partir de{" "}
+                <strong>{anneeSeuilNum + 5}</strong> si l'effectif reste au moins à 20 salariés. C'est le moment d'anticiper.
               </p>
             )}
           </div>
+
+          {/* Question 2 : régime (règle des 4 ans) — seulement si assujettie */}
+          {assujettie && (
+            <div className="mt-3 rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold flex items-center">
+                2. Pour chaque année, l'entreprise a-t-elle employé au moins un travailleur handicapé (BOETH) ?
+                {i("surcontribution")}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Si la réponse est « Non » pour les 4 années {anneesRegle[0]} à {anneesRegle[3]}, la surcontribution peut
+                s'appliquer. Dès qu'une année est à « Oui », l'entreprise reste en contribution classique.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                {anneesRegle.map((a) => (
+                  <div
+                    key={a}
+                    className={`rounded-lg border px-3 py-2.5 ${
+                      a === ANNEE_REFERENCE ? "border-amber-400/60 bg-amber-400/[0.05]" : "border-slate-900/10 dark:border-white/10"
+                    }`}
+                  >
+                    <p className="text-sm font-bold">
+                      {a}
+                      {a === ANNEE_REFERENCE && (
+                        <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                          exercice simulé
+                        </span>
+                      )}
+                    </p>
+                    <div className="flex gap-1.5 mt-1.5">
+                      {[
+                        { v: true, label: "Oui" },
+                        { v: false, label: "Non" },
+                      ].map((o) => (
+                        <button
+                          key={o.label}
+                          type="button"
+                          aria-pressed={situation.annees[a] === o.v}
+                          onClick={() => setSituation((st) => ({ ...st, annees: { ...st.annees, [a]: o.v } }))}
+                          className={`flex-1 rounded-md py-1.5 text-xs font-semibold border transition ${
+                            situation.annees[a] === o.v
+                              ? o.v
+                                ? "bg-emerald-500 border-emerald-400 text-white"
+                                : "bg-red-500 border-red-400 text-white"
+                              : "border-slate-900/15 dark:border-white/15 text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/10"
+                          }`}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {toutesAnneesNon && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold">
+                    Sur cette période, l'entreprise a-t-elle eu une autre action reconnue par la loi ?
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {[
+                      { v: "st", label: `Sous-traitance EA / ESAT / TIH ≥ ${formatMontant(seuilSousTraitance)} (600 × SMIC)` },
+                      { v: "accord", label: "Accord agréé" },
+                      { v: "aucune", label: "Aucune de ces actions" },
+                    ].map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        aria-pressed={situation.action === o.v}
+                        onClick={() => setSituation((st) => ({ ...st, action: o.v }))}
+                        className={`rounded-full px-3.5 py-1.5 text-xs font-semibold border transition ${
+                          situation.action === o.v
+                            ? "bg-marine-500 border-marine-400 text-white"
+                            : "border-slate-900/15 dark:border-white/15 text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/10"
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Question 3 : nombre de BOETH de l'exercice (si "Oui" pour l'exercice) */}
+          {assujettie && regimeConnu && reponseExercice === true && (
+            <div className="mt-3 rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
+              <label className="block">
+                <span className="text-sm font-semibold flex items-center">
+                  3. Combien de travailleurs handicapés (BOETH) l'entreprise emploie-t-elle en {ANNEE_REFERENCE} ?{i("boeth")}
+                </span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Effectif moyen annuel (EMA) de bénéficiaires communiqué par l'URSSAF ou la MSA ; à défaut, une estimation
+                  (ex. 1 ou 2,5). Ce nombre est repris automatiquement dans la partie 2.
+                </span>
+                <div className="relative mt-2 sm:w-64">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    value={saisie.boeth}
+                    onChange={(e) => changerBoeth(e.target.value)}
+                    placeholder="Ex. 1"
+                    className={`${CLASSE_INPUT} pr-16`}
+                  />
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">BOETH</span>
+                </div>
+              </label>
+            </div>
+          )}
+          {boethVerrouille && regimeConnu && (
+            <p className="mt-3 rounded-lg border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
+              Aucun BOETH en {ANNEE_REFERENCE} : l'EMA BOETH et le taux d'emploi sont fixés à 0 dans la partie 2.
+            </p>
+          )}
+
+          {/* Dernière question : déclarations des années précédentes */}
+          {assujettie && regimeConnu && (reponseExercice !== true || boethExerciceRenseigne) && (
+            <div className="mt-3 rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold">
+                {reponseExercice === true ? "4" : "3"}. Avez-vous effectué vos déclarations OETH (DOETH) des années
+                précédentes ?
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Pour les entreprises assujetties, la déclaration se fait chaque année dans la DSN (exercices {anneesRegle[0]} à{" "}
+                {ANNEE_REFERENCE - 1}).
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {[
+                  { v: true, label: "Oui, elles sont à jour" },
+                  { v: false, label: "Non" },
+                  { v: "inconnu", label: "Je ne sais pas" },
+                ].map((o) => (
+                  <button
+                    key={o.label}
+                    type="button"
+                    aria-pressed={situation.declarations === o.v}
+                    onClick={() => setSituation((st) => ({ ...st, declarations: o.v }))}
+                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold border transition ${
+                      situation.declarations === o.v
+                        ? "bg-marine-500 border-marine-400 text-white"
+                        : "border-slate-900/15 dark:border-white/15 text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {(situation.declarations === false || situation.declarations === "inconnu") && (
+                <div className="mt-3 rounded-xl border border-marine-400/40 border-l-4 border-l-marine-500 bg-marine-500/[0.07] px-4 py-3">
+                  <p className="text-sm font-semibold text-marine-800 dark:text-marine-200">Un expert vous accompagne</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-700 dark:text-slate-200">
+                    Une déclaration manquante ou incertaine se vérifie et se régularise. Un expert du Pôle fait le point avec
+                    vous sur les exercices concernés, les montants à déclarer et les actions qui peuvent réduire votre
+                    contribution. Vous pouvez poursuivre la simulation en attendant.
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRdvOuvert(true)}
+                      className="rounded-full bg-marine-500 hover:bg-marine-400 text-white text-xs font-semibold px-4 py-2 transition"
+                    >
+                      Prendre rendez-vous avec un expert
+                    </button>
+                    <a
+                      href="tel:+33744127917"
+                      className="rounded-full border border-marine-400/40 text-marine-700 dark:text-marine-200 text-xs font-semibold px-4 py-2 hover:bg-marine-500/10 transition"
+                    >
+                      +33 7 44 12 79 17
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Verdict */}
+          {situationComplete && (
+            <div
+              className={`mt-3 rounded-xl border px-4 py-3 text-sm ${
+                regime.ton === "rouge"
+                  ? "border-red-400/50 bg-red-500/10 text-red-800 dark:text-red-200"
+                  : regime.ton === "orange"
+                    ? "border-orange-400/50 bg-orange-500/10 text-orange-900 dark:text-orange-100"
+                    : "border-emerald-400/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
+              }`}
+            >
+              <p className="font-bold">{regime.titre}</p>
+              <p className="mt-0.5 text-xs leading-relaxed">{regime.texte}</p>
+            </div>
+          )}
         </div>
 
-        {/* ─────────── Étape 02 : déductions & cas particuliers ─────────── */}
+        {/* ─────────── Partie 2 : vos effectifs ─────────── */}
+        {situationComplete ? (
+          <div id="etape-essentiel" className="scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-5 sm:px-8 pt-5 pb-4">
+            <EntetePartie
+              numero="2"
+              titre="Remplissez vos effectifs"
+              sousTitre="Effectif d'assujettissement et bénéficiaires. Le taux d'emploi et l'EMA BOETH sont liés : saisissez l'un, l'autre se calcule."
+              complete={partie2Complete}
+            />
+
+            <div className="mt-4 grid md:grid-cols-3 gap-3">
+              <CaseSaisie
+                titre={<>Effectif d'assujettissement{i("effectif")}</>}
+                unite="salariés"
+                value={saisie.effectif}
+                onChange={changerEffectif}
+                placeholder="Minimum 20"
+                min="20"
+                complement={<CalculSixPourcent effectif={saisie.effectif} />}
+                aide="Effectif moyen annuel retenu pour l'OETH (minimum 20 salariés)."
+                erreur={
+                  erreurEffectif
+                    ? "Renseignez votre effectif (minimum 20) pour calculer."
+                    : effectifRenseigne && Number(saisie.effectif) < 20
+                      ? "Minimum 20 salariés : en dessous, l'entreprise n'est pas redevable de la contribution OETH."
+                      : null
+                }
+              />
+              <CaseSaisie
+                titre={<>Taux d'emploi BOETH{i("objectif")}</>}
+                badge={boethVerrouille ? "Partie 1" : "Lié"}
+                unite="%"
+                value={tauxSaisi}
+                onChange={changerTaux}
+                placeholder="Ex. 1"
+                aide={boethVerrouille ? `Fixé à 0 : aucun BOETH en ${ANNEE_REFERENCE} (réponse de la partie 1).` : "Taux légal, valorisation seniors incluse."}
+                verrouille={boethVerrouille}
+                accent
+              />
+              <CaseSaisie
+                titre={<>EMA BOETH pris en compte{i("boeth")}</>}
+                badge={boethVerrouille ? "Partie 1" : "Lié"}
+                unite="BOETH"
+                value={saisie.boeth}
+                onChange={changerBoeth}
+                placeholder="Ex. 0,34"
+                aide={
+                  boethVerrouille
+                    ? `Fixé à 0 : aucun BOETH en ${ANNEE_REFERENCE} (réponse de la partie 1).`
+                    : "Bénéficiaires de l'obligation d'emploi pris en compte dans la déclaration."
+                }
+                verrouille={boethVerrouille}
+                accent
+              />
+            </div>
+
+            <div className="mt-2 rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.02] dark:bg-white/[0.02]">
+              <button
+                type="button"
+                onClick={() => setAideEssentielOuverte((v) => !v)}
+                className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              >
+                Besoin d'aide pour identifier ces informations ?
+                <span className="text-marine-600 dark:text-marine-300 text-base leading-none">{aideEssentielOuverte ? "−" : "+"}</span>
+              </button>
+              {aideEssentielOuverte && (
+                <p className="px-4 pb-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  L'effectif correspond à l'EMA OETH d'assujettissement communiqué par l'URSSAF (ou la MSA). Vous pouvez
+                  ensuite renseigner soit votre taux d'emploi légal, soit votre EMA BOETH : le simulateur calcule
+                  automatiquement l'autre valeur. Lorsque ces données proviennent de l'URSSAF ou de la MSA, elles intègrent
+                  déjà la valorisation applicable aux BOETH de 50 ans et plus. Cliquez sur les icônes ⓘ pour une explication
+                  détaillée de chaque terme, à lire ou à écouter.
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <PartieVerrouillee numero="2" titre="Remplissez vos effectifs" message="S'ouvre dès que la partie 1 est complète." />
+        )}
+
+        {/* ─────────── Partie 3 : déductions & cas particuliers ───────────
+            Ouverte une fois l'effectif renseigné ; masquée quand la partie 1
+            indique aucune action sur les 4 ans (le visiteur peut l'afficher
+            quand même pour l'ECAP ou les dépenses déductibles). */}
+        {partie2Complete && partie3Visible && (
         <div ref={deductionsRef} className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 scroll-mt-24">
           <button
             type="button"
             onClick={() => setDeductionsOuvertes((v) => !v)}
-            className="w-full flex items-center gap-3 px-6 sm:px-8 py-3 text-left"
+            className="w-full flex items-center gap-3 px-5 sm:px-8 py-4 text-left"
             aria-expanded={deductionsOuvertes}
           >
-            <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-xs font-bold flex items-center justify-center">
-              02
+            <span className="shrink-0 w-10 h-10 rounded-xl bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-sm font-bold flex items-center justify-center">
+              03
             </span>
             <span className="flex-1">
-              <span className="block font-semibold">J'ai des déductions ou un cas particulier à renseigner</span>
+              <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-marine-600 dark:text-marine-400">Partie 3</span>
+              <span className="block font-semibold text-lg">J'ai des déductions ou un cas particulier à renseigner</span>
               <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Sous-traitance EA / ESAT / TIH, ECAP, dépenses déductibles, règle des 4 ans.
+                Sous-traitance EA / ESAT / TIH, ECAP, dépenses déductibles.
               </span>
             </span>
             {nbDeductionsRenseignees > 0 && (
@@ -1175,16 +1359,38 @@ export default function SimulateurOeth() {
                 applique automatiquement leur plafond global de 10 % de la contribution brute.
               </p>
 
-              {/* Régime (contribution classique ou surcontribution) : déterminé à
-                  l'étape 00 obligatoire en haut du simulateur. */}
+              {/* Régime (contribution classique ou surcontribution) : déterminé
+                  en partie 1, en haut du simulateur. */}
               <p className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-                Contribution classique ou surcontribution : votre régime est déterminé à l'étape 00 (règle des 4 ans).
+                Contribution classique ou surcontribution : votre régime est déterminé en partie 1 (règle des 4 ans).
               </p>
             </div>
           )}
         </div>
+        )}
+        {partie2Complete && !partie3Visible && (
+          <div className="rounded-2xl border border-dashed border-slate-900/15 dark:border-white/15 px-5 sm:px-8 py-4 text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-semibold">Partie 3 — Déductions : non concernée.</span> Vous avez indiqué n'avoir eu, de{" "}
+            {anneesRegle[0]} à {anneesRegle[3]}, ni BOETH, ni sous-traitance EA / ESAT / TIH, ni accord agréé.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setPartie3Forcee(true);
+                ouvrirDeductions();
+              }}
+              className="text-marine-600 dark:text-marine-300 font-semibold hover:underline"
+            >
+              Renseigner malgré tout un effectif ECAP ou des dépenses déductibles
+            </button>
           </div>
-        </div>
+        )}
+        {!partie2Complete && !aucuneAction && (
+          <PartieVerrouillee
+            numero="3"
+            titre="J'ai des déductions ou un cas particulier à renseigner"
+            message={situationComplete ? "S'ouvre dès que votre effectif est renseigné (partie 2)." : "S'ouvre après les parties 1 et 2."}
+          />
+        )}
 
         {/* Liens utilitaires — l'appel "Calculer ma contribution" est un
             bouton flottant (voir bas du composant) : il ne prend pas de place
@@ -1205,14 +1411,15 @@ export default function SimulateurOeth() {
           </div>
         </div>
 
-        {/* ─────────── Étape 03 : résultats ─────────── */}
-        {/* Toujours visible, même vide : le visiteur voit d'emblée ce qu'il
-            va obtenir, et chaque saisie met les chiffres à jour en direct. */}
+        {/* ─────────── Résultats ─────────── */}
+        {/* Affichés dès que la partie 1 est complète (masqués, pas démontés,
+            pour que l'IntersectionObserver de la barre mobile reste branché) ;
+            chaque saisie met les chiffres à jour en direct. */}
         {(
-          <div ref={resultatsRef} className="scroll-mt-20 pt-4">
+          <div ref={resultatsRef} className={`scroll-mt-20 pt-4 ${situationComplete ? "" : "hidden"}`}>
             <div className="flex items-center gap-4 mb-5">
               <span className="shrink-0 w-10 h-10 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-700 dark:text-teal-300 text-sm font-bold flex items-center justify-center">
-                03
+                ✓
               </span>
               <div>
                 <p className="font-semibold text-lg">Vos résultats</p>
@@ -1789,6 +1996,7 @@ export default function SimulateurOeth() {
       )}
 
       {aideOuverte && <AideModale cle={aideOuverte} onFermer={fermerAide} />}
+      {rdvOuvert && <PriseRendezVous onFermer={fermerRdv} />}
     </section>
   );
 }
@@ -1818,23 +2026,55 @@ function Pastille({ couleur, court, children }) {
   );
 }
 
-function EnteteEtape({ numero, titre, sousTitre, children }) {
+// En-tête d'une partie du parcours : numéro (coché une fois complète),
+// surtitre "Partie N", titre et sous-titre.
+function EntetePartie({ numero, titre, sousTitre, complete = false, obligatoire = false }) {
   return (
-    <div className="flex flex-col md:flex-row md:items-start gap-4">
-      <span className="shrink-0 w-8 h-8 rounded-lg bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-xs font-bold flex items-center justify-center">
-        {numero}
+    <div className="flex items-start gap-4">
+      <span
+        className={`shrink-0 w-10 h-10 rounded-xl border text-sm font-bold flex items-center justify-center ${
+          complete
+            ? "bg-emerald-500 border-emerald-400 text-white"
+            : "bg-marine-500/15 border-marine-400/30 text-marine-600 dark:text-marine-300"
+        }`}
+        aria-label={complete ? `Partie ${numero} complète` : `Partie ${numero}`}
+      >
+        {complete ? "✓" : `0${numero}`}
       </span>
-      {/* Masqué sur téléphone : les champs à remplir remontent à l'écran. */}
-      <div className="hidden sm:block flex-1">
-        <h3 className="text-lg sm:text-xl font-semibold">{titre}</h3>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-marine-600 dark:text-marine-400">Partie {numero}</p>
+        <h2 className="text-lg sm:text-xl font-semibold flex items-center flex-wrap gap-2">
+          {titre}
+          {obligatoire && (
+            <span className="rounded-full bg-amber-400 text-amber-950 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
+              Obligatoire
+            </span>
+          )}
+        </h2>
         {sousTitre && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{sousTitre}</p>}
       </div>
-      <div className="md:pt-1.5">{children}</div>
     </div>
   );
 }
 
-// Case de saisie de l'étape 01 (titre, badge "Lié", unité dans le champ).
+// Partie pas encore ouverte : titre visible (le visiteur voit la suite du
+// parcours), contenu révélé quand la partie précédente est complète.
+function PartieVerrouillee({ numero, titre, message }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-900/15 dark:border-white/15 bg-slate-900/[0.02] dark:bg-white/[0.02] px-5 sm:px-8 py-4 flex items-center gap-4 opacity-70">
+      <span className="shrink-0 w-10 h-10 rounded-xl border border-slate-900/15 dark:border-white/15 text-slate-500 text-sm font-bold flex items-center justify-center">
+        0{numero}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Partie {numero}</p>
+        <p className="font-semibold text-slate-700 dark:text-slate-200">{titre}</p>
+      </div>
+      <span className="hidden sm:inline text-xs text-slate-500">🔒 {message}</span>
+    </div>
+  );
+}
+
+// Case de saisie de la partie 2 (titre, badge "Lié", unité dans le champ).
 // Obligation d'emploi calculée instantanément : 6 % de l'effectif, arrondi à
 // l'entier inférieur (même règle que le calcul complet, voir server/src/oeth.js),
 // seulement à partir de 20 salariés.
@@ -1860,7 +2100,7 @@ function CalculSixPourcent({ effectif }) {
   );
 }
 
-function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, accent = false, erreur = null, min = "0", complement = null }) {
+function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, accent = false, erreur = null, min = "0", complement = null, verrouille = false }) {
   return (
     <div
       className={`rounded-xl border p-4 transition ${
@@ -1883,7 +2123,8 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full rounded-lg border border-slate-900/10 dark:border-white/10 bg-white dark:bg-black/30 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 pl-3 pr-16 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          disabled={verrouille}
+          className="w-full disabled:opacity-60 disabled:cursor-not-allowed rounded-lg border border-slate-900/10 dark:border-white/10 bg-white dark:bg-black/30 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 pl-3 pr-16 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">{unite}</span>
       </div>
