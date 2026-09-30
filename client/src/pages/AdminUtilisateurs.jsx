@@ -33,6 +33,8 @@ async function copierPressePapier(texte) {
 // contente d'afficher l'erreur renvoyée le cas échéant.
 export default function AdminUtilisateurs() {
   const [utilisateurs, setUtilisateurs] = useState(null);
+  // Recherche instantanée dans la liste (e-mail, prénom, nom, téléphone).
+  const [recherche, setRecherche] = useState("");
   const [erreur, setErreur] = useState(null);
 
   const [email, setEmail] = useState("");
@@ -191,6 +193,19 @@ export default function AdminUtilisateurs() {
     }
   }
 
+  // Sans accents ni majuscules : "helene" trouve "Hélène", "DUPONT" trouve "Dupont".
+  const normaliser = (texte) =>
+    String(texte || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  const termes = normaliser(recherche).split(/\s+/).filter(Boolean);
+  const utilisateursFiltres = (utilisateurs || []).filter((u) => {
+    if (termes.length === 0) return true;
+    const texte = normaliser([u.email, u.prenom, u.nom, u.telephone].filter(Boolean).join(" "));
+    return termes.every((t) => texte.includes(t));
+  });
+
   return (
     <div className="min-h-screen">
       <div className="bandeau-tricolore">
@@ -327,6 +342,38 @@ export default function AdminUtilisateurs() {
         {confirmationCreation && <p className="text-sm text-emerald-600 dark:text-emerald-400">{confirmationCreation}</p>}
       </form>
 
+      {utilisateurs && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="relative w-full sm:w-96">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              aria-hidden
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path strokeLinecap="round" d="M20 20l-3.5-3.5" />
+            </svg>
+            <input
+              type="search"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+              placeholder="Rechercher un agent (nom, prénom ou e-mail)…"
+              aria-label="Rechercher un agent"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-marine-400"
+            />
+          </div>
+          {recherche.trim() && (
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {utilisateursFiltres.length} compte{utilisateursFiltres.length > 1 ? "s" : ""} sur {utilisateurs.length}
+            </span>
+          )}
+        </div>
+      )}
+
       {!utilisateurs ? (
         <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>
       ) : (
@@ -344,7 +391,7 @@ export default function AdminUtilisateurs() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {utilisateurs.map((u) => (
+              {utilisateursFiltres.map((u) => (
                 <Fragment key={u.id}>
                   <tr>
                     <td className="px-4 py-3 text-slate-800 dark:text-slate-100">{u.email}</td>
@@ -556,10 +603,12 @@ export default function AdminUtilisateurs() {
                   )}
                 </Fragment>
               ))}
-              {utilisateurs.length === 0 && (
+              {utilisateursFiltres.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500">
-                    Aucun compte pour l'instant.
+                    {utilisateurs.length === 0
+                      ? "Aucun compte pour l'instant."
+                      : `Aucun compte ne correspond à « ${recherche.trim()} ».`}
                   </td>
                 </tr>
               )}
