@@ -39,7 +39,6 @@ import {
   verifierConnexionSMTP,
 } from "./mail.js";
 import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
-import { genererEmailOfficielHtml } from "./emailOfficiel.js";
 import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { servirFrontend } from "./seo.js";
@@ -258,7 +257,6 @@ app.post("/api/auth/demander-lien", async (req, res) => {
     const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
     return res.status(statutHttp).json({ error: e.message });
   }
-  if (testVersMoi) return res.json({ test: true, destinataire: destinataireFinal });
   res.json({ statut: "lien_envoye", message: "Un lien de connexion vient de vous être envoyé par mail." });
 });
 
@@ -2325,7 +2323,7 @@ app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorise
 app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
-  const { objet, corps, joindrePdf = true, destinataire, formatOfficiel = false, testVersMoi = false } = req.body;
+  const { objet, corps, joindrePdf = true, destinataire } = req.body;
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
@@ -2338,13 +2336,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     entreprise.contact?.email,
     ...(entreprise.contact?.emailsAlternatifs || []).map((a) => a.email),
   ].filter(Boolean);
-  // `testVersMoi` : aperçu réel envoyé à l'adresse du compte connecté
-  // (jamais une adresse arbitraire), sans rien inscrire sur la fiche.
-  const destinataireFinal = testVersMoi
-    ? req.utilisateur.email
-    : destinataire && emailsConnus.includes(destinataire)
-      ? destinataire
-      : entreprise.contact?.email;
+  const destinataireFinal = destinataire && emailsConnus.includes(destinataire) ? destinataire : entreprise.contact?.email;
   if (!destinataireFinal) {
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
@@ -2371,24 +2363,11 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     piecesJointes = [{ nom: nomFichier, taille: pdf.length }];
   }
 
-  // Mise en page officielle (voir emailOfficiel.js) : bandeau du pôle,
-  // récapitulatif contribution / surcontribution, boutons simulation et
-  // conseiller. Le texte brut reste envoyé en version alternative.
-  const html = formatOfficiel
-    ? genererEmailOfficielHtml({
-        entreprise,
-        oeth: calculerObligationOeth(entreprise),
-        corps,
-        poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
-      })
-    : undefined;
-
   try {
     await envoyerMail({
       to: destinataireFinal,
-      subject: testVersMoi ? `[TEST] ${objet}` : objet,
+      subject: objet,
       text: corps,
-      html,
       fromName: nomExpediteur,
       attachments: piecesJointesEnvoi,
       // Mail de prospection vers une entreprise externe (pas un mail
