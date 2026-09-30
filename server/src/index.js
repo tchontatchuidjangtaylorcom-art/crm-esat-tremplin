@@ -42,6 +42,7 @@ import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
 import { genererEmailOfficielHtml } from "./emailOfficiel.js";
 import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
+import { enregistrerRoutesImportFichier } from "./importFichier.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
@@ -802,6 +803,21 @@ app.post("/api/vitrine/synthese-pdf", async (req, res) => {
 // Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
 enregistrerRoutesVitrineRdv(app);
 enregistrerRoutesRechercheNumeros(app, { exigerAuth, chargerEntrepriseAutorisee, findEntreprise });
+// Import de fichier (Excel, CSV, Word…) : fiches filtrées puis recherche IA
+// des numéros et du contact RH, dans la même file que les autres imports.
+enregistrerRoutesImportFichier(app, {
+  exigerAdmin,
+  creerLeadDepuisSiren,
+  estDejaConnu,
+  findEntreprise,
+  mettreEnFileRechercheIA: (fiches) => {
+    if (!estRechercheIaConfiguree()) return false;
+    fileEnrichissementImport = fileEnrichissementImport
+      .then(() => enrichirTelephonesViaIA(fiches))
+      .catch((e) => console.error("[ia] Échec de l'enrichissement (import de fichier) :", e.message));
+    return true;
+  },
+});
 
 app.post("/api/vitrine/contact", async (req, res) => {
   const nom = String(req.body.nom || "").trim();

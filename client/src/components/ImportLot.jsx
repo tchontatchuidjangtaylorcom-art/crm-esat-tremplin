@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { TERRITOIRES } from "../territoires.js";
+import { extraireDepuisFichier, extraireDepuisTexte } from "../extractionEntreprises.js";
+
+// Import par fichier / liste : petits appels (le serveur interroge Sirene
+// pour chaque entrée), 300 entreprises maximum par import.
+const TAILLE_APPEL_FICHIER = 10;
+const MAX_ENTREES_FICHIER = 300;
 
 // Import d'une vague de prospection (Lot 1, Lot 2…), soit à partir d'une
 // liste de SIREN saisie à la main, soit générée automatiquement à partir
@@ -18,41 +24,109 @@ export default function ImportLot({ categories, agents, lots = [], lotsParSecteu
   const [enCours, setEnCours] = useState(false);
   const [resultat, setResultat] = useState(null);
   const [erreur, setErreur] = useState(null);
+  // Entreprises lues dans un fichier (Excel, CSV, Word…) : { siren } ou { nom }.
+  const [depuisFichier, setDepuisFichier] = useState(null);
+  const [nomFichier, setNomFichier] = useState("");
+  const [lectureFichier, setLectureFichier] = useState(false);
+  const [rechercheIA, setRechercheIA] = useState(true);
+  const [progression, setProgression] = useState(null);
+  const [iaLancee, setIaLancee] = useState(false);
+
+  // Entrées à importer : fichier chargé, sinon texte collé (SIREN, SIRET ou
+  // nom d'entreprise, un par ligne).
+  const entrees = depuisFichier || extraireDepuisTexte(sirensTexte);
+
+  async function lireFichier(ev) {
+    const fichier = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!fichier) return;
+    setLectureFichier(true);
+    setErreur(null);
+    setResultat(null);
+    try {
+      const lues = await extraireDepuisFichier(fichier);
+      if (lues.length === 0) throw new Error("Aucun SIREN, SIRET ni nom d'entreprise trouvé dans ce fichier.");
+      setDepuisFichier(lues);
+      setNomFichier(fichier.name);
+      if (!lot.trim()) setLot(fichier.name.replace(/\.[^.]+$/, ""));
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setLectureFichier(false);
+    }
+  }
 
   async function soumettre(ev) {
     ev.preventDefault();
-    const sirens = sirensTexte
-      .split(/[\s,;]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
     if (!lot.trim()) {
       setErreur("Merci de nommer ce lot (ex : « Lot 3 »).");
       return;
     }
-    if (sirens.length === 0) {
-      setErreur("Collez au moins un SIREN (un par ligne).");
+    if (entrees.length === 0) {
+      setErreur("Ajoutez un fichier, ou collez des SIREN / noms d'entreprise (un par ligne).");
+      return;
+    }
+    if (entrees.length > MAX_ENTREES_FICHIER) {
+      setErreur(`${entrees.length} entreprises détectées : ${MAX_ENTREES_FICHIER} maximum par import, découpez le fichier.`);
       return;
     }
 
     setEnCours(true);
     setErreur(null);
     setResultat(null);
+    setIaLancee(false);
+    const tous = [];
     try {
-      const reponse = await api.importerLot(lot.trim(), sirens, assigneA || null);
-      setResultat(reponse.resultats);
-      onImporte?.();
+      for (let i = 0; i < entrees.length; i += TAILLE_APPEL_FICHIER) {
+        setProgression(`${i} / ${entrees.length}`);
+        const morceau = entrees.slice(i, i + TAILLE_APPEL_FICHIER);
+        let reponse = null;
+        for (let essai = 0; essai <= DELAIS_REESSAI_MS.length && !reponse; essai++) {
+          try {
+            const res = await fetch("/api/leads/import-fichier", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ entrees: morceau, lot: lot.trim(), assigneA: assigneA || null, rechercheIA }),
+            });
+            const donnees = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(donnees.error || `Erreur HTTP ${res.status}`);
+            reponse = donnees;
+          } catch (e) {
+            if (essai === DELAIS_REESSAI_MS.length) throw e;
+            await new Promise((r) => setTimeout(r, DELAIS_REESSAI_MS[essai]));
+          }
+        }
+        tous.push(...reponse.resultats);
+        if (reponse.rechercheIA) setIaLancee(true);
+        setResultat([...tous]);
+      }
+      setDepuisFichier(null);
+      setNomFichier("");
       setSirensTexte("");
     } catch (e) {
-      setErreur(e.message);
+      setErreur(
+        `Import interrompu après ${tous.length} / ${entrees.length} (${e.message}). Relancez : les entreprises déjà importées seront simplement ignorées.`
+      );
     } finally {
+      setProgression(null);
       setEnCours(false);
+      onImporte?.();
     }
   }
 
   const compteurs = resultat?.reduce(
     (acc, r) => ({ ...acc, [r.statut]: (acc[r.statut] || 0) + 1 }),
     {}
+  );
+  // Motifs d'écartement regroupés ("moins de 20 salariés" : 12…).
+  const motifsEcartes = Object.entries(
+    (resultat || [])
+      .filter((r) => r.statut === "ecartee" || r.statut === "introuvable")
+      .reduce((acc, r) => {
+        const motif = r.motif.replace(/\s*\(.*\)$/, "");
+        (acc[motif] ||= []).push(r);
+        return acc;
+      }, {})
   );
 
   return (
@@ -137,23 +211,70 @@ export default function ImportLot({ categories, agents, lots = [], lotsParSecteu
                 )}
               </div>
 
-              <label className="block text-xs text-slate-500 dark:text-slate-400">
-                Liste de SIREN (un par ligne, jusqu'à 100)
-                <textarea
-                  value={sirensTexte}
-                  onChange={(e) => setSirensTexte(e.target.value)}
-                  placeholder={"552100554\n214401093\n..."}
-                  rows={5}
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm font-mono"
-                />
+              {/* Fichier : Excel, OpenDocument, CSV, texte ou Word. */}
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 px-3 py-2.5">
+                <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-marine-700 hover:bg-marine-800 text-white text-sm font-medium px-3 py-1.5">
+                  📄 Choisir un fichier
+                  <input
+                    type="file"
+                    accept=".xlsx,.xlsm,.xls,.ods,.csv,.txt,.tsv,.docx"
+                    onChange={lireFichier}
+                    className="hidden"
+                  />
+                </label>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {lectureFichier
+                    ? "Lecture du fichier…"
+                    : depuisFichier
+                      ? `${nomFichier} : ${depuisFichier.length} entreprise${depuisFichier.length > 1 ? "s" : ""} détectée${depuisFichier.length > 1 ? "s" : ""}`
+                      : "Excel, CSV, Word ou texte — SIREN, SIRET ou simplement le nom des entreprises."}
+                </span>
+                {depuisFichier && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDepuisFichier(null);
+                      setNomFichier("");
+                    }}
+                    className="text-xs text-slate-500 hover:text-red-600"
+                  >
+                    Retirer le fichier
+                  </button>
+                )}
+              </div>
+
+              {!depuisFichier && (
+                <label className="block text-xs text-slate-500 dark:text-slate-400">
+                  … ou collez une liste : SIREN, SIRET ou nom d'entreprise (un par ligne)
+                  <textarea
+                    value={sirensTexte}
+                    onChange={(e) => setSirensTexte(e.target.value)}
+                    placeholder={"552100554\nDalkia Froid Solutions\n214401093\n..."}
+                    rows={5}
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm font-mono"
+                  />
+                </label>
+              )}
+
+              {entrees.length > 0 && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {entrees.filter((e) => e.siren).length} numéro(s) SIREN / SIRET · {entrees.filter((e) => e.nom).length} nom(s)
+                  d'entreprise (retrouvés dans Sirene). Écartées automatiquement : moins de 20 salariés, entreprises fermées,
+                  créées il y a moins de 5 ans, déjà dans le CRM.
+                </p>
+              )}
+
+              <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                <input type="checkbox" checked={rechercheIA} onChange={(e) => setRechercheIA(e.target.checked)} />
+                Rechercher automatiquement les numéros de téléphone et le contact RH (IA, en arrière-plan)
               </label>
 
               <button
                 type="submit"
-                disabled={enCours}
+                disabled={enCours || lectureFichier || entrees.length === 0}
                 className="rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium px-4 py-2 disabled:opacity-40"
               >
-                {enCours ? "Import en cours…" : "Importer le lot"}
+                {enCours ? `Import en cours… ${progression || ""}` : `Importer ${entrees.length || ""} entreprise${entrees.length > 1 ? "s" : ""}`}
               </button>
 
               {erreur && <p className="text-sm text-red-600 dark:text-red-400">{erreur}</p>}
@@ -161,22 +282,58 @@ export default function ImportLot({ categories, agents, lots = [], lotsParSecteu
               {resultat && (
                 <div className="text-sm text-slate-600 dark:text-slate-300 space-y-2">
                   <p>
-                    {compteurs.cree || 0} créé{(compteurs.cree || 0) > 1 ? "s" : ""} ·{" "}
-                    {compteurs.existant || 0} déjà existant{(compteurs.existant || 0) > 1 ? "s" : ""} ·{" "}
-                    {compteurs.radiee || 0} radié{(compteurs.radiee || 0) > 1 ? "s" : ""} (archivé
-                    {(compteurs.radiee || 0) > 1 ? "s" : ""}) · {compteurs.erreur || 0} erreur
-                    {(compteurs.erreur || 0) > 1 ? "s" : ""}
+                    <strong className="text-emerald-700 dark:text-emerald-400">
+                      {compteurs.cree || 0} fiche{(compteurs.cree || 0) > 1 ? "s" : ""} créée{(compteurs.cree || 0) > 1 ? "s" : ""}
+                    </strong>{" "}
+                    · {compteurs.existant || 0} déjà dans le CRM · {compteurs.ecartee || 0} écartée
+                    {(compteurs.ecartee || 0) > 1 ? "s" : ""} · {compteurs.introuvable || 0} introuvable
+                    {(compteurs.introuvable || 0) > 1 ? "s" : ""}
+                    {compteurs.erreur ? ` · ${compteurs.erreur} erreur${compteurs.erreur > 1 ? "s" : ""}` : ""}
                   </p>
+                  {iaLancee && (
+                    <p className="text-xs text-marine-700 dark:text-marine-300">
+                      🔎 Recherche des numéros et du contact RH lancée en arrière-plan pour les fiches créées.
+                    </p>
+                  )}
+                  {motifsEcartes.map(([motif, lignes]) => (
+                    <details key={motif} className="text-xs">
+                      <summary className="cursor-pointer">
+                        {motif} : {lignes.length}
+                      </summary>
+                      <ul className="mt-1 ml-4 list-disc text-slate-500 dark:text-slate-400">
+                        {lignes.map((r, i) => (
+                          <li key={i}>
+                            {r.nom ? `${r.nom}${r.nom !== r.saisie ? ` (${r.saisie})` : ""}` : r.saisie}
+                            {/\(.*\)$/.test(r.motif) ? ` — ${r.motif.match(/\((.*)\)$/)[1]}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ))}
                   {compteurs.erreur > 0 && (
                     <ul className="text-xs text-red-600 dark:text-red-400 list-disc list-inside">
                       {resultat
                         .filter((r) => r.statut === "erreur")
-                        .map((r) => (
-                          <li key={r.siren}>
-                            {r.siren} : {r.erreur}
+                        .map((r, i) => (
+                          <li key={i}>
+                            {r.saisie} : {r.motif}
                           </li>
                         ))}
                     </ul>
+                  )}
+                  {compteurs.cree > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer">Fiches créées : {compteurs.cree}</summary>
+                      <ul className="mt-1 ml-4 list-disc text-slate-500 dark:text-slate-400">
+                        {resultat
+                          .filter((r) => r.statut === "cree")
+                          .map((r, i) => (
+                            <li key={i}>
+                              {r.nom} — {r.ville} · {r.effectif}
+                            </li>
+                          ))}
+                      </ul>
+                    </details>
                   )}
                 </div>
               )}
