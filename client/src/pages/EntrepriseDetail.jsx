@@ -409,6 +409,14 @@ export default function EntrepriseDetail() {
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
           </p>
+          <p className="text-xs mt-1">
+            <span className="text-slate-400 dark:text-slate-500">Agent assigné : </span>
+            {entreprise.assigneANom ? (
+              <span className="font-medium text-marine-700 dark:text-marine-300">{entreprise.assigneANom}</span>
+            ) : (
+              <span className="font-medium text-slate-400 dark:text-slate-500">Non assigné</span>
+            )}
+          </p>
           <BoutonRechercheNumeros entreprise={entreprise} onMaj={setEntreprise} />
         </div>
         <div className="flex items-center gap-3">
