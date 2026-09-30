@@ -86,6 +86,7 @@ export function genererEmailOfficielHtml({ entreprise, oeth, corps, poleInfo }) 
   const effectif = Number(entreprise.effectif) || 0;
   const smic = oeth.tauxHoraireSmic;
   const avecDeficit = oeth.assujetti && oeth.deficit > 0;
+  const aucunBeneficiaire = !Number(oeth.beneficiairesRecrutes);
   const coefClassique = effectif <= 249 ? 400 : effectif <= 749 ? 500 : 600;
   const contribution = Math.round(oeth.deficit * coefClassique * smic);
   const surcontribution = Math.round(oeth.deficit * 1500 * smic);
@@ -96,9 +97,29 @@ export function genererEmailOfficielHtml({ entreprise, oeth, corps, poleInfo }) 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 4px;">
       ${ligne("Effectif retenu (à confirmer)", `${effectif.toLocaleString("fr-FR")} salariés`)}
       ${ligne("Obligation d'emploi (6 %)", `${oeth.unitesRequises} bénéficiaire${oeth.unitesRequises > 1 ? "s" : ""}`)}
-      ${ligne("Bénéficiaires déjà employés", `${oeth.beneficiairesRecrutes}`)}
+      ${ligne(
+        aucunBeneficiaire
+          ? `Bénéficiaires déjà employés<br><span style="font-size:11px;color:${GRIS_CLAIR};">Vous en avez recruté entre-temps ? Même un seul fait baisser les montants.</span>`
+          : "Bénéficiaires déjà employés",
+        aucunBeneficiaire ? "0 (à confirmer)" : `${oeth.beneficiairesRecrutes}`
+      )}
       ${ligne("Unités manquantes", `${oeth.deficit}`, true)}
     </table>`;
+
+  // 0 bénéficiaire déclaré : c'est ce chiffre qui fait basculer vers la
+  // surcontribution — on le dit clairement, avec la porte de sortie simple.
+  const alerteSurcontribution =
+    avecDeficit && aucunBeneficiaire
+      ? `
+    <div style="margin:10px 0 8px;padding:12px 14px;background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #ea580c;border-radius:6px;">
+      <div style="font-size:13px;font-weight:700;color:#9a3412;">Avec 0 bénéficiaire déclaré, c'est la surcontribution qui risque de s'appliquer.</div>
+      <div style="font-size:12px;line-height:1.55;color:#7c2d12;margin-top:4px;">
+        Elle peut être évitée : un seul bénéficiaire employé, une sous-traitance d'au moins 600 × SMIC auprès d'une
+        EA / d'un ESAT / d'un TIH, ou un accord agréé suffit à revenir à la contribution classique. Un conseiller peut vous
+        aider à vérifier votre situation et à choisir la solution la plus simple — l'échange est gratuit.
+      </div>
+    </div>`
+      : "";
 
   const comparatif = avecDeficit
     ? `
@@ -116,6 +137,7 @@ export function genererEmailOfficielHtml({ entreprise, oeth, corps, poleInfo }) 
         </td>
       </tr>
     </table>
+    ${alerteSurcontribution}
     <p style="margin:0 0 6px;font-size:12px;line-height:1.5;color:${GRIS_CLAIR};">
       La surcontribution s'applique si, sur les 4 dernières années, aucune action n'a été menée (aucun bénéficiaire employé,
       pas de sous-traitance EA / ESAT / TIH d'au moins 600 × SMIC, pas d'accord agréé). Montants avant déductions éventuelles.
