@@ -116,6 +116,21 @@ export default function EntrepriseDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Titre de l'onglet = nom de l'entreprise EN PREMIER (pas juste "CRM") :
+  // avec plusieurs fiches ouvertes dans des onglets, chacun se rétrécit et le
+  // navigateur tronque le titre par la droite — mettre le nom en tête garde
+  // ses premiers caractères visibles même sur un onglet très étroit, pour
+  // s'y retrouver d'un coup d'œil. Restauré au démontage (retour au tableau
+  // de bord) pour ne pas laisser le nom d'une ancienne fiche affiché ailleurs.
+  useEffect(() => {
+    if (!entreprise?.nom) return;
+    const titreOriginal = document.title;
+    document.title = `${entreprise.nom} — CRM OETH`;
+    return () => {
+      document.title = titreOriginal;
+    };
+  }, [entreprise?.nom]);
+
   // Se met à jour si un appel VoIP (module AGIR) enregistre une issue pendant
   // que cette fiche est ouverte.
   useEffect(() => {
