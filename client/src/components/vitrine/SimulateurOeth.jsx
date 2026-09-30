@@ -301,6 +301,24 @@ export default function SimulateurOeth() {
               ? { cible: "etape-essentiel", texte: "Partie 2 : renseignez votre effectif d'assujettissement (minimum 20 salariés)." }
               : null;
   const parcoursComplet = !elementManquant;
+
+  // Cases BOETH verrouillées en partie 2 : on rappelle la réponse donnée
+  // plus haut, dans la case même, avec un lien pour la modifier.
+  const messageBoethVerrouille = toutesAnneesNon
+    ? `Vous avez indiqué plus haut : aucun BOETH de ${anneesRegle[0]} à ${anneesRegle[3]}.`
+    : `Vous avez indiqué plus haut : aucun BOETH en ${ANNEE_REFERENCE}.`;
+  const lienModifierPartie1 = (
+    <>
+      Valeur reprise de la partie 1.{" "}
+      <button
+        type="button"
+        onClick={() => document.getElementById("etape-situation")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        className="font-semibold text-marine-600 dark:text-marine-300 hover:underline"
+      >
+        Modifier ma réponse ↑
+      </button>
+    </>
+  );
   useEffect(() => {
     if (parcoursComplet) setMessageFlottant(false);
   }, [parcoursComplet]);
@@ -1243,8 +1261,8 @@ export default function SimulateurOeth() {
                 value={tauxSaisi}
                 onChange={changerTaux}
                 placeholder="Ex. 1"
-                aide={boethVerrouille ? `Fixé à 0 : aucun BOETH en ${ANNEE_REFERENCE} (réponse de la partie 1).` : "Taux légal, valorisation seniors incluse."}
-                verrouille={boethVerrouille}
+                aide={boethVerrouille ? lienModifierPartie1 : "Taux légal, valorisation seniors incluse."}
+                verrouille={boethVerrouille && messageBoethVerrouille}
                 accent
               />
               <CaseSaisie
@@ -1256,10 +1274,10 @@ export default function SimulateurOeth() {
                 placeholder="Ex. 0,34"
                 aide={
                   boethVerrouille
-                    ? `Fixé à 0 : aucun BOETH en ${ANNEE_REFERENCE} (réponse de la partie 1).`
+                    ? lienModifierPartie1
                     : "Bénéficiaires de l'obligation d'emploi pris en compte dans la déclaration."
                 }
-                verrouille={boethVerrouille}
+                verrouille={boethVerrouille && messageBoethVerrouille}
                 accent
               />
             </div>
@@ -2204,6 +2222,16 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
         )}
       </div>
       <div className="mt-2.5 flex items-stretch gap-2">
+      {/* Verrouillée : la valeur vient d'une réponse de la partie 1, on le
+          dit dans la case elle-même plutôt que d'afficher un 0 muet. */}
+      {verrouille ? (
+        <div className="flex-1 min-w-0 flex items-center gap-3 rounded-lg border border-red-400/40 bg-red-500/[0.07] px-3 py-2">
+          <span className="shrink-0 text-lg font-bold tabular-nums text-slate-900 dark:text-white">
+            0 <span className="text-[10px] font-normal text-slate-500">{unite}</span>
+          </span>
+          <span className="text-[12px] font-semibold leading-snug text-red-700 dark:text-red-300">{verrouille}</span>
+        </div>
+      ) : (
       <div className="relative flex-1 min-w-0">
         <input
           type="number"
@@ -2213,11 +2241,11 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          disabled={verrouille}
-          className="w-full disabled:opacity-60 disabled:cursor-not-allowed rounded-lg border border-slate-900/10 dark:border-white/10 bg-white dark:bg-black/30 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 pl-3 pr-16 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="w-full rounded-lg border border-slate-900/10 dark:border-white/10 bg-white dark:bg-black/30 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 pl-3 pr-16 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-marine-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">{unite}</span>
       </div>
+      )}
       {complement}
       </div>
       <p className={`text-[11px] mt-2 leading-snug ${erreur ? "text-red-700 dark:text-red-300" : "text-slate-500"}`}>{erreur || aide}</p>
