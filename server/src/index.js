@@ -2339,11 +2339,20 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   ].filter(Boolean);
   // `testVersMoi` : aperçu réel envoyé à l'adresse du compte connecté
   // (jamais une adresse arbitraire), sans rien inscrire sur la fiche.
+  // Fiche encore sans adresse valide : la fenêtre d'envoi (GenererEmailModal)
+  // permet de saisir celle de l'entreprise, qui devient ensuite son adresse
+  // principale — elle est acceptée si son format est correct.
+  const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const aucuneAdresseConnue = !emailsConnus.some((e) => EMAIL_VALIDE.test(e));
+  const premiereAdresse =
+    aucuneAdresseConnue && typeof destinataire === "string" && EMAIL_VALIDE.test(destinataire.trim())
+      ? destinataire.trim()
+      : null;
   const destinataireFinal = testVersMoi
     ? req.utilisateur.email
     : destinataire && emailsConnus.includes(destinataire)
       ? destinataire
-      : entreprise.contact?.email;
+      : premiereAdresse || (EMAIL_VALIDE.test(entreprise.contact?.email || "") ? entreprise.contact.email : null);
   if (!destinataireFinal) {
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
