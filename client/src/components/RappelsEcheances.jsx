@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext.jsx";
 import { jouerAlarme } from "../sonConfirmation.js";
 import { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { estNumeroAffichable } from "../telephone.js";
+import ChampDateHeure from "./ChampDateHeure.jsx";
 
 // Alerte à l'heure d'un RDV ou d'un rappel (voir GET /api/echeances) : une
 // fenêtre qui ne se ferme pas d'un clic à côté, un bip répété, et une
@@ -63,8 +64,8 @@ function formatQuand(date) {
   return `le ${d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} à ${heure}`;
 }
 
-// Date au format des champs datetime-local ("2026-10-01T08:50"), en heure
-// locale : c'est le format enregistré pour dateRappel / dateRdv.
+// Date au format "AAAA-MM-JJTHH:MM" en heure locale (celui de ChampDateHeure),
+// c'est le format enregistré pour dateRappel / dateRdv.
 function versChampDate(d) {
   const deux = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}T${deux(d.getHours())}:${deux(d.getMinutes())}`;
@@ -379,20 +380,17 @@ export default function RappelsEcheances() {
               </button>
             </div>
             {autreDate !== null && (
-              <div className="flex gap-2">
-                <input
-                  type="datetime-local"
-                  value={autreDate}
-                  onChange={(e) => setAutreDate(e.target.value)}
-                  className="flex-1 min-w-0 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-xs"
-                />
+              <div className="space-y-2">
+                {/* Même sélecteur que le reste du CRM (heure tapée à la main,
+                    raccourcis) plutôt que le champ natif du navigateur. */}
+                <ChampDateHeure value={autreDate} onChange={setAutreDate} libelleDate="Nouvelle date du rappel" />
                 <button
                   type="button"
                   disabled={!autreDate || reportEnCours}
                   onClick={() => reporterA(autreDate)}
-                  className="rounded-lg bg-marine-700 hover:bg-marine-800 text-white px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                  className="w-full rounded-lg bg-marine-700 hover:bg-marine-800 text-white px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                 >
-                  Valider
+                  Valider le report
                 </button>
               </div>
             )}
