@@ -456,6 +456,8 @@ export default function Dashboard() {
 
         <div className="flex-1 min-w-0">
           <RechercheSiren
+            entreprises={toutesEntreprises}
+            archives={archives}
             onEntreprise={(entreprise, existant, archive) => {
               if (archive) {
                 setNbArchivees((n) => n + (existant ? 0 : 1));
