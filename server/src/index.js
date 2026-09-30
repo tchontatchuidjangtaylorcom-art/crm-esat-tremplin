@@ -55,6 +55,7 @@ import {
   repondreQuestionDomaine,
   listerModelesDisponibles,
   detailErreur as detailErreurIa,
+  nettoieEmail,
 } from "./rechercheContact.js";
 import {
   trouverOuCreerUtilisateur,
@@ -75,7 +76,7 @@ import {
 } from "./auth.js";
 import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
-import { reparerChampsContact } from "./telephone.js";
+import { reparerChampsContact, estNumeroTelephone } from "./telephone.js";
 import { territoireDe, territoireValide, nomTerritoire } from "./territoires.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1106,6 +1107,24 @@ function estDejaTenteeSansSucces(entreprise) {
 // le numéro principal, les suivants vont dans les numéros alternatifs (même
 // format que GestionTelephones.jsx), et le contact RH devient le contact
 // principal s'il n'y en a pas encore, sinon un contact alternatif.
+// Ajoute une adresse e-mail à la fiche si elle n'y est pas déjà : adresse
+// principale s'il n'y en a pas, sinon adresse secondaire avec une note.
+function ajouterEmailFiche(contact, email, note) {
+  if (!email) return false;
+  const connues = [contact.email, ...(contact.emailsAlternatifs || []).map((e) => e.email)]
+    .filter(Boolean)
+    .map((e) => e.toLowerCase());
+  if (connues.includes(email.toLowerCase())) return false;
+  if (!contact.email) contact.email = email;
+  else {
+    contact.emailsAlternatifs = [
+      ...(contact.emailsAlternatifs || []),
+      { id: nanoid(), email, note, dateAjout: new Date().toISOString() },
+    ];
+  }
+  return true;
+}
+
 function appliquerResultatRechercheIA(entreprise, resultat) {
   const contact = entreprise.contact;
   const maintenant = new Date().toISOString();
@@ -1136,12 +1155,18 @@ function appliquerResultatRechercheIA(entreprise, resultat) {
         { id: nanoid(), nom: rh.nom, fonction: rh.fonction || "", dateAjout: maintenant },
       ];
     }
+    // Contact RH déjà trouvé : pas besoin de la recherche RH à l'ouverture.
+    entreprise.rechercheContactRH = { date: maintenant, resultat: "trouve" };
   }
+  // E-mails RH publiés : celui de la personne, ou l'adresse RH/recrutement.
+  if (rh?.email) ajouterEmailFiche(contact, rh.email, `RH — ${rh.nom} (trouvé par l'IA)`);
+  if (resultat.emailRH) ajouterEmailFiche(contact, resultat.emailRH, "Adresse RH / recrutement (trouvée par l'IA)");
 
   const lignes = resultat.telephones.map(
     (t, i) => `n°${i + 1} ${t.numero}${t.libelle ? ` (${t.libelle})` : ""}${t.source ? ` — ${t.source}` : ""}`
   );
-  if (rh) lignes.push(`contact : ${rh.nom}${rh.fonction ? `, ${rh.fonction}` : ""}${rh.source ? ` — ${rh.source}` : ""}`);
+  if (rh) lignes.push(`contact : ${rh.nom}${rh.fonction ? `, ${rh.fonction}` : ""}${rh.email ? ` (${rh.email})` : ""}${rh.source ? ` — ${rh.source}` : ""}`);
+  if (resultat.emailRH && resultat.emailRH !== rh?.email) lignes.push(`e-mail RH : ${resultat.emailRH}`);
   entreprise.commentaires.unshift({
     id: nanoid(),
     date: maintenant,
@@ -1149,6 +1174,88 @@ function appliquerResultatRechercheIA(entreprise, resultat) {
     texte: `Trouvé automatiquement par recherche IA (confiance ${resultat.confiance}) : ${lignes.join(" ; ")}. À vérifier au premier appel.`,
   });
 }
+
+// Recherche automatique du contact RH à l'ouverture d'une fiche qui n'a pas
+// encore de nom de contact (voir EntrepriseDetail.jsx) : même assistant que
+// "Qui contacter pour les RH ?", résultat enregistré directement sur la fiche
+// (nom + fonction en contact principal, e-mail et ligne directe s'ils sont
+// publiés). Une seule tentative par fiche (rechercheContactRH), jamais deux
+// recherches simultanées sur la même fiche.
+const QUESTION_CONTACT_RH =
+  "Qui est le ou la DRH, responsable des ressources humaines, chargé(e) de recrutement ou référent handicap de " +
+  "cette entreprise (idéalement pour cet établissement) ? Donne son nom, sa fonction, et son e-mail professionnel " +
+  "et sa ligne directe uniquement s'ils sont publiés.";
+const recherchesContactRhEnCours = new Set();
+
+function appliquerContactRhIa(entreprise, resultat) {
+  const c = resultat.contact;
+  if (!c?.nom) return false;
+  const contact = entreprise.contact || (entreprise.contact = {});
+  const maintenant = new Date().toISOString();
+  const sansNom = !contact.nom || contact.nom === "-";
+  const dejaConnu = [contact.nom, ...(contact.contactsAlternatifs || []).map((x) => x.nom)].some(
+    (n) => n && n.toLowerCase() === c.nom.toLowerCase()
+  );
+  if (sansNom) {
+    contact.nom = c.nom;
+    contact.fonction = c.role || "-";
+  } else if (!dejaConnu) {
+    contact.contactsAlternatifs = [
+      ...(contact.contactsAlternatifs || []),
+      { id: nanoid(), nom: c.nom, fonction: c.role || "", dateAjout: maintenant },
+    ];
+  }
+  const email = nettoieEmail(c.email);
+  if (email) ajouterEmailFiche(contact, email, `RH — ${c.nom} (trouvé par l'IA)`);
+  const direct = c.telephone && estNumeroTelephone(String(c.telephone).trim()) ? String(c.telephone).trim() : null;
+  if (direct) {
+    const chiffres = direct.replace(/\D/g, "");
+    const connus = [contact.telephone, ...(contact.telephonesAlternatifs || []).map((t) => t.numero)]
+      .filter(Boolean)
+      .map((n) => String(n).replace(/\D/g, ""));
+    if (!connus.includes(chiffres)) {
+      contact.telephonesAlternatifs = [
+        ...(contact.telephonesAlternatifs || []),
+        { id: nanoid(), numero: direct, note: `Ligne directe RH — ${c.nom} (IA)`, dateAjout: maintenant },
+      ];
+    }
+  }
+  entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+  entreprise.commentaires.unshift({
+    id: nanoid(),
+    date: maintenant,
+    auteur: "Assistant IA",
+    texte:
+      `Contact RH trouvé automatiquement (confiance ${resultat.confiance}) : ${c.nom}${c.role ? `, ${c.role}` : ""}` +
+      `${email ? ` — ${email}` : ""}${direct ? ` — ligne directe ${direct}` : ""}` +
+      `${resultat.source ? ` — source : ${resultat.source}` : ""}. À vérifier au premier appel.`,
+  });
+  return true;
+}
+
+app.post("/api/entreprises/:id/contact-rh-auto", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
+  const aDejaUnNom = entreprise.contact?.nom && entreprise.contact.nom !== "-";
+  if (aDejaUnNom || entreprise.rechercheContactRH || recherchesContactRhEnCours.has(entreprise.id) || !estRechercheIaConfiguree()) {
+    return res.json({ lance: false, entreprise: enrichir(entreprise) });
+  }
+  recherchesContactRhEnCours.add(entreprise.id);
+  try {
+    const resultat = await poserQuestionContact(entreprise, QUESTION_CONTACT_RH);
+    const trouve = appliquerContactRhIa(entreprise, resultat);
+    entreprise.rechercheContactRH = { date: new Date().toISOString(), resultat: trouve ? "trouve" : "introuvable" };
+    await db.write();
+    res.json({ lance: true, trouve, contact: resultat.contact, entreprise: enrichir(entreprise) });
+  } catch (e) {
+    // Échec passager (surcharge, crédit…) : pas de marque, nouvel essai à la
+    // prochaine ouverture de la fiche.
+    console.error(`[ia] Échec de la recherche du contact RH pour ${entreprise.nom} :`, JSON.stringify(detailErreurIa(e)));
+    const statutHttp = e.code === "IA_NON_CONFIGUREE" ? 503 : e.code === "TIMEOUT_MANUEL" ? 504 : 502;
+    res.status(statutHttp).json(corpsErreurIa(e));
+  } finally {
+    recherchesContactRhEnCours.delete(entreprise.id);
+  }
+});
 
 async function enrichirTelephonesViaIA(entreprises, { onProgres } = {}) {
   let echecsConsecutifs = 0;

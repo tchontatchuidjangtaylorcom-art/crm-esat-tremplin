@@ -216,7 +216,9 @@ function construirePrompt(entreprise) {
     `le numéro dans la page elle-même plutôt que de te fier à un extrait de résultat.\n` +
     `Objectif 2 — si possible, la personne à contacter pour le recrutement ou l'obligation d'emploi des travailleurs ` +
     `handicapés : DRH, responsable RH, chargé(e) de recrutement, référent handicap, ou à défaut le dirigeant. ` +
-    `Uniquement un nom réel lu dans une source (site officiel, LinkedIn, presse, Societe.com pour le dirigeant).\n` +
+    `Uniquement un nom réel lu dans une source (site officiel, LinkedIn, presse, Societe.com pour le dirigeant). ` +
+    `Ajoute son e-mail professionnel s'il est publié ; sinon, l'adresse e-mail RH / recrutement publiée par ` +
+    `l'entreprise (ex. rh@…, recrutement@…, jobs@…). Jamais une adresse devinée ou reconstituée.\n` +
     `Objectif 3 — la catégorie la plus pertinente EXCLUSIVEMENT parmi cette liste (clé, pas libellé) : ${listeCategories}.\n` +
     `\n` +
     `Ne renvoie que des informations lues dans une source : un numéro ou un nom inventé ferait perdre du temps à ` +
@@ -224,7 +226,8 @@ function construirePrompt(entreprise) {
     `son libellé.\n` +
     `Termine ta réponse par un unique objet JSON, sans texte après, au format :\n` +
     `{"telephones": [{"numero": "01 23 45 67 89", "libelle": "standard | accueil | agence | siège | RH | ...", "source": "<url>"}], ` +
-    `"contactRH": {"nom": "<prénom nom>", "fonction": "<fonction>", "source": "<url>"} ou null, ` +
+    `"contactRH": {"nom": "<prénom nom>", "fonction": "<fonction>", "email": "<e-mail publié ou null>", "source": "<url>"} ou null, ` +
+    `"emailRH": "<adresse RH ou recrutement publiée par l'entreprise, ou null>", ` +
     `"secteurCategorie": "<clé ou null>", "confiance": "haute|moyenne|faible"}\n` +
     `Classe les numéros du plus utile au moins utile (3 au maximum) ; "telephones" vaut [] si rien de fiable.`
   );
@@ -260,6 +263,14 @@ function nettoieNumero(v) {
   const numero = v.replace(/[^\d+ .()-]/g, "").trim();
   const chiffres = numero.replace(/\D/g, "");
   return chiffres.length >= 9 && chiffres.length <= 15 ? numero : null;
+}
+
+// Garde une adresse e-mail seulement si elle en a la forme (écarte "null",
+// "non trouvé", "via le formulaire de contact"…).
+export function nettoieEmail(v) {
+  if (!v || typeof v !== "string") return null;
+  const email = v.trim().replace(/^mailto:/i, "").toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : null;
 }
 
 function extraireResultat(texte) {
@@ -298,8 +309,14 @@ function extraireResultat(texte) {
 
   const rh = resultat.contactRH && typeof resultat.contactRH.nom === "string" && nettoie(resultat.contactRH.nom);
   const contactRH = rh
-    ? { nom: resultat.contactRH.nom.trim(), fonction: nettoie(resultat.contactRH.fonction) || "", source: nettoie(resultat.contactRH.source) }
+    ? {
+        nom: resultat.contactRH.nom.trim(),
+        fonction: nettoie(resultat.contactRH.fonction) || "",
+        email: nettoieEmail(resultat.contactRH.email),
+        source: nettoie(resultat.contactRH.source),
+      }
     : null;
+  const emailRH = nettoieEmail(resultat.emailRH);
 
   // Défense contre une clé de catégorie hallucinée/inconnue : on ignore
   // plutôt que de laisser une clé invalide se propager jusqu'à classifierSecteur.
@@ -309,6 +326,7 @@ function extraireResultat(texte) {
   return {
     telephones,
     contactRH,
+    emailRH,
     // Champs historiques, lus par /api/entreprises/:id/rechercher-contact.
     telephone: telephones[0]?.numero || null,
     contact: contactRH ? [contactRH.nom, contactRH.fonction].filter(Boolean).join(", ") : null,

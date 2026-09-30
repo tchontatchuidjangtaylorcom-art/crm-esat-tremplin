@@ -74,6 +74,8 @@ export const api = {
 
   getDoublons: (id) => fetch(`${BASE}/entreprises/${id}/doublons`).then(handle),
 
+  rechercherContactRhAuto: (id) => fetch(`${BASE}/entreprises/${id}/contact-rh-auto`, { method: "POST" }).then(handle),
+
   ajouterCommentaire: (id, { texte, auteur }) =>
     fetch(`${BASE}/entreprises/${id}/commentaires`, {
       method: "POST",
