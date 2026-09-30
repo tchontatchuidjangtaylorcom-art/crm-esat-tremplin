@@ -418,15 +418,28 @@ export default function EntrepriseDetail() {
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
           </p>
-          <p className="text-xs mt-1">
-            <span className="text-slate-400 dark:text-slate-500">Agent assigné : </span>
-            {entreprise.assigneANom ? (
-              <span className="font-medium text-marine-700 dark:text-marine-300">{entreprise.assigneANom}</span>
-            ) : (
-              <span className="font-medium text-slate-400 dark:text-slate-500">Non assigné</span>
+          {/* Agent assigné + prochaine échéance : sur la même ligne que le
+              bouton de recherche de numéros plutôt qu'empilés verticalement,
+              pour ne pas pousser le reste de la fiche vers le bas — la
+              date de RDV/rappel doit rester visible sans avoir à descendre
+              jusqu'à l'historique (même donnée que la colonne Échéance du
+              tableau de bord, voir EntrepriseTable.jsx). */}
+          <div className="flex flex-wrap items-center gap-3 mt-1.5">
+            <BoutonRechercheNumeros entreprise={entreprise} onMaj={setEntreprise} />
+            <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+              Agent assigné :{" "}
+              {entreprise.assigneANom ? (
+                <span className="font-medium text-marine-700 dark:text-marine-300">{entreprise.assigneANom}</span>
+              ) : (
+                <span className="font-medium text-slate-400 dark:text-slate-500">Non assigné</span>
+              )}
+            </span>
+            {(entreprise.dateRdv || entreprise.dateRappel) && (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-full px-2.5 py-1 whitespace-nowrap">
+                {entreprise.dateRdv ? "📅 RDV :" : "☎️ Rappel :"} {formatDateHeure(entreprise.dateRdv || entreprise.dateRappel)}
+              </span>
             )}
-          </p>
-          <BoutonRechercheNumeros entreprise={entreprise} onMaj={setEntreprise} />
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
