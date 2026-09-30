@@ -58,6 +58,16 @@ const DISPOSITIFS = [
   },
 ];
 
+// Part de la contribution que chaque solution permet de déduire, pour le
+// calcul "avec cette solution" du calcul rapide. ESAT Classique ~30 % et
+// ESAT Tremplin ~80 % : chiffres du script de vente validé (scriptVente.js).
+// TIH : même règle légale que toute sous-traitance EA / ESAT / TIH, 30 % du
+// coût de main-d'œuvre (voir TAUX_DEDUCTION_SOUS_TRAITANCE dans oeth.js).
+const TAUX_SOLUTION = { classique: 0.3, tremplin: 0.8, tih: 0.3 };
+const LIBELLE_COURT = { classique: "ESAT Classique", tremplin: "ESAT Tremplin", tih: "TIH" };
+// Libellés des boutons (le panneau est étroit : "ESAT" est dans l'intitulé).
+const LIBELLE_BOUTON = { classique: "Classique", tremplin: "Tremplin", tih: "TIH" };
+
 function formatMontant(n) {
   return `${Math.round(n || 0).toLocaleString("fr-FR")} €`;
 }
@@ -108,6 +118,9 @@ export default function PanelEsatTremplin() {
   const [boeth, setBoeth] = useState("");
   const [situation, setSituation] = useState("contribution"); // contribution | surcontribution
   const [dispositifOuvert, setDispositifOuvert] = useState("tremplin");
+  // Solution simulée dans le calcul rapide, et fiche d'explication ouverte (ⓘ).
+  const [solution, setSolution] = useState(null);
+  const [infoSolution, setInfoSolution] = useState(null);
 
   // Sur une fiche entreprise : champs pré-remplis avec son effectif et ses
   // BOETH, et enregistrement direct sur la fiche après confirmation au
@@ -142,6 +155,12 @@ export default function PanelEsatTremplin() {
 
   const calcul = calculer(bareme, effectif, boeth);
   const surco = situation === "surcontribution";
+  const effNombre = Number(effectif);
+  const horsBoeth =
+    String(effectif).trim() !== "" && Number.isFinite(effNombre) && effNombre > 0
+      ? Math.max(0, effNombre - Math.max(0, Number(boeth) || 0))
+      : null;
+  const montantBase = calcul?.assujetti ? (surco ? calcul.surcontribution : calcul.contribution) : 0;
   const champ =
     "w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-amber-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
@@ -153,6 +172,14 @@ export default function PanelEsatTremplin() {
         <div className="flex gap-2">
           <label className="flex-1 min-w-0 text-xs text-slate-600 dark:text-slate-300">
             Effectif (salariés)
+            {horsBoeth != null && (
+              <span
+                className="ml-1.5 rounded-full bg-sky-100 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300 px-1.5 py-0.5 font-semibold tabular-nums"
+                title="Salariés sans reconnaissance de handicap déclarée (effectif − BOETH)"
+              >
+                {horsBoeth} hors BOETH
+              </span>
+            )}
             <input
               type="number"
               inputMode="numeric"
@@ -239,6 +266,14 @@ export default function PanelEsatTremplin() {
               </div>
             </div>
 
+            {calcul.manque > 0 && horsBoeth > 0 && (
+              <p className="text-xs rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 text-sky-900 dark:text-sky-200 px-3 py-2 leading-relaxed">
+                👥 <strong>{horsBoeth} salariés sans handicap déclaré.</strong> Une campagne de sensibilisation interne peut
+                révéler des bénéficiaires : un handicap n'est pas toujours visible (dyslexie, diabète, troubles musculo-squelettiques,
+                maladie chronique…). Chaque reconnaissance (RQTH) réduit les unités manquantes.
+              </p>
+            )}
+
             {calcul.manque === 0 ? (
               <p className="text-xs text-emerald-700 dark:text-emerald-400">
                 Obligation déjà remplie par les bénéficiaires employés : rien à payer.
@@ -255,6 +290,80 @@ export default function PanelEsatTremplin() {
                   {calcul.manque} × {formatMontant(surco ? bareme.majoree.montantParUnite : calcul.tranche.montantParUnite)} par
                   unité manquante
                 </p>
+              </div>
+            )}
+
+            {calcul.manque > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  Simuler une solution — ESAT Classique, ESAT Tremplin ou TIH :
+                </p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {["classique", "tremplin", "tih"].map((cle) => (
+                    <div
+                      key={cle}
+                      className={`flex items-stretch rounded-lg border overflow-hidden text-xs font-semibold ${
+                        solution === cle
+                          ? "border-emerald-500 bg-emerald-600 text-white"
+                          : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSolution(solution === cle ? null : cle)}
+                        className="flex-1 min-w-0 px-1.5 py-1.5 truncate"
+                        title={`Calculer avec ${LIBELLE_COURT[cle]} (−${Math.round(TAUX_SOLUTION[cle] * 100)} %)`}
+                      >
+                        {LIBELLE_BOUTON[cle]}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInfoSolution(infoSolution === cle ? null : cle)}
+                        className={`shrink-0 px-1.5 border-l ${solution === cle ? "border-emerald-400" : "border-slate-200 dark:border-slate-700"}`}
+                        title={`C'est quoi, ${LIBELLE_COURT[cle]} ?`}
+                        aria-label={`Explication : ${LIBELLE_COURT[cle]}`}
+                      >
+                        ⓘ
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {infoSolution && (() => {
+                  const d = DISPOSITIFS.find((x) => x.cle === infoSolution);
+                  const taux = TAUX_SOLUTION[infoSolution];
+                  return (
+                    <div className="rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 space-y-1.5">
+                      <p className="flex items-center justify-between gap-2 font-semibold text-slate-900 dark:text-white">
+                        <span>
+                          {d.icone} {d.titre}
+                        </span>
+                        <button type="button" onClick={() => setInfoSolution(null)} className="text-slate-400 hover:text-slate-700" aria-label="Fermer">
+                          ×
+                        </button>
+                      </p>
+                      <p>{d.definition}</p>
+                      <p>
+                        <strong>Services :</strong> {d.prestations.join(", ")}.
+                      </p>
+                      <p>
+                        <strong>Calcul :</strong> environ {Math.round(taux * 100)} % déduit de la contribution —{" "}
+                        {formatMontant(montantBase)} − {Math.round(taux * 100)} % ={" "}
+                        <strong>{formatMontant(montantBase * (1 - taux))}</strong>.
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {solution && (
+                  <div className="rounded-lg bg-emerald-600 text-white px-3 py-2.5">
+                    <p className="text-xs opacity-90">Avec {LIBELLE_COURT[solution]} (−{Math.round(TAUX_SOLUTION[solution] * 100)} %)</p>
+                    <p className="text-2xl font-bold tabular-nums">{formatMontant(montantBase * (1 - TAUX_SOLUTION[solution]))}</p>
+                    <p className="text-[11px] opacity-90 tabular-nums">
+                      {formatMontant(montantBase)} − {formatMontant(montantBase * TAUX_SOLUTION[solution])} de déduction
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
