@@ -703,6 +703,12 @@ export default function EntrepriseDetail() {
         {/* Colonne Espace IA + messagerie (le module AGIR a été retiré : le
             statut se change depuis le badge en en-tête, voir StatusSelect) */}
         <section className="lg:col-span-2 space-y-6">
+          {/* Boîte mail remontée en haut (repliée par défaut, voir
+              MessagerieMail.jsx) : c'est l'action la plus fréquente une fois
+              un contact obtenu, elle ne doit pas être en bas de colonne après
+              tout l'Espace IA et l'historique. */}
+          <MessagerieMail entreprise={entreprise} onMaj={setEntreprise} />
+
           {/* Espace IA : contact alternatif en cas de numéro invalide */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Espace IA — Contact alternatif</h2>
@@ -926,8 +932,6 @@ export default function EntrepriseDetail() {
               </button>
             )}
           </div>
-
-          <MessagerieMail entreprise={entreprise} onMaj={setEntreprise} />
 
           {/* Vitrine publique — déplacé hors de la colonne "Informations
               structure" (données utiles à la prospection) : le site web et

@@ -21,6 +21,11 @@ function destinatairesDisponibles(entreprise) {
 }
 
 export default function MessagerieMail({ entreprise, onMaj }) {
+  // Repliée par défaut (une seule ligne) : remontée en haut de la fiche (voir
+  // EntrepriseDetail.jsx), elle ne doit pas occuper une pleine section tant
+  // qu'aucun mail n'est en cours de rédaction — un clic déplie le fil complet
+  // + le formulaire, et l'envoi replie automatiquement pour regagner l'espace.
+  const [ouvert, setOuvert] = useState(false);
   const [statutMail, setStatutMail] = useState(null);
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
@@ -115,6 +120,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       setToastEnvoi(`E-mail envoyé à ${destinataire}.`);
       setObjet("");
       setCorps("");
+      setOuvert(false);
     } catch (e) {
       setErreur(e.message);
     } finally {
@@ -136,7 +142,24 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         </div>
       )}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
-      <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Boîte mail — Pôle OETH/AGEFIPH</h2>
+      <button
+        type="button"
+        onClick={() => setOuvert((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 text-left"
+      >
+        <h2 className="font-semibold text-slate-800 dark:text-slate-100">
+          ✉️ Boîte mail — Pôle OETH/AGEFIPH
+          {emails.length > 0 && (
+            <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
+              {emails.length} échange{emails.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </h2>
+        <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ouvert ? "▲ Réduire" : "▼ Écrire un mail"}</span>
+      </button>
+
+      {ouvert && (
+      <div className="mt-3">
       {destinataires.length > 0 ? (
         <label className="flex items-center gap-2 mb-4 text-xs text-slate-500 dark:text-slate-400">
           Destinataire
@@ -268,6 +291,8 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             {envoiEnCours ? "Envoi…" : "Envoyer (signé Pôle OETH / AGEFIPH)"}
           </button>
       </form>
+      </div>
+      )}
       </div>
     </>
   );

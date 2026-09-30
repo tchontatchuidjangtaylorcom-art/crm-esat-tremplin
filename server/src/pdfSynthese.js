@@ -239,6 +239,25 @@ export function genererSynthesePdf({ entreprise, oeth, poleInfo }) {
       y += 8;
     }
 
+    // Call-to-action vers le simulateur public : permet à l'entreprise de
+    // corriger elle-même les données approximatives (effectif, bénéficiaires)
+    // et de repartir vers une prise de contact — lien cliquable dans le PDF.
+    const urlSimulateur = "https://oeth-fiph.fr/vitrine";
+    doc.roundedRect(50, y, largeurUtile, 42, 4).fill("#ecfdf5");
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(9.5)
+      .fillColor("#065f46")
+      .text("Mettez vos chiffres à jour et échangez avec un conseiller en 2 minutes :", 62, y + 9, {
+        width: largeurUtile - 24,
+      });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(9.5)
+      .fillColor("#047857")
+      .text(urlSimulateur, 62, y + 23, { link: urlSimulateur, underline: true });
+    y += 42 + 14;
+
     // Disclaimer — évite toute confusion avec un document officiel URSSAF/AGEFIPH.
     doc
       .font("Helvetica-Oblique")
