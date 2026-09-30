@@ -63,6 +63,26 @@ function formatQuand(date) {
   return `le ${d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} à ${heure}`;
 }
 
+// Date au format des champs datetime-local ("2026-10-01T08:50"), en heure
+// locale : c'est le format enregistré pour dateRappel / dateRdv.
+function versChampDate(d) {
+  const deux = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}T${deux(d.getHours())}:${deux(d.getMinutes())}`;
+}
+
+// Même heure que l'échéance, N jours après aujourd'hui.
+function memeHeureDansJours(dateEcheance, jours) {
+  const origine = new Date(dateEcheance);
+  const d = new Date();
+  d.setDate(d.getDate() + jours);
+  d.setHours(origine.getHours(), origine.getMinutes(), 0, 0);
+  return d;
+}
+
+function jourCourt(d) {
+  return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+}
+
 function formatEcart(instant) {
   const ecartMin = Math.round((Date.now() - instant) / 60_000);
   if (ecartMin < -1) return `dans ${-ecartMin} min`;
@@ -80,6 +100,11 @@ export default function RappelsEcheances() {
   const [maintenant, setMaintenant] = useState(Date.now());
   const [permission, setPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
   const derniereAlerte = useRef(null);
+  // Report à une autre date (client indisponible) : date choisie, motif.
+  const [autreDate, setAutreDate] = useState(null);
+  const [motifReport, setMotifReport] = useState("");
+  const [reportEnCours, setReportEnCours] = useState(false);
+  const [erreurReport, setErreurReport] = useState(null);
 
   const charger = useCallback(() => {
     api
@@ -232,6 +257,32 @@ export default function RappelsEcheances() {
     mettreAJour({ reportes: { [cleAlerte]: Date.now() + REPORT_MS } });
   }
 
+  // Déplace le RDV / rappel sur la fiche (même route que les issues d'appel :
+  // met à jour dateRdv ou dateRappel et l'inscrit dans l'historique). L'alerte
+  // se ferme et reviendra à la nouvelle date.
+  async function reporterA(date) {
+    if (!date) return;
+    setReportEnCours(true);
+    setErreurReport(null);
+    try {
+      const nouvelle = typeof date === "string" ? date : versChampDate(date);
+      await api.enregistrerAppel(alerte.id, {
+        issue: alerte.type,
+        date: nouvelle,
+        details: `Reporté ${formatQuand(nouvelle)}${motifReport.trim() ? ` — ${motifReport.trim()}` : " à la demande du client"}.`,
+      });
+      mettreAJour({ traites: { [cleAlerte]: Date.now() } });
+      setAutreDate(null);
+      setMotifReport("");
+      charger();
+      window.dispatchEvent(new Event("entreprise:maj"));
+    } catch (e) {
+      setErreurReport(e.message);
+    } finally {
+      setReportEnCours(false);
+    }
+  }
+
   function ouvrirFiche() {
     marquerTraite();
     navigate(`/entreprise/${alerte.id}`);
@@ -293,6 +344,67 @@ export default function RappelsEcheances() {
             >
               ✓ Déjà fait
             </button>
+          </div>
+
+          {/* Report à un autre jour : le client demande de rappeler plus tard. */}
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-2">
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">📅 Reporter (le client demande de rappeler plus tard) :</p>
+            <div className="flex gap-2">
+              {[1, 2].map((jours) => {
+                const d = memeHeureDansJours(alerte.date, jours);
+                return (
+                  <button
+                    key={jours}
+                    type="button"
+                    disabled={reportEnCours}
+                    onClick={() => reporterA(d)}
+                    className="flex-1 rounded-lg bg-marine-50 dark:bg-marine-950/40 border border-marine-200 dark:border-marine-800 px-2 py-1.5 text-xs font-medium text-marine-800 dark:text-marine-200 hover:bg-marine-100 dark:hover:bg-marine-900/50 disabled:opacity-50"
+                    title={`Reporter au ${d.toLocaleString("fr-FR", { dateStyle: "full", timeStyle: "short" })}`}
+                  >
+                    {jours === 1 ? "Demain" : "Après-demain"}
+                    <span className="block text-[10px] font-normal opacity-75">
+                      {jourCourt(d)} · {d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                disabled={reportEnCours}
+                onClick={() => setAutreDate(autreDate === null ? versChampDate(memeHeureDansJours(alerte.date, 1)) : null)}
+                className="flex-1 rounded-lg bg-marine-50 dark:bg-marine-950/40 border border-marine-200 dark:border-marine-800 px-2 py-1.5 text-xs font-medium text-marine-800 dark:text-marine-200 hover:bg-marine-100 dark:hover:bg-marine-900/50 disabled:opacity-50"
+              >
+                Autre date
+                <span className="block text-[10px] font-normal opacity-75">au choix</span>
+              </button>
+            </div>
+            {autreDate !== null && (
+              <div className="flex gap-2">
+                <input
+                  type="datetime-local"
+                  value={autreDate}
+                  onChange={(e) => setAutreDate(e.target.value)}
+                  className="flex-1 min-w-0 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-xs"
+                />
+                <button
+                  type="button"
+                  disabled={!autreDate || reportEnCours}
+                  onClick={() => reporterA(autreDate)}
+                  className="rounded-lg bg-marine-700 hover:bg-marine-800 text-white px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                >
+                  Valider
+                </button>
+              </div>
+            )}
+            <input
+              type="text"
+              value={motifReport}
+              onChange={(e) => setMotifReport(e.target.value)}
+              placeholder="Motif (facultatif) — ex : RH absents cette semaine"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-xs"
+            />
+            {reportEnCours && <p className="text-xs text-slate-500">Enregistrement du report…</p>}
+            {erreurReport && <p className="text-xs text-red-600 dark:text-red-400">{erreurReport}</p>}
           </div>
 
           {dues.length > 1 && (
