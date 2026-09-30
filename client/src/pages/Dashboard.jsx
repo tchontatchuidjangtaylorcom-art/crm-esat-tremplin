@@ -26,6 +26,13 @@ const STATUTS_QUALIFIES = new Set(["fiche", "fiche_one_shot", "conforme"]);
 const OBJECTIF_MENSUEL_MIN = 20;
 const OBJECTIF_MENSUEL_MAX = 30;
 
+// Une fiche en statut "mail" dont le contact doit aussi rappeler (voir
+// ActionsRapidesStatut, case "Le contact doit aussi me rappeler") compte
+// aussi dans le filtre "Me rappelle".
+function correspondStatut(e, filtre) {
+  return e.statut === filtre || (filtre === "me_rappelle" && e.statut === "mail" && Boolean(e.aussiMeRappelle));
+}
+
 function correspondRecherche(e, recherche) {
   if (!recherche.trim()) return true;
   const q = recherche.trim().toLowerCase();
@@ -211,6 +218,7 @@ export default function Dashboard() {
       if (filtreLot && e.lot !== filtreLot) continue;
       if (!correspondRecherche(e, recherche)) continue;
       if (c[e.statut] !== undefined) c[e.statut] += 1;
+      if (e.statut === "mail" && e.aussiMeRappelle && c.me_rappelle !== undefined) c.me_rappelle += 1;
     }
     return c;
   }, [entreprises, prioritairesUniquement, filtreCategorie, filtreLot, recherche]);
@@ -219,7 +227,7 @@ export default function Dashboard() {
     const c = {};
     for (const e of entreprises) {
       if (prioritairesUniquement && !e.oeth?.assujetti) continue;
-      if (filtreStatut && e.statut !== filtreStatut) continue;
+      if (filtreStatut && !correspondStatut(e, filtreStatut)) continue;
       if (filtreLot && e.lot !== filtreLot) continue;
       if (!correspondRecherche(e, recherche)) continue;
       const cle = e.categorie?.cle;
@@ -232,7 +240,7 @@ export default function Dashboard() {
     const c = {};
     for (const e of entreprises) {
       if (prioritairesUniquement && !e.oeth?.assujetti) continue;
-      if (filtreStatut && e.statut !== filtreStatut) continue;
+      if (filtreStatut && !correspondStatut(e, filtreStatut)) continue;
       if (filtreCategorie && e.categorie?.cle !== filtreCategorie) continue;
       if (!correspondRecherche(e, recherche)) continue;
       if (e.lot) c[e.lot] = (c[e.lot] || 0) + 1;
@@ -250,7 +258,7 @@ export default function Dashboard() {
     for (const e of entreprises) {
       if (!e.lot) continue;
       if (prioritairesUniquement && !e.oeth?.assujetti) continue;
-      if (filtreStatut && e.statut !== filtreStatut) continue;
+      if (filtreStatut && !correspondStatut(e, filtreStatut)) continue;
       if (!correspondRecherche(e, recherche)) continue;
       const cle = e.categorie?.cle || "autre";
       if (!groupes.has(cle)) groupes.set(cle, new Map());
@@ -306,7 +314,7 @@ export default function Dashboard() {
   const entreprisesFiltrees = useMemo(() => {
     let liste = entreprises.filter((e) => {
       if (prioritairesUniquement && !e.oeth?.assujetti) return false;
-      if (filtreStatut && e.statut !== filtreStatut) return false;
+      if (filtreStatut && !correspondStatut(e, filtreStatut)) return false;
       if (filtreCategorie && e.categorie?.cle !== filtreCategorie) return false;
       if (filtreLot && e.lot !== filtreLot) return false;
       return correspondRecherche(e, recherche);

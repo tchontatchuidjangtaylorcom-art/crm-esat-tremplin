@@ -97,7 +97,7 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
     return api.ajouterCommentaire(entreprise.id, { texte, auteur: prenomAgent });
   }
 
-  async function executer(action, { texte = "", email = "", date = "" } = {}) {
+  async function executer(action, { texte = "", email = "", date = "", aussiRappel = false } = {}) {
     setEnCours(action.cle);
     setErreur(null);
     setConfirmation(null);
@@ -117,6 +117,7 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
       let commentaire = action.commentaire || "";
       if (action.type === "mail") {
         commentaire = `Mail demandé : ${texte.trim()}${email.trim() ? ` (adresse communiquée : ${email.trim()})` : ""}`;
+        if (aussiRappel) commentaire += " — le contact doit aussi nous rappeler (fiche aussi dans « Me rappelle »)";
       } else if (action.type === "date") {
         const quand = new Date(date).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
         commentaire = `${action.label.replace(/^\S+\s/, "")} le ${quand}${texte.trim() ? ` — ${texte.trim()}` : ""}`;
@@ -151,6 +152,13 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
         }
       }
 
+      // Mail + "doit aussi me rappeler" : la fiche reste en statut Mail mais
+      // compte aussi dans "Me rappelle" (filtre, compteur). Sans date, comme
+      // "Me rappelle" : l'entreprise rappelle quand elle veut.
+      if (action.type === "mail") {
+        maj = await api.patchEntreprise(entreprise.id, { aussiMeRappelle: aussiRappel });
+      }
+
       jouerSonConfirmation();
       onMaj?.(maj);
       diffuserEntrepriseMaj(maj);
@@ -170,18 +178,18 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
       return;
     }
     setErreur(null);
-    setFenetre({ action, texte: "", email: "", date: "" });
+    setFenetre({ action, texte: "", email: "", date: "", aussiRappel: false });
   }
 
   function valider(ev) {
     ev.preventDefault();
-    const { action, texte, email, date } = fenetre;
+    const { action, texte, email, date, aussiRappel } = fenetre;
     if (action.type === "mail" && !texte.trim()) return setErreur("Notez ce que l'interlocuteur a demandé.");
     if (action.type === "mail" && email.trim() && !EMAIL_VALIDE.test(email.trim())) {
       return setErreur("Adresse e-mail invalide.");
     }
     if (action.type === "date" && !date) return setErreur("Choisissez une date et une heure (ex : 14:30).");
-    executer(action, { texte, email, date });
+    executer(action, { texte, email, date, aussiRappel });
   }
 
   const champ =
@@ -264,6 +272,23 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
                     placeholder="ex : rh@entreprise.fr"
                     className={`mt-1 ${champ}`}
                   />
+                </label>
+                {/* Ex. : l'interlocuteur transmet vos coordonnées aux RH, qui
+                    doivent vous rappeler — la fiche apparaît aussi dans
+                    "Me rappelle" (sans date : ils rappellent quand ils veulent). */}
+                <label className="flex items-start gap-2 rounded-lg border border-violet-200 dark:border-violet-900 bg-violet-50 dark:bg-violet-950/30 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={fenetre.aussiRappel}
+                    onChange={(e) => setFenetre({ ...fenetre, aussiRappel: e.target.checked })}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <strong>📞 Le contact doit aussi me rappeler</strong>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                      La fiche reste en « Mail » et apparaît aussi dans « Me rappelle ».
+                    </span>
+                  </span>
                 </label>
               </>
             ) : (

@@ -232,6 +232,14 @@ export default function EntrepriseTable({
                 </td>
                 <td className="px-3 py-2">
                   <StatusSelect entreprise={e} />
+                  {e.statut === "mail" && e.aussiMeRappelle && (
+                    <span
+                      className="block mt-1 text-[10px] font-semibold text-violet-700 dark:text-violet-300"
+                      title="En attente d'un mail ET d'un rappel du contact (aussi dans « Me rappelle »)"
+                    >
+                      + me rappelle
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <EcheanceCell entreprise={e} />

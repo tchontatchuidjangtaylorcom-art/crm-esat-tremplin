@@ -1625,6 +1625,10 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
     "secteurPublic",
     "lot",
     "categorieForcee",
+    // Fiche en statut "mail" dont le contact doit AUSSI rappeler (ex. RH à
+    // qui l'interlocuteur transmet les coordonnées) : comptée aussi dans
+    // "Me rappelle" (sans date ni alerte). Sans effet hors statut mail.
+    "aussiMeRappelle",
   ];
   for (const champ of champsAutorises) {
     if (champ in req.body) entreprise[champ] = req.body[champ];
@@ -2538,7 +2542,10 @@ app.get("/api/echeances", exigerAuth, (req, res) => {
   for (const e of db.data.entreprises) {
     const concernee = e.assigneA === utilisateur.id || (estAdmin(utilisateur) && !e.assigneA);
     if (!concernee) continue;
-    const date = e.statut === "rdv" ? e.dateRdv : e.statut === "a_rappeler" || e.statut === "me_rappelle" ? e.dateRappel : null;
+    // "Me rappelle" (et Mail + "doit aussi me rappeler") n'a pas de date :
+    // l'entreprise rappelle quand elle veut, donc pas d'alerte — une date
+    // restée d'un ancien "À rappeler" ne doit pas faire sonner l'alarme.
+    const date = e.statut === "rdv" ? e.dateRdv : e.statut === "a_rappeler" ? e.dateRappel : null;
     const instant = date ? new Date(date).getTime() : NaN;
     if (!Number.isFinite(instant) || instant < debut || instant > fin) continue;
     echeances.push({
