@@ -65,12 +65,14 @@ export const api = {
       body: JSON.stringify({ issue, date, details, dureeSecondes }),
     }).then(handle),
 
-  enregistrerSortie: (id, { sortie, details, dureeSecondes }) =>
+  enregistrerSortie: (id, { sortie, details, dureeSecondes, doublonDe }) =>
     fetch(`${BASE}/entreprises/${id}/sortie`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sortie, details, dureeSecondes }),
+      body: JSON.stringify({ sortie, details, dureeSecondes, doublonDe: doublonDe || null }),
     }).then(handle),
+
+  getDoublons: (id) => fetch(`${BASE}/entreprises/${id}/doublons`).then(handle),
 
   ajouterCommentaire: (id, { texte, auteur }) =>
     fetch(`${BASE}/entreprises/${id}/commentaires`, {

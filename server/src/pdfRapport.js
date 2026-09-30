@@ -34,6 +34,7 @@ const LIBELLES_STATUT = {
   conforme: "Conforme — dossier réglé",
   refus: "Refus (dossier clos)",
   mort: "Mort (dossier clos)",
+  doublon: "Doublon d'une autre fiche",
 };
 
 function formatMontant(n) {

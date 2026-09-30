@@ -14,13 +14,15 @@ export const STATUTS = {
   conforme: { label: "Conforme", badge: "bg-emerald-100 text-emerald-700 border border-emerald-300" },
   refus: { label: "Refus", badge: "bg-rose-100 text-rose-700 border border-rose-300" },
   mort: { label: "Mort", badge: "bg-neutral-800 text-white border border-neutral-900" },
+  doublon: { label: "Doublon", badge: "bg-stone-200 text-stone-700 border border-stone-400" },
 };
 
 // Statuts qui font quitter le pipeline actif (archivage automatique côté
 // serveur dès la sortie de dossier) : utile au frontend pour ne pas les
 // compter dans les indicateurs de la file active. "conforme" est distinct de
 // "refus"/"mort" — un dossier réglé n'est pas un échec de prospection.
-export const STATUTS_ARCHIVES = ["conforme", "refus", "mort"];
+// "doublon" : même entreprise qu'une autre fiche — archivée mais conservée.
+export const STATUTS_ARCHIVES = ["conforme", "refus", "mort", "doublon"];
 
 // Ordre d'affichage des compteurs sur le tableau de bord. "refus"/"mort" en
 // sont délibérément absents : ces dossiers sont archivés automatiquement dès
@@ -65,6 +67,7 @@ export const SORTIES_DOSSIER = [
   { value: "conforme", label: "Conforme — dossier réglé (archivé)" },
   { value: "refus", label: "Refus (dossier clos)" },
   { value: "mort", label: "Mort (dossier clos)" },
+  { value: "doublon", label: "Doublon (même entreprise qu'une autre fiche)" },
 ];
 
 // Liste fusionnée utilisée par le panneau d'appel (module VoIP) : l'agent

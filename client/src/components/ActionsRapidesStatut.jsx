@@ -82,6 +82,17 @@ const ACTIONS = [
     confirmation: "Enregistrer le refus ?\nLe dossier passe en « Refus » et sort du pipeline actif.",
     classe: "border-rose-300 text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
   },
+  {
+    cle: "doublon",
+    label: "👥 Doublon",
+    titre: "Même entreprise qu'une autre fiche (même standard, même numéro) : retirée du pipeline, conservée dans les archives",
+    type: "sortie",
+    sortie: "doublon",
+    commentaire: "Doublon : même entreprise qu'une autre fiche du CRM (même standard / même numéro). Fiche conservée dans les archives.",
+    confirmation:
+      "Cette fiche est un doublon d'une autre entreprise du CRM ?\nElle sort du pipeline actif mais reste consultable dans les archives.",
+    classe: "border-stone-300 text-stone-700 bg-stone-50 hover:bg-stone-100 dark:bg-stone-900/40 dark:text-stone-300 dark:border-stone-700",
+  },
 ];
 
 const LIBELLE_DATE = { a_rappeler: "Date du rappel", rdv: "Date du rendez-vous" };

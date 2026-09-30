@@ -10,6 +10,7 @@ import GestionEmails from "../components/GestionEmails.jsx";
 import AssistantContactIA from "../components/AssistantContactIA.jsx";
 import DicteeCommentaire from "../components/DicteeCommentaire.jsx";
 import ActionsRapidesStatut from "../components/ActionsRapidesStatut.jsx";
+import AlerteDoublons from "../components/AlerteDoublons.jsx";
 import ChampDateHeure from "../components/ChampDateHeure.jsx";
 import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
@@ -557,6 +558,8 @@ export default function EntrepriseDetail() {
           {erreur}
         </div>
       )}
+
+      <AlerteDoublons entreprise={entreprise} prenomAgent={prenomAgent} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Colonne informations structure */}

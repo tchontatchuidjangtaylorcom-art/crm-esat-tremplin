@@ -39,6 +39,7 @@ import {
   verifierConnexionSMTP,
 } from "./mail.js";
 import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
+import { genererEmailOfficielHtml } from "./emailOfficiel.js";
 import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { servirFrontend } from "./seo.js";
@@ -124,6 +125,7 @@ const SORTIES_DOSSIER = {
   conforme: "Conforme — dossier réglé",
   refus: "Refus (dossier clos)",
   mort: "Mort (dossier clos)",
+  doublon: "Doublon (même entreprise qu'une autre fiche)",
 };
 
 // Sorties qui font quitter le pipeline actif : le dossier est archivé
@@ -132,7 +134,10 @@ const SORTIES_DOSSIER = {
 // une entreprise injoignable/radiée. On distingue volontairement "conforme"
 // de "mort"/"refus" pour ne pas mélanger un dossier réglé avec un échec de
 // prospection dans les statistiques.
-const SORTIES_ARCHIVANTES = new Set(["conforme", "refus", "mort"]);
+// "doublon" : même entreprise qu'une autre fiche (même standard, même
+// numéro) — retirée du pipeline mais conservée dans les archives, avec le
+// lien vers la fiche d'origine (doublonDe).
+const SORTIES_ARCHIVANTES = new Set(["conforme", "refus", "mort", "doublon"]);
 
 // Cherche dans les dossiers actifs puis dans les archives, pour que les
 // fiches archivées (dossiers "mort") restent consultables via les mêmes
@@ -253,6 +258,7 @@ app.post("/api/auth/demander-lien", async (req, res) => {
     const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
     return res.status(statutHttp).json({ error: e.message });
   }
+  if (testVersMoi) return res.json({ test: true, destinataire: destinataireFinal });
   res.json({ statut: "lien_envoye", message: "Un lien de connexion vient de vous être envoyé par mail." });
 });
 
@@ -1798,6 +1804,9 @@ app.post("/api/entreprises/:id/sortie", exigerAuth, chargerEntrepriseAutorisee, 
 
   entreprise.historiqueAppels.unshift(entree);
   entreprise.statut = sortie;
+  if (sortie === "doublon" && req.body.doublonDe && req.body.doublonDe !== entreprise.id && findEntreprise(req.body.doublonDe)) {
+    entreprise.doublonDe = req.body.doublonDe;
+  }
 
   // Purge automatique du pipeline actif : un dossier "mort" est déplacé vers
   // les archives plutôt que laissé dans la liste active des entreprises.
@@ -1806,6 +1815,54 @@ app.post("/api/entreprises/:id/sortie", exigerAuth, chargerEntrepriseAutorisee, 
 
   await db.write();
   res.json({ archive, entreprise: enrichir(entreprise) });
+});
+
+// Numéro comparable quel que soit le format ("+33 1 71 13 39 43",
+// "01.71.13.39.43" → "171133943").
+function chiffresTelephoneComparables(numero) {
+  let d = String(numero || "").replace(/\D/g, "");
+  if (d.startsWith("0033")) d = d.slice(4);
+  else if (d.startsWith("33") && d.length === 11) d = d.slice(2);
+  if (d.startsWith("0")) d = d.slice(1);
+  return d;
+}
+
+function numerosDeFiche(e) {
+  return [e.contact?.telephone, ...(e.contact?.telephonesAlternatifs || []).map((t) => t.numero)].filter(Boolean);
+}
+
+// Doublons probables d'une fiche : autres fiches (actives ou archivées) qui
+// partagent un numéro de téléphone (principal ou alternatif — ex. même
+// standard pour deux sociétés d'un même groupe) ou le même SIREN.
+app.get("/api/entreprises/:id/doublons", exigerAuth, chargerEntrepriseAutorisee, (req, res) => {
+  const e = req.entreprise;
+  const mesNumeros = new Map();
+  for (const n of numerosDeFiche(e)) {
+    const d = chiffresTelephoneComparables(n);
+    if (d.length >= 8) mesNumeros.set(d, n);
+  }
+  const siren = sirenDe(e);
+  const idsArchives = new Set(db.data.archives.map((a) => a.id));
+  const doublons = [];
+  for (const autre of [...db.data.entreprises, ...db.data.archives]) {
+    if (autre.id === e.id) continue;
+    const raisons = [];
+    if (siren && sirenDe(autre) === siren) raisons.push("même SIREN");
+    const numeroCommun = numerosDeFiche(autre).find((n) => mesNumeros.has(chiffresTelephoneComparables(n)));
+    if (numeroCommun) raisons.push(`même numéro ${mesNumeros.get(chiffresTelephoneComparables(numeroCommun))}`);
+    if (raisons.length === 0) continue;
+    doublons.push({
+      id: autre.id,
+      nom: autre.nom,
+      ville: autre.ville || null,
+      codePostal: autre.codePostal || null,
+      statut: autre.statut,
+      archivee: idsArchives.has(autre.id),
+      raisons,
+      accessible: estVisiblePar(autre, req.utilisateur),
+    });
+  }
+  res.json(doublons.slice(0, 10));
 });
 
 // ---- Actions groupées (sélection multiple dans le tableau de bord) ----
@@ -2268,7 +2325,7 @@ app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorise
 app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
-  const { objet, corps, joindrePdf = true, destinataire } = req.body;
+  const { objet, corps, joindrePdf = true, destinataire, formatOfficiel = false, testVersMoi = false } = req.body;
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
@@ -2281,7 +2338,13 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     entreprise.contact?.email,
     ...(entreprise.contact?.emailsAlternatifs || []).map((a) => a.email),
   ].filter(Boolean);
-  const destinataireFinal = destinataire && emailsConnus.includes(destinataire) ? destinataire : entreprise.contact?.email;
+  // `testVersMoi` : aperçu réel envoyé à l'adresse du compte connecté
+  // (jamais une adresse arbitraire), sans rien inscrire sur la fiche.
+  const destinataireFinal = testVersMoi
+    ? req.utilisateur.email
+    : destinataire && emailsConnus.includes(destinataire)
+      ? destinataire
+      : entreprise.contact?.email;
   if (!destinataireFinal) {
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
@@ -2308,11 +2371,24 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     piecesJointes = [{ nom: nomFichier, taille: pdf.length }];
   }
 
+  // Mise en page officielle (voir emailOfficiel.js) : bandeau du pôle,
+  // récapitulatif contribution / surcontribution, boutons simulation et
+  // conseiller. Le texte brut reste envoyé en version alternative.
+  const html = formatOfficiel
+    ? genererEmailOfficielHtml({
+        entreprise,
+        oeth: calculerObligationOeth(entreprise),
+        corps,
+        poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+      })
+    : undefined;
+
   try {
     await envoyerMail({
       to: destinataireFinal,
-      subject: objet,
+      subject: testVersMoi ? `[TEST] ${objet}` : objet,
       text: corps,
+      html,
       fromName: nomExpediteur,
       attachments: piecesJointesEnvoi,
       // Mail de prospection vers une entreprise externe (pas un mail
