@@ -221,6 +221,8 @@ function normaliserResultat(r) {
     formeJuridique: libelleFormeJuridique(r.nature_juridique),
     trancheEffectifLabel: tranche.label,
     effectifEstime: tranche.effectifEstime,
+    // Année à laquelle se rapporte la tranche d'effectif INSEE.
+    anneeTrancheEffectif: r.annee_tranche_effectif_salarie ? Number(r.annee_tranche_effectif_salarie) || null : null,
     secteurPublic,
     actif,
     dateFermeture: r.date_fermeture || null,

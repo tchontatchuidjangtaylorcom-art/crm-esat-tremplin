@@ -679,6 +679,7 @@ app.get("/api/vitrine/simulation", async (req, res) => {
           // liste de résultats, avant que le visiteur n'affine ses propres
           // chiffres dans les champs.
           effectifEstime: r.effectifEstime,
+          anneeTrancheEffectif: r.anneeTrancheEffectif || null,
           dateCreation: r.dateCreation,
           actif: r.actif,
           // Employeur public (INSEE : administration ou catégorie juridique

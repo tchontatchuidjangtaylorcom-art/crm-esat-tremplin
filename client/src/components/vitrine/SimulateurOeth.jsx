@@ -229,6 +229,10 @@ export default function SimulateurOeth() {
       .catch(() => {});
   }, []);
   const [requete, setRequete] = useState("");
+  // Recherche d'entreprise repliée en un bandeau compact, ouverte au clic.
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  // Message du bouton flottant quand le parcours n'est pas encore complet.
+  const [messageFlottant, setMessageFlottant] = useState(false);
   const champRechercheRef = useRef(null);
   const [resultats, setResultats] = useState([]);
   const [recherche, setRecherche] = useState(false);
@@ -280,6 +284,26 @@ export default function SimulateurOeth() {
   // la partie 3 est masquée, le visiteur l'a déjà dit.
   const aucuneAction = assujettie && toutesAnneesNon && situation.action === "aucune";
   const partie3Visible = !aucuneAction || partie3Forcee;
+
+  // Premier élément manquant du parcours (bouton flottant) : tant qu'il en
+  // reste un, aucun montant n'est affiché — il ne serait pas cohérent.
+  const elementManquant = !situation.seuil
+    ? { cible: "etape-situation", texte: "Partie 1, question 1 : indiquez depuis quand l'entreprise compte au moins 20 salariés." }
+    : assujettie && !toutesAnneesRepondues
+      ? { cible: "etape-situation", texte: `Partie 1, question 2 : répondez Oui ou Non pour chacune des années ${anneesRegle[0]} à ${anneesRegle[3]}.` }
+      : assujettie && toutesAnneesNon && !situation.action
+        ? { cible: "etape-situation", texte: "Partie 1 : précisez si l'entreprise a eu une autre action reconnue (sous-traitance, accord agréé ou aucune)." }
+        : assujettie && reponseExercice === true && !boethExerciceRenseigne
+          ? { cible: "etape-situation", texte: `Partie 1, question 3 : indiquez le nombre de BOETH employés en ${ANNEE_REFERENCE}.` }
+          : assujettie && situation.declarations === null
+            ? { cible: "etape-situation", texte: "Partie 1 : indiquez si vos déclarations des années précédentes ont été effectuées." }
+            : !effectifValide
+              ? { cible: "etape-essentiel", texte: "Partie 2 : renseignez votre effectif d'assujettissement (minimum 20 salariés)." }
+              : null;
+  const parcoursComplet = !elementManquant;
+  useEffect(() => {
+    if (parcoursComplet) setMessageFlottant(false);
+  }, [parcoursComplet]);
 
   const regime =
     situation.seuil === "moins20"
@@ -440,7 +464,15 @@ export default function SimulateurOeth() {
     setEntrepriseMemorisee(false);
     if (candidat.effectifEstime != null) changerEffectif(String(candidat.effectifEstime));
     setSecteur(candidat.secteurPublic ? "public" : "prive");
-    setEntrepriseTrouvee({ nom: candidat.nom, siren: candidat.siren, ville: candidat.ville, dateCreation: candidat.dateCreation || null });
+    setEntrepriseTrouvee({
+      nom: candidat.nom,
+      siren: candidat.siren,
+      ville: candidat.ville,
+      dateCreation: candidat.dateCreation || null,
+      trancheEffectifLabel: candidat.trancheEffectifLabel || null,
+      effectifEstime: candidat.effectifEstime ?? null,
+      anneeTrancheEffectif: candidat.anneeTrancheEffectif || null,
+    });
     // Règle des 5 ans : hypothèse d'un effectif d'au moins 20 salariés dès
     // la création (modifiable en partie 1). Tranche INSEE < 20 → moins de 20.
     const anneeCreation = Number(String(candidat.dateCreation || "").slice(0, 4));
@@ -448,6 +480,7 @@ export default function SimulateurOeth() {
     if (candidat.effectifEstime != null && candidat.effectifEstime < 20) seuil = "moins20";
     else if (anneeCreation >= 1900) seuil = String(Math.max(anneeCreation, ANNEE_REFERENCE - 11));
     if (seuil) setSituation((st) => ({ ...st, seuil }));
+    setRechercheOuverte(false);
     setRequete("");
     setResultats([]);
   }
@@ -717,21 +750,33 @@ export default function SimulateurOeth() {
             Pré-remplit le nom, l'effectif estimé, le secteur (privé / public)
             et, via la date de création, la question 1 de la partie 1 (règle
             des 5 ans). Facultatif : tout reste modifiable. */}
-        <div className="rounded-2xl border-2 border-emerald-400/40 bg-gradient-to-r from-emerald-400/[0.08] via-white dark:via-marine-950/80 to-white dark:to-marine-950/80 px-5 sm:px-8 py-5">
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-            <div className="flex items-start gap-3 lg:w-[40%]">
-              <span className="shrink-0 rounded-full bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 mt-0.5">
-                Important
-              </span>
-              <div>
-                <p className="font-semibold">Gagnez du temps : retrouvez votre entreprise</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Raison sociale ou SIREN : nous pré-remplissons le nom, un effectif estimé et la date de création, qui
-                  indique si l'entreprise est assujettie. Tout reste modifiable.
-                </p>
-              </div>
-            </div>
-            <div className="relative flex-1">
+        <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/[0.06] px-4 sm:px-5 py-2">
+          <button
+            type="button"
+            onClick={() => {
+              setRechercheOuverte((v) => !v);
+              if (!rechercheOuverte) setTimeout(() => champRechercheRef.current?.focus(), 50);
+            }}
+            aria-expanded={rechercheOuverte}
+            className="w-full flex items-center gap-2.5 text-left py-0.5"
+          >
+            <span className="shrink-0 rounded-full bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
+              Important
+            </span>
+            <span className="flex-1 text-sm font-semibold">
+              Gagnez du temps : retrouvez votre entreprise
+              <span className="hidden sm:inline font-normal text-slate-500 dark:text-slate-400"> — par raison sociale ou SIREN</span>
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 transition-transform ${rechercheOuverte ? "rotate-180" : ""}`}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          <div className={`${rechercheOuverte ? "block" : "hidden"} pt-2 pb-2`}>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+              Nous pré-remplissons le nom, un effectif estimé et la date de création, qui indique si l'entreprise est
+              assujettie. Tout reste modifiable.
+            </p>
+            <div className="relative">
               <input
                 type="text"
                 value={requete}
@@ -777,7 +822,7 @@ export default function SimulateurOeth() {
               const v = verdictCreation(entrepriseTrouvee.dateCreation);
               return (
                 <div
-                  className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                  className={`mt-1.5 mb-1.5 rounded-lg border px-3.5 py-2.5 text-sm ${
                     !v
                       ? "border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03]"
                       : v.ok
@@ -794,6 +839,15 @@ export default function SimulateurOeth() {
                   <p className="mt-1 text-xs leading-relaxed text-slate-700 dark:text-slate-200">
                     {v ? v.texte : "Date de création non communiquée par le répertoire Sirene : répondez à la question 1 ci-dessous."}
                   </p>
+                  {entrepriseTrouvee.effectifEstime != null && (
+                    <p className="mt-1 text-xs leading-relaxed text-slate-700 dark:text-slate-200">
+                      Effectif estimé : <strong>{formatNombre(entrepriseTrouvee.effectifEstime)} salariés</strong>
+                      {entrepriseTrouvee.trancheEffectifLabel && <> (tranche INSEE « {entrepriseTrouvee.trancheEffectifLabel} »</>}
+                      {entrepriseTrouvee.trancheEffectifLabel && entrepriseTrouvee.anneeTrancheEffectif && <>, donnée {entrepriseTrouvee.anneeTrancheEffectif}</>}
+                      {entrepriseTrouvee.trancheEffectifLabel && <>)</>}. Repris dans la partie 2 : remplacez-le par votre effectif
+                      réel s'il est différent.
+                    </p>
+                  )}
                   {v && (
                     <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                       Question 1 pré-remplie avec l'année de création : corrigez-la si le seuil de 20 salariés a été atteint
@@ -1971,7 +2025,43 @@ export default function SimulateurOeth() {
       {/* Bouton flottant : visible tant que le simulateur est à l'écran mais
           que le bloc résultats ne l'est pas. Affiche la contribution en
           direct pendant la saisie ; un clic descend aux résultats. */}
-      {sectionVisible && !resultatsVisibles && (
+      {/* Tant que le parcours est incomplet, aucun montant n'est affiché : un
+          clic explique ce qu'il reste à remplir et y conduit. */}
+      {sectionVisible && !resultatsVisibles && !parcoursComplet && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100vw-2rem)] flex flex-col items-center gap-2">
+          {messageFlottant && elementManquant && (
+            <div role="status" className="relative rounded-xl border border-amber-400/60 bg-white dark:bg-marine-950 text-slate-800 dark:text-slate-100 text-xs sm:text-sm px-4 py-3 pr-9 shadow-2xl max-w-md">
+              <p className="font-semibold text-amber-700 dark:text-amber-300">Encore une étape pour obtenir une estimation cohérente</p>
+              <p className="mt-0.5">{elementManquant.texte}</p>
+              <button
+                type="button"
+                onClick={() => setMessageFlottant(false)}
+                aria-label="Fermer"
+                className="absolute top-2 right-2 w-6 h-6 rounded-full text-slate-500 hover:bg-slate-900/10 dark:hover:bg-white/10"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setMessageFlottant(true);
+              document.getElementById(elementManquant.cible)?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="flex items-center gap-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-marine-950 pl-5 pr-4 py-3 shadow-[0_12px_40px_rgba(251,191,36,0.35)] transition"
+          >
+            <span className="text-left">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-marine-900/70">Contribution estimée</span>
+              <span className="block text-sm font-bold leading-tight">Complétez le parcours</span>
+            </span>
+            <span className="rounded-xl bg-white dark:bg-marine-950 text-amber-700 dark:text-amber-300 text-xs font-semibold px-3 py-2 whitespace-nowrap">
+              Que manque-t-il ?
+            </span>
+          </button>
+        </div>
+      )}
+      {sectionVisible && !resultatsVisibles && parcoursComplet && (
         <button
           type="button"
           onClick={calculer}
