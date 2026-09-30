@@ -56,9 +56,12 @@ const ACTIONS = [
   {
     cle: "me_rappelle",
     label: "🔔 Me rappelle",
-    titre: "L'interlocuteur rappelle : choisir la date",
-    type: "date",
+    // Sans date : l'entreprise rappelle quand elle veut ; la fiche est à
+    // retrouver dans la catégorie "Me rappelle" du tableau de bord.
+    titre: "L'entreprise doit vous rappeler : statut Me rappelle + commentaire",
+    type: "direct",
     issue: "me_rappelle",
+    commentaire: "Me rappelle — l'entreprise doit nous rappeler.",
     classe: "border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800",
   },
   {
@@ -81,7 +84,7 @@ const ACTIONS = [
   },
 ];
 
-const LIBELLE_DATE = { a_rappeler: "Date du rappel", me_rappelle: "Date où il/elle rappelle", rdv: "Date du rendez-vous" };
+const LIBELLE_DATE = { a_rappeler: "Date du rappel", rdv: "Date du rendez-vous" };
 
 export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent }) {
   const [enCours, setEnCours] = useState(null);
