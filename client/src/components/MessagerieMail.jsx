@@ -30,6 +30,11 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
   const [joindrePdf, setJoindrePdf] = useState(true);
+  // Mise en page officielle (voir server/src/emailOfficiel.js) et envoi de
+  // test à l'adresse du compte connecté, sans rien inscrire sur la fiche.
+  const [formatOfficiel, setFormatOfficiel] = useState(true);
+  const [testEnCours, setTestEnCours] = useState(false);
+  const [testEnvoye, setTestEnvoye] = useState(null);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
   const [toastEnvoi, setToastEnvoi] = useState(null);
@@ -109,13 +114,39 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     }
   }
 
+  async function appelEnvoi(corpsRequete) {
+    const res = await fetch(`/api/entreprises/${entreprise.id}/emails/envoyer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpsRequete),
+    });
+    const donnees = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(donnees.error || `Erreur HTTP ${res.status}`);
+    return donnees;
+  }
+
+  async function envoyerTest() {
+    if (!objet.trim() || !corps.trim() || testEnCours) return;
+    setTestEnCours(true);
+    setErreur(null);
+    setTestEnvoye(null);
+    try {
+      const r = await appelEnvoi({ objet, corps, joindrePdf, formatOfficiel, testVersMoi: true });
+      setTestEnvoye(r.destinataire);
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setTestEnCours(false);
+    }
+  }
+
   async function envoyer(ev) {
     ev.preventDefault();
     if (!objet.trim() || !corps.trim() || !destinataire) return;
     setEnvoiEnCours(true);
     setErreur(null);
     try {
-      const updated = await api.envoyerEmail(entreprise.id, { objet, corps, joindrePdf, destinataire });
+      const updated = await appelEnvoi({ objet, corps, joindrePdf, destinataire, formatOfficiel });
       onMaj(updated);
       setToastEnvoi(`E-mail envoyé à ${destinataire}.`);
       setObjet("");
@@ -282,7 +313,25 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             <input type="checkbox" checked={joindrePdf} onChange={(e) => setJoindrePdf(e.target.checked)} />
             Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée)
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <input type="checkbox" checked={formatOfficiel} onChange={(e) => setFormatOfficiel(e.target.checked)} />
+            Mise en page officielle (bandeau du pôle, récapitulatif contribution / surcontribution, boutons simulation et conseiller)
+          </label>
+          {testEnvoye && (
+            <p className="text-xs text-emerald-700 dark:text-emerald-400">
+              ✓ Test envoyé à {testEnvoye} (objet précédé de [TEST]) — rien n'a été enregistré sur la fiche.
+            </p>
+          )}
           {erreur && <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>}
+          <button
+            type="button"
+            onClick={envoyerTest}
+            disabled={!objet.trim() || !corps.trim() || testEnCours || envoiEnCours || statutMail?.configuree === false}
+            className="mr-2 rounded-lg border border-marine-300 dark:border-marine-700 text-marine-800 dark:text-marine-200 text-sm px-3 py-2 hover:bg-marine-50 dark:hover:bg-marine-950/40 disabled:opacity-40"
+            title="Envoie cet e-mail à votre propre adresse, pour vérifier le rendu"
+          >
+            {testEnCours ? "Envoi du test…" : "M'envoyer un test"}
+          </button>
           <button
             type="submit"
             disabled={!objet.trim() || !corps.trim() || !destinataire || envoiEnCours || statutMail?.configuree === false}

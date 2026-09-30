@@ -37,9 +37,23 @@ function paragraphes(corps) {
     .split(/\n\s*\n/)
     .map(
       (p) =>
-        `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${GRIS};">${echapper(p).replace(/\n/g, "<br>")}</p>`
+        `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${GRIS};">${liensCliquables(echapper(p)).replace(/\n/g, "<br>")}</p>`
     )
     .join("");
+}
+
+// Adresses web du message (ex. lien du simulateur) rendues cliquables.
+function liensCliquables(texteEchappe) {
+  return texteEchappe.replace(
+    /https?:\/\/[^\s<]+[^\s<.,;:!?)]/g,
+    (url) => `<a href="${url}" style="color:${BLEU};font-weight:600;">${url}</a>`
+  );
+}
+
+// Le message de l'agent commence souvent par sa propre salutation
+// ("Bonjour,") : on n'ajoute alors pas "Madame, Monsieur," en double.
+function commenceParSalutation(corps) {
+  return /^\s*(bonjour|bonsoir|madame|monsieur|cher|chère)/i.test(String(corps || ""));
 }
 
 function ligne(libelle, valeur, fort = false) {
@@ -126,7 +140,7 @@ export function genererEmailOfficielHtml({ entreprise, oeth, corps, poleInfo }) 
   </td></tr>
 
   <tr><td style="padding:28px 32px 8px;">
-    <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:${BLEU};">Madame, Monsieur,</p>
+    ${commenceParSalutation(corps) ? "" : `<p style="margin:0 0 16px;font-size:14px;font-weight:700;color:${BLEU};">Madame, Monsieur,</p>`}
     ${paragraphes(corps)}
 
     <div style="margin:22px 0 0;padding:16px 18px;border:1px solid #e2e8f0;border-radius:8px;">
