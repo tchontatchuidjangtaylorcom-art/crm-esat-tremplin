@@ -9,6 +9,8 @@ import DialerPanel from "../components/DialerPanel.jsx";
 import UserMenu from "../components/UserMenu.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import DemandeLeads from "../components/DemandeLeads.jsx";
+import SelecteurTerritoire from "../components/SelecteurTerritoire.jsx";
+import { territoireDe } from "../territoires.js";
 import ImportLot from "../components/ImportLot.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import KpiObjectifMensuel from "../components/KpiObjectifMensuel.jsx";
@@ -93,16 +95,52 @@ export default function Dashboard() {
     }
   }
   const perimetreActif = estAdmin && !commeAgentId ? perimetre : "tous";
-  const entreprises = useMemo(() => {
-    if (perimetreActif === "moi") return toutesEntreprises.filter((e) => e.assigneA === utilisateur?.id);
-    if (perimetreActif === "non_assignes") return toutesEntreprises.filter((e) => !e.assigneA);
-    return toutesEntreprises;
-  }, [toutesEntreprises, perimetreActif, utilisateur?.id]);
-  const nbMesLeads = useMemo(
-    () => toutesEntreprises.filter((e) => e.assigneA === utilisateur?.id).length,
-    [toutesEntreprises, utilisateur?.id]
+
+  // Territoire de travail (métropole, La Réunion, Guadeloupe…), déduit du
+  // code postal de chaque fiche — voir territoires.js. Mémorisé : l'agent
+  // qui travaille La Réunion le matin la retrouve en rechargeant la page.
+  const [territoire, setTerritoireState] = useState(() => {
+    try {
+      return localStorage.getItem("crm-territoire") || "tous";
+    } catch {
+      return "tous";
+    }
+  });
+  function setTerritoire(valeur) {
+    setTerritoireState(valeur);
+    try {
+      localStorage.setItem("crm-territoire", valeur);
+    } catch {
+      // stockage indisponible : le choix vaut pour la session en cours
+    }
+  }
+  const entreprisesDuTerritoire = useMemo(
+    () => (territoire === "tous" ? toutesEntreprises : toutesEntreprises.filter((e) => territoireDe(e.codePostal) === territoire)),
+    [toutesEntreprises, territoire]
   );
-  const nbNonAssignes = useMemo(() => toutesEntreprises.filter((e) => !e.assigneA).length, [toutesEntreprises]);
+  const entreprises = useMemo(() => {
+    if (perimetreActif === "moi") return entreprisesDuTerritoire.filter((e) => e.assigneA === utilisateur?.id);
+    if (perimetreActif === "non_assignes") return entreprisesDuTerritoire.filter((e) => !e.assigneA);
+    return entreprisesDuTerritoire;
+  }, [entreprisesDuTerritoire, perimetreActif, utilisateur?.id]);
+  const nbMesLeads = useMemo(
+    () => entreprisesDuTerritoire.filter((e) => e.assigneA === utilisateur?.id).length,
+    [entreprisesDuTerritoire, utilisateur?.id]
+  );
+  const nbNonAssignes = useMemo(() => entreprisesDuTerritoire.filter((e) => !e.assigneA).length, [entreprisesDuTerritoire]);
+  // Nombre de fiches par territoire, dans le périmètre choisi (Mes leads…).
+  const comptesTerritoires = useMemo(() => {
+    const c = {};
+    let total = 0;
+    for (const e of toutesEntreprises) {
+      if (perimetreActif === "moi" && e.assigneA !== utilisateur?.id) continue;
+      if (perimetreActif === "non_assignes" && e.assigneA) continue;
+      const cle = territoireDe(e.codePostal);
+      c[cle] = (c[cle] || 0) + 1;
+      total += 1;
+    }
+    return { parTerritoire: c, total };
+  }, [toutesEntreprises, perimetreActif, utilisateur?.id]);
   const [categories, setCategories] = useState([]);
   const [lots, setLots] = useState([]);
   const [agents, setAgents] = useState([]);
@@ -442,8 +480,16 @@ export default function Dashboard() {
           categories={categories}
           onMaj={charger}
           onDemandeEnvoyee={estAdmin ? () => setPerimetre("moi") : undefined}
+          territoire={territoire === "tous" ? "" : territoire}
         />
       )}
+
+      <SelecteurTerritoire
+        valeur={territoire}
+        onChange={setTerritoire}
+        comptes={comptesTerritoires.parTerritoire}
+        total={comptesTerritoires.total}
+      />
 
       <div className="flex flex-col lg:flex-row gap-6">
         <Sidebar
@@ -487,7 +533,7 @@ export default function Dashboard() {
                 className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-0.5"
               >
                 {[
-                  { valeur: "tous", label: "Tous les leads", nombre: toutesEntreprises.length },
+                  { valeur: "tous", label: "Tous les leads", nombre: entreprisesDuTerritoire.length },
                   { valeur: "moi", label: "👤 Mes leads", nombre: nbMesLeads },
                   { valeur: "non_assignes", label: "Non assignés", nombre: nbNonAssignes },
                 ].map((o) => (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import { TERRITOIRES } from "../territoires.js";
 
 // Import d'une vague de prospection (Lot 1, Lot 2…), soit à partir d'une
 // liste de SIREN saisie à la main, soit générée automatiquement à partir
@@ -237,6 +238,11 @@ function GenererVagueSecteur({ categories, agents, lots = [], lotsParSecteur = {
     setLot(nomPropose(cle));
   }
   const [departement, setDepartement] = useState("");
+  // Territoire ("" = tous) : un DOM (974…) sert de filtre, la métropole
+  // exclut l'outre-mer ; seules les entreprises dont le siège est dans le
+  // territoire sont retenues (voir /api/leads/secteur/rechercher).
+  const [territoire, setTerritoire] = useState("");
+  const territoireOutreMer = territoire && territoire !== "metropole";
   const [quantite, setQuantite] = useState(100);
   const [lot, setLot] = useState("");
   const [assigneA, setAssigneA] = useState("");
@@ -270,8 +276,9 @@ function GenererVagueSecteur({ categories, agents, lots = [], lotsParSecteur = {
     setResultatImport(null);
     try {
       const reponse = await api.rechercherProspectsParSecteur(categorie, {
-        departement: departement.trim() || null,
+        departement: territoireOutreMer ? null : departement.trim() || null,
         limite: Math.min(Number(quantite) || 100, 300),
+        territoire: territoire || null,
       });
       setApercu(reponse);
     } catch (e) {
@@ -363,11 +370,29 @@ function GenererVagueSecteur({ categories, agents, lots = [], lotsParSecteur = {
         </label>
 
         <label className="block text-xs text-slate-500 dark:text-slate-400">
+          Territoire
+          <select
+            value={territoire}
+            onChange={(e) => setTerritoire(e.target.value)}
+            className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+          >
+            <option value="">Tous territoires</option>
+            {TERRITOIRES.map((t) => (
+              <option key={t.cle} value={t.cle}>
+                {t.nom}
+                {t.cle !== "metropole" ? ` (${t.cle})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block text-xs text-slate-500 dark:text-slate-400">
           Département (optionnel)
           <input
             type="text"
-            placeholder="Ex : 59"
-            value={departement}
+            placeholder={territoireOutreMer ? territoire : "Ex : 59"}
+            value={territoireOutreMer ? territoire : departement}
+            disabled={Boolean(territoireOutreMer)}
             onChange={(e) => setDepartement(e.target.value)}
             className="mt-1 block w-24 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
           />
@@ -401,7 +426,8 @@ function GenererVagueSecteur({ categories, agents, lots = [], lotsParSecteur = {
           <p className="text-sm text-slate-700 dark:text-slate-200">
             <strong>{apercu.total}</strong> entreprise{apercu.total > 1 ? "s" : ""} trouvée
             {apercu.total > 1 ? "s" : ""} pour « {apercu.categorieLabel} »
-            {departement ? ` (département ${departement})` : ""}, pas encore dans le CRM.
+            {territoire ? ` — ${TERRITOIRES.find((t) => t.cle === territoire)?.nom}` : ""}
+            {departement && !territoireOutreMer ? ` (département ${departement})` : ""}, pas encore dans le CRM.
           </p>
 
           {apercu.total > 0 && (

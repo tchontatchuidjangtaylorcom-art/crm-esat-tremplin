@@ -1,14 +1,20 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import { TERRITOIRES } from "../territoires.js";
 
 // Demande de leads en libre-service (agents) : attribue des fiches non
 // assignées du secteur choisi, puis génère le complément depuis Sirene en
 // arrière-plan s'il en manque (voir /api/leads/demande côté serveur). Évite
 // qu'un agent reste sans fiches quand aucun manager n'est disponible.
-export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee }) {
+export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, territoire: territoireDuTableau = "" }) {
   const [etat, setEtat] = useState(null);
   const [categorie, setCategorie] = useState("");
   const [departement, setDepartement] = useState("");
+  // Territoire des fiches demandées : par défaut celui choisi sur le tableau
+  // de bord (l'agent qui travaille La Réunion reçoit des fiches de La Réunion).
+  const [territoire, setTerritoire] = useState(territoireDuTableau);
+  useEffect(() => setTerritoire(territoireDuTableau), [territoireDuTableau]);
+  const territoireOutreMer = territoire && territoire !== "metropole";
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState(null);
 
@@ -37,7 +43,7 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee }) {
     setEnvoi(true);
     setErreur(null);
     try {
-      const e = await api.demanderLeads(categorie, departement.trim());
+      const e = await api.demanderLeads(categorie, territoireOutreMer ? "" : departement.trim(), territoire);
       setEtat(e);
       onMaj?.();
       onDemandeEnvoyee?.();
@@ -91,11 +97,28 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee }) {
         </label>
 
         <label className="block text-xs text-slate-500 dark:text-slate-400">
+          Territoire
+          <select
+            value={territoire}
+            onChange={(e) => setTerritoire(e.target.value)}
+            disabled={bloque}
+            className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200 px-3 py-2 disabled:opacity-50"
+          >
+            <option value="">Tous territoires</option>
+            {TERRITOIRES.map((t) => (
+              <option key={t.cle} value={t.cle}>
+                {t.nom}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block text-xs text-slate-500 dark:text-slate-400">
           Département (facultatif)
           <input
-            value={departement}
+            value={territoireOutreMer ? territoire : departement}
             onChange={(e) => setDepartement(e.target.value)}
-            disabled={bloque}
+            disabled={bloque || Boolean(territoireOutreMer)}
             placeholder="ex : 75"
             maxLength={3}
             className="mt-1 block w-28 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200 px-3 py-2 disabled:opacity-50"

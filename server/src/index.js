@@ -75,6 +75,7 @@ import {
 import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
 import { reparerChampsContact } from "./telephone.js";
+import { territoireDe, territoireValide, nomTerritoire } from "./territoires.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -1333,14 +1334,27 @@ app.post("/api/leads/secteur/rechercher", exigerAdmin, async (req, res) => {
   const categorie = CATEGORIES[cle];
   if (!categorie) return res.status(400).json({ error: "Catégorie inconnue." });
 
-  const departement = req.body.departement ? String(req.body.departement).trim() : null;
+  // Territoire (métropole, La Réunion, Guadeloupe…) : un département
+  // d'outre-mer sert de filtre Sirene ; on ne garde ensuite que les
+  // entreprises dont le SIÈGE est dans le territoire (Sirene retient aussi
+  // celles qui y ont un simple établissement), d'où une recherche plus large.
+  const territoire = territoireValide(req.body.territoire) ? req.body.territoire : null;
+  const departement = req.body.departement
+    ? String(req.body.departement).trim()
+    : territoire && territoire !== "metropole"
+      ? territoire
+      : null;
   const limite = Math.min(Number(req.body.limite) || 100, 300);
 
   try {
-    const candidats = await rechercherEntreprisesParSecteur(
-      { nafCodes: categorie.nafCodes, estAdministration: categorie.estAdministration },
-      { departement, limite }
-    );
+    const candidats = (
+      await rechercherEntreprisesParSecteur(
+        { nafCodes: categorie.nafCodes, estAdministration: categorie.estAdministration },
+        { departement, limite: territoire ? Math.min(limite * 3, 300) : limite }
+      )
+    )
+      .filter((c) => !territoire || territoireDe(c.codePostal) === territoire)
+      .slice(0, limite);
     const connus = new Set([...db.data.entreprises, ...db.data.archives].map(sirenDe));
     const nouveaux = candidats.filter((c) => !connus.has(c.siren));
     res.json({ categorie: cle, categorieLabel: categorie.label, total: nouveaux.length, entreprises: nouveaux });
@@ -1482,7 +1496,15 @@ async function traiterDemandeLeads(req, res) {
   const cle = req.body.categorie ? String(req.body.categorie) : null;
   const categorie = cle ? CATEGORIES[cle] : null;
   if (cle && !categorie) return res.status(400).json({ error: "Catégorie inconnue." });
-  const departement = req.body.departement ? String(req.body.departement).trim().toUpperCase() : null;
+  // Territoire choisi (métropole, La Réunion…) : pour un DOM, vaut filtre de
+  // département ; pour la métropole, exclut les fiches d'outre-mer.
+  const territoire = territoireValide(req.body.territoire) ? req.body.territoire : null;
+  const departement = req.body.departement
+    ? String(req.body.departement).trim().toUpperCase()
+    : territoire && territoire !== "metropole"
+      ? territoire
+      : null;
+  const dansTerritoire = (e) => !territoire || territoireDe(e.codePostal) === territoire;
   if (departement && !/^(\d{2,3}|2[AB])$/.test(departement)) {
     return res.status(400).json({ error: "Département invalide (ex : 75, 69, 2A, 971)." });
   }
@@ -1498,6 +1520,7 @@ async function traiterDemandeLeads(req, res) {
         !e.assigneA &&
         e.statut === "nouveau" &&
         correspondDepartement(e, departement) &&
+        dansTerritoire(e) &&
         (!cle ||
           classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle === cle)
     )
@@ -1542,7 +1565,8 @@ async function traiterDemandeLeads(req, res) {
 
   // 2) Génération du complément, en arrière-plan.
   const suivi = demandesLeads.get(utilisateur.id);
-  const lot = `Demande ${nomAgent} — ${categorie.label}${departement ? ` (${departement})` : ""} — ${maintenant.slice(0, 10)}`;
+  const lieu = departement && departement !== territoire ? departement : nomTerritoire(territoire);
+  const lot = `Demande ${nomAgent} — ${categorie.label}${lieu ? ` (${lieu})` : ""} — ${maintenant.slice(0, 10)}`;
   const creees = [];
   try {
     const connus = new Set([...db.data.entreprises, ...db.data.archives].map(sirenDe));
@@ -1558,12 +1582,12 @@ async function traiterDemandeLeads(req, res) {
         { nafCodes: categorie.nafCodes, estAdministration: categorie.estAdministration },
         {
           departement,
-          limite: departement ? manquants * 4 : manquants + 5,
+          limite: departement ? manquants * 4 : territoire ? manquants * 2 : manquants + 5,
           effectifMin20: !categorie.estAdministration,
           exclure: connus,
         }
       )
-    ).filter((c) => correspondDepartement(c, departement));
+    ).filter((c) => correspondDepartement(c, departement) && dansTerritoire(c));
     for (const candidat of candidats) {
       if (creees.length >= manquants) break;
       try {
