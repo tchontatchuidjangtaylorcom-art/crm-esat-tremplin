@@ -412,8 +412,14 @@ export default function EntrepriseDetail() {
         &larr; Retour au tableau de bord
       </Link>
 
+      {/* min-w-0 sur le bloc de gauche : sans ça, un contenu variable et
+          large (confirmation "numéros ajoutés", agent assigné, échéance...)
+          forçait toute la ligne à dépasser la largeur disponible, ce qui
+          poussait les boutons d'action de droite (Qualifier CP / PDF /
+          Statut) sur une ligne suivante au lieu de rester épinglés en haut à
+          droite — shrink-0 sur le bloc de droite pour qu'il ne bouge jamais. */}
       <div className="flex flex-wrap items-start justify-between gap-3 mt-3 mb-6">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{entreprise.nom}</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
@@ -441,7 +447,7 @@ export default function EntrepriseDetail() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => setFicheSuiviOuverte(true)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-sm font-medium px-3 py-2 hover:bg-amber-100 dark:hover:bg-amber-900/40"
