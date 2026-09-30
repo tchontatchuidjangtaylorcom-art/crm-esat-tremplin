@@ -74,6 +74,7 @@ export default function EntrepriseDetail() {
   }, [toastFiche]);
 
   const [nouveauCommentaire, setNouveauCommentaire] = useState("");
+  const [historiqueDeplie, setHistoriqueDeplie] = useState(false);
   const [enregistrement, setEnregistrement] = useState(false);
 
   const [effectifSaisi, setEffectifSaisi] = useState("");
@@ -396,6 +397,14 @@ export default function EntrepriseDetail() {
     ...entreprise.historiqueAppels.map((h) => ({ ...h, kind: "appel" })),
     ...entreprise.commentaires.map((c) => ({ ...c, kind: "commentaire" })),
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Affiché en flux normal de la page (jamais dans une boîte à défilement
+  // interne) : un ascenseur imbriqué "capturait" le défilement de la souris,
+  // obligeant à d'abord tout dérouler dedans avant de continuer vers la
+  // section Messagerie/mail juste en dessous. Repliable par contre : au-delà
+  // des 5 derniers échanges, "Voir la suite" affiche le reste sans jamais
+  // ajouter de défilement propre à la liste.
+  const NB_HISTORIQUE_REPLIE = 5;
+  const filAffiche = historiqueDeplie ? fil : fil.slice(0, NB_HISTORIQUE_REPLIE);
 
   return (
     <div className="min-h-screen p-6">
@@ -854,8 +863,8 @@ export default function EntrepriseDetail() {
               </button>
             </form>
 
-            <ul className="space-y-3 max-h-[420px] overflow-y-auto">
-              {fil.map((item) => (
+            <ul className="space-y-3">
+              {filAffiche.map((item) => (
                 <li key={item.id} className="border border-slate-100 dark:border-slate-700 rounded-lg p-3 text-sm">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-medium text-slate-700 dark:text-slate-200">
@@ -886,6 +895,17 @@ export default function EntrepriseDetail() {
                 <li className="text-slate-400 dark:text-slate-500 text-sm">Aucun historique pour ce dossier.</li>
               )}
             </ul>
+            {fil.length > NB_HISTORIQUE_REPLIE && (
+              <button
+                type="button"
+                onClick={() => setHistoriqueDeplie((v) => !v)}
+                className="mt-3 text-sm text-marine-700 dark:text-marine-300 hover:underline"
+              >
+                {historiqueDeplie
+                  ? "Réduire l'historique"
+                  : `Voir les ${fil.length - NB_HISTORIQUE_REPLIE} échange${fil.length - NB_HISTORIQUE_REPLIE > 1 ? "s" : ""} précédent${fil.length - NB_HISTORIQUE_REPLIE > 1 ? "s" : ""}`}
+              </button>
+            )}
           </div>
 
           <MessagerieMail entreprise={entreprise} onMaj={setEntreprise} />
