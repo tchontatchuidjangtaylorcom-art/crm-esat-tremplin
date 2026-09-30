@@ -1561,6 +1561,8 @@ async function traiterDemandeLeads(req, res) {
     termine: generer ? null : maintenant,
   });
   res.status(202).json(etatDemandeLeads(utilisateur.id));
+  // Fiches existantes attribuées sans numéro : recherche Claude tout de suite.
+  rechercherNumerosDemande(demandesLeads.get(utilisateur.id), pool);
   if (!generer) return;
 
   // 2) Génération du complément, en arrière-plan.
@@ -1618,13 +1620,44 @@ async function traiterDemandeLeads(req, res) {
     suivi.termine = new Date().toISOString();
   }
 
-  // Numéros de téléphone : même enrichissement IA qu'à l'import d'une vague.
-  const aEnrichir = creees.filter(Boolean);
-  if (aEnrichir.length && estRechercheIaConfiguree()) {
-    fileEnrichissementImport = fileEnrichissementImport
-      .then(() => enrichirTelephonesViaIA(aEnrichir))
-      .catch((e) => console.error("[ia] Échec de l'enrichissement téléphone (demande de leads) :", e.message));
-  }
+  // Numéros de téléphone des fiches créées : même recherche Claude.
+  rechercherNumerosDemande(suivi, creees);
+}
+
+// Recherche Claude des numéros manquants sur les fiches remises à un agent
+// par "Demander 20 fiches" (existantes comme nouvellement créées), avec une
+// progression visible dans le bloc de demande (suivi.numeros). Passe par la
+// même file que les autres recherches (une à la fois) et ignore les fiches
+// déjà cherchées sans succès ou déjà programmées ailleurs.
+function rechercherNumerosDemande(suivi, fiches) {
+  if (!suivi || !estRechercheIaConfiguree()) return;
+  const cibles = fiches.filter(
+    (e) => e && !e.contact?.telephone && !estDejaTenteeSansSucces(e) && !fichesEnEnrichissement.has(e.id)
+  );
+  if (cibles.length === 0) return;
+  suivi.numeros = suivi.numeros || { total: 0, traites: 0, trouves: 0, lotsEnCours: 0, enCours: false };
+  suivi.numeros.total += cibles.length;
+  suivi.numeros.lotsEnCours += 1;
+  suivi.numeros.enCours = true;
+  for (const e of cibles) fichesEnEnrichissement.add(e.id);
+  fileEnrichissementImport = fileEnrichissementImport
+    .then(() =>
+      enrichirTelephonesViaIA(cibles, {
+        onProgres: ({ trouve }) => {
+          suivi.numeros.traites += 1;
+          if (trouve) suivi.numeros.trouves += 1;
+        },
+      })
+    )
+    .then((resultat) => {
+      if (resultat?.interrompu) suivi.numeros.interrompu = resultat.interrompu;
+    })
+    .catch((e) => console.error("[ia] Échec de l'enrichissement téléphone (demande de leads) :", e.message))
+    .finally(() => {
+      for (const e of cibles) fichesEnEnrichissement.delete(e.id);
+      suivi.numeros.lotsEnCours -= 1;
+      suivi.numeros.enCours = suivi.numeros.lotsEnCours > 0;
+    });
 }
 
 app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {

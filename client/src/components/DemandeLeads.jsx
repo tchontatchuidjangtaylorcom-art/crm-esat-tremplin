@@ -22,9 +22,11 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
     api.getDemandeLeads().then(setEtat).catch(() => {});
   }, []);
 
-  // Suivi de la génération en arrière-plan.
+  // Suivi de la génération et de la recherche des numéros en arrière-plan :
+  // le tableau de bord se met à jour à chaque tick (numéros trouvés inclus).
+  const suiviActif = Boolean(etat?.enCours || etat?.numeros?.enCours);
   useEffect(() => {
-    if (!etat?.enCours) return;
+    if (!suiviActif) return;
     const id = setInterval(async () => {
       try {
         const e = await api.getDemandeLeads();
@@ -36,7 +38,7 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
     }, 4000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [etat?.enCours]);
+  }, [suiviActif]);
 
   async function demander(ev) {
     ev.preventDefault();
@@ -142,10 +144,24 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
             ` + ${etat.generes} / ${etat.aGenerer} nouvelle${etat.aGenerer > 1 ? "s" : ""} fiche${
               etat.aGenerer > 1 ? "s" : ""
             } générée${etat.aGenerer > 1 ? "s" : ""}${etat.categorieLabel ? ` (${etat.categorieLabel})` : ""}`}
-          {etat.enCours
-            ? "…"
-            : ". Les numéros sont recherchés automatiquement ; s'il en manque, utilisez « Rechercher sur Google » sur la fiche."}
+          {etat.enCours ? "…" : "."}
         </p>
+      )}
+      {etat.numeros?.total > 0 && (
+        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+          {etat.numeros.enCours ? "📞 Recherche des numéros par Claude : " : "📞 Numéros : "}
+          {etat.numeros.traites} / {etat.numeros.total} fiche{etat.numeros.total > 1 ? "s" : ""} sans numéro traitée
+          {etat.numeros.traites > 1 ? "s" : ""} — <strong>{etat.numeros.trouves}</strong> numéro
+          {etat.numeros.trouves > 1 ? "s" : ""} trouvé{etat.numeros.trouves > 1 ? "s" : ""}
+          {etat.numeros.enCours
+            ? "… (ils apparaissent dans le tableau au fur et à mesure)"
+            : etat.numeros.trouves < etat.numeros.total
+              ? ". Pour les autres, utilisez « Rechercher sur Google » sur la fiche."
+              : "."}
+        </p>
+      )}
+      {etat.numeros?.interrompu && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">⚠️ {etat.numeros.interrompu}</p>
       )}
       {etat.message && <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">{etat.message}</p>}
       {etat.erreur && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{etat.erreur}</p>}
