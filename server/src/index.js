@@ -873,7 +873,16 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
 // qualifie ensuite manuellement, comme n'importe quelle demande entrante).
 // Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
 enregistrerRoutesVitrineRdv(app);
-enregistrerRoutesRechercheNumeros(app, { exigerAuth, chargerEntrepriseAutorisee, findEntreprise });
+enregistrerRoutesRechercheNumeros(app, {
+  exigerAuth,
+  chargerEntrepriseAutorisee,
+  findEntreprise,
+  // Recherche automatique à l'ouverture d'une fiche sans numéro : e-mails
+  // enregistrés comme pour le lot, et marque "déjà recherchée" commune.
+  ajouterEmailFiche,
+  marquerRechercheTelephone,
+  dejaRecherchee: (e) => estDejaTenteeSansSucces(e) || e.rechercheTelephoneIA?.resultat === "trouve",
+});
 enregistrerRoutesDistributionEquipe(app, {
   exigerAdmin,
   estAdmin,
@@ -1272,6 +1281,7 @@ function appliquerResultatRechercheIA(entreprise, resultat) {
   // E-mails RH publiés : celui de la personne, ou l'adresse RH/recrutement.
   if (rh?.email) ajouterEmailFiche(contact, rh.email, `RH — ${rh.nom} (trouvé par l'IA)`);
   if (resultat.emailRH) ajouterEmailFiche(contact, resultat.emailRH, "Adresse RH / recrutement (trouvée par l'IA)");
+  if (resultat.emailGeneral) ajouterEmailFiche(contact, resultat.emailGeneral, "Adresse de contact (trouvée par l'IA)");
 
   const lignes = resultat.telephones.map(
     (t, i) => `n°${i + 1} ${t.numero}${t.libelle ? ` (${t.libelle})` : ""}${t.source ? ` — ${t.source}` : ""}`

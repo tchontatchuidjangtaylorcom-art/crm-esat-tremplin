@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
@@ -25,6 +25,12 @@ export default function GestionContacts({ entreprise, onMaj }) {
   const estAdminConnecte = estAdmin(utilisateur);
   const [nomPrincipal, setNomPrincipal] = useState(entreprise.contact?.nom || "");
   const [fonctionPrincipal, setFonctionPrincipal] = useState(entreprise.contact?.fonction || "");
+  // Contact principal enregistré entre-temps (ex. contact RH trouvé par Claude
+  // en arrière-plan) : le champ suit la fiche au lieu de rester sur l'ancienne valeur.
+  useEffect(() => {
+    setNomPrincipal(entreprise.contact?.nom || "");
+    setFonctionPrincipal(entreprise.contact?.fonction || "");
+  }, [entreprise.contact?.nom, entreprise.contact?.fonction]);
   const [nouveauNom, setNouveauNom] = useState("");
   const [nouvelleFonction, setNouvelleFonction] = useState("");
   const [edition, setEdition] = useState(null); // { id, nom, fonction }

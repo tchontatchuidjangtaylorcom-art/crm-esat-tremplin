@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
+import { estNumeroAffichable } from "../telephone.js";
 
 // Recherche automatique du contact RH à l'ouverture d'une fiche qui n'a pas
 // encore de nom de contact (voir POST /api/entreprises/:id/contact-rh-auto) :
@@ -11,7 +12,11 @@ export default function ContactRhAuto({ entreprise, onMaj }) {
   const lance = useRef(new Set());
 
   const sansNom = !entreprise.contact?.nom || entreprise.contact.nom === "-";
-  const aRechercher = sansNom && !entreprise.rechercheContactRH;
+  // Fiche sans numéro : la recherche automatique des numéros (voir
+  // BoutonRechercheNumeros) cherche aussi le contact RH ; on attend sa fin
+  // avant de lancer la recherche RH dédiée, pour ne pas payer deux fois.
+  const numerosDejaTraites = estNumeroAffichable(entreprise.contact?.telephone) || Boolean(entreprise.rechercheTelephoneIA);
+  const aRechercher = sansNom && !entreprise.rechercheContactRH && numerosDejaTraites;
 
   useEffect(() => {
     if (!aRechercher || lance.current.has(entreprise.id)) return;

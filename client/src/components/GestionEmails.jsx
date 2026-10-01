@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
@@ -21,6 +21,8 @@ export default function GestionEmails({ entreprise, onMaj }) {
   const { utilisateur } = useAuth();
   const estAdminConnecte = estAdmin(utilisateur);
   const [emailPrincipal, setEmailPrincipal] = useState(entreprise.contact?.email || "");
+  // Adresse enregistrée entre-temps (ex. trouvée par Claude en arrière-plan).
+  useEffect(() => setEmailPrincipal(entreprise.contact?.email || ""), [entreprise.contact?.email]);
   const [nouvelEmail, setNouvelEmail] = useState("");
   const [nouvelleNote, setNouvelleNote] = useState("");
   const [enCours, setEnCours] = useState(false);

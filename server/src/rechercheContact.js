@@ -219,6 +219,8 @@ function construirePrompt(entreprise) {
     `Uniquement un nom réel lu dans une source (site officiel, LinkedIn, presse, Societe.com pour le dirigeant). ` +
     `Ajoute son e-mail professionnel s'il est publié ; sinon, l'adresse e-mail RH / recrutement publiée par ` +
     `l'entreprise (ex. rh@…, recrutement@…, jobs@…). Jamais une adresse devinée ou reconstituée.\n` +
+    `Note aussi l'adresse e-mail de contact générale si elle est publiée (page Contact, mentions légales) : ` +
+    `contact@…, accueil@…, info@….\n` +
     `Objectif 3 — la catégorie la plus pertinente EXCLUSIVEMENT parmi cette liste (clé, pas libellé) : ${listeCategories}.\n` +
     `\n` +
     `Ne renvoie que des informations lues dans une source : un numéro ou un nom inventé ferait perdre du temps à ` +
@@ -228,6 +230,7 @@ function construirePrompt(entreprise) {
     `{"telephones": [{"numero": "01 23 45 67 89", "libelle": "standard | accueil | agence | siège | RH | ...", "source": "<url>"}], ` +
     `"contactRH": {"nom": "<prénom nom>", "fonction": "<fonction>", "email": "<e-mail publié ou null>", "source": "<url>"} ou null, ` +
     `"emailRH": "<adresse RH ou recrutement publiée par l'entreprise, ou null>", ` +
+    `"emailGeneral": "<adresse e-mail de contact générale publiée (contact@…, accueil@…, info@…), ou null>", ` +
     `"secteurCategorie": "<clé ou null>", "confiance": "haute|moyenne|faible"}\n` +
     `Classe les numéros du plus utile au moins utile (3 au maximum) ; "telephones" vaut [] si rien de fiable.`
   );
@@ -317,6 +320,7 @@ function extraireResultat(texte) {
       }
     : null;
   const emailRH = nettoieEmail(resultat.emailRH);
+  const emailGeneral = nettoieEmail(resultat.emailGeneral);
 
   // Défense contre une clé de catégorie hallucinée/inconnue : on ignore
   // plutôt que de laisser une clé invalide se propager jusqu'à classifierSecteur.
@@ -327,6 +331,7 @@ function extraireResultat(texte) {
     telephones,
     contactRH,
     emailRH,
+    emailGeneral,
     // Champs historiques, lus par /api/entreprises/:id/rechercher-contact.
     telephone: telephones[0]?.numero || null,
     contact: contactRH ? [contactRH.nom, contactRH.fonction].filter(Boolean).join(", ") : null,

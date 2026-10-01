@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import { estNumeroAffichable } from "../telephone.js";
 
 async function appel(url, options) {
   const res = await fetch(url, options);
@@ -18,9 +19,29 @@ export default function BoutonRechercheNumeros({ entreprise, onMaj }) {
   const [erreur, setErreur] = useState(null);
   const url = `/api/entreprises/${entreprise.id}/recherche-numeros`;
 
-  // Reprend l'affichage si une recherche tourne déjà pour cette fiche.
+  // Reprend l'affichage si une recherche tourne déjà pour cette fiche ; sinon,
+  // fiche sans numéro : Claude cherche tout seul les numéros, e-mails et
+  // contact RH dès l'ouverture (le serveur ne relance jamais une fiche déjà
+  // cherchée).
   useEffect(() => {
-    appel(url).then(setEtat).catch(() => {});
+    let annule = false;
+    appel(url)
+      .then(async (e) => {
+        if (annule) return;
+        setEtat(e);
+        if (!e?.enCours && !estNumeroAffichable(entreprise.contact?.telephone) && !entreprise.rechercheTelephoneIA) {
+          const lancement = await appel(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ auto: true }),
+          });
+          if (!annule && lancement?.enCours) setEtat(lancement);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entreprise.id]);
 
@@ -58,7 +79,11 @@ export default function BoutonRechercheNumeros({ entreprise, onMaj }) {
         className="inline-flex items-center gap-1.5 rounded-lg border border-marine-300 dark:border-marine-700 bg-marine-50 dark:bg-marine-950/40 text-marine-800 dark:text-marine-200 font-medium px-3 py-1.5 hover:bg-marine-100 dark:hover:bg-marine-900/50 disabled:opacity-60"
         title="Chercher sur le web tous les numéros de cette entreprise (standard, agences, RH…) et les ajouter à la fiche"
       >
-        {etat?.enCours ? "🔎 Recherche des numéros en cours…" : "🔎 Rechercher d'autres numéros"}
+        {etat?.enCours
+          ? etat.auto
+            ? "🔎 Claude cherche les numéros et e-mails de cette entreprise…"
+            : "🔎 Recherche des numéros en cours…"
+          : "🔎 Rechercher d'autres numéros"}
       </button>
       {etat?.enCours && (
         <span className="text-slate-500 dark:text-slate-400">
@@ -70,8 +95,10 @@ export default function BoutonRechercheNumeros({ entreprise, onMaj }) {
           {etat.nouveaux?.length
             ? `✓ ${etat.nouveaux.length} numéro${etat.nouveaux.length > 1 ? "s" : ""} ajouté${
                 etat.nouveaux.length > 1 ? "s" : ""
-              } : ${etat.nouveaux.join(", ")}${etat.contactRH ? ` · contact : ${etat.contactRH}` : ""}`
-            : "Aucun nouveau numéro trouvé."}
+              } : ${etat.nouveaux.join(", ")}${etat.contactRH ? ` · contact : ${etat.contactRH}` : ""}${
+                etat.emails?.length ? ` · e-mail : ${etat.emails.join(", ")}` : ""
+              }`
+            : `Aucun nouveau numéro trouvé.${etat.emails?.length ? ` E-mail ajouté : ${etat.emails.join(", ")}.` : ""}`}
         </span>
       )}
       {(erreur || etat?.erreur) && <span className="text-red-600 dark:text-red-400">{erreur || etat.erreur}</span>}
