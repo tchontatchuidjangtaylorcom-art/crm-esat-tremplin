@@ -19,6 +19,7 @@ import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { erreurNumero, estNumeroAffichable } from "../telephone.js";
 import CalculObligationFiche from "../components/CalculObligationFiche.jsx";
 import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
+import BadgeEcheance from "../components/BadgeEcheance.jsx";
 import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
@@ -469,11 +470,8 @@ export default function EntrepriseDetail() {
                 <span className="font-medium text-slate-400 dark:text-slate-500">Non assigné</span>
               )}
             </span>
-            {(entreprise.dateRdv || entreprise.dateRappel) && (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-full px-2.5 py-1 whitespace-nowrap">
-                {entreprise.dateRdv ? "📅 RDV :" : "☎️ Rappel :"} {formatDateHeure(entreprise.dateRdv || entreprise.dateRappel)}
-              </span>
-            )}
+            {/* Cliquable : déplacer le RDV / rappel (voir BadgeEcheance). */}
+            <BadgeEcheance entreprise={entreprise} onMaj={setEntreprise} />
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
