@@ -3,6 +3,33 @@ import { createContext, useCallback, useContext, useState } from "react";
 const SupervisionContext = createContext(null);
 const STORAGE_KEY = "supervision:agent";
 
+// Toute action faite pendant le Mode Manager part avec l'en-tête
+// X-Mode-Manager (id de l'agent consulté) : le journal d'activité du serveur
+// (voir server/src/journalAudit.js) note qu'elle a été faite depuis le
+// compte de cet agent.
+if (typeof window !== "undefined" && !window.__fetchModeManager) {
+  window.__fetchModeManager = true;
+  const fetchOriginal = window.fetch.bind(window);
+  window.fetch = (entree, options = {}) => {
+    try {
+      const url = typeof entree === "string" ? entree : entree?.url || "";
+      const methode = (options.method || "GET").toUpperCase();
+      const brut = window.sessionStorage.getItem(STORAGE_KEY);
+      if (brut && methode !== "GET" && url.startsWith("/api/")) {
+        const agent = JSON.parse(brut);
+        if (agent?.id) {
+          const entetes = new Headers(options.headers || {});
+          entetes.set("X-Mode-Manager", agent.id);
+          options = { ...options, headers: entetes };
+        }
+      }
+    } catch {
+      // stockage indisponible : la requête part sans l'en-tête
+    }
+    return fetchOriginal(entree, options);
+  };
+}
+
 // Mode Manager : un admin peut consulter le tableau de bord "comme si" il
 // était un agent donné (ses leads, ses RDV, ses non-lus) sans changer de
 // session — voir commeAgentId côté serveur (GET /api/entreprises,

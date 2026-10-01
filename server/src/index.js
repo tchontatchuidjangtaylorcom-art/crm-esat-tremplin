@@ -44,6 +44,8 @@ import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { enregistrerRoutesImportFichier } from "./importFichier.js";
 import { enregistrerRoutesDistributionEquipe } from "./distributionEquipe.js";
+import { enregistrerRoutesAnnulationDistribution } from "./annulationDistribution.js";
+import { installerJournal, enregistrerRoutesSupervision } from "./journalAudit.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -100,6 +102,15 @@ app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
+// Journal d'activité (voir journalAudit.js) : avant toutes les routes /api,
+// pour voir chaque écriture réussie et l'état de la fiche avant / après.
+installerJournal(app, {
+  trouverUtilisateurParId,
+  estAdmin,
+  libelleStatut: (s) =>
+    ISSUES_APPEL[s] || SORTIES_DOSSIER[s] || { nouveau: "Nouveau", a_relancer: "À relancer", numero_invalide: "Numéro invalide" }[s] || s,
+});
+enregistrerRoutesSupervision(app, { exigerSuperAdmin, trouverUtilisateurParId });
 
 await initDb();
 
@@ -869,6 +880,10 @@ enregistrerRoutesDistributionEquipe(app, {
   ordreFiches: ordreFichesAAttribuer,
   libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
   apresAttribution: (utilisateurId, fiches) => rechercherNumerosAttribues(utilisateurId, fiches),
+});
+enregistrerRoutesAnnulationDistribution(app, {
+  exigerAdmin,
+  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
 });
 enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });
 
@@ -2789,6 +2804,8 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
 // des groupes/privés des agents (il ne peut pas lire leurs messages) — le
 // "Mode Manager" ne lui donne accès qu'à des COMPTEURS (non-lus, leads,
 // RDV), jamais au contenu des conversations d'un agent qu'il superviserait.
+// Seul le super-administrateur lit toutes les conversations, en lecture
+// seule et tracée (page Supervision, voir journalAudit.js).
 
 function estMembreCanal(canal, utilisateurId) {
   return canal.type === "general" || (canal.membres || []).includes(utilisateurId);

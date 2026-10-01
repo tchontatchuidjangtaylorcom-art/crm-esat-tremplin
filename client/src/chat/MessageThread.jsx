@@ -122,6 +122,9 @@ export default function MessageThread({ canalId, nomCanal }) {
           Envoyer
         </button>
       </form>
+      <p className="px-3 pb-2 text-[10px] text-slate-400 dark:text-slate-500">
+        Messagerie professionnelle : les conversations peuvent être consultées par la direction.
+      </p>
     </div>
   );
 }

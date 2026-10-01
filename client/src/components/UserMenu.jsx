@@ -82,6 +82,16 @@ export default function UserMenu({ theme, onBasculerTheme }) {
           >
             👥 KPIs équipe
           </Link>
+
+          {utilisateur?.role === "super_admin" && (
+            <Link
+              to="/supervision"
+              title="Journal d'activité de l'équipe et conversations du chat"
+              className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+            >
+              🛡 Supervision
+            </Link>
+          )}
         </>
       )}
 
