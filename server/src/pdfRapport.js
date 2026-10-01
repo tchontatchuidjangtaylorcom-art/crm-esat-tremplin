@@ -23,7 +23,8 @@ const VIOLET = "#7c3aed";
 const LIBELLES_STATUT = {
   nouveau: "Nouveau",
   a_relancer: "À relancer",
-  nrp: "NRP (non répondant)",
+  nrp: "NRP 1 (pas de réponse à l'accueil)",
+  nrp2: "NRP 2 (accueil passé, messagerie des RH)",
   me_rappelle: "Le contact doit rappeler",
   a_rappeler: "À rappeler",
   rdv: "Rendez-vous",

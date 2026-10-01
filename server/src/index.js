@@ -116,7 +116,10 @@ await initDb();
 
 // ---- Libellés des issues d'appel / sorties de dossier (source de vérité) ----
 const ISSUES_APPEL = {
-  nrp: "NRP (Non Répondant)",
+  // NRP 1 : personne ne décroche, même pas l'accueil / le standard.
+  // NRP 2 : l'accueil a répondu et transféré aux RH, tombé sur la messagerie.
+  nrp: "NRP 1 (pas de réponse à l'accueil)",
+  nrp2: "NRP 2 (accueil passé, messagerie des RH)",
   me_rappelle: "Me rappelle",
   a_rappeler: "À rappeler",
   rdv: "RDV",
@@ -864,6 +867,7 @@ enregistrerRoutesDistributionEquipe(app, {
   exigerAdmin,
   estAdmin,
   ordreFiches: ordreFichesAAttribuer,
+  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
   apresAttribution: (utilisateurId, fiches) => rechercherNumerosAttribues(utilisateurId, fiches),
 });
 enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });

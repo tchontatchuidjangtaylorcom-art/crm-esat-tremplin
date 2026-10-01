@@ -3,7 +3,7 @@ import { useDialer } from "../telephony/DialerContext.jsx";
 import { useTelephonie } from "../telephony/CallContext.jsx";
 import { STATUTS } from "../constants.js";
 
-const SEGMENTS_DISPONIBLES = ["nouveau", "nrp"];
+const SEGMENTS_DISPONIBLES = ["nouveau", "nrp", "nrp2"];
 
 function Stat({ label, valeur, classe }) {
   return (

@@ -2,7 +2,8 @@
 export const STATUTS = {
   nouveau: { label: "Nouveau", badge: "bg-sky-100 text-sky-700 border border-sky-300" },
   a_relancer: { label: "À relancer", badge: "bg-orange-100 text-orange-700 border border-orange-300" },
-  nrp: { label: "NRP", badge: "bg-red-100 text-red-700 border border-red-300" },
+  nrp: { label: "NRP 1", badge: "bg-red-100 text-red-700 border border-red-300" },
+  nrp2: { label: "NRP 2", badge: "bg-pink-100 text-pink-700 border border-pink-300" },
   me_rappelle: { label: "Me rappelle", badge: "bg-purple-100 text-purple-700 border border-purple-300" },
   a_rappeler: { label: "À rappeler", badge: "bg-blue-100 text-blue-700 border border-blue-300" },
   numero_invalide: { label: "Numéro invalide", badge: "bg-red-100 text-red-800 border border-red-400 font-semibold" },
@@ -33,6 +34,7 @@ export const ORDRE_STATUTS = [
   "nouveau",
   "a_relancer",
   "nrp",
+  "nrp2",
   "me_rappelle",
   "a_rappeler",
   "numero_invalide",
@@ -46,11 +48,12 @@ export const ORDRE_STATUTS = [
 // Profils ciblés par défaut par le dialer automatique : prospects jamais
 // contactés ou injoignables la dernière fois — les meilleurs candidats pour
 // un enchaînement d'appels sortants.
-export const SEGMENTS_DIALER_PAR_DEFAUT = ["nouveau", "nrp"];
+export const SEGMENTS_DIALER_PAR_DEFAUT = ["nouveau", "nrp", "nrp2"];
 
 // Menu "NOUVELLE ISSUE D'APPEL" du module AGIR.
 export const ISSUES_APPEL = [
-  { value: "nrp", label: "NRP (Non Répondant)", needsDate: false },
+  { value: "nrp", label: "NRP 1 (pas de réponse à l'accueil)", needsDate: false },
+  { value: "nrp2", label: "NRP 2 (accueil passé, messagerie des RH)", needsDate: false },
   // Pas de date : c'est l'entreprise qui rappelle, quand elle veut — la fiche
   // se retrouve simplement dans la catégorie "Me rappelle".
   { value: "me_rappelle", label: "Me rappelle", needsDate: false },
