@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
 import { diffuserEntrepriseMaj } from "../telephony/CallContext.jsx";
+import SelecteurPersonne from "./SelecteurPersonne.jsx";
 
 // "Agent assigné" en haut de la fiche. Agent : simple affichage. Administrateur :
 // liste déroulante pour attribuer la fiche à quelqu'un d'autre (ou la
@@ -36,8 +37,8 @@ export default function ChoixAgentFiche({ entreprise, onMaj }) {
     );
   }
 
-  async function changer(ev) {
-    const utilisateurId = ev.target.value || null;
+  async function changer(valeur) {
+    const utilisateurId = valeur || null;
     setEnCours(true);
     setErreur(null);
     try {
@@ -51,23 +52,19 @@ export default function ChoixAgentFiche({ entreprise, onMaj }) {
     }
   }
 
-  const nom = (u) => [u.prenom, u.nom].filter(Boolean).join(" ") || u.email;
   return (
     <label className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
       Agent assigné :
-      <select
-        value={entreprise.assigneA || ""}
+      <SelecteurPersonne
+        personnes={equipe}
+        moiId={utilisateur.id}
+        valeur={entreprise.assigneA || ""}
         onChange={changer}
         disabled={enCours}
-        className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs font-medium text-marine-700 dark:text-marine-300 disabled:opacity-50"
-      >
-        <option value="">Non assigné</option>
-        {equipe.map((u) => (
-          <option key={u.id} value={u.id}>
-            {u.id === utilisateur.id ? `Moi (${nom(u)})` : nom(u)}
-          </option>
-        ))}
-      </select>
+        optionsSpeciales={[{ valeur: "", label: "Non assigné" }]}
+        placeholder="Non assigné"
+        className="px-2 py-1 text-xs font-medium w-44"
+      />
       {enCours && <span>…</span>}
       {erreur && <span className="text-red-600 dark:text-red-400">{erreur}</span>}
     </label>

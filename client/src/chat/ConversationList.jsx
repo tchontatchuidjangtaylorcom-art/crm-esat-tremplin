@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useChat } from "./ChatContext.jsx";
 import { formatDateHeure } from "../constants.js";
+import SelecteurPersonne, { trierPersonnes, nomPersonne } from "../components/SelecteurPersonne.jsx";
 
 function CanalItem({ canal, actif, compact, onClick }) {
   return (
@@ -41,6 +42,13 @@ export default function ConversationList({ canalActifId, onSelect, compact = fal
   const [creationGroupe, setCreationGroupe] = useState(false);
   const [nomGroupe, setNomGroupe] = useState("");
   const [membresChoisis, setMembresChoisis] = useState([]);
+  // Choix des membres d'un groupe : ordre alphabétique + recherche par nom.
+  const [rechercheMembre, setRechercheMembre] = useState("");
+  const sansAccents = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const colleguesTries = trierPersonnes(collegues);
+  const colleguesFiltres = colleguesTries.filter((c) =>
+    sansAccents(`${nomPersonne(c)} ${c.email || ""}`).includes(sansAccents(rechercheMembre.trim()))
+  );
   const [enregistrement, setEnregistrement] = useState(false);
 
   const groupes = canaux.filter((c) => c.type === "general" || c.type === "groupe");
@@ -61,12 +69,10 @@ export default function ConversationList({ canalActifId, onSelect, compact = fal
     }
   }
 
-  async function demarrerConversation(ev) {
-    const utilisateurId = ev.target.value;
+  async function demarrerConversation(utilisateurId) {
     if (!utilisateurId) return;
     const canal = await ouvrirPrive(utilisateurId);
     onSelect?.(canal.id);
-    ev.target.value = "";
   }
 
   function basculerMembre(id) {
@@ -120,15 +126,22 @@ export default function ConversationList({ canalActifId, onSelect, compact = fal
                   onChange={(e) => setNomGroupe(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
                 />
+                <input
+                  type="search"
+                  placeholder="🔍 Rechercher un membre…"
+                  value={rechercheMembre}
+                  onChange={(e) => setRechercheMembre(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
+                />
                 <div className="max-h-32 overflow-y-auto space-y-1 text-sm">
-                  {collegues.map((c) => (
+                  {colleguesFiltres.map((c) => (
                     <label key={c.id} className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                       <input
                         type="checkbox"
                         checked={membresChoisis.includes(c.id)}
                         onChange={() => basculerMembre(c.id)}
                       />
-                      {c.prenom || c.email}
+                      {nomPersonne(c)}
                     </label>
                   ))}
                   {collegues.length === 0 && <p className="text-xs text-slate-400">Aucun autre agent pour l'instant.</p>}
@@ -173,20 +186,13 @@ export default function ConversationList({ canalActifId, onSelect, compact = fal
               />
             ))}
             <div className="p-3 border-t border-slate-100 dark:border-slate-700">
-              <select
-                defaultValue=""
+              <SelecteurPersonne
+                personnes={collegues}
+                valeur=""
                 onChange={demarrerConversation}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm"
-              >
-                <option value="" disabled>
-                  + Nouveau message à…
-                </option>
-                {collegues.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.prenom || c.email}
-                  </option>
-                ))}
-              </select>
+                placeholder="+ Nouveau message à…"
+                className="w-full px-2 py-1.5 text-sm"
+              />
             </div>
             {prives.length === 0 && (
               <p className="px-3 py-2 text-xs text-slate-400">Aucune conversation privée pour l'instant.</p>

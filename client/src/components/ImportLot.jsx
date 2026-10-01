@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { TERRITOIRES } from "../territoires.js";
+import SelecteurPersonne from "./SelecteurPersonne.jsx";
 import { extraireDepuisFichier, extraireDepuisTexte } from "../extractionEntreprises.js";
 
 // Import par fichier / liste : petits appels (le serveur interroge Sirene
@@ -15,7 +16,7 @@ const MAX_ENTREES_FICHIER = 300;
 // server/src/insee.js sur pourquoi ce n'est pas un modèle de langage qui
 // choisit les entreprises). Replié par défaut pour ne pas surcharger le
 // tableau de bord.
-export default function ImportLot({ categories, agents, lots = [], lotsParSecteur = {}, onImporte }) {
+export default function ImportLot({ categories, agents, moiId, lots = [], lotsParSecteur = {}, onImporte }) {
   const [ouvert, setOuvert] = useState(false);
   const [mode, setMode] = useState("siren");
   const [lot, setLot] = useState("");
@@ -172,6 +173,7 @@ export default function ImportLot({ categories, agents, lots = [], lotsParSecteu
             <GenererVagueSecteur
               categories={categories}
               agents={agents}
+              moiId={moiId}
               lots={lots}
               lotsParSecteur={lotsParSecteur}
               onImporte={onImporte}
@@ -195,18 +197,17 @@ export default function ImportLot({ categories, agents, lots = [], lotsParSecteu
                 {agents?.length > 0 && (
                   <label className="block text-xs text-slate-500 dark:text-slate-400">
                     Assigner à (optionnel)
-                    <select
-                      value={assigneA}
-                      onChange={(e) => setAssigneA(e.target.value)}
-                      className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
-                    >
-                      <option value="">Non assigné (à distribuer plus tard)</option>
-                      {agents.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.prenom || a.email}
-                        </option>
-                      ))}
-                    </select>
+                    <span className="mt-1 block">
+                      <SelecteurPersonne
+                        personnes={agents}
+                        moiId={moiId}
+                        valeur={assigneA}
+                        onChange={setAssigneA}
+                        optionsSpeciales={[{ valeur: "", label: "Non assigné (à distribuer plus tard)" }]}
+                        placeholder="Non assigné (à distribuer plus tard)"
+                        className="px-3 py-2 text-sm w-64"
+                      />
+                    </span>
                   </label>
                 )}
               </div>
@@ -379,7 +380,7 @@ function prochainNomVague(label, dejaDansSecteur, tousLesLots) {
   return `${label} ${n}`;
 }
 
-function GenererVagueSecteur({ categories, agents, lots = [], lotsParSecteur = {}, onImporte }) {
+function GenererVagueSecteur({ categories, agents, moiId, lots = [], lotsParSecteur = {}, onImporte }) {
   const [categorie, setCategorie] = useState("");
 
   function nomPropose(cle, enPlus = []) {
@@ -628,18 +629,15 @@ function GenererVagueSecteur({ categories, agents, lots = [], lotsParSecteur = {
                   className="flex-1 min-w-[220px] rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
                 />
                 {agents?.length > 0 && (
-                  <select
-                    value={assigneA}
-                    onChange={(e) => setAssigneA(e.target.value)}
-                    className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-2 text-sm"
-                  >
-                    <option value="">Non assigné</option>
-                    {agents.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.prenom || a.email}
-                      </option>
-                    ))}
-                  </select>
+                  <SelecteurPersonne
+                    personnes={agents}
+                    moiId={moiId}
+                    valeur={assigneA}
+                    onChange={setAssigneA}
+                    optionsSpeciales={[{ valeur: "", label: "Non assigné" }]}
+                    placeholder="Non assigné"
+                    className="px-2 py-2 text-sm w-52"
+                  />
                 )}
                 <button
                   onClick={importer}

@@ -7,6 +7,7 @@ import { useSupervision } from "../SupervisionContext.jsx";
 import { usePresence } from "../PresenceContext.jsx";
 import { api } from "../api.js";
 import NotificationCenter from "./NotificationCenter.jsx";
+import SelecteurPersonne from "./SelecteurPersonne.jsx";
 
 // Widget de profil + bascule clair/sombre, en haut à droite du tableau de
 // bord. L'accès à cette page exige déjà une session valide (RequireAuth),
@@ -50,19 +51,15 @@ export default function UserMenu({ theme, onBasculerTheme }) {
     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
       {estAdmin(utilisateur) && (
         <>
-          <select
-            value={agentSupervise?.id || ""}
-            onChange={(e) => choisirAgentSupervise(e.target.value)}
-            title="Mode Manager : consulter le tableau de bord d'un agent"
-            className="text-sm rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-1.5 max-w-[180px]"
-          >
-            <option value="">Voir le compte de…</option>
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.prenom || a.email}
-              </option>
-            ))}
-          </select>
+          <SelecteurPersonne
+            personnes={agents}
+            valeur={agentSupervise?.id || ""}
+            onChange={choisirAgentSupervise}
+            optionsSpeciales={agentSupervise ? [{ valeur: "", label: "Revenir à mon compte" }] : []}
+            placeholder="Voir le compte de…"
+            titre="Mode Manager : consulter le tableau de bord d'un agent"
+            className="text-sm rounded-full px-3 py-1.5 max-w-[200px]"
+          />
 
           <Link
             to="/admin/utilisateurs"

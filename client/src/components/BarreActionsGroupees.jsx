@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { STATUTS } from "../constants.js";
+import SelecteurPersonne from "./SelecteurPersonne.jsx";
 
 // Barre d'action qui apparaît dès qu'une ou plusieurs entreprises sont
 // cochées dans le tableau — assignation et changement de statut en masse,
@@ -12,6 +13,7 @@ export default function BarreActionsGroupees({
   nbFiltre,
   estAdmin,
   agents,
+  moiId,
   onAssigner,
   onChangerStatut,
   onSelectionnerToutFiltre,
@@ -63,27 +65,19 @@ export default function BarreActionsGroupees({
       {estAdmin && (
         <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
           Assigner à
-          <select
-            defaultValue=""
+          <SelecteurPersonne
+            personnes={agents}
+            moiId={moiId}
+            valeur=""
             disabled={enCours}
-            onChange={(ev) => {
-              const valeur = ev.target.value;
-              ev.target.value = "";
+            onChange={(valeur) => {
               if (!valeur) return;
               executer(() => onAssigner(valeur === "aucun" ? null : valeur));
             }}
-            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-xs disabled:opacity-40"
-          >
-            <option value="" disabled>
-              Choisir un agent…
-            </option>
-            <option value="aucun">Retirer l'assignation</option>
-            {agents?.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.prenom || a.email} {a.role === "admin" || a.role === "super_admin" ? "(admin)" : ""}
-              </option>
-            ))}
-          </select>
+            optionsSpeciales={[{ valeur: "aucun", label: "Retirer l'assignation" }]}
+            placeholder="Choisir un agent…"
+            className="px-2 py-1.5 text-xs w-44"
+          />
         </label>
       )}
 

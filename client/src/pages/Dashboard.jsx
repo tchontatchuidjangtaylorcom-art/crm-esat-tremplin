@@ -13,6 +13,7 @@ import SelecteurTerritoire from "../components/SelecteurTerritoire.jsx";
 import { territoireDe } from "../territoires.js";
 import ImportLot from "../components/ImportLot.jsx";
 import DistributionEquipe from "../components/DistributionEquipe.jsx";
+import SelecteurPersonne, { trierPersonnes } from "../components/SelecteurPersonne.jsx";
 import HistoriqueDistributions from "../components/HistoriqueDistributions.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import KpiObjectifMensuel from "../components/KpiObjectifMensuel.jsx";
@@ -148,13 +149,9 @@ export default function Dashboard() {
   const [agents, setAgents] = useState([]);
   // Incrémenté à chaque distribution : rafraîchit la liste des dernières distributions.
   const [versionDistributions, setVersionDistributions] = useState(0);
-  // Liste d'assignation : l'admin connecté en tête, sous "Moi", pour
-  // s'attribuer un lead (ou une vague) en un clic.
-  const agentsAssignables = useMemo(() => {
-    const moi = agents.find((a) => a.id === utilisateur?.id);
-    if (!moi) return agents;
-    return [{ ...moi, prenom: `Moi (${moi.prenom || moi.email})`, role: null }, ...agents.filter((a) => a.id !== moi.id)];
-  }, [agents, utilisateur?.id]);
+  // Liste d'assignation, par ordre alphabétique ; l'admin connecté apparaît
+  // en tête sous "Moi" dans chaque sélecteur (moiId, voir SelecteurPersonne).
+  const agentsAssignables = useMemo(() => trierPersonnes(agents), [agents]);
   const [archives, setArchives] = useState([]);
   const [nbArchivees, setNbArchivees] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -466,7 +463,7 @@ export default function Dashboard() {
       {estAdmin && !commeAgentId && (
         <div className="mb-4">
           <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
-          <ImportLot categories={categories} agents={agentsAssignables} lots={lots} lotsParSecteur={lotsParSecteur} onImporte={charger} />
+          <ImportLot categories={categories} agents={agentsAssignables} moiId={utilisateur?.id} lots={lots} lotsParSecteur={lotsParSecteur} onImporte={charger} />
           <DistributionEquipe onDistribue={() => {
             charger();
             setVersionDistributions((v) => v + 1);
@@ -624,20 +621,14 @@ export default function Dashboard() {
               <span className="text-slate-600 dark:text-slate-300">
                 Assigner toute la vague « {filtreLot} » à :
               </span>
-              <select
-                onChange={(e) => e.target.value && assignerLotEntier(e.target.value).then(() => (e.target.value = ""))}
-                defaultValue=""
-                className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-1 text-sm"
-              >
-                <option value="" disabled>
-                  Choisir un agent…
-                </option>
-                {agentsAssignables.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.prenom || a.email} {a.role === "admin" || a.role === "super_admin" ? "(admin)" : ""}
-                  </option>
-                ))}
-              </select>
+              <SelecteurPersonne
+                personnes={agentsAssignables}
+                moiId={utilisateur?.id}
+                valeur=""
+                onChange={(id) => id && assignerLotEntier(id)}
+                placeholder="Choisir un agent…"
+                className="px-2 py-1 text-sm w-48"
+              />
               <button
                 onClick={() => assignerLotEntier(null)}
                 className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
@@ -656,6 +647,7 @@ export default function Dashboard() {
                 nbFiltre={entreprisesFiltrees.length}
                 estAdmin={estAdmin}
                 agents={agentsAssignables}
+                moiId={utilisateur?.id}
                 onAssigner={assignerSelectionGroupee}
                 onChangerStatut={changerStatutSelectionGroupee}
                 onSelectionnerToutFiltre={selectionnerToutFiltre}
@@ -666,6 +658,7 @@ export default function Dashboard() {
                 entreprises={entreprisesPage}
                 estAdmin={estAdmin}
                 agents={agentsAssignables}
+                moiId={utilisateur?.id}
                 onAssigner={assignerEntreprise}
                 selection={selection}
                 onToggleSelection={basculerSelection}

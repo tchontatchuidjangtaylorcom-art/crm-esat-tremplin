@@ -6,6 +6,7 @@ import { formatMontant, formatDateHeure } from "../constants.js";
 import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { diffuserEntrepriseArchivee } from "../telephony/CallContext.jsx";
 import { api } from "../api.js";
+import SelecteurPersonne from "./SelecteurPersonne.jsx";
 
 // Aucune adresse mail connue pour cette fiche (ni principale, ni alternative)
 // — la seule situation où le bouton "Générer un e-mail" a un sens dans le
@@ -147,6 +148,7 @@ export default function EntrepriseTable({
   entreprises,
   estAdmin,
   agents,
+  moiId,
   onAssigner,
   selection,
   onToggleSelection,
@@ -286,18 +288,15 @@ export default function EntrepriseTable({
                 </td>
                 {estAdmin && (
                   <td className="px-3 py-2">
-                    <select
-                      value={e.assigneA || ""}
-                      onChange={(ev) => onAssigner?.(e.id, ev.target.value || null)}
-                      className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs px-2 py-1"
-                    >
-                      <option value="">Non assigné</option>
-                      {agents?.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.prenom || a.email}
-                        </option>
-                      ))}
-                    </select>
+                    <SelecteurPersonne
+                      personnes={agents}
+                      moiId={moiId}
+                      valeur={e.assigneA || ""}
+                      onChange={(id) => onAssigner?.(e.id, id || null)}
+                      optionsSpeciales={[{ valeur: "", label: "Non assigné" }]}
+                      placeholder="Non assigné"
+                      className="text-xs px-2 py-1 w-36"
+                    />
                   </td>
                 )}
                 <td className="px-3 py-2">

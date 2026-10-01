@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { formatDateHeure } from "../constants.js";
+import SelecteurPersonne from "../components/SelecteurPersonne.jsx";
 
 // Supervision (super-administrateur uniquement, voir server/src/journalAudit.js) :
 //  - Journal d'activité : qui a fait quoi, sur quelle fiche, depuis son compte
@@ -86,15 +87,14 @@ function Journal() {
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-4 space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <select value={personne} onChange={(e) => setPersonne(e.target.value)} className={champ}>
-          <option value="">Toute l'équipe</option>
-          {equipe.map((u) => (
-            <option key={u.id} value={u.id}>
-              {[u.prenom, u.nom].filter(Boolean).join(" ") || u.email}
-              {u.role !== "agent" ? ` (${u.role === "super_admin" ? "super-admin" : "admin"})` : ""}
-            </option>
-          ))}
-        </select>
+        <SelecteurPersonne
+          personnes={equipe}
+          valeur={personne}
+          onChange={setPersonne}
+          optionsSpeciales={[{ valeur: "", label: "Toute l'équipe" }]}
+          placeholder="Toute l'équipe"
+          className="px-3 py-2 text-sm w-56"
+        />
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Fiche, action, détail…" className={`flex-1 min-w-[12rem] ${champ}`} />
         <label className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
           <input type="checkbox" checked={alertes} onChange={(e) => setAlertes(e.target.checked)} />
