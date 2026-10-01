@@ -2861,12 +2861,15 @@ app.get("/api/echeances", exigerAuth, (req, res) => {
   const fin = maintenant + 26 * 3600 * 1000;
   const echeances = [];
   for (const e of db.data.entreprises) {
-    const concernee = e.assigneA === utilisateur.id || (estAdmin(utilisateur) && !e.assigneA);
+    // Client Potentiel (CP) : rappel transmis au superviseur — prévient aussi
+    // les administrateurs, même si la fiche est assignée à un agent.
+    const concernee =
+      e.assigneA === utilisateur.id || (estAdmin(utilisateur) && (!e.assigneA || e.statut === "fiche"));
     if (!concernee) continue;
     // "Me rappelle" (et Mail + "doit aussi me rappeler") n'a pas de date :
     // l'entreprise rappelle quand elle veut, donc pas d'alerte — une date
     // restée d'un ancien "À rappeler" ne doit pas faire sonner l'alarme.
-    const date = e.statut === "rdv" ? e.dateRdv : e.statut === "a_rappeler" ? e.dateRappel : null;
+    const date = e.statut === "rdv" ? e.dateRdv : e.statut === "a_rappeler" || e.statut === "fiche" ? e.dateRappel : null;
     const instant = date ? new Date(date).getTime() : NaN;
     if (!Number.isFinite(instant) || instant < debut || instant > fin) continue;
     echeances.push({

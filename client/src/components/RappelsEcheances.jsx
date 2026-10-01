@@ -26,6 +26,7 @@ const LIBELLES = {
   rdv: "Rendez-vous téléphonique",
   a_rappeler: "Rappel à faire",
   me_rappelle: "Le contact devait vous rappeler",
+  fiche: "Client potentiel à rappeler",
 };
 
 function cleEcheance(e) {
@@ -267,7 +268,14 @@ export default function RappelsEcheances() {
     setErreurReport(null);
     try {
       const nouvelle = typeof date === "string" ? date : versChampDate(date);
-      await api.enregistrerAppel(alerte.id, {
+      // Client Potentiel : le statut reste CP, seule la date de rappel bouge.
+      if (alerte.type === "fiche") {
+        await api.patchEntreprise(alerte.id, { dateRappel: nouvelle });
+        await api.ajouterCommentaire(alerte.id, {
+          texte: `Rappel du client potentiel reporté ${formatQuand(nouvelle)}${motifReport.trim() ? ` — ${motifReport.trim()}` : ""}.`,
+          auteur: utilisateur?.prenom || utilisateur?.email || "Agent",
+        });
+      } else await api.enregistrerAppel(alerte.id, {
         issue: alerte.type,
         date: nouvelle,
         details: `Reporté ${formatQuand(nouvelle)}${motifReport.trim() ? ` — ${motifReport.trim()}` : " à la demande du client"}.`,
