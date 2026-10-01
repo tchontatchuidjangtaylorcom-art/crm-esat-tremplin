@@ -12,6 +12,7 @@ import DemandeLeads from "../components/DemandeLeads.jsx";
 import SelecteurTerritoire from "../components/SelecteurTerritoire.jsx";
 import { territoireDe } from "../territoires.js";
 import ImportLot from "../components/ImportLot.jsx";
+import DistributionEquipe from "../components/DistributionEquipe.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import KpiObjectifMensuel from "../components/KpiObjectifMensuel.jsx";
 import BanniereSupervision from "../components/BanniereSupervision.jsx";
@@ -463,6 +464,7 @@ export default function Dashboard() {
         <div className="mb-4">
           <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
           <ImportLot categories={categories} agents={agentsAssignables} lots={lots} lotsParSecteur={lotsParSecteur} onImporte={charger} />
+          <DistributionEquipe onDistribue={charger} />
         </div>
       )}
 

@@ -43,6 +43,7 @@ import { genererEmailOfficielHtml } from "./emailOfficiel.js";
 import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { enregistrerRoutesImportFichier } from "./importFichier.js";
+import { enregistrerRoutesDistributionEquipe } from "./distributionEquipe.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
@@ -857,6 +858,7 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
 // Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
 enregistrerRoutesVitrineRdv(app);
 enregistrerRoutesRechercheNumeros(app, { exigerAuth, chargerEntrepriseAutorisee, findEntreprise });
+enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin });
 // Import de fichier (Excel, CSV, Word…) : fiches filtrées puis recherche IA
 // des numéros et du contact RH, dans la même file que les autres imports.
 enregistrerRoutesImportFichier(app, {
