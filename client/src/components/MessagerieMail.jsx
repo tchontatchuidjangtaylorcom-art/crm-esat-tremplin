@@ -44,6 +44,14 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [erreurGeneration, setErreurGeneration] = useState(null);
   const destinataires = destinatairesDisponibles(entreprise);
   const [destinataire, setDestinataire] = useState(entreprise.contact?.email || destinataires[0]?.email || "");
+  // Copie (CC) : autres adresses de la fiche cochées + adresses saisies
+  // (données par l'interlocuteur), séparées par des virgules.
+  const [copiesCochees, setCopiesCochees] = useState([]);
+  const [copiesSaisies, setCopiesSaisies] = useState("");
+  const copies = [
+    ...copiesCochees.filter((a) => a !== destinataire && destinataires.some((d) => d.email === a)),
+    ...copiesSaisies.split(/[s,;]+/).map((a) => a.trim()).filter(Boolean),
+  ];
 
   // Reste sur l'adresse choisie tant qu'elle existe toujours dans la liste ;
   // ne revient sur la principale que si elle a disparu (fiche changée,
@@ -147,11 +155,13 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     setEnvoiEnCours(true);
     setErreur(null);
     try {
-      const updated = await appelEnvoi({ objet, corps, joindrePdf, destinataire, formatOfficiel });
+      const updated = await appelEnvoi({ objet, corps, joindrePdf, destinataire, formatOfficiel, cc: copies });
       onMaj(updated);
-      setToastEnvoi(`E-mail envoyé à ${destinataire}.`);
+      setToastEnvoi(`E-mail envoyé à ${destinataire}${copies.length ? ` (+ ${copies.length} en copie)` : ""}.`);
       setObjet("");
       setCorps("");
+      setCopiesCochees([]);
+      setCopiesSaisies("");
       setOuvert(false);
     } catch (e) {
       setErreur(e.message);
@@ -207,7 +217,34 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             ))}
           </select>
         </label>
-      ) : (
+      ) : null}
+      {destinataires.length > 0 && (
+        <div className="mb-4 -mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <span>Copie (CC)</span>
+          {destinataires
+            .filter((d) => d.email !== destinataire)
+            .map((d) => (
+              <label key={d.email} className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={copiesCochees.includes(d.email)}
+                  onChange={(e) =>
+                    setCopiesCochees((l) => (e.target.checked ? [...l, d.email] : l.filter((a) => a !== d.email)))
+                  }
+                />
+                {d.email}
+              </label>
+            ))}
+          <input
+            type="text"
+            value={copiesSaisies}
+            onChange={(e) => setCopiesSaisies(e.target.value)}
+            placeholder="Autres adresses, séparées par une virgule"
+            className="min-w-[14rem] flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
+          />
+        </div>
+      )}
+      {destinataires.length === 0 && (
         <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
           Aucune adresse mail connue — ajoutez-en une dans "Informations structure".
         </p>
@@ -232,7 +269,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           >
             <div className="flex items-center justify-between mb-1">
               <span className="font-medium text-slate-700 dark:text-slate-200">
-                {m.direction === "recu" ? `De : ${m.de}` : `Envoyé à ${m.a || entreprise.contact?.email || "?"}`}
+                {m.direction === "recu" ? `De : ${m.de}` : `Envoyé à ${m.a || entreprise.contact?.email || "?"}${m.cc?.length ? ` (cc : ${m.cc.join(", ")})` : ""}`}
               </span>
               <span className="text-xs text-slate-400 dark:text-slate-500">{formatDateHeure(m.date)}</span>
             </div>

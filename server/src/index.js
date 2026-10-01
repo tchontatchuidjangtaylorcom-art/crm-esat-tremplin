@@ -2618,7 +2618,7 @@ app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorise
 app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
-  const { objet, corps, joindrePdf = true, destinataire, formatOfficiel = false, testVersMoi = false } = req.body;
+  const { objet, corps, joindrePdf = true, destinataire, formatOfficiel = false, testVersMoi = false, cc = [] } = req.body;
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
@@ -2650,6 +2650,21 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   if (!destinataireFinal) {
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
+
+  // Copie (CC) : autres adresses de la fiche, ou adresses données par
+  // l'interlocuteur et saisies par l'agent (format vérifié, 5 au plus). Les
+  // nouvelles sont ajoutées à la fiche après l'envoi. Jamais en copie d'un
+  // envoi de test.
+  const copies = [];
+  for (const brute of Array.isArray(cc) ? cc : []) {
+    const adresse = String(brute || "").trim();
+    if (!adresse) continue;
+    if (!EMAIL_VALIDE.test(adresse)) return res.status(400).json({ error: `Adresse en copie invalide : ${adresse}` });
+    const deja = [destinataireFinal, ...copies].some((a) => a.toLowerCase() === adresse.toLowerCase());
+    if (!deja) copies.push(adresse);
+  }
+  if (copies.length > 5) return res.status(400).json({ error: "5 adresses en copie au maximum." });
+  const copiesEnvoi = testVersMoi ? [] : copies;
 
   // Nom d'expéditeur normalisé et uniforme sur tous les envois : uniquement
   // l'identité générale du pôle, jamais le nom de l'agent (voir mailSignature.js
@@ -2688,6 +2703,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   try {
     await envoyerMail({
       to: destinataireFinal,
+      cc: copiesEnvoi,
       subject: testVersMoi ? `[TEST] ${objet}` : objet,
       text: corps,
       html,
@@ -2710,6 +2726,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     direction: "envoye",
     de: adresseMailPole(),
     a: destinataireFinal,
+    ...(copiesEnvoi.length ? { cc: copiesEnvoi } : {}),
     objet,
     corps,
     piecesJointes,
@@ -2732,6 +2749,10 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     dureeSecondes: null,
   });
   entreprise.statut = "mail";
+  if (copiesEnvoi.length) {
+    entreprise.contact = entreprise.contact || {};
+    for (const adresse of copiesEnvoi) ajouterEmailFiche(entreprise.contact, adresse, "Ajoutée en copie d'un mail");
+  }
 
   await db.write();
   res.json(enrichir(entreprise));
