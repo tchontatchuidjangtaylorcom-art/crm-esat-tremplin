@@ -1877,6 +1877,7 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
     if (champ in req.body) entreprise[champ] = req.body[champ];
   }
   if ("contact" in req.body) reparerChampsContact(entreprise.contact);
+  if (req.body.dateRappel || req.body.dateRdv) entreprise.echeanceProgrammeePar = req.utilisateur.id;
 
   await db.write();
   res.json(enrichir(entreprise));
@@ -1957,6 +1958,9 @@ app.post("/api/entreprises/:id/appels", exigerAuth, chargerEntrepriseAutorisee, 
   entreprise.statut = issue;
   if (issue === "a_rappeler" || issue === "me_rappelle") entreprise.dateRappel = date || null;
   if (issue === "rdv") entreprise.dateRdv = date || null;
+  // Qui a programmé l'échéance : seul destinataire de l'alerte si la fiche
+  // n'est assignée à personne (voir /api/echeances).
+  if (date) entreprise.echeanceProgrammeePar = req.utilisateur.id;
 
   await db.write();
   res.json(enrichir(entreprise));
@@ -2863,10 +2867,11 @@ app.get("/api/echeances", exigerAuth, (req, res) => {
   const fin = maintenant + 26 * 3600 * 1000;
   const echeances = [];
   for (const e of db.data.entreprises) {
-    // Client Potentiel (CP) : rappel transmis au superviseur — prévient aussi
-    // les administrateurs, même si la fiche est assignée à un agent.
-    const concernee =
-      e.assigneA === utilisateur.id || (estAdmin(utilisateur) && (!e.assigneA || e.statut === "fiche"));
+    // L'alerte ne sonne que chez l'agent assigné ; fiche non assignée : chez
+    // la personne qui a programmé le RDV / rappel. Jamais chez toute l'équipe
+    // (avant, tous les administrateurs la recevaient pour les fiches non
+    // assignées et les Clients Potentiels).
+    const concernee = e.assigneA ? e.assigneA === utilisateur.id : e.echeanceProgrammeePar === utilisateur.id;
     if (!concernee) continue;
     // "Me rappelle" (et Mail + "doit aussi me rappeler") n'a pas de date :
     // l'entreprise rappelle quand elle veut, donc pas d'alerte — une date
