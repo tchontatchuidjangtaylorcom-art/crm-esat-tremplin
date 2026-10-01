@@ -19,6 +19,7 @@ import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { erreurNumero, estNumeroAffichable } from "../telephone.js";
 import CalculObligationFiche from "../components/CalculObligationFiche.jsx";
 import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
+import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
 import {
@@ -437,7 +438,10 @@ export default function EntrepriseDetail() {
           droite — shrink-0 sur le bloc de droite pour qu'il ne bouge jamais. */}
       <div className="flex flex-wrap items-start justify-between gap-3 mt-3 mb-6">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{entreprise.nom}</h1>
+          <div className="flex items-center gap-2">
+            <BoutonPrononcer texte={entreprise.nom} />
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{entreprise.nom}</h1>
+          </div>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
           </p>
@@ -498,13 +502,16 @@ export default function EntrepriseDetail() {
             ☎
           </span>
           {estNumeroAffichable(entreprise.contact?.telephone) ? (
-            <a
-              href={versLienTel(entreprise.contact.telephone)}
-              className="text-lg font-semibold text-blue-700 dark:text-blue-400 hover:underline"
-              title={`Appeler ${entreprise.contact.telephone}`}
-            >
-              {entreprise.contact.telephone}
-            </a>
+            <span className="inline-flex items-center gap-1.5">
+              <a
+                href={versLienTel(entreprise.contact.telephone)}
+                className="text-lg font-semibold text-blue-700 dark:text-blue-400 hover:underline"
+                title={`Appeler ${entreprise.contact.telephone}`}
+              >
+                {entreprise.contact.telephone}
+              </a>
+              <BoutonCopier texte={entreprise.contact.telephone} libelle="Copier le numéro" />
+            </span>
           ) : (
             <span className="text-lg font-semibold text-slate-400 dark:text-slate-500">
               Aucun numéro renseigné
