@@ -89,6 +89,10 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
   // Par défaut (avant le premier appel de statut) : tout est "à traiter".
   const aTraiter = statut?.aTraiter ?? manquants;
   const dejaTentees = statut?.dejaTentees ?? 0;
+  // Total affiché = compte du serveur (jamais recherchées + déjà
+  // recherchées), pour que les trois nombres du bloc soient cohérents ; le
+  // compte local ne sert qu'avant la première réponse du serveur.
+  const totalSansNumero = statut?.aTraiter != null ? statut.aTraiter + (statut.dejaTentees || 0) : manquants;
 
   // Diagnostic pour l'erreur "model X is not found" : plutôt que deviner un
   // nouveau nom de modèle Anthropic si celui configuré venait à être
@@ -108,7 +112,7 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
     }
   }
 
-  if (iaConfiguree === false || !manquants) return null;
+  if (iaConfiguree === false || !totalSansNumero) return null;
 
   return (
     <div className="mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -124,7 +128,7 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
           </>
         ) : (
           <>
-            <strong>{manquants}</strong> fiche{manquants > 1 ? "s" : ""} sans numéro de téléphone{" "}
+            <strong>{totalSansNumero}</strong> fiche{totalSansNumero > 1 ? "s" : ""} sans numéro de téléphone{" "}
             {admin ? "dans le pipeline actif" : "parmi vos fiches"}
             {dejaTentees > 0 ? (
               <>
