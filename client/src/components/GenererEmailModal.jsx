@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { diffuserEntrepriseMaj } from "../telephony/CallContext.jsx";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { construireSignature } from "../mailSignature.js";
+import BoutonCorrection from "./BoutonCorrection.jsx";
 
 // Interface d'envoi d'e-mail ciblée depuis le tableau principal — deux
 // entrées distinctes selon que la fiche a déjà une adresse connue ou non
@@ -209,9 +210,12 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = 
                 value={corps}
                 onChange={(e) => setCorps(e.target.value)}
                 rows={10}
+                spellCheck
+                lang="fr"
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-mono"
               />
             </label>
+            <BoutonCorrection texte={corps} onCorrige={setCorps} />
 
             <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
               <input

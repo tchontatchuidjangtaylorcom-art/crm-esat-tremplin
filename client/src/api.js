@@ -196,6 +196,13 @@ export const api = {
       body: JSON.stringify({ question }),
     }).then(handle),
 
+  corrigerTexte: (texte) =>
+    fetch(`${BASE}/ia/corriger-texte`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texte }),
+    }).then(handle),
+
   analyserDicteeIA: (id, transcription) =>
     fetch(`${BASE}/entreprises/${id}/dictee-ia`, {
       method: "POST",

@@ -54,6 +54,7 @@ import {
   rechercherContactAlternatif,
   poserQuestionContact,
   analyserDictee,
+  corrigerTexte,
   genererEmailProspection,
   repondreQuestionDomaine,
   listerModelesDisponibles,
@@ -861,6 +862,18 @@ enregistrerRoutesVitrineRdv(app);
 enregistrerRoutesRechercheNumeros(app, { exigerAuth, chargerEntrepriseAutorisee, findEntreprise });
 enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin });
 enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });
+
+// Correction orthographique d'un mail rédigé à la main (boîte mail de la fiche).
+app.post("/api/ia/corriger-texte", exigerAuth, async (req, res) => {
+  const texte = String(req.body.texte || "");
+  if (!texte.trim()) return res.status(400).json({ error: "Texte vide." });
+  if (texte.length > 12000) return res.status(400).json({ error: "Texte trop long (12 000 caractères maximum)." });
+  try {
+    res.json({ texte: await corrigerTexte(texte) });
+  } catch (e) {
+    res.status(e.code === "IA_NON_CONFIGUREE" ? 503 : 502).json({ error: e.message });
+  }
+});
 // Import de fichier (Excel, CSV, Word…) : fiches filtrées puis recherche IA
 // des numéros et du contact RH, dans la même file que les autres imports.
 enregistrerRoutesImportFichier(app, {

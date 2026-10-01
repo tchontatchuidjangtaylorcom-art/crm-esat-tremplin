@@ -1000,3 +1000,62 @@ export async function repondreQuestionDomaine(question) {
   const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
   return avecRetry429(() => appelerClaudeDomaine(question, cle, modele), "assistant-domaine");
 }
+
+// Correcteur d'orthographe des mails rédigés à la main : accents, a / à,
+// accords, ponctuation — sans changer le sens, le ton ni la mise en forme.
+// Renvoie uniquement le texte corrigé (rien n'est enregistré ici).
+export async function corrigerTexte(texte) {
+  const cle = cleApi();
+  if (!cle) {
+    const erreur = new Error("Correction IA non configurée (renseignez ANTHROPIC_API_KEY).");
+    erreur.code = "IA_NON_CONFIGUREE";
+    throw erreur;
+  }
+  const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
+  const consigne =
+    "Corrige l'orthographe, les accents, la grammaire, les accords et la ponctuation de ce texte en français " +
+    "(par exemple « a » / « à », « invités a envoyer » → « invités à envoyer »). Ne change ni le sens, ni le ton, " +
+    "ni la structure : garde les retours à la ligne, les listes, les adresses e-mail, les liens, les numéros, les " +
+    "noms propres et le jeton {{SIGNATURE}} tels quels. N'ajoute et ne retire aucune phrase. Réponds uniquement " +
+    "avec le texte corrigé, sans commentaire ni guillemets.\n\nTexte :\n" +
+    texte;
+
+  return avecRetry429(async () => {
+    const controleur = new AbortController();
+    const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
+    let reponse;
+    try {
+      reponse = await fetchAnthropic(API_URL, {
+        method: "POST",
+        headers: enTetes(cle),
+        body: JSON.stringify({ model: modele, max_tokens: 4096, messages: [{ role: "user", content: consigne }] }),
+        signal: controleur.signal,
+      });
+    } catch (e) {
+      if (e.name === "AbortError") {
+        const erreur = new Error(`Délai de correction IA dépassé (${TIMEOUT_MS}ms).`);
+        erreur.code = "TIMEOUT_MANUEL";
+        throw erreur;
+      }
+      throw e;
+    } finally {
+      clearTimeout(idAbort);
+    }
+    const corps = await reponse.json().catch(() => ({}));
+    if (!reponse.ok) {
+      const erreur = new Error(messageErreurApi(reponse.status, corps, modele));
+      erreur.code = corps.error?.type || `HTTP_${reponse.status}`;
+      signalerCreditsEpuises(erreur, corps);
+      erreur.responseCode = reponse.status;
+      erreur.reponseHttp = reponse;
+      throw erreur;
+    }
+    const corrige = (corps.content || [])
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
+    if (!corrige) throw new Error("Réponse de correction vide.");
+    return corrige;
+  }, "correction de texte");
+}
