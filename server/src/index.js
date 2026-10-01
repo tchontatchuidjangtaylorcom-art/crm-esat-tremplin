@@ -44,7 +44,6 @@ import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { enregistrerRoutesImportFichier } from "./importFichier.js";
 import { enregistrerRoutesDistributionEquipe } from "./distributionEquipe.js";
-import { enregistrerRoutesAnnulationDistribution } from "./annulationDistribution.js";
 import { installerJournal, enregistrerRoutesSupervision } from "./journalAudit.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
@@ -880,10 +879,6 @@ enregistrerRoutesDistributionEquipe(app, {
   ordreFiches: ordreFichesAAttribuer,
   libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
   apresAttribution: (utilisateurId, fiches) => rechercherNumerosAttribues(utilisateurId, fiches),
-});
-enregistrerRoutesAnnulationDistribution(app, {
-  exigerAdmin,
-  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
 });
 enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });
 
