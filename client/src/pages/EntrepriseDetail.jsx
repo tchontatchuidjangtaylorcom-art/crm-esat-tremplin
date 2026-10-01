@@ -375,6 +375,11 @@ export default function EntrepriseDetail() {
   // E-mail récapitulatif (effectif, 6 %, BOETH, contribution) à envoyer au
   // client après l'appel — ouvert depuis la ligne de calcul de l'en-tête.
   const [resumeEmail, setResumeEmail] = useState(null);
+  // "Informations structure" (SIRET, forme juridique…) : repliées par défaut
+  // sur téléphone, pour que contacts et numéros remontent.
+  const [infosOuvertes, setInfosOuvertes] = useState(
+    () => typeof window === "undefined" || Boolean(window.matchMedia?.("(min-width: 1024px)").matches)
+  );
 
   // Rend l'effectif / les BOETH de la fiche disponibles aux panneaux d'outils
   // (calcul rapide ESAT Tremplin / TIH), qui peuvent aussi y enregistrer.
@@ -453,6 +458,8 @@ export default function EntrepriseDetail() {
               tableau de bord, voir EntrepriseTable.jsx). */}
           <div className="flex flex-wrap items-center gap-3 mt-1.5">
             <BoutonRechercheNumeros entreprise={entreprise} onMaj={setEntreprise} />
+            {/* Statut cliquable : change le statut sans descendre dans la fiche. */}
+            <StatusSelect entreprise={entreprise} />
             <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
               Agent assigné :{" "}
               {entreprise.assigneANom ? (
@@ -484,7 +491,6 @@ export default function EntrepriseDetail() {
           >
             📄 Télécharger le rapport PDF
           </a>
-          <StatusSelect entreprise={entreprise} />
         </div>
       </div>
 
@@ -589,7 +595,16 @@ export default function EntrepriseDetail() {
         {/* Colonne informations structure */}
         <section className="lg:col-span-1 space-y-6 h-fit">
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Informations structure</h2>
+            <button
+              type="button"
+              onClick={() => setInfosOuvertes((o) => !o)}
+              aria-expanded={infosOuvertes}
+              className={`w-full flex items-center justify-between gap-2 text-left ${infosOuvertes ? "mb-4" : "mb-0"}`}
+            >
+              <h2 className="font-semibold text-slate-800 dark:text-slate-100">Informations structure</h2>
+              <span className="text-xs text-slate-400 dark:text-slate-500">{infosOuvertes ? "▲ Replier" : "▼ SIRET, forme, secteur…"}</span>
+            </button>
+            {infosOuvertes && (
             <dl className="space-y-3 text-sm">
               <Info label="SIRET" value={entreprise.siret} />
               <Info label="Forme juridique" value={entreprise.formeJuridique} />
@@ -602,6 +617,7 @@ export default function EntrepriseDetail() {
                 value={`${formatDate(entreprise.partDebutOp)} → ${formatDate(entreprise.partFinOp)}`}
               />
             </dl>
+            )}
 
             <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
               <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
