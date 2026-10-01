@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { diffuserEntrepriseMaj, diffuserEntrepriseArchivee } from "../telephony/CallContext.jsx";
 import ChampDateHeure from "./ChampDateHeure.jsx";
 import { useAuth } from "../AuthContext.jsx";
+import { motifsPour, messageEcheance } from "../messageEcheance.js";
 
 // Badge de statut cliquable, utilisé à la fois dans le tableau principal et
 // en en-tête de la fiche détaillée : un <select> natif habillé aux couleurs
@@ -28,6 +29,10 @@ export default function StatusSelect({ entreprise }) {
   const [date, setDate] = useState("");
   const [details, setDetails] = useState("");
   const [erreurDate, setErreurDate] = useState(null);
+  // Message rédigé automatiquement (motif + date) tant que l'agent ne l'a
+  // pas modifié lui-même.
+  const [motif, setMotif] = useState("");
+  const [detailsModifie, setDetailsModifie] = useState(false);
   // Passage en Client Potentiel : fiche de passation au superviseur (date de
   // rappel, interlocuteur, poste, commentaire).
   const [cp, setCp] = useState(null);
@@ -59,7 +64,10 @@ export default function StatusSelect({ entreprise }) {
       ev.target.value = entreprise.statut;
       setADater(nouveauStatut);
       setDate("");
-      setDetails("");
+      const premier = motifsPour(nouveauStatut)[0].cle;
+      setMotif(premier);
+      setDetails(messageEcheance(nouveauStatut, premier, ""));
+      setDetailsModifie(false);
       setErreurDate(null);
       return;
     }
@@ -252,15 +260,41 @@ export default function StatusSelect({ entreprise }) {
             </div>
             <ChampDateHeure
               value={date}
-              onChange={setDate}
+              onChange={(v) => {
+                setDate(v);
+                if (!detailsModifie) setDetails(messageEcheance(aDater, motif, v));
+              }}
               autoFocus
               libelleDate={aDater === "rdv" ? "Date du rendez-vous" : "Date du rappel"}
             />
+            <div className="flex flex-wrap gap-1.5">
+              {motifsPour(aDater).map((m) => (
+                <button
+                  key={m.cle}
+                  type="button"
+                  onClick={() => {
+                    setMotif(m.cle);
+                    setDetails(messageEcheance(aDater, m.cle, date));
+                    setDetailsModifie(false);
+                  }}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                    motif === m.cle
+                      ? "border-marine-500 bg-marine-100 text-marine-800 dark:bg-marine-900/50 dark:text-marine-200"
+                      : "border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
             <label className="block text-xs text-slate-500 dark:text-slate-400">
               Détails (facultatif)
               <textarea
                 value={details}
-                onChange={(e) => setDetails(e.target.value)}
+                onChange={(e) => {
+                  setDetails(e.target.value);
+                  setDetailsModifie(true);
+                }}
                 rows={2}
                 className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
               />

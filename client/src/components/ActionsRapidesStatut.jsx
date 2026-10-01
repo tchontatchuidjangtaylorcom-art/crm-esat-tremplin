@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { diffuserEntrepriseArchivee, diffuserEntrepriseMaj } from "../telephony/CallContext.jsx";
 import ChampDateHeure from "./ChampDateHeure.jsx";
+import { motifsPour, messageEcheance } from "../messageEcheance.js";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -108,7 +109,7 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
     return api.ajouterCommentaire(entreprise.id, { texte, auteur: prenomAgent });
   }
 
-  async function executer(action, { texte = "", email = "", date = "", aussiRappel = false } = {}) {
+  async function executer(action, { texte = "", email = "", date = "", aussiRappel = false, texteAuto = false } = {}) {
     setEnCours(action.cle);
     setErreur(null);
     setConfirmation(null);
@@ -131,7 +132,12 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
         if (aussiRappel) commentaire += " — le contact doit aussi nous rappeler (fiche aussi dans « Me rappelle »)";
       } else if (action.type === "date") {
         const quand = new Date(date).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
-        commentaire = `${action.label.replace(/^\S+\s/, "")} le ${quand}${texte.trim() ? ` — ${texte.trim()}` : ""}`;
+        // Message automatique (motif + date) : utilisé tel quel ; texte libre
+        // de l'agent : précédé de la date.
+        commentaire =
+          texteAuto && texte.trim()
+            ? texte.trim()
+            : `${action.label.replace(/^\S+\s/, "")} le ${quand}${texte.trim() ? ` — ${texte.trim()}` : ""}`;
       }
 
       await api.enregistrerAppel(entreprise.id, {
@@ -189,7 +195,17 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
       return;
     }
     setErreur(null);
-    setFenetre({ action, texte: "", email: "", date: "", aussiRappel: false });
+    // Fenêtres "À rappeler" / "RDV" : message rédigé automatiquement (motif + date).
+    const motif = action.type === "date" ? motifsPour(action.issue)[0].cle : "";
+    setFenetre({
+      action,
+      texte: action.type === "date" ? messageEcheance(action.issue, motif, "") : "",
+      email: "",
+      date: "",
+      aussiRappel: false,
+      motif,
+      texteModifie: false,
+    });
   }
 
   function valider(ev) {
@@ -200,7 +216,7 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
       return setErreur("Adresse e-mail invalide.");
     }
     if (action.type === "date" && !date) return setErreur("Choisissez une date et une heure (ex : 14:30).");
-    executer(action, { texte, email, date, aussiRappel });
+    executer(action, { texte, email, date, aussiRappel, texteAuto: action.type === "date" && !fenetre.texteModifie });
   }
 
   const champ =
@@ -307,15 +323,44 @@ export default function ActionsRapidesStatut({ entreprise, onMaj, prenomAgent })
                 <ChampDateHeure
                   autoFocus
                   value={fenetre.date}
-                  onChange={(valeur) => setFenetre((f) => ({ ...f, date: valeur }))}
+                  onChange={(valeur) =>
+                    setFenetre((f) => ({
+                      ...f,
+                      date: valeur,
+                      texte: f.texteModifie ? f.texte : messageEcheance(f.action.issue, f.motif, valeur),
+                    }))
+                  }
                   libelleDate={LIBELLE_DATE[fenetre.action.issue]}
                 />
+                <div className="flex flex-wrap gap-1.5">
+                  {motifsPour(fenetre.action.issue).map((m) => (
+                    <button
+                      key={m.cle}
+                      type="button"
+                      onClick={() =>
+                        setFenetre((f) => ({
+                          ...f,
+                          motif: m.cle,
+                          texte: messageEcheance(f.action.issue, m.cle, f.date),
+                          texteModifie: false,
+                        }))
+                      }
+                      className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                        fenetre.motif === m.cle
+                          ? "border-marine-500 bg-marine-100 text-marine-800 dark:bg-marine-900/50 dark:text-marine-200"
+                          : "border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
                 <label className="block text-xs text-slate-600 dark:text-slate-300">
-                  Précision (facultatif)
+                  Commentaire (rédigé automatiquement, modifiable)
                   <input
                     type="text"
                     value={fenetre.texte}
-                    onChange={(e) => setFenetre({ ...fenetre, texte: e.target.value })}
+                    onChange={(e) => setFenetre({ ...fenetre, texte: e.target.value, texteModifie: true })}
                     placeholder="ex : demander Mme Martin, DRH"
                     className={`mt-1 ${champ}`}
                   />
