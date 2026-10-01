@@ -12,7 +12,7 @@ import db from "./db.js";
 
 const MAX_PAR_PERSONNE = 50;
 
-export function enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin }) {
+export function enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin, ordreFiches, apresAttribution }) {
   app.post("/api/equipe/distribuer", exigerAdmin, async (req, res) => {
     const parPersonne = Math.min(Math.max(1, Number(req.body.parPersonne) || 1), MAX_PAR_PERSONNE);
     const inclureAdmins = req.body.inclureAdmins !== false;
@@ -22,14 +22,11 @@ export function enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin
 
     const disponibles = db.data.entreprises
       .filter((e) => !e.assigneA && e.statut === "nouveau")
-      .sort(
-        (a, b) =>
-          ((b.effectif || 0) >= 20) - ((a.effectif || 0) >= 20) ||
-          Boolean(b.contact?.telephone) - Boolean(a.contact?.telephone)
-      );
+      .sort(ordreFiches);
 
     const maintenant = new Date().toISOString();
     const parMembre = new Map(equipe.map((u) => [u.id, []]));
+    const fichesParMembre = new Map(equipe.map((u) => [u.id, []]));
     let i = 0;
     for (let tour = 0; tour < parPersonne; tour++) {
       for (const membre of equipe) {
@@ -48,10 +45,14 @@ export function enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin
           }).`,
         });
         parMembre.get(membre.id).push(fiche.nom);
+        fichesParMembre.get(membre.id).push(fiche);
       }
       if (i >= disponibles.length) break;
     }
     await db.write();
+    // Fiches distribuées sans numéro : Claude les cherche tout de suite, les
+    // numéros apparaissent chez chaque agent au fur et à mesure.
+    for (const [membreId, fiches] of fichesParMembre) apresAttribution?.(membreId, fiches);
 
     const repartition = equipe.map((u) => ({
       id: u.id,

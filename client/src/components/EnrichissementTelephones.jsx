@@ -53,6 +53,17 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statut?.enCours]);
 
+  // Agent : des fiches peuvent lui être attribuées pendant que la page est
+  // ouverte — la recherche de leurs numéros démarre alors côté serveur ; un
+  // passage toutes les 30 s suffit à la voir et à suivre la progression.
+  useEffect(() => {
+    if (admin || statut?.enCours) return;
+    const id = setInterval(() => {
+      api.getStatutEnrichissementTelephones().then(setStatut).catch(() => {});
+    }, 30000);
+    return () => clearInterval(id);
+  }, [admin, statut?.enCours]);
+
   const [message, setMessage] = useState(null);
 
   // Recharge les compteurs (à traiter / déjà recherchées) à la fin d'un lot.
@@ -103,10 +114,10 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
     <div className="mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm px-4 py-3 flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-slate-600 dark:text-slate-300">
         {statut?.enCours && statut.enAttente ? (
-          <>⏳ En file d'attente : la recherche de vos {statut.total} fiches démarre dès que la précédente est terminée.</>
+          <>⏳ En file d'attente : la recherche des numéros de vos {statut.total} fiches démarre dès que la précédente est terminée — ils s'ajouteront d'eux-mêmes.</>
         ) : statut?.enCours ? (
           <>
-            🤖 Enrichissement IA en cours… {statut.traites} / {statut.total} fiche{statut.total > 1 ? "s" : ""}{" "}
+            🤖 {admin ? "Enrichissement IA en cours…" : "Claude cherche les numéros de vos fiches…"} {statut.traites} / {statut.total} fiche{statut.total > 1 ? "s" : ""}{" "}
             traitée{statut.traites > 1 ? "s" : ""} ({statut.trouves} numéro{statut.trouves > 1 ? "s" : ""} trouvé
             {statut.trouves > 1 ? "s" : ""}
             {statut.erreurs > 0 ? `, ${statut.erreurs} échec${statut.erreurs > 1 ? "s" : ""}` : ""}).

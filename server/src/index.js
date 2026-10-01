@@ -860,7 +860,12 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
 // Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
 enregistrerRoutesVitrineRdv(app);
 enregistrerRoutesRechercheNumeros(app, { exigerAuth, chargerEntrepriseAutorisee, findEntreprise });
-enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin });
+enregistrerRoutesDistributionEquipe(app, {
+  exigerAdmin,
+  estAdmin,
+  ordreFiches: ordreFichesAAttribuer,
+  apresAttribution: (utilisateurId, fiches) => rechercherNumerosAttribues(utilisateurId, fiches),
+});
 enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });
 
 // Correction orthographique d'un mail rédigé à la main (boîte mail de la fiche).
@@ -1471,7 +1476,7 @@ app.post("/api/leads/enrichir-telephones", exigerAuth, async (req, res) => {
     });
   }
 
-  const etat = { ...ETAT_ENRICHISSEMENT_VIDE, enCours: true, enAttente: true, total: cibles.length, demarre: new Date().toISOString() };
+  const etat = { ...ETAT_ENRICHISSEMENT_VIDE, enCours: true, enAttente: true, total: cibles.length, demarre: new Date().toISOString(), lotsEnCours: 1 };
   etatsEnrichissement.set(utilisateur.id, etat);
   for (const e of cibles) fichesEnEnrichissement.add(e.id);
   res.status(202).json(etat);
@@ -1497,9 +1502,12 @@ app.post("/api/leads/enrichir-telephones", exigerAuth, async (req, res) => {
     .catch((e) => console.error("[ia] Échec de l'enrichissement en lot :", e.message))
     .finally(() => {
       for (const e of cibles) fichesEnEnrichissement.delete(e.id);
-      etat.enCours = false;
-      etat.enAttente = false;
-      etat.termine = new Date().toISOString();
+      etat.lotsEnCours -= 1;
+      if (etat.lotsEnCours <= 0) {
+        etat.enCours = false;
+        etat.enAttente = false;
+        etat.termine = new Date().toISOString();
+      }
     });
 });
 
@@ -1509,6 +1517,7 @@ app.post("/api/leads/enrichir-telephones", exigerAuth, async (req, res) => {
 // calculés sur le périmètre de l'utilisateur (tout le pipeline pour un
 // admin, ses fiches pour un agent).
 app.get("/api/leads/enrichir-telephones/statut", exigerAuth, (req, res) => {
+  rechercheAutomatiqueAgent(req.utilisateur);
   const sansTelephone = fichesSansTelephone(req.utilisateur);
   const dejaTentees = sansTelephone.filter(estDejaTenteeSansSucces).length;
   res.json({
@@ -1723,7 +1732,7 @@ async function traiterDemandeLeads(req, res) {
         (!cle ||
           classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle === cle)
     )
-    .sort((a, b) => (b.effectif >= 20) - (a.effectif >= 20) || Boolean(b.contact?.telephone) - Boolean(a.contact?.telephone))
+    .sort(ordreFichesAAttribuer)
     .slice(0, TAILLE_DEMANDE_LEADS);
 
   for (const e of pool) {
@@ -1859,6 +1868,90 @@ function rechercherNumerosDemande(suivi, fiches) {
     });
 }
 
+// Ordre dans lequel les fiches libres sont remises aux agents ("Demander 20
+// fiches", distribution à l'équipe) : entreprises assujetties (20 salariés et
+// plus) d'abord, puis celles qui ont un numéro, puis celles que Claude n'a
+// pas encore cherchées ; celles où il n'a rien trouvé passent en dernier, pour
+// que l'agent ne reçoive pas des fiches impossibles à appeler.
+function rangTelephone(e) {
+  if (e.contact?.telephone) return 2;
+  return estDejaTenteeSansSucces(e) ? 0 : 1;
+}
+function ordreFichesAAttribuer(a, b) {
+  return ((b.effectif || 0) >= 20) - ((a.effectif || 0) >= 20) || rangTelephone(b) - rangTelephone(a);
+}
+
+// Fiches attribuées à un agent (par un administrateur, une distribution, ou
+// automatiquement à l'ouverture de son tableau de bord) : Claude cherche les
+// numéros manquants en arrière-plan, et ils s'ajoutent aux fiches au fur et
+// à mesure. La progression s'affiche dans le bandeau "Trouver les numéros"
+// de l'agent (même état que /api/leads/enrichir-telephones). Une seule
+// recherche à la fois sur le serveur (même file que les autres lots) ; les
+// fiches déjà cherchées sans succès ou déjà programmées sont ignorées.
+function rechercherNumerosAttribues(utilisateurId, fiches) {
+  if (!utilisateurId || !estRechercheIaConfiguree()) return 0;
+  const cibles = fiches.filter(
+    (e) => e && !e.contact?.telephone && !estDejaTenteeSansSucces(e) && !fichesEnEnrichissement.has(e.id)
+  );
+  if (cibles.length === 0) return 0;
+
+  let etat = etatsEnrichissement.get(utilisateurId);
+  if (etat?.enCours) {
+    etat.total += cibles.length;
+  } else {
+    etat = { ...ETAT_ENRICHISSEMENT_VIDE, enCours: true, enAttente: true, total: cibles.length, demarre: new Date().toISOString(), automatique: true };
+    etatsEnrichissement.set(utilisateurId, etat);
+  }
+  etat.lotsEnCours = (etat.lotsEnCours || 0) + 1;
+  for (const e of cibles) fichesEnEnrichissement.add(e.id);
+
+  fileEnrichissementImport = fileEnrichissementImport
+    .then(() => {
+      etat.enAttente = false;
+      return enrichirTelephonesViaIA(cibles, {
+        onProgres: ({ trouve, erreur }) => {
+          etat.traites += 1;
+          if (trouve) etat.trouves += 1;
+          if (erreur) {
+            etat.erreurs += 1;
+            etat.derniereErreur = erreur;
+          }
+        },
+      });
+    })
+    .then((resultat) => {
+      if (resultat?.interrompu) etat.interrompu = resultat.interrompu;
+      if (resultat?.lienRecharge) etat.lienRecharge = resultat.lienRecharge;
+    })
+    .catch((e) => console.error("[ia] Échec de la recherche des numéros (fiches attribuées) :", e.message))
+    .finally(() => {
+      for (const e of cibles) fichesEnEnrichissement.delete(e.id);
+      etat.lotsEnCours -= 1;
+      if (etat.lotsEnCours <= 0) {
+        etat.enCours = false;
+        etat.enAttente = false;
+        etat.termine = new Date().toISOString();
+      }
+    });
+  return cibles.length;
+}
+
+// Ouverture du tableau de bord d'un agent : s'il lui reste des fiches sans
+// numéro jamais cherchées, la recherche démarre d'elle-même (par paquets de
+// MAX_FICHES_ENRICHISSEMENT_AGENT, le paquet suivant au prochain passage).
+// Pas de relance automatique pendant une heure après une interruption
+// (crédit épuisé, panne) : l'agent ou l'administrateur relance à la main.
+function rechercheAutomatiqueAgent(utilisateur) {
+  if (estAdmin(utilisateur) || !estRechercheIaConfiguree()) return;
+  const etat = etatsEnrichissement.get(utilisateur.id);
+  if (etat?.enCours) return;
+  if (etat?.interrompu && Date.now() - new Date(etat.termine || 0).getTime() < 60 * 60 * 1000) return;
+  const cibles = fichesSansTelephone(utilisateur)
+    .filter((e) => !fichesEnEnrichissement.has(e.id) && !estDejaTenteeSansSucces(e))
+    .slice(0, MAX_FICHES_ENRICHISSEMENT_AGENT);
+  rechercherNumerosAttribues(utilisateur.id, cibles);
+}
+
 app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
@@ -1921,6 +2014,7 @@ app.post("/api/entreprises/:id/assigner", exigerAdmin, async (req, res) => {
   entreprise.assigneA = utilisateurId;
   await db.write();
   res.json(enrichir(entreprise));
+  rechercherNumerosAttribues(utilisateurId, [entreprise]);
 });
 
 // Assignation en masse de toute une vague (lot) de prospection à un agent —
@@ -1945,6 +2039,7 @@ app.post("/api/lots/:lot/assigner", exigerAdmin, async (req, res) => {
   }
   await db.write();
   res.json({ lot, nbAssignees: cibles.length, entreprises: cibles.map(enrichir) });
+  rechercherNumerosAttribues(utilisateurId, cibles);
 });
 
 // Enregistre une nouvelle issue d'appel (module AGIR) et met à jour le statut
@@ -2088,6 +2183,7 @@ app.post("/api/entreprises/assigner-groupe", exigerAdmin, async (req, res) => {
   }
   await db.write();
   res.json({ nbAssignees: cibles.length, entreprises: cibles.map(enrichir) });
+  rechercherNumerosAttribues(utilisateurId, cibles);
 });
 
 // Statuts que le changement groupé accepte en plus des issues d'appel et
