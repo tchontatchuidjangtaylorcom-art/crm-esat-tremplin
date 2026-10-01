@@ -295,7 +295,15 @@ export default function RappelsEcheances() {
 
   function ouvrirFiche() {
     marquerTraite();
-    navigate(`/entreprise/${alerte.id}`);
+    ouvrirDansNouvelOnglet();
+  }
+
+  // Nouvel onglet : la page en cours n'est pas remplacée (plusieurs alertes à
+  // la suite = un onglet par fiche, comme les fiches ouvertes du tableau de bord).
+  function ouvrirDansNouvelOnglet() {
+    const onglet = window.open(`/entreprise/${alerte.id}`, "_blank");
+    if (onglet) onglet.opener = null;
+    else navigate(`/entreprise/${alerte.id}`); // ouverture bloquée : repli sur l'onglet courant
   }
 
   const instant = new Date(alerte.date).getTime();
@@ -315,7 +323,7 @@ export default function RappelsEcheances() {
             type="button"
             onClick={() => {
               reporter();
-              navigate(`/entreprise/${alerte.id}`);
+              ouvrirDansNouvelOnglet();
             }}
             title="Ouvrir la fiche de l'entreprise (l'alerte revient dans 10 min si rien n'est enregistré)"
             className="block text-left text-lg font-bold leading-snug mt-0.5 underline decoration-white/40 underline-offset-4 hover:decoration-white"
