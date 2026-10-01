@@ -13,6 +13,7 @@ import SelecteurTerritoire from "../components/SelecteurTerritoire.jsx";
 import { territoireDe } from "../territoires.js";
 import ImportLot from "../components/ImportLot.jsx";
 import DistributionEquipe from "../components/DistributionEquipe.jsx";
+import HistoriqueDistributions from "../components/HistoriqueDistributions.jsx";
 import EnrichissementTelephones from "../components/EnrichissementTelephones.jsx";
 import KpiObjectifMensuel from "../components/KpiObjectifMensuel.jsx";
 import BanniereSupervision from "../components/BanniereSupervision.jsx";
@@ -145,6 +146,8 @@ export default function Dashboard() {
   const [categories, setCategories] = useState([]);
   const [lots, setLots] = useState([]);
   const [agents, setAgents] = useState([]);
+  // Incrémenté à chaque distribution : rafraîchit la liste des dernières distributions.
+  const [versionDistributions, setVersionDistributions] = useState(0);
   // Liste d'assignation : l'admin connecté en tête, sous "Moi", pour
   // s'attribuer un lead (ou une vague) en un clic.
   const agentsAssignables = useMemo(() => {
@@ -464,7 +467,11 @@ export default function Dashboard() {
         <div className="mb-4">
           <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
           <ImportLot categories={categories} agents={agentsAssignables} lots={lots} lotsParSecteur={lotsParSecteur} onImporte={charger} />
-          <DistributionEquipe onDistribue={charger} />
+          <DistributionEquipe onDistribue={() => {
+            charger();
+            setVersionDistributions((v) => v + 1);
+          }} />
+          <HistoriqueDistributions version={versionDistributions} onAnnule={charger} />
         </div>
       )}
 
