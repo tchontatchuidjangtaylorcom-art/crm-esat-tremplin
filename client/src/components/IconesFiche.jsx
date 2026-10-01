@@ -40,7 +40,7 @@ export function BoutonPrononcer({ texte, className = "" }) {
 
 // ⧉ Copie un texte (ex. numéro de téléphone, pour Aircall ou une autre
 // application d'appel). Repli sans l'API presse-papiers (page non sécurisée).
-export function BoutonCopier({ texte, libelle = "Copier", className = "" }) {
+export function BoutonCopier({ texte, libelle = "Copier", className = "", onCopie }) {
   const [copie, setCopie] = useState(false);
 
   async function copier() {
@@ -57,6 +57,7 @@ export function BoutonCopier({ texte, libelle = "Copier", className = "" }) {
       document.execCommand("copy");
       zone.remove();
     }
+    onCopie?.();
     setCopie(true);
     setTimeout(() => setCopie(false), 1500);
   }

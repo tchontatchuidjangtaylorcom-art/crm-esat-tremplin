@@ -139,6 +139,22 @@ export default function MesKpis() {
             />
           </div>
 
+          {/* Appels : un numéro compte une fois par jour (clic ou copie). */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+            <CarteKpi
+              icone="📞"
+              titre="Appels aujourd'hui"
+              valeur={String(data.aujourdHui.appels ?? 0)}
+              detail={`${data.aujourdHui.entreprisesAppelees ?? 0} entreprise${(data.aujourdHui.entreprisesAppelees ?? 0) > 1 ? "s" : ""} appelée${(data.aujourdHui.entreprisesAppelees ?? 0) > 1 ? "s" : ""}`}
+            />
+            <CarteKpi
+              icone="📈"
+              titre={semaine === 0 ? "Appels cette semaine" : "Appels de la semaine"}
+              valeur={String(data.semaine.appels ?? 0)}
+              detail={`${data.semaine.entreprisesAppelees ?? 0} entreprise${(data.semaine.entreprisesAppelees ?? 0) > 1 ? "s" : ""} appelée${(data.semaine.entreprisesAppelees ?? 0) > 1 ? "s" : ""}`}
+            />
+          </div>
+
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             <h2 className="px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
               Détail jour par jour
@@ -164,6 +180,9 @@ export default function MesKpis() {
                     <span className="w-16 text-right font-semibold text-slate-800 dark:text-slate-100">
                       {secondes > 0 ? formatDureeTravail(secondes) : "—"}
                     </span>
+                    <span className="w-20 text-right text-xs text-slate-600 dark:text-slate-300" title="Appels (numéros distincts appelés ce jour)">
+                      {j.appels ? `📞 ${j.appels}` : ""}
+                    </span>
                     <span className="w-28 text-right text-xs text-slate-400 dark:text-slate-500">
                       {j.present ? `${formatHeureCourte(j.premiereActivite)} → ${formatHeureCourte(j.derniereActivite)}` : ""}
                     </span>
@@ -176,7 +195,8 @@ export default function MesKpis() {
           <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">
             Le temps actif est mesuré à partir de votre activité dans le CRM (souris, clavier, défilement, appels en
             cours). Après 5 minutes sans aucune activité, le chrono se met automatiquement en pause et reprend dès
-            votre retour. Les week-ends et jours fériés ne comptent pas dans le taux de présence.
+            votre retour. Les week-ends et jours fériés ne comptent pas dans le taux de présence. Un appel est compté quand
+            vous cliquez sur un numéro ou le copiez ; un même numéro ne compte qu'une fois par jour.
           </p>
         </>
       )}

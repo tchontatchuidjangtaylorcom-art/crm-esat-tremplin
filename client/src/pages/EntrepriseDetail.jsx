@@ -22,6 +22,7 @@ import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
 import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
+import { compterAppel } from "../telephony/compterAppel.js";
 import {
   formatMontant,
   formatDate,
@@ -511,12 +512,17 @@ export default function EntrepriseDetail() {
             <span className="inline-flex items-center gap-1.5">
               <a
                 href={versLienTel(entreprise.contact.telephone)}
+                onClick={() => compterAppel(entreprise.id, entreprise.contact.telephone, "lien")}
                 className="text-lg font-semibold text-blue-700 dark:text-blue-400 hover:underline"
                 title={`Appeler ${entreprise.contact.telephone}`}
               >
                 {entreprise.contact.telephone}
               </a>
-              <BoutonCopier texte={entreprise.contact.telephone} libelle="Copier le numéro" />
+              <BoutonCopier
+                texte={entreprise.contact.telephone}
+                libelle="Copier le numéro"
+                onCopie={() => compterAppel(entreprise.id, entreprise.contact.telephone, "copie")}
+              />
             </span>
           ) : (
             <span className="text-lg font-semibold text-slate-400 dark:text-slate-500">
@@ -531,6 +537,7 @@ export default function EntrepriseDetail() {
               <a
                 key={t.id || t.numero}
                 href={versLienTel(t.numero)}
+                onClick={() => compterAppel(entreprise.id, t.numero, "lien")}
                 title={`Appeler ${t.numero}${t.note ? ` (${t.note})` : ""}`}
                 className="text-sm font-medium text-blue-700 dark:text-blue-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-2.5 py-0.5 hover:underline"
               >

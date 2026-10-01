@@ -44,6 +44,7 @@ import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { enregistrerRoutesImportFichier } from "./importFichier.js";
 import { enregistrerRoutesDistributionEquipe } from "./distributionEquipe.js";
+import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
@@ -859,6 +860,7 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
 enregistrerRoutesVitrineRdv(app);
 enregistrerRoutesRechercheNumeros(app, { exigerAuth, chargerEntrepriseAutorisee, findEntreprise });
 enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin });
+enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });
 // Import de fichier (Excel, CSV, Word…) : fiches filtrées puis recherche IA
 // des numéros et du contact RH, dans la même file que les autres imports.
 enregistrerRoutesImportFichier(app, {
@@ -2938,13 +2940,16 @@ app.get("/api/presence/moi", exigerAuth, (req, res) => {
   }
   res.json({
     utilisateur: { id: cible.id, prenom: cible.prenom, nom: cible.nom, role: cible.role },
-    ...calculerKpiAgent(cible, { decalageSemaines: lireDecalageSemaines(req) }),
+    ...ajouterAppelsAuxKpi(calculerKpiAgent(cible, { decalageSemaines: lireDecalageSemaines(req) }), cible.id),
   });
 });
 
 app.get("/api/presence/equipe", exigerAdmin, (req, res) => {
   const utilisateurs = db.data.utilisateurs.filter((u) => u.statut === "valide");
-  res.json(calculerKpiEquipe(utilisateurs, { decalageSemaines: lireDecalageSemaines(req) }));
+  const equipe = calculerKpiEquipe(utilisateurs, { decalageSemaines: lireDecalageSemaines(req) });
+  // Appels de chaque membre (voir appelsAgents.js).
+  equipe.membres = equipe.membres.map((m) => ajouterAppelsAuxKpi(m, m.utilisateur.id));
+  res.json(equipe);
 });
 
 // Relève périodique de la boîte mail du pôle (aucun effet si MAIL_* non

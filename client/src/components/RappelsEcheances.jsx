@@ -6,6 +6,7 @@ import { jouerAlarme } from "../sonConfirmation.js";
 import { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { estNumeroAffichable } from "../telephone.js";
 import ChampDateHeure from "./ChampDateHeure.jsx";
+import { compterAppel } from "../telephony/compterAppel.js";
 
 // Alerte à l'heure d'un RDV ou d'un rappel (voir GET /api/echeances) : une
 // fenêtre qui ne se ferme pas d'un clic à côté, un bip répété, et une
@@ -335,7 +336,10 @@ export default function RappelsEcheances() {
           {numero ? (
             <a
               href={versLienTel(numero)}
-              onClick={ouvrirFiche}
+              onClick={() => {
+                compterAppel(alerte.id, numero, "lien");
+                ouvrirFiche();
+              }}
               className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold py-3"
             >
               📞 Appeler maintenant — {numero}

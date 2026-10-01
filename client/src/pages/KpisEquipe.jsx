@@ -137,6 +137,7 @@ export default function KpisEquipe() {
                   <th className="text-right px-3 py-2.5 font-semibold">Aujourd'hui</th>
                   <th className="text-left px-3 py-2.5 font-semibold">Semaine</th>
                   <th className="text-right px-3 py-2.5 font-semibold">Temps semaine</th>
+                  <th className="text-right px-3 py-2.5 font-semibold" title="Numéros distincts appelés (clic ou copie), une fois par jour">Appels auj. / sem.</th>
                   <th className="text-left px-3 py-2.5 font-semibold w-40">Présence</th>
                   <th className="px-4 py-2.5" />
                 </tr>
@@ -181,6 +182,12 @@ export default function KpisEquipe() {
                       <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-200">
                         {formatDureeTravail(m.semaine.secondesActives)}
                       </td>
+                      <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                        <span className="font-semibold">{m.aujourdHui.appels ?? 0}</span> / {m.semaine.appels ?? 0}
+                        <span className="block text-[11px] text-slate-400 dark:text-slate-500">
+                          {m.semaine.entreprisesAppelees ?? 0} entreprise{(m.semaine.entreprisesAppelees ?? 0) > 1 ? "s" : ""}
+                        </span>
+                      </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
@@ -212,7 +219,7 @@ export default function KpisEquipe() {
                 })}
                 {data.membres.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    <td colSpan={9} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                       Aucun compte validé.
                     </td>
                   </tr>

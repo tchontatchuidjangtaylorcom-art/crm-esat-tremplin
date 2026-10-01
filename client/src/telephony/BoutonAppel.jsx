@@ -1,5 +1,6 @@
 import { useTelephonie } from "./CallContext.jsx";
 import { estNumeroAffichable } from "../telephone.js";
+import { compterAppel } from "./compterAppel.js";
 
 const STYLE_ICONE = "inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition";
 const STYLE_LIEN = "text-blue-600 hover:underline font-medium";
@@ -33,7 +34,10 @@ export default function BoutonAppel({ entreprise, variant = "icone" }) {
     return (
       <a
         href={versLienTel(numero)}
-        onClick={(ev) => ev.stopPropagation()}
+        onClick={(ev) => {
+          ev.stopPropagation();
+          compterAppel(entreprise.id, numero, "lien");
+        }}
         title={`Appeler ${numero} depuis votre téléphone`}
         className={style}
       >
@@ -46,6 +50,7 @@ export default function BoutonAppel({ entreprise, variant = "icone" }) {
     <button
       onClick={(ev) => {
         ev.stopPropagation();
+        compterAppel(entreprise.id, numero, "lien");
         startCall(entreprise);
       }}
       title={`Appeler ${numero} (auto-dialer)`}
