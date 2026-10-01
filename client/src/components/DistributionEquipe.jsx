@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
+import { trierPersonnes } from "./SelecteurPersonne.jsx";
 
 // Distribution en un clic (voir server/src/distributionEquipe.js) : choisir
 // QUELLES fiches (Nouveau, NRP 1, NRP 2…), À QUI (toute l'équipe ou des
@@ -38,7 +39,7 @@ export default function DistributionEquipe({ onDistribue }) {
   const nom = (u) => [u.prenom, u.nom].filter(Boolean).join(" ") || u.email;
   const filtres = useMemo(() => {
     const q = recherche.trim().toLowerCase();
-    return q ? equipe.filter((u) => `${nom(u)} ${u.email}`.toLowerCase().includes(q)) : equipe;
+    return trierPersonnes(q ? equipe.filter((u) => `${nom(u)} ${u.email}`.toLowerCase().includes(q)) : equipe);
   }, [equipe, recherche]);
 
   const destinataires = mode === "tous" ? equipe.filter((u) => inclureAdmins || !estAdmin(u)) : equipe.filter((u) => choisis.includes(u.id));
