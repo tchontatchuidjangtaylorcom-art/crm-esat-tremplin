@@ -249,6 +249,7 @@ export default function RechercheSiren({ onEntreprise, entreprises = [], archive
                         [e.codePostal, e.ville].filter(Boolean).join(" "),
                         e.siret ? `SIRET ${e.siret}` : null,
                         e.contact?.telephone ? `☎ ${e.contact.telephone}` : null,
+                        e.assigneANom ? `👤 ${e.assigneANom}` : "Non assigné",
                       ]
                         .filter(Boolean)
                         .join(" · ")}

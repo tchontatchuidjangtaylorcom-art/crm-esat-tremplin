@@ -20,6 +20,7 @@ import { erreurNumero, estNumeroAffichable } from "../telephone.js";
 import CalculObligationFiche from "../components/CalculObligationFiche.jsx";
 import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
 import BadgeEcheance from "../components/BadgeEcheance.jsx";
+import ChoixAgentFiche from "../components/ChoixAgentFiche.jsx";
 import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
@@ -462,14 +463,8 @@ export default function EntrepriseDetail() {
             <BoutonRechercheNumeros entreprise={entreprise} onMaj={setEntreprise} />
             {/* Statut cliquable : change le statut sans descendre dans la fiche. */}
             <StatusSelect entreprise={entreprise} />
-            <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              Agent assigné :{" "}
-              {entreprise.assigneANom ? (
-                <span className="font-medium text-marine-700 dark:text-marine-300">{entreprise.assigneANom}</span>
-              ) : (
-                <span className="font-medium text-slate-400 dark:text-slate-500">Non assigné</span>
-              )}
-            </span>
+            {/* Administrateur : liste déroulante pour réattribuer la fiche. */}
+            <ChoixAgentFiche entreprise={entreprise} onMaj={setEntreprise} />
             {/* Cliquable : déplacer le RDV / rappel (voir BadgeEcheance). */}
             <BadgeEcheance entreprise={entreprise} onMaj={setEntreprise} />
           </div>

@@ -2011,6 +2011,24 @@ app.post("/api/entreprises/:id/assigner", exigerAdmin, async (req, res) => {
     entreprise.assignationVue = utilisateurId === req.utilisateur.id; // s'assigner soi-même : pas d'alerte
     entreprise.dateAssignation = new Date().toISOString();
   }
+  // Trace dans l'historique de la fiche (qui l'avait, qui l'a maintenant).
+  if ((utilisateurId || null) !== (entreprise.assigneA || null)) {
+    const nomDe = (uid) => {
+      const u = uid && trouverUtilisateurParId(uid);
+      return u ? u.prenom || u.email : null;
+    };
+    const avant = nomDe(entreprise.assigneA);
+    const apres = nomDe(utilisateurId);
+    entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+    entreprise.commentaires.unshift({
+      id: nanoid(),
+      date: new Date().toISOString(),
+      auteur: "Système",
+      texte: `${apres ? `Fiche attribuée à ${apres}` : "Fiche retirée"}${avant ? ` (auparavant : ${avant})` : ""} par ${
+        req.utilisateur.prenom || req.utilisateur.email
+      }.`,
+    });
+  }
   entreprise.assigneA = utilisateurId;
   await db.write();
   res.json(enrichir(entreprise));
