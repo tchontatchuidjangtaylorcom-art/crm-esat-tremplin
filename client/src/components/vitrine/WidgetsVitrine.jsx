@@ -28,32 +28,32 @@ export const THEMES = {
     panneau: "bg-red-700 text-white border-red-500/60",
     bande: "bg-red-800/80",
     pastille: "bg-slate-900/15 dark:bg-white/15 border-slate-900/30 dark:border-white/30",
-    bouton: "bg-amber-200 text-red-900 hover:bg-amber-100",
+    bouton: "bg-white text-red-800 hover:bg-red-50",
     fleche: "border-slate-900/30 dark:border-white/30 hover:bg-slate-900/15 dark:hover:bg-white/15",
-    pulse: "bg-amber-300",
+    pulse: "bg-white",
   },
   actualite: {
-    onglet: "bg-amber-400 hover:bg-amber-300 text-amber-950 border-amber-200/70",
-    panneau: "bg-[#f6e7cf] text-amber-950 border-amber-300",
-    bande: "bg-amber-300/60",
-    pastille: "bg-slate-900/50 dark:bg-white/50 border-amber-500/40",
-    bouton: "bg-amber-700 text-white hover:bg-amber-600",
-    fleche: "border-amber-700/30 hover:bg-amber-200",
-    pulse: "bg-amber-600",
+    onglet: "bg-marine-700 hover:bg-marine-600 text-white border-marine-400/60",
+    panneau: "bg-marine-50 text-marine-950 border-marine-300",
+    bande: "bg-marine-200/70",
+    pastille: "bg-white/15 border-white/30",
+    bouton: "bg-marine-700 text-white hover:bg-marine-600",
+    fleche: "border-marine-700/30 hover:bg-marine-100",
+    pulse: "bg-marine-400",
   },
   faq: {
-    onglet: "bg-teal-500 hover:bg-teal-400 text-marine-950 border-teal-200/70",
-    panneau: "bg-white dark:bg-marine-950 text-slate-900 dark:text-white border-teal-400/40",
-    bande: "bg-teal-500/20",
-    pastille: "bg-teal-400/20 border-teal-300/40",
-    bouton: "bg-teal-400 text-marine-950 hover:bg-teal-300",
+    onglet: "bg-prune-600 hover:bg-prune-500 text-white border-prune-300/60",
+    panneau: "bg-white dark:bg-marine-950 text-slate-900 dark:text-white border-prune-400/40",
+    bande: "bg-prune-500/20",
+    pastille: "bg-white/15 border-white/30",
+    bouton: "bg-prune-600 text-white hover:bg-prune-500",
     fleche: "border-slate-900/20 dark:border-white/20 hover:bg-slate-900/10 dark:hover:bg-white/10",
-    pulse: "bg-teal-300",
+    pulse: "bg-prune-300",
   },
 };
 
 // Boutons flottants des pages publiques (/vitrine…) :
-//  - à droite, de haut en bas : FAQ, Actualité (orange), Vigilance (rouge) ;
+//  - à droite, de haut en bas : FAQ (violet), Actualité (bleu), Vigilance (rouge) ;
 //  - à gauche : Assistance (assistant automatique, voir AssistantOeth).
 // Un seul panneau ouvert à la fois ; rien ne s'ouvre tout seul (un point
 // pulsé signale la vigilance tant qu'elle n'a pas été consultée).
@@ -263,10 +263,10 @@ function PanneauFaq({ theme, onFermer }) {
                 type="button"
                 onClick={() => setDeplie((d) => (d === q.id ? null : q.id))}
                 aria-expanded={deplie === q.id}
-                className="w-full text-left text-[13px] font-semibold flex justify-between gap-2 hover:text-teal-800 dark:hover:text-teal-200"
+                className="w-full text-left text-[13px] font-semibold flex justify-between gap-2 hover:text-prune-800 dark:hover:text-prune-200"
               >
                 {q.question}
-                <span className="text-teal-700 dark:text-teal-300">{deplie === q.id ? "−" : "+"}</span>
+                <span className="text-prune-700 dark:text-prune-300">{deplie === q.id ? "−" : "+"}</span>
               </button>
               {deplie === q.id && <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-1.5">{q.reponse}</p>}
             </div>

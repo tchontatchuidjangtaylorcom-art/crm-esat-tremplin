@@ -25,6 +25,22 @@ export default {
       // l'État (voir server/src/pdfSynthese.js pour la même réserve sur le
       // PDF : le pôle n'est pas un service de l'État).
       colors: {
+        // Violet "prune" : couleur d'accent du simulateur (étapes, actions
+        // principales), associée au bleu marine et au rouge des trois
+        // couleurs. Teinte propre, sans reprendre un logo ou une charte tierce.
+        prune: {
+          50: "#f9f1f8",
+          100: "#f2e0f0",
+          200: "#e3bfe0",
+          300: "#cf93ca",
+          400: "#b565ae",
+          500: "#983f92",
+          600: "#7d2a78",
+          700: "#652262",
+          800: "#4f1b4d",
+          900: "#3b1439",
+          950: "#250b24",
+        },
         marine: {
           50: "#eef2f8",
           100: "#dbe4f0",

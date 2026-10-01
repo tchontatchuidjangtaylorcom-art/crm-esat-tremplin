@@ -79,7 +79,7 @@ const DEPENSES = [
 const RECOMMANDATIONS = [
   {
     titre: "Structurer une feuille de route handicap",
-    couleur: "#2dd4bf",
+    couleur: "#8fa9cd",
     texte:
       "Fixer des priorités, des responsables et des échéances pour que les actions ponctuelles deviennent une démarche suivie d'année en année.",
     accompagnement:
@@ -90,7 +90,7 @@ const RECOMMANDATIONS = [
   },
   {
     titre: "Accompagner les démarches RQTH",
-    couleur: "#f472b6",
+    couleur: "#f87171",
     texte:
       "Des salariés déjà en poste peuvent être concernés sans l'avoir déclaré. Une démarche confidentielle et bien expliquée lève souvent les freins.",
     accompagnement:
@@ -101,7 +101,7 @@ const RECOMMANDATIONS = [
   },
   {
     titre: "Développer les achats inclusifs",
-    couleur: "#38bdf8",
+    couleur: "#cf93ca",
     texte:
       "Confier des prestations à une EA, un ESAT ou un TIH réduit la contribution (DSN 061) et fait sortir de la base majorée dès 600 × SMIC d'achats.",
     accompagnement:
@@ -112,7 +112,7 @@ const RECOMMANDATIONS = [
   },
   {
     titre: "Sensibiliser les équipes",
-    couleur: "#fbbf24",
+    couleur: "#b7c9e1",
     texte:
       "Rendre le sujet visible réduit les tabous et crée un climat de confiance, propice aux déclarations comme aux aménagements de poste.",
     accompagnement:
@@ -206,6 +206,13 @@ export default function SimulateurOeth() {
   // Entreprise retrouvée via Sirene : { nom, siren, ville, dateCreation }.
   const [entrepriseTrouvee, setEntrepriseTrouvee] = useState(null);
   const [rdvOuvert, setRdvOuvert] = useState(false);
+  // Parcours en 3 étapes : questionnaire (3 sections, une à la fois),
+  // récapitulatif à valider, puis résultats.
+  const [etape, setEtape] = useState("questionnaire"); // "questionnaire" | "recap" | "resultats"
+  const [section, setSection] = useState(1); // 1 situation · 2 effectifs · 3 déductions
+  const [messageSection, setMessageSection] = useState(null);
+  const [emailSynthese, setEmailSynthese] = useState("");
+  const [envoiSynthese, setEnvoiSynthese] = useState({ etat: "repos", message: "" }); // repos | envoi | ok | erreur
   const fermerRdv = useCallback(() => setRdvOuvert(false), []);
   // Partie 3 masquée quand aucune action n'est déclarée ; le visiteur peut
   // tout de même l'afficher (ECAP, dépenses).
@@ -297,10 +304,52 @@ export default function SimulateurOeth() {
           ? { cible: "etape-situation", texte: `Partie 1, question 3 : indiquez le nombre de BOETH employés en ${ANNEE_REFERENCE}.` }
           : assujettie && situation.declarations === null
             ? { cible: "etape-situation", texte: "Partie 1 : indiquez si vos déclarations des années précédentes ont été effectuées." }
-            : !effectifValide
-              ? { cible: "etape-essentiel", texte: "Partie 2 : renseignez votre effectif d'assujettissement (minimum 20 salariés)." }
+            : !(situation.seuil === "moins20" ? effectifRenseigne : effectifValide)
+              ? { cible: "etape-essentiel", texte: "Vos effectifs : renseignez votre effectif d'assujettissement (minimum 20 salariés)." }
               : null;
   const parcoursComplet = !elementManquant;
+
+  // ── Navigation du parcours par étapes ────────────────────────────────
+  const effectifSection2Ok = situation.seuil === "moins20" ? effectifRenseigne : effectifValide;
+  const sectionsCompletes = { 1: situationComplete, 2: situationComplete && effectifSection2Ok, 3: situationComplete && effectifSection2Ok };
+  const SECTIONS = [
+    { n: 1, titre: "Votre situation" },
+    { n: 2, titre: "Vos effectifs" },
+    { n: 3, titre: "Déductions" },
+  ];
+  function allerA(nouvelleEtape, nouvelleSection) {
+    setMessageSection(null);
+    if (nouvelleEtape) setEtape(nouvelleEtape);
+    if (nouvelleSection) setSection(nouvelleSection);
+    setTimeout(() => sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+  }
+  function continuer() {
+    if (!sectionsCompletes[section]) {
+      setMessageSection(elementManquant?.texte || "Complétez cette section pour continuer.");
+      return;
+    }
+    if (section < 3) allerA(null, section + 1);
+    else allerA("recap");
+  }
+  const sectionCouranteComplete = sectionsCompletes[section];
+  useEffect(() => {
+    if (sectionCouranteComplete) setMessageSection(null);
+  }, [sectionCouranteComplete]);
+  function precedent() {
+    if (etape === "resultats") return allerA("recap");
+    if (etape === "recap") return allerA("questionnaire", 3);
+    if (section > 1) allerA(null, section - 1);
+  }
+  async function envoyerSynthese(ev) {
+    ev.preventDefault();
+    setEnvoiSynthese({ etat: "envoi", message: "" });
+    try {
+      await api.envoyerSyntheseParEmail({ ...saisie, nomEntreprise, email: emailSynthese.trim() });
+      setEnvoiSynthese({ etat: "ok", message: `Synthèse envoyée à ${emailSynthese.trim()}.` });
+    } catch (e) {
+      setEnvoiSynthese({ etat: "erreur", message: e.message });
+    }
+  }
 
   // Cases BOETH verrouillées en partie 2 : on rappelle la réponse donnée
   // plus haut, dans la case même, avec un lien pour la modifier.
@@ -548,7 +597,8 @@ export default function SimulateurOeth() {
 
   function ouvrirDeductions() {
     setDeductionsOuvertes(true);
-    setTimeout(() => deductionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    setPartie3Forcee(true);
+    allerA("questionnaire", 3);
   }
 
   function reinitialiser() {
@@ -560,6 +610,10 @@ export default function SimulateurOeth() {
     setSituation(SITUATION_VIDE);
     setEntrepriseTrouvee(null);
     setPartie3Forcee(false);
+    setEtape("questionnaire");
+    setSection(1);
+    setMessageSection(null);
+    setEnvoiSynthese({ etat: "repos", message: "" });
     setSimulation(null);
     setContactOuvert(false);
     setEnvoye(false);
@@ -655,7 +709,7 @@ export default function SimulateurOeth() {
       ? { texte: "Quota atteint", classe: "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300" }
       : s.surcontribution
         ? { texte: "Base majorée", classe: "bg-red-400/15 text-red-700 dark:text-red-300" }
-        : { texte: "Contribution réduite", classe: "bg-teal-400/15 text-teal-700 dark:text-teal-300" };
+        : { texte: "Contribution réduite", classe: "bg-marine-400/15 text-marine-700 dark:text-marine-300" };
 
   // Leviers pris en compte dans le calcul (ligne "Effet des actions").
   const actionsRenseignees =
@@ -732,43 +786,105 @@ export default function SimulateurOeth() {
   const encoreMobilisable = Math.max(0, plafondDepenses - depensesMobilisees);
   const partMobilisee = plafondDepenses > 0 ? Math.min(100, (depensesMobilisees / plafondDepenses) * 100) : 0;
 
+  // Récapitulatif (étape 2) : chaque réponse, regroupée par section.
+  const libelleAction = { st: "Sous-traitance EA / ESAT / TIH ≥ 600 × SMIC", accord: "Accord agréé", aucune: "Aucune" };
+  const libelleDeclarations = { true: "Oui, à jour", false: "Non", inconnu: "Je ne sais pas" };
+  const euros = (v) => (String(v).trim() !== "" && Number(v) > 0 ? formatMontant(Number(v)) : "—");
+  const lignesRecap = [
+    {
+      section: 1,
+      titre: "Votre situation",
+      lignes: [
+        ["Exercice simulé", String(ANNEE_REFERENCE)],
+        ["Type d'employeur", secteur === "public" ? "Public · FIPHFP" : "Privé · AGEFIPH"],
+        ["Entreprise", nomEntreprise.trim() || "Non renseignée"],
+        [
+          "Seuil de 20 salariés atteint",
+          situation.seuil === "moins20"
+            ? "Moins de 20 salariés"
+            : anneeSeuilNum === ANNEE_REFERENCE - 11
+              ? `Avant ${ANNEE_REFERENCE - 10}`
+              : anneeSeuilNum
+                ? `Depuis ${anneeSeuilNum}`
+                : "—",
+        ],
+        ...(assujettie
+          ? [
+              ["Au moins un BOETH employé", anneesRegle.map((a) => `${a} : ${situation.annees[a] ? "Oui" : "Non"}`).join(" · ")],
+              ...(toutesAnneesNon ? [["Autre action reconnue", libelleAction[situation.action] || "—"]] : []),
+              ...(reponseExercice === true ? [[`BOETH employés en ${ANNEE_REFERENCE}`, formatNombre(Number(saisie.boeth) || 0)]] : []),
+              ["Déclarations des années précédentes", libelleDeclarations[String(situation.declarations)] || "—"],
+            ]
+          : []),
+        ["Régime", regime.titre],
+      ],
+    },
+    {
+      section: 2,
+      titre: "Vos effectifs",
+      lignes: [
+        ["Effectif d'assujettissement", saisie.effectif ? `${formatNombre(Number(saisie.effectif))} salariés` : "—"],
+        ["EMA BOETH pris en compte", formatNombre(Number(saisie.boeth) || 0)],
+        ["Taux d'emploi BOETH", `${tauxSaisi || "0"} %`],
+      ],
+    },
+    {
+      section: 3,
+      titre: "Déductions",
+      lignes: partie3Visible
+        ? [
+            ["Effectif moyen annuel ECAP", saisie.nbEcap ? formatNombre(Number(saisie.nbEcap)) : "—"],
+            ["Sous-traitance (coût de main-d'œuvre)", sousTraitance === true ? euros(saisie.coutMainOeuvreSousTraitance) : "Non"],
+            ...DEPENSES.map((d) => [d.titre, euros(saisie[d.champ])]),
+          ]
+        : [["Déductions", "Non concernée (aucune action sur 4 ans)"]],
+    },
+  ];
+
   return (
     <section ref={sectionRef} id="simulateur" className="relative bg-slate-50 dark:bg-black text-slate-900 dark:text-white pt-4 sm:pt-5 pb-16 sm:pb-24 scroll-mt-16">
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] max-w-full h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
 
-      <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 space-y-3">
-        {/* ─────────── En-tête ─────────── */}
-        <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 shadow-2xl overflow-hidden">
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+        {/* ─────────── En-tête + fil d'étapes ─────────── */}
+        <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 overflow-hidden">
           <div className="flex h-1">
-            <span className="flex-1 bg-marine-500" />
-            <span className="flex-1 bg-white" />
-            <span className="flex-1 bg-red-500" />
+            <span className="flex-1 bg-marine-600" />
+            <span className="flex-1 bg-slate-200 dark:bg-white" />
+            <span className="flex-1 bg-red-600" />
           </div>
-          <div className="px-4 sm:px-8 py-3 sm:py-5 flex flex-col items-center text-center gap-2 sm:gap-3">
-            <div>
-              <p className="text-[9px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] sm:tracking-[0.2em] text-marine-600 dark:text-marine-400">
-                Obligation d'emploi des travailleurs handicapés
-              </p>
-              {/* Titre principal (H1) de la page /vitrine — mots-clés OETH / DOETH. */}
-              <h1 className="font-bold text-slate-900 dark:text-white text-lg sm:text-4xl mt-1 sm:mt-1.5">
-                Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}
-              </h1>
-            </div>
-            {/* Sur une seule ligne sur téléphone (libellés courts). */}
-            <div className="flex flex-nowrap sm:flex-wrap justify-center gap-1.5 sm:gap-2">
-              <Pastille couleur="bg-teal-400" court="2 min">Environ 2 minutes</Pastille>
-              <Pastille couleur="bg-sky-400" court="Sans pièce jointe">Aucune pièce à joindre</Pastille>
-              <Pastille couleur="bg-amber-400" court="Immédiat">Résultat immédiat</Pastille>
-            </div>
+          <div className="px-4 sm:px-8 pt-3 sm:pt-5 pb-4 sm:pb-6 flex flex-col items-center text-center">
+            <p className="text-[9px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] sm:tracking-[0.2em] text-prune-600 dark:text-prune-300">
+              Obligation d'emploi des travailleurs handicapés
+            </p>
+            {/* Titre principal (H1) de la page /vitrine — mots-clés OETH / DOETH. */}
+            <h1 className="font-bold text-slate-900 dark:text-white text-lg sm:text-3xl mt-1 sm:mt-1.5">
+              Simulateur Gratuit OETH / DOETH {ANNEE_REFERENCE}
+            </h1>
+            <FilEtapes
+              etape={etape}
+              onAller={(e) => {
+                if (e === "questionnaire") allerA("questionnaire");
+                if (e === "recap" && parcoursComplet) allerA("recap");
+                if (e === "resultats" && parcoursComplet && etape !== "questionnaire") allerA("resultats");
+              }}
+            />
           </div>
         </div>
+
+        {/* ─────────── Étape 1 : le questionnaire, une section à la fois ─────────── */}
+        {etape === "questionnaire" && (
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+        <div className="min-w-0 space-y-3">
+        {section === 1 && (
+        <>
 
         {/* ─────────── En tête : retrouvez votre entreprise (Sirene) ───────────
             Pré-remplit le nom, l'effectif estimé, le secteur (privé / public)
             et, via la date de création, la question 1 de la partie 1 (règle
             des 5 ans). Facultatif : tout reste modifiable. */}
-        <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/[0.06] px-4 sm:px-5 py-2">
+        <div className="rounded-xl border border-marine-400/30 bg-white dark:bg-marine-950/80 px-4 sm:px-5 py-2">
           <button
             type="button"
             onClick={() => {
@@ -778,7 +894,7 @@ export default function SimulateurOeth() {
             aria-expanded={rechercheOuverte}
             className="w-full flex items-center gap-2.5 text-left py-0.5"
           >
-            <span className="shrink-0 rounded-full bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
+            <span className="shrink-0 rounded-full bg-marine-700 text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
               Important
             </span>
             <span className="flex-1 text-xs sm:text-sm font-semibold">
@@ -786,7 +902,7 @@ export default function SimulateurOeth() {
               <span className="hidden sm:inline">Gagnez du temps : retrouvez votre entreprise</span>
               <span className="hidden sm:inline font-normal text-slate-500 dark:text-slate-400"> — par raison sociale ou SIREN</span>
             </span>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 transition-transform ${rechercheOuverte ? "rotate-180" : ""}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 shrink-0 text-marine-600 dark:text-marine-300 transition-transform ${rechercheOuverte ? "rotate-180" : ""}`}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
             </svg>
           </button>
@@ -887,11 +1003,7 @@ export default function SimulateurOeth() {
             quand la partie 1 est complète. */}
         <div
           id="etape-situation"
-          className={`scroll-mt-24 rounded-2xl border-2 px-4 sm:px-8 pt-4 sm:pt-5 pb-5 sm:pb-6 transition ${
-            situationComplete
-              ? "border-emerald-400/50 bg-white dark:bg-marine-950/80"
-              : "border-amber-400/70 bg-amber-50/60 dark:bg-amber-500/[0.06]"
-          }`}
+          className={"scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-4 sm:px-8 pt-4 sm:pt-5 pb-5 sm:pb-6"}
         >
           <EntetePartie
             numero="1"
@@ -908,9 +1020,9 @@ export default function SimulateurOeth() {
             <div
               role="radiogroup"
               aria-label="Année concernée"
-              className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-amber-400/40 bg-amber-400/[0.06] pl-2 sm:pl-3.5 pr-1 py-1 text-xs"
+              className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-prune-400/40 bg-prune-400/[0.06] pl-2 sm:pl-3.5 pr-1 py-1 text-xs"
             >
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mr-1 sm:mr-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-prune-700 dark:text-prune-300 mr-1 sm:mr-1.5">
                 <span className="sm:hidden">Année</span>
                 <span className="hidden sm:inline">Année concernée</span>
               </span>
@@ -925,7 +1037,7 @@ export default function SimulateurOeth() {
                     onClick={() => modifier("annee", e.annee)}
                     className={`rounded-full px-1.5 sm:px-3 py-1 font-semibold transition ${
                       actifAnnee
-                        ? "bg-amber-400 text-marine-950 shadow-[0_0_14px_rgba(251,191,36,0.45)]"
+                        ? "bg-prune-600 text-white"
                         : "text-slate-600 dark:text-slate-300 hover:bg-slate-900/10 dark:hover:bg-white/10"
                     }`}
                   >
@@ -1048,13 +1160,13 @@ export default function SimulateurOeth() {
                   <div
                     key={a}
                     className={`rounded-lg border px-3 py-2.5 ${
-                      a === ANNEE_REFERENCE ? "border-amber-400/60 bg-amber-400/[0.05]" : "border-slate-900/10 dark:border-white/10"
+                      a === ANNEE_REFERENCE ? "border-prune-400/60 bg-prune-400/[0.05]" : "border-slate-900/10 dark:border-white/10"
                     }`}
                   >
                     <p className="text-sm font-bold">
                       {a}
                       {a === ANNEE_REFERENCE && (
-                        <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                        <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-prune-700 dark:text-prune-300">
                           exercice simulé
                         </span>
                       )}
@@ -1216,7 +1328,7 @@ export default function SimulateurOeth() {
                 regime.ton === "rouge"
                   ? "border-red-400/50 bg-red-500/10 text-red-800 dark:text-red-200"
                   : regime.ton === "orange"
-                    ? "border-orange-400/50 bg-orange-500/10 text-orange-900 dark:text-orange-100"
+                    ? "border-marine-400/50 bg-marine-500/10 text-marine-900 dark:text-marine-100"
                     : "border-emerald-400/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
               }`}
             >
@@ -1226,8 +1338,11 @@ export default function SimulateurOeth() {
           )}
         </div>
 
-        {/* ─────────── Partie 2 : vos effectifs ─────────── */}
-        {situationComplete ? (
+        </>
+        )}
+
+        {/* ─────────── Section 2 : vos effectifs ─────────── */}
+        {section === 2 && (
           <div id="etape-essentiel" className="scroll-mt-24 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 px-4 sm:px-8 pt-4 sm:pt-5 pb-4">
             <EntetePartie
               numero="2"
@@ -1302,49 +1417,34 @@ export default function SimulateurOeth() {
               )}
             </div>
           </div>
-        ) : (
-          <PartieVerrouillee numero="2" titre="Remplissez vos effectifs" message="S'ouvre dès que la partie 1 est complète." />
         )}
 
         {/* ─────────── Partie 3 : déductions & cas particuliers ───────────
             Ouverte une fois l'effectif renseigné ; masquée quand la partie 1
             indique aucune action sur les 4 ans (le visiteur peut l'afficher
             quand même pour l'ECAP ou les dépenses déductibles). */}
-        {partie2Complete && partie3Visible && (
+        {section === 3 && partie3Visible && (
         <div ref={deductionsRef} className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950/80 scroll-mt-24">
-          <button
-            type="button"
-            onClick={() => setDeductionsOuvertes((v) => !v)}
-            className="w-full flex items-center gap-3 px-5 sm:px-8 py-4 text-left"
-            aria-expanded={deductionsOuvertes}
-          >
-            <span className="shrink-0 w-10 h-10 rounded-xl bg-marine-500/15 border border-marine-400/30 text-marine-600 dark:text-marine-300 text-sm font-bold flex items-center justify-center">
-              03
-            </span>
+          <div className="flex items-center gap-3 px-4 sm:px-8 pt-4 sm:pt-5">
             <span className="flex-1">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-marine-600 dark:text-marine-400">Partie 3</span>
-              <span className="block font-semibold text-lg">J'ai des déductions ou un cas particulier à renseigner</span>
-              <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Sous-traitance EA / ESAT / TIH, ECAP, dépenses déductibles.
-              </span>
+              <EntetePartie
+                numero="3"
+                titre="J'ai des déductions ou un cas particulier"
+                sousTitre="Sous-traitance EA / ESAT / TIH, ECAP, dépenses déductibles. Laissez vide si vous n'êtes pas concerné."
+              />
             </span>
             {nbDeductionsRenseignees > 0 && (
-              <span className="hidden sm:inline rounded-full bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[10px] font-semibold px-2.5 py-1">
+              <span className="hidden sm:inline rounded-full bg-marine-400/15 text-marine-700 dark:text-marine-300 text-[10px] font-semibold px-2.5 py-1">
                 {nbDeductionsRenseignees} renseigné{nbDeductionsRenseignees > 1 ? "s" : ""}
               </span>
             )}
             <span className="hidden sm:inline rounded-full border border-slate-900/15 dark:border-white/15 text-slate-500 dark:text-slate-400 text-[10px] font-semibold px-2.5 py-1">
               Facultatif
             </span>
-            <span className={`text-marine-600 dark:text-marine-300 text-xl leading-none transition-transform ${deductionsOuvertes ? "rotate-45" : ""}`}>+</span>
-          </button>
+          </div>
 
-          {deductionsOuvertes && (
-            <div className="px-6 sm:px-8 pb-6 border-t border-slate-900/10 dark:border-white/10 pt-5 space-y-4">
-              <p className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.02] dark:bg-white/[0.02] px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                Vous pouvez laisser tous ces montants vides si vous n'êtes pas concerné. Leur saisie permet simplement
-                d'affiner le calcul et de préparer votre récapitulatif DSN (codes indiqués sur chaque champ).
-              </p>
+          {(
+            <div className="px-4 sm:px-8 pb-6 pt-5 space-y-4">
 
               <div className="grid md:grid-cols-2 gap-3">
                 <CarteDeduction
@@ -1426,7 +1526,7 @@ export default function SimulateurOeth() {
                   </CarteDeduction>
                 ))}
               </div>
-              <p className="rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-900 dark:text-amber-100">
+              <p className="rounded-xl border border-prune-400/30 border-l-4 border-l-prune-400 bg-prune-500/[0.07] px-4 py-3 text-xs text-prune-900 dark:text-prune-100">
                 Les dépenses 062, 063, 064 et 072 sont ventilées séparément dans votre récapitulatif DSN. Le simulateur
                 applique automatiquement leur plafond global de 10 % de la contribution brute.
               </p>
@@ -1440,7 +1540,7 @@ export default function SimulateurOeth() {
           )}
         </div>
         )}
-        {partie2Complete && !partie3Visible && (
+        {section === 3 && !partie3Visible && (
           <div className="rounded-2xl border border-dashed border-slate-900/15 dark:border-white/15 px-5 sm:px-8 py-4 text-sm text-slate-600 dark:text-slate-300">
             <span className="font-semibold">Partie 3 — Déductions : non concernée.</span> Vous avez indiqué n'avoir eu, de{" "}
             {anneesRegle[0]} à {anneesRegle[3]}, ni BOETH, ni sous-traitance EA / ESAT / TIH, ni accord agréé.{" "}
@@ -1456,46 +1556,172 @@ export default function SimulateurOeth() {
             </button>
           </div>
         )}
-        {!partie2Complete && !aucuneAction && (
-          <PartieVerrouillee
-            numero="3"
-            titre="J'ai des déductions ou un cas particulier à renseigner"
-            message={situationComplete ? "S'ouvre dès que votre effectif est renseigné (partie 2)." : "S'ouvre après les parties 1 et 2."}
-          />
-        )}
-
-        {/* Liens utilitaires — l'appel "Calculer ma contribution" est un
-            bouton flottant (voir bas du composant) : il ne prend pas de place
-            et les résultats remontent juste sous la saisie. */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
-            <span>● Résultat immédiat</span>
-            <span>● Sans coordonnées</span>
-            <span>● Sans engagement</span>
-          </div>
-          <div className="flex flex-wrap gap-4 text-xs">
-            <button type="button" onClick={reinitialiser} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white underline-offset-4 hover:underline">
-              Nouvelle simulation
+        {/* Navigation entre sections : "Continuer" reste cliquable et
+            explique ce qui manque tant que la section n'est pas complète. */}
+        <div className="pt-1 space-y-2">
+          {messageSection && (
+            <p role="alert" className="rounded-xl border border-red-300/60 bg-red-50 dark:bg-red-500/10 dark:border-red-400/30 px-4 py-2.5 text-sm text-red-800 dark:text-red-200">
+              {messageSection}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {section > 1 && (
+              <button
+                type="button"
+                onClick={precedent}
+                className="rounded-full border-2 border-prune-600 dark:border-prune-300 text-prune-700 dark:text-prune-200 text-sm font-semibold px-5 py-2.5 hover:bg-prune-50 dark:hover:bg-prune-500/10 transition"
+              >
+                ← Étape précédente
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={continuer}
+              className={`rounded-full text-sm font-semibold px-6 py-2.5 border-2 transition ${
+                sectionsCompletes[section]
+                  ? "bg-prune-600 border-prune-600 hover:bg-prune-700 text-white"
+                  : "bg-slate-300 border-slate-300 dark:bg-white/15 dark:border-transparent text-white dark:text-white/60"
+              }`}
+            >
+              {section < 3 ? "Continuer" : "Valider mes réponses"} →
             </button>
-            <a href={GUIDE_OFFICIEL_URL} target="_blank" rel="noopener noreferrer" className="text-marine-600 dark:text-marine-300 hover:text-marine-800 dark:hover:text-marine-200 hover:underline">
-              Guide officiel OETH (URSSAF · PDF) ↗
-            </a>
           </div>
         </div>
+        </div>
 
-        {/* ─────────── Résultats ─────────── */}
-        {/* Affichés dès que la partie 1 est complète (masqués, pas démontés,
-            pour que l'IntersectionObserver de la barre mobile reste branché) ;
-            chaque saisie met les chiffres à jour en direct. */}
-        {(
-          <div ref={resultatsRef} className={`scroll-mt-20 pt-4 ${situationComplete ? "" : "hidden"}`}>
-            <div className="flex items-center gap-4 mb-5">
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-teal-400/15 border border-teal-400/30 text-teal-700 dark:text-teal-300 text-sm font-bold flex items-center justify-center">
-                ✓
-              </span>
+        {/* Colonne latérale : avancement, expert, ressources. */}
+        <aside className="lg:sticky lg:top-24 space-y-3">
+          <div className="hidden lg:block rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 p-5">
+            <p className="font-semibold text-prune-700 dark:text-prune-200">Contribution {ANNEE_REFERENCE + 1} pour l'année {ANNEE_REFERENCE}</p>
+            <ol className="mt-4 space-y-3">
+              {SECTIONS.map((sct) => {
+                const accessible = sct.n === 1 || sectionsCompletes[sct.n - 1];
+                const fait = sectionsCompletes[sct.n] && sct.n < section;
+                const courant = sct.n === section;
+                return (
+                  <li key={sct.n}>
+                    <button
+                      type="button"
+                      disabled={!accessible}
+                      onClick={() => allerA(null, sct.n)}
+                      className="flex items-center gap-3 text-sm text-left disabled:cursor-not-allowed"
+                    >
+                      <span
+                        className={`w-7 h-7 shrink-0 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
+                          fait
+                            ? "bg-prune-600 border-prune-600 text-white"
+                            : courant
+                              ? "border-prune-600 text-prune-700 dark:border-prune-300 dark:text-prune-200"
+                              : "border-slate-300 dark:border-white/20 text-slate-400"
+                        }`}
+                      >
+                        {fait ? "✓" : sct.n}
+                      </span>
+                      <span className={courant || fait ? "font-semibold text-prune-700 dark:text-prune-200" : "text-slate-500 dark:text-slate-400"}>{sct.titre}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+          <CarteExpert onRdv={() => setRdvOuvert(true)} />
+          <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs">
+            <a href={GUIDE_OFFICIEL_URL} target="_blank" rel="noopener noreferrer" className="text-marine-600 dark:text-marine-300 hover:underline">
+              Guide officiel OETH (URSSAF) ↗
+            </a>
+            <button type="button" onClick={reinitialiser} className="text-slate-500 dark:text-slate-400 hover:underline">
+              Nouvelle simulation
+            </button>
+          </div>
+        </aside>
+        </div>
+        )}
+
+        {/* ─────────── Étape 2 : récapitulatif à valider ─────────── */}
+        {etape === "recap" && (
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+            <div className="min-w-0 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 px-4 sm:px-8 py-5 sm:py-7">
+              <h2 className="text-xl sm:text-2xl font-bold">Récapitulatif de votre simulation {ANNEE_REFERENCE}</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Vérifiez vos réponses avant de voir vos résultats.</p>
+              {lignesRecap.map((groupe) => (
+                <div key={groupe.section} className="mt-6">
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-900/10 dark:border-white/10 pb-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-prune-600 dark:text-prune-300">{groupe.titre}</p>
+                    <button
+                      type="button"
+                      onClick={() => allerA("questionnaire", groupe.section)}
+                      className="text-xs font-semibold text-marine-600 dark:text-marine-300 hover:underline"
+                    >
+                      ✎ Modifier
+                    </button>
+                  </div>
+                  <dl className="divide-y divide-slate-900/[0.06] dark:divide-white/[0.06]">
+                    {groupe.lignes.map(([q, r]) => (
+                      <div key={q} className="grid sm:grid-cols-[1fr_auto] gap-x-6 gap-y-0.5 py-2.5">
+                        <dt className="text-sm text-slate-600 dark:text-slate-300">{q}</dt>
+                        <dd className="text-sm font-semibold sm:text-right tabular-nums">{r}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ))}
+              <div className="mt-7 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={precedent}
+                  className="rounded-full border-2 border-prune-600 dark:border-prune-300 text-prune-700 dark:text-prune-200 text-sm font-semibold px-5 py-2.5 hover:bg-prune-50 dark:hover:bg-prune-500/10 transition"
+                >
+                  ← Étape précédente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => allerA("resultats")}
+                  className="rounded-full bg-prune-600 hover:bg-prune-700 text-white text-sm font-semibold px-6 py-2.5 transition"
+                >
+                  Voir les résultats →
+                </button>
+              </div>
+            </div>
+            <aside className="lg:sticky lg:top-24 space-y-3">
+              <CarteExpert onRdv={() => setRdvOuvert(true)} />
+            </aside>
+          </div>
+        )}
+
+        {/* ─────────── Étape 3 : résultats ─────────── */}
+        {etape === "resultats" && (
+          <div ref={resultatsRef} className="scroll-mt-20">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-5">
               <div>
-                <p className="font-semibold text-lg">Vos résultats</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Mis à jour en direct : modifiez une donnée ci-dessus, les chiffres suivent.</p>
+                <p className="text-xs font-semibold text-prune-600 dark:text-prune-300">Vos résultats pour l'année {ANNEE_REFERENCE}</p>
+                <p className="font-bold text-xl sm:text-2xl mt-0.5">
+                  D'après votre simulation, votre contribution est de{" "}
+                  <span className="text-prune-600 dark:text-prune-300 tabular-nums">{actif ? formatMontant(s.contributionNette) : "0 €"}</span>
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Cette simulation se base sur un SMIC horaire de {smicTexte} €.</p>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setRdvOuvert(true)}
+                  className="rounded-full bg-marine-700 hover:bg-marine-800 dark:bg-white dark:text-marine-900 text-white text-xs font-semibold px-4 py-2 transition"
+                >
+                  Parler à un expert
+                </button>
+                <button
+                  type="button"
+                  onClick={() => allerA("recap")}
+                  className="rounded-full border border-prune-600/60 dark:border-prune-300/60 text-prune-700 dark:text-prune-200 text-xs font-semibold px-4 py-2 hover:bg-prune-50 dark:hover:bg-prune-500/10 transition"
+                >
+                  ✎ Modifier mes réponses
+                </button>
+                <button
+                  type="button"
+                  onClick={reinitialiser}
+                  className="rounded-full border border-slate-900/15 dark:border-white/20 text-slate-600 dark:text-slate-300 text-xs font-semibold px-4 py-2 hover:bg-slate-900/5 dark:hover:bg-white/10 transition"
+                >
+                  ↻ Nouvelle simulation
+                </button>
               </div>
             </div>
 
@@ -1512,7 +1738,7 @@ export default function SimulateurOeth() {
               <div className="lg:col-span-2 space-y-5">
                 {/* Montant principal + répartition graphique de la contribution brute */}
                 <Carte className="relative overflow-hidden">
-                  <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full bg-teal-400/10 blur-3xl" />
+                  <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full bg-marine-400/10 blur-3xl" />
                   <div className="relative grid md:grid-cols-[1fr_auto] gap-6 items-center">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 flex items-center">
@@ -1535,10 +1761,10 @@ export default function SimulateurOeth() {
                       <DonutRepartition
                         total={s.contributionBrute}
                         segments={[
-                          { label: "Reste à payer", valeur: s.contributionNette, couleur: s.surcontribution ? "#f87171" : "#fb923c" },
-                          { label: "Sous-traitance", valeur: s.deductions.sousTraitance, couleur: "#38bdf8" },
-                          { label: "ECAP", valeur: s.deductions.ecap, couleur: "#a78bfa" },
-                          { label: "Dépenses", valeur: s.deductions.depenses, couleur: "#fbbf24" },
+                          { label: "Reste à payer", valeur: s.contributionNette, couleur: s.surcontribution ? "#f87171" : "#7d2a78" },
+                          { label: "Sous-traitance", valeur: s.deductions.sousTraitance, couleur: "#5f80ae" },
+                          { label: "ECAP", valeur: s.deductions.ecap, couleur: "#983f92" },
+                          { label: "Dépenses", valeur: s.deductions.depenses, couleur: "#cf93ca" },
                         ]}
                       />
                     )}
@@ -1549,28 +1775,28 @@ export default function SimulateurOeth() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <Anneau
                     pourcentage={actif && s.quota > 0 ? (s.boeth / s.quota) * 100 : 0}
-                    couleur="#2dd4bf"
+                    couleur="#7d2a78"
                     titre="Quota atteint"
                     detail={actif ? `${formatNombre(s.boeth)} / ${s.quota} BOETH` : "—"}
                     actif={actif}
                   />
                   <Anneau
                     pourcentage={actif && s.quota > 0 ? (s.manque / s.quota) * 100 : 0}
-                    couleur={actif && s.surcontribution ? "#f87171" : "#fb923c"}
+                    couleur={actif && s.surcontribution ? "#f87171" : "#7d2a78"}
                     titre="Reste à couvrir"
                     detail={actif ? `${formatNombre(s.manque)} BOETH manquant(s)` : "—"}
                     actif={actif}
                   />
                   <Anneau
                     pourcentage={actif && s.contributionBrute > 0 ? (s.deductions.total / s.contributionBrute) * 100 : 0}
-                    couleur="#38bdf8"
+                    couleur="#5f80ae"
                     titre="Brute déduite"
                     detail={actif ? `${formatMontant(s.deductions.total)} de déductions` : "—"}
                     actif={actif}
                   />
                   <Anneau
                     pourcentage={actif && s.baseMaximale > 0 ? (s.economie / s.baseMaximale) * 100 : 0}
-                    couleur="#a78bfa"
+                    couleur="#983f92"
                     titre="Économie vs maximum"
                     detail={actif ? `${formatMontant(s.economie)} économisés` : "—"}
                     actif={actif}
@@ -1639,9 +1865,9 @@ export default function SimulateurOeth() {
                   </div>
                 )}
                 {actif && !s.surcontribution && !s.conforme && (
-                  <div className="rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.08] p-4 text-sm">
-                    <p className="font-semibold text-amber-800 dark:text-amber-200">Quota légal non atteint, contribution réduite</p>
-                    <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-100/80 leading-relaxed">
+                  <div className="rounded-xl border border-prune-400/30 border-l-4 border-l-prune-400 bg-prune-500/[0.08] p-4 text-sm">
+                    <p className="font-semibold text-prune-800 dark:text-prune-200">Quota légal non atteint, contribution réduite</p>
+                    <p className="mt-1 text-xs text-prune-900/80 dark:text-prune-100/80 leading-relaxed">
                       L'entreprise présente un manque estimé de {formatNombre(s.manque)} bénéficiaire(s). Les actions
                       renseignées écartent la majoration et les déductions applicables sont intégrées à l'estimation.
                     </p>
@@ -1696,7 +1922,7 @@ export default function SimulateurOeth() {
                 {/* Entreprise concernée */}
                 <Carte className="flex flex-col md:flex-row md:items-center gap-5">
                   <div className="flex-1">
-                    <span className="inline-block rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-700 dark:text-teal-300 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1">
+                    <span className="inline-block rounded-full border border-marine-400/30 bg-marine-400/10 text-marine-700 dark:text-marine-300 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1">
                       Facultatif
                     </span>
                     <h3 className="font-semibold mt-2.5">Cette simulation concerne quelle entreprise ?</h3>
@@ -1733,13 +1959,13 @@ export default function SimulateurOeth() {
               <aside ref={asideRef} className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 p-5 sm:p-6">
                 <span
                   className={`inline-block rounded-full text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 ${
-                    actif ? "bg-teal-400/15 text-teal-700 dark:text-teal-300" : "bg-slate-900/10 dark:bg-white/10 text-slate-500 dark:text-slate-400"
+                    actif ? "bg-marine-400/15 text-marine-700 dark:text-marine-300" : "bg-slate-900/10 dark:bg-white/10 text-slate-500 dark:text-slate-400"
                   }`}
                 >
                   {actif ? "Votre simulation est prête" : "En attente de vos données"}
                 </span>
 
-                <div className="mt-4 rounded-xl border border-teal-400/25 bg-teal-400/[0.07] px-4 py-4">
+                <div className="mt-4 rounded-xl border border-marine-400/25 bg-marine-400/[0.07] px-4 py-4">
                   <p className="text-xs text-slate-600 dark:text-slate-300">Contribution nette estimée</p>
                   <p className="text-3xl font-bold tracking-tight mt-1 tabular-nums">{actif ? formatMontant(s.contributionNette) : "— €"}</p>
                 </div>
@@ -1750,19 +1976,19 @@ export default function SimulateurOeth() {
                 </div>
 
                 {actif && plafondDepenses > 0 && (
-                  <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-500/[0.08] px-4 py-3">
+                  <div className="mt-2 rounded-xl border border-prune-400/30 bg-prune-500/[0.08] px-4 py-3">
                     <div className="flex justify-between gap-3">
-                      <p className="text-xs font-medium text-amber-900 dark:text-amber-100">Encore mobilisable via les dépenses déductibles</p>
-                      <p className="text-sm font-bold text-amber-800 dark:text-amber-200 tabular-nums">{formatMontant(encoreMobilisable)}</p>
+                      <p className="text-xs font-medium text-prune-900 dark:text-prune-100">Encore mobilisable via les dépenses déductibles</p>
+                      <p className="text-sm font-bold text-prune-800 dark:text-prune-200 tabular-nums">{formatMontant(encoreMobilisable)}</p>
                     </div>
-                    <div className="h-1.5 rounded-full bg-amber-200/15 mt-2.5 overflow-hidden">
-                      <div className="h-full bg-amber-300 rounded-full transition-all" style={{ width: `${partMobilisee}%` }} />
+                    <div className="h-1.5 rounded-full bg-prune-200/15 mt-2.5 overflow-hidden">
+                      <div className="h-full bg-prune-300 rounded-full transition-all" style={{ width: `${partMobilisee}%` }} />
                     </div>
-                    <div className="flex justify-between text-[11px] text-amber-900/70 dark:text-amber-100/70 mt-1.5">
+                    <div className="flex justify-between text-[11px] text-prune-900/70 dark:text-prune-100/70 mt-1.5">
                       <span>Déjà mobilisé : {formatMontant(depensesMobilisees)}</span>
                       <span>Plafond 10 % : {formatMontant(plafondDepenses)}</span>
                     </div>
-                    <p className="text-[11px] text-amber-900/60 dark:text-amber-100/60 mt-1.5">ECAP et sous-traitance suivent d'autres règles.</p>
+                    <p className="text-[11px] text-prune-900/60 dark:text-prune-100/60 mt-1.5">ECAP et sous-traitance suivent d'autres règles.</p>
                   </div>
                 )}
 
@@ -1774,11 +2000,43 @@ export default function SimulateurOeth() {
                     type="button"
                     onClick={telechargerPdf}
                     disabled={!actif || pdfEnCours}
-                    className="mt-4 w-full rounded-xl bg-teal-400 hover:bg-teal-300 text-marine-950 text-sm font-semibold py-3 transition shadow-[0_8px_30px_rgba(45,212,191,0.25)] disabled:opacity-40 disabled:shadow-none"
+                    className="mt-4 w-full rounded-xl bg-prune-600 hover:bg-prune-700 text-white text-sm font-semibold py-3 transition disabled:opacity-40 disabled:shadow-none"
                   >
                     {pdfEnCours ? "Génération…" : "Télécharger ma synthèse PDF"}
                   </button>
                   {erreurPdf && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erreurPdf}</p>}
+
+                  {/* Envoi de la même synthèse PDF par e-mail. */}
+                  <form onSubmit={envoyerSynthese} className="mt-3">
+                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Ou recevez-la par e-mail</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        required
+                        value={emailSynthese}
+                        onChange={(e) => {
+                          setEmailSynthese(e.target.value);
+                          if (envoiSynthese.etat !== "envoi") setEnvoiSynthese({ etat: "repos", message: "" });
+                        }}
+                        placeholder="votre@email.fr"
+                        className={`${CLASSE_INPUT} py-2.5`}
+                        aria-label="Adresse e-mail pour recevoir la synthèse"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!actif || envoiSynthese.etat === "envoi"}
+                        className="shrink-0 rounded-xl bg-marine-700 hover:bg-marine-800 dark:bg-white dark:text-marine-900 text-white text-xs font-semibold px-4 transition disabled:opacity-40"
+                      >
+                        {envoiSynthese.etat === "envoi" ? "Envoi…" : "Envoyer"}
+                      </button>
+                    </div>
+                    {envoiSynthese.message && (
+                      <p className={`text-xs mt-1.5 ${envoiSynthese.etat === "ok" ? "text-emerald-700 dark:text-emerald-300" : "text-red-600 dark:text-red-400"}`}>
+                        {envoiSynthese.message}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-500 mt-1">Adresse utilisée uniquement pour cet envoi, non conservée.</p>
+                  </form>
 
                   <div className="flex items-center gap-3 my-5 text-[10px] uppercase tracking-wider text-slate-500">
                     <span className="flex-1 h-px bg-slate-900/10 dark:bg-white/10" />
@@ -1858,10 +2116,10 @@ export default function SimulateurOeth() {
 
                   <div className="flex gap-4 mt-4 text-[11px] text-slate-500 dark:text-slate-400">
                     <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-teal-400" /> Gratuit
+                      <span className="w-1.5 h-1.5 rounded-full bg-marine-400" /> Gratuit
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-teal-400" /> Sans engagement
+                      <span className="w-1.5 h-1.5 rounded-full bg-marine-400" /> Sans engagement
                     </span>
                   </div>
                 </div>
@@ -1918,7 +2176,7 @@ export default function SimulateurOeth() {
             <div className="mt-8 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 p-5 sm:p-7">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div>
-                  <span className="inline-block rounded-full bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
+                  <span className="inline-block rounded-full bg-marine-400/15 text-marine-700 dark:text-marine-300 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
                     Aide à la déclaration
                   </span>
                   <p className="text-lg font-semibold mt-2">Votre synthèse DSN pour préparer la DOETH</p>
@@ -1940,7 +2198,7 @@ export default function SimulateurOeth() {
                     type="button"
                     onClick={telechargerCsvDsn}
                     disabled={!actif}
-                    className="rounded-lg bg-teal-400 hover:bg-teal-300 text-marine-950 text-xs font-semibold px-3.5 py-2 transition disabled:opacity-40"
+                    className="rounded-lg bg-prune-600 hover:bg-prune-700 text-white text-xs font-semibold px-3.5 py-2 transition disabled:opacity-40"
                   >
                     Télécharger le CSV
                   </button>
@@ -1960,7 +2218,7 @@ export default function SimulateurOeth() {
                 ))}
               </div>
 
-              <p className="mt-3 rounded-xl border border-amber-400/30 border-l-4 border-l-amber-400 bg-amber-500/[0.07] px-4 py-3 text-xs text-amber-900 dark:text-amber-100 leading-relaxed">
+              <p className="mt-3 rounded-xl border border-prune-400/30 border-l-4 border-l-prune-400 bg-prune-500/[0.07] px-4 py-3 text-xs text-prune-900 dark:text-prune-100 leading-relaxed">
                 Ces codes sont une aide au rapprochement. Avant dépôt, vérifiez les données mises à disposition par l'URSSAF
                 ou la MSA, l'existence d'un accord agréé, les plafonds de déduction et la qualification exacte de chaque
                 dépense. Les codes 065 à 068 se déclarent obligatoirement ensemble, arrondis à l'euro.
@@ -1979,14 +2237,14 @@ export default function SimulateurOeth() {
                   </thead>
                   <tbody className="divide-y divide-slate-900/[0.06] dark:divide-white/[0.06]">
                     {lignesDsn.map((l) => (
-                      <tr key={l.code} className={l.total ? "bg-teal-400/[0.04]" : ""}>
+                      <tr key={l.code} className={l.total ? "bg-marine-400/[0.04]" : ""}>
                         <td className="px-4 py-2.5">
                           <span className={l.total ? "font-semibold" : ""}>{l.element}</span>
                           <span className="block text-[11px] text-slate-500">{l.note}</span>
                         </td>
                         <td className="px-3 py-2.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">S21.G00.82.002</td>
                         <td className="px-3 py-2.5">
-                          <span className="rounded-md bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[11px] font-bold px-2 py-0.5">{l.code}</span>
+                          <span className="rounded-md bg-marine-400/15 text-marine-700 dark:text-marine-300 text-[11px] font-bold px-2 py-0.5">{l.code}</span>
                         </td>
                         <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
                           {actif ? `${Math.round(l.valeur).toLocaleString("fr-FR")} €` : "—"}
@@ -1997,7 +2255,7 @@ export default function SimulateurOeth() {
                               l.statut === "Prérempli"
                                 ? "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300"
                                 : l.statut === "À valider"
-                                  ? "bg-amber-400/15 text-amber-700 dark:text-amber-300"
+                                  ? "bg-prune-400/15 text-prune-700 dark:text-prune-300"
                                   : "bg-slate-900/10 dark:bg-white/10 text-slate-500 dark:text-slate-400"
                             }`}
                           >
@@ -2023,12 +2281,12 @@ export default function SimulateurOeth() {
                 type="button"
                 onClick={telechargerSyntheseFinale}
                 disabled={pdfEnCours}
-                className="inline-flex items-center gap-2 rounded-xl bg-teal-400 hover:bg-teal-300 text-marine-950 text-sm font-bold px-7 py-3.5 transition shadow-[0_10px_40px_rgba(45,212,191,0.3)] disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-prune-600 hover:bg-prune-700 text-white text-sm font-bold px-7 py-3.5 transition disabled:opacity-50"
               >
                 <span aria-hidden>⬇</span> {pdfEnCours ? "Génération…" : "Télécharger ma synthèse PDF"}
               </button>
               {messageSynthese ? (
-                <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">
+                <p role="alert" className="text-sm text-prune-700 dark:text-prune-300">
                   {messageSynthese}
                 </p>
               ) : (
@@ -2040,68 +2298,6 @@ export default function SimulateurOeth() {
         )}
       </div>
 
-      {/* Bouton flottant : visible tant que le simulateur est à l'écran mais
-          que le bloc résultats ne l'est pas. Affiche la contribution en
-          direct pendant la saisie ; un clic descend aux résultats. */}
-      {/* Tant que le parcours est incomplet, aucun montant n'est affiché : un
-          clic explique ce qu'il reste à remplir et y conduit. */}
-      {sectionVisible && !resultatsVisibles && !parcoursComplet && (
-        <div className="fixed left-3 right-14 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:bottom-5 z-50 sm:w-max sm:max-w-[calc(100vw-2rem)] flex flex-col items-stretch sm:items-center gap-2">
-          {messageFlottant && elementManquant && (
-            <div role="status" className="relative rounded-xl border border-amber-400/60 bg-white dark:bg-marine-950 text-slate-800 dark:text-slate-100 text-xs sm:text-sm px-4 py-3 pr-9 shadow-2xl max-w-md">
-              <p className="font-semibold text-amber-700 dark:text-amber-300">Encore une étape pour obtenir une estimation cohérente</p>
-              <p className="mt-0.5">{elementManquant.texte}</p>
-              <button
-                type="button"
-                onClick={() => setMessageFlottant(false)}
-                aria-label="Fermer"
-                className="absolute top-2 right-2 w-6 h-6 rounded-full text-slate-500 hover:bg-slate-900/10 dark:hover:bg-white/10"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setMessageFlottant(true);
-              document.getElementById(elementManquant.cible)?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            className="flex items-center justify-between gap-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-marine-950 pl-4 pr-3 sm:pl-5 sm:pr-4 py-2 sm:py-3 shadow-[0_12px_40px_rgba(251,191,36,0.35)] transition"
-          >
-            <span className="text-left">
-              <span className="block text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-marine-900/70">Contribution estimée</span>
-              <span className="block text-[13px] sm:text-sm font-bold leading-tight whitespace-nowrap">Complétez le parcours</span>
-            </span>
-            <span className="rounded-xl bg-white dark:bg-marine-950 text-amber-700 dark:text-amber-300 text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap">
-              Que manque-t-il ?
-            </span>
-          </button>
-        </div>
-      )}
-      {sectionVisible && !resultatsVisibles && parcoursComplet && (
-        <button
-          type="button"
-          onClick={calculer}
-          className="fixed left-3 right-14 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:bottom-5 z-50 flex items-center justify-between gap-3 sm:gap-4 rounded-2xl bg-teal-400 hover:bg-teal-300 text-marine-950 pl-4 pr-3 sm:pl-5 sm:pr-4 py-2 sm:py-3 shadow-[0_12px_40px_rgba(45,212,191,0.4)] ring-1 ring-teal-200/40 transition max-w-[calc(100vw-2rem)]"
-        >
-          {actif ? (
-            <>
-              <span className="text-left">
-                <span className="block text-[10px] font-semibold uppercase tracking-wider text-marine-900/70">
-                  Contribution estimée
-                </span>
-                <span className="block text-lg font-bold tabular-nums leading-tight">{formatMontant(s.contributionNette)}</span>
-              </span>
-              <span className="rounded-xl bg-white dark:bg-marine-950 text-teal-700 dark:text-teal-300 text-xs font-semibold px-3 py-2 whitespace-nowrap">
-                Voir le détail ↓
-              </span>
-            </>
-          ) : (
-            <span className="text-sm font-bold whitespace-nowrap pr-1">Calculer ma contribution ↓</span>
-          )}
-        </button>
-      )}
 
       {aideOuverte && <AideModale cle={aideOuverte} onFermer={fermerAide} />}
       {rdvOuvert && <PriseRendezVous onFermer={fermerRdv} />}
@@ -2136,6 +2332,76 @@ function Pastille({ couleur, court, children }) {
 
 // En-tête d'une partie du parcours : numéro (coché une fois complète),
 // surtitre "Partie N", titre et sous-titre.
+// Fil des 3 étapes du parcours (questionnaire → validation → résultats).
+const ETAPES_PARCOURS = [
+  { cle: "questionnaire", titre: "Je remplis le questionnaire", court: "Questionnaire" },
+  { cle: "recap", titre: "Je valide mes réponses", court: "Validation" },
+  { cle: "resultats", titre: "Je visualise les résultats", court: "Résultats" },
+];
+function FilEtapes({ etape, onAller }) {
+  const rang = ETAPES_PARCOURS.findIndex((e) => e.cle === etape);
+  return (
+    <ol className="mt-4 sm:mt-5 w-full max-w-xl grid grid-cols-3" aria-label="Étapes de la simulation">
+      {ETAPES_PARCOURS.map((e, k) => {
+        const atteinte = k <= rang;
+        return (
+          <li key={e.cle} className="relative flex flex-col items-center">
+            {k > 0 && (
+              <span
+                aria-hidden
+                className={`absolute top-4 sm:top-[18px] right-1/2 w-full h-0.5 ${k <= rang ? "bg-prune-600 dark:bg-prune-300" : "bg-slate-300 dark:bg-white/15"}`}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => onAller(e.cle)}
+              aria-current={k === rang ? "step" : undefined}
+              className={`relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 text-sm font-bold flex items-center justify-center transition ${
+                atteinte
+                  ? "bg-prune-600 border-prune-600 text-white dark:bg-prune-400 dark:border-prune-400 dark:text-prune-950"
+                  : "bg-white dark:bg-marine-950 border-slate-300 dark:border-white/20 text-slate-500"
+              }`}
+            >
+              {k < rang ? "✓" : k + 1}
+            </button>
+            <span className={`mt-1.5 text-[11px] sm:text-xs leading-tight text-center px-1 ${atteinte ? "font-semibold text-prune-700 dark:text-prune-200" : "text-slate-500 dark:text-slate-400"}`}>
+              <span className="sm:hidden">{e.court}</span>
+              <span className="hidden sm:inline">{e.titre}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// Accès à un expert, présent à chaque étape du parcours.
+function CarteExpert({ onRdv }) {
+  return (
+    <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 p-5">
+      <p className="font-semibold">Besoin d'aide ?</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+        Un expert vous accompagne gratuitement pour vérifier votre situation et vos déclarations (lun.–ven., 8 h 45 – 18 h).
+      </p>
+      <div className="mt-3 flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={onRdv}
+          className="rounded-full bg-marine-700 hover:bg-marine-800 dark:bg-white dark:text-marine-900 dark:hover:bg-marine-100 text-white text-xs font-semibold px-4 py-2.5 transition"
+        >
+          Parler à un expert
+        </button>
+        <a
+          href="tel:+33744127917"
+          className="rounded-full border border-slate-900/15 dark:border-white/20 text-center text-xs font-semibold px-4 py-2.5 hover:bg-slate-900/5 dark:hover:bg-white/10 transition"
+        >
+          +33 7 44 12 79 17
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // Sur téléphone, le sous-titre passe sous le numéro et prend toute la largeur.
 function EntetePartie({ numero, titre, sousTitre, complete = false, obligatoire = false }) {
   return (
@@ -2155,13 +2421,13 @@ function EntetePartie({ numero, titre, sousTitre, complete = false, obligatoire 
         <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.18em] text-marine-600 dark:text-marine-400 flex items-center gap-2">
           Partie {numero}
           {obligatoire && (
-            <span className="sm:hidden rounded-full bg-amber-400 text-amber-950 text-[8px] font-bold tracking-wider px-1.5 py-px">Obligatoire</span>
+            <span className="sm:hidden rounded-full bg-prune-600 text-white text-[8px] font-bold tracking-wider px-1.5 py-px">Obligatoire</span>
           )}
         </p>
         <h2 className="text-base sm:text-xl font-semibold leading-snug flex items-center flex-wrap gap-2">
           {titre}
           {obligatoire && (
-            <span className="hidden sm:inline rounded-full bg-amber-400 text-amber-950 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
+            <span className="hidden sm:inline rounded-full bg-prune-600 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">
               Obligatoire
             </span>
           )}
@@ -2208,9 +2474,9 @@ function CalculSixPourcent({ effectif }) {
           ? `${eff.toLocaleString("fr-FR")} × 6 % = ${exact.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}, arrondi à ${Math.floor(exact)}`
           : "Obligation calculée à partir de 20 salariés"
       }
-      className="shrink-0 flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-400/40 bg-amber-400/[0.08] px-2.5"
+      className="shrink-0 flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-prune-400/40 bg-prune-400/[0.08] px-2.5"
     >
-      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">6 %</span>
+      <span className="text-[10px] font-bold uppercase tracking-wider text-prune-700 dark:text-prune-300">6 %</span>
       <span className="text-base font-bold tabular-nums text-slate-900 dark:text-white">{assujetti ? Math.floor(exact) : "—"}</span>
       <span className="text-[10px] font-medium text-slate-500">BOETH</span>
     </div>
@@ -2221,13 +2487,13 @@ function CaseSaisie({ titre, badge, unite, value, onChange, placeholder, aide, a
   return (
     <div
       className={`rounded-xl border p-4 transition ${
-        erreur ? "border-red-400/50 bg-red-500/[0.05]" : accent ? "border-teal-400/20 bg-teal-400/[0.03]" : "border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03]"
+        erreur ? "border-red-400/50 bg-red-500/[0.05]" : accent ? "border-marine-400/20 bg-marine-400/[0.03]" : "border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03]"
       }`}
     >
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center">{titre}</p>
         {badge && (
-          <span className="rounded-full bg-teal-400/15 text-teal-700 dark:text-teal-300 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5">{badge}</span>
+          <span className="rounded-full bg-marine-400/15 text-marine-700 dark:text-marine-300 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5">{badge}</span>
         )}
       </div>
       <div className="mt-2.5 flex items-stretch gap-2">
@@ -2338,13 +2604,13 @@ function CarteDeduction({ titre, dsn, question, reponse, children }) {
     <div className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] p-4">
       <div className="flex flex-wrap items-center gap-2 mb-2.5">
         <p className="text-sm font-semibold flex items-center">{titre}</p>
-        <span className="rounded-md bg-teal-400/15 border border-teal-400/25 text-teal-700 dark:text-teal-300 text-[10px] font-bold tracking-wider px-2 py-0.5">
+        <span className="rounded-md bg-marine-400/15 border border-marine-400/25 text-marine-700 dark:text-marine-300 text-[10px] font-bold tracking-wider px-2 py-0.5">
           DSN {dsn}
         </span>
       </div>
       {children}
       <details className="group mt-2.5">
-        <summary className="cursor-pointer list-none text-xs font-medium text-teal-700 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-200 inline-flex items-center gap-1.5">
+        <summary className="cursor-pointer list-none text-xs font-medium text-marine-700 dark:text-marine-300 hover:text-marine-800 dark:hover:text-marine-200 inline-flex items-center gap-1.5">
           <span className="text-[9px] transition-transform group-open:rotate-90">▶</span>
           {question}
         </summary>
@@ -2388,7 +2654,7 @@ function Indicateur({ label, valeur, teinte }) {
 function Etape({ numero, titre, children }) {
   return (
     <div className="flex gap-3">
-      <span className="shrink-0 w-7 h-7 rounded-lg bg-teal-400/15 text-teal-700 dark:text-teal-300 text-xs font-bold flex items-center justify-center">
+      <span className="shrink-0 w-7 h-7 rounded-lg bg-marine-400/15 text-marine-700 dark:text-marine-300 text-xs font-bold flex items-center justify-center">
         {numero}
       </span>
       <div>

@@ -795,6 +795,60 @@ app.post("/api/vitrine/synthese-pdf", async (req, res) => {
   }
 });
 
+// Envoi de la synthèse PDF par e-mail au visiteur (étape "résultats" du
+// simulateur). L'adresse ne sert qu'à cet envoi : rien n'est enregistré.
+// Limite simple par IP (5 envois / heure) pour éviter tout usage du
+// formulaire comme relais d'envoi vers des adresses tierces.
+const envoisSyntheseParIp = new Map();
+app.post("/api/vitrine/synthese-email", async (req, res) => {
+  const email = String(req.body.email || "").trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) {
+    return res.status(400).json({ error: "Adresse e-mail invalide." });
+  }
+  const saisie = lireSaisieSimulation(req.body);
+  if (!saisie) return res.status(400).json({ error: "Valeurs invalides." });
+  if (!estEnvoiConfigure()) {
+    return res.status(503).json({ error: "L'envoi par e-mail est momentanément indisponible : téléchargez le PDF." });
+  }
+  // Derrière Cloudflare puis Render : l'IP réelle est dans les en-têtes.
+  const ip =
+    String(req.headers["cf-connecting-ip"] || String(req.headers["x-forwarded-for"] || "").split(",")[0]).trim() ||
+    req.ip ||
+    "inconnue";
+  const maintenant = Date.now();
+  const recents = (envoisSyntheseParIp.get(ip) || []).filter((t) => maintenant - t < 3600_000);
+  if (recents.length >= 5) {
+    return res.status(429).json({ error: "Trop d'envois depuis cette connexion. Réessayez plus tard ou téléchargez le PDF." });
+  }
+  envoisSyntheseParIp.set(ip, [...recents, maintenant]);
+  try {
+    const nomEntreprise = String(req.body.nomEntreprise || "").trim().slice(0, 120);
+    const simulation = simulerContributionOeth(saisie);
+    const pdf = await genererSimulationPdf({
+      saisie,
+      simulation,
+      nomEntreprise,
+      poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+    });
+    await envoyerMail({
+      to: email,
+      subject: `Votre simulation OETH ${saisie.annee}${nomEntreprise ? ` — ${nomEntreprise}` : ""}`,
+      text:
+        `Bonjour,\n\n` +
+        `Vous trouverez en pièce jointe la synthèse de votre simulation de contribution OETH pour l'exercice ${saisie.annee} ` +
+        `(résultats, détail du calcul et récapitulatif DSN).\n\n` +
+        `Il s'agit d'une estimation indicative : seule l'URSSAF (ou la MSA) calcule et recouvre la contribution.\n\n` +
+        `Pour en parler avec un expert : ${adresseMailPole()} — ${telephonePole()}.\n\n` +
+        `Pôle OETH / AGEFIPH / FIPHFP`,
+      replyTo: adresseMailPole(),
+      attachments: [{ filename: `simulation-oeth-${saisie.annee}.pdf`, content: pdf, contentType: "application/pdf" }],
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(502).json({ error: "L'envoi a échoué. Téléchargez le PDF ou réessayez plus tard." });
+  }
+});
+
 // Prise de contact publique depuis la landing page (bouton "Contacter un
 // conseiller" du simulateur, ou tout autre formulaire de contact vitrine) :
 // envoie simplement un mail à la boîte du pôle déjà configurée (aucune

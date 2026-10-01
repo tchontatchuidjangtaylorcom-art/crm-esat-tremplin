@@ -291,6 +291,13 @@ export const api = {
     return res.blob();
   },
 
+  envoyerSyntheseParEmail: (saisie) =>
+    fetch(`${BASE}/vitrine/synthese-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(saisie),
+    }).then(handle),
+
   contacterConseillerVitrine: ({ nom, email, telephone, entreprise, message }) =>
     fetch(`${BASE}/vitrine/contact`, {
       method: "POST",
