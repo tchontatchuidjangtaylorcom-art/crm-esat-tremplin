@@ -300,7 +300,19 @@ export default function RappelsEcheances() {
           <p className="text-xs font-semibold uppercase tracking-wider opacity-90">
             ⏰ {LIBELLES[alerte.type] || "Rappel"} — {formatEcart(instant)}
           </p>
-          <p className="text-lg font-bold leading-snug mt-0.5">{alerte.nom}</p>
+          {/* Ouvre la fiche : l'alerte est mise en pause 10 min (sinon elle
+              recouvrirait la fiche) et revient si aucune issue n'est enregistrée. */}
+          <button
+            type="button"
+            onClick={() => {
+              reporter();
+              navigate(`/entreprise/${alerte.id}`);
+            }}
+            title="Ouvrir la fiche de l'entreprise (l'alerte revient dans 10 min si rien n'est enregistré)"
+            className="block text-left text-lg font-bold leading-snug mt-0.5 underline decoration-white/40 underline-offset-4 hover:decoration-white"
+          >
+            {alerte.nom} ↗
+          </button>
           <p className="text-sm opacity-90">Prévu {formatQuand(alerte.date)}</p>
         </div>
 
