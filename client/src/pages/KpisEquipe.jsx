@@ -137,7 +137,7 @@ export default function KpisEquipe() {
                   <th className="text-right px-3 py-2.5 font-semibold">Aujourd'hui</th>
                   <th className="text-left px-3 py-2.5 font-semibold">Semaine</th>
                   <th className="text-right px-3 py-2.5 font-semibold">Temps semaine</th>
-                  <th className="text-right px-3 py-2.5 font-semibold" title="Numéros distincts appelés (clic ou copie), une fois par jour">Appels auj. / sem.</th>
+                  <th className="text-right px-3 py-2.5 font-semibold" title="Total des appels (clic ou copie) : uniques + en doublon (même numéro rappelé le même jour)">Appels auj. / sem.</th>
                   <th className="text-left px-3 py-2.5 font-semibold w-40">Présence</th>
                   <th className="px-4 py-2.5" />
                 </tr>
@@ -183,7 +183,11 @@ export default function KpisEquipe() {
                         {formatDureeTravail(m.semaine.secondesActives)}
                       </td>
                       <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                        <span className="font-semibold">{m.aujourdHui.appels ?? 0}</span> / {m.semaine.appels ?? 0}
+                        <span className="font-semibold">{m.aujourdHui.appelsTotal ?? m.aujourdHui.appels ?? 0}</span> /{" "}
+                        {m.semaine.appelsTotal ?? m.semaine.appels ?? 0}
+                        <span className="block text-[11px] text-slate-400 dark:text-slate-500">
+                          sem. : {m.semaine.appels ?? 0} uniques · {m.semaine.appelsDoublons ?? 0} en doublon
+                        </span>
                         <span className="block text-[11px] text-slate-400 dark:text-slate-500">
                           {m.semaine.entreprisesAppelees ?? 0} entreprise{(m.semaine.entreprisesAppelees ?? 0) > 1 ? "s" : ""}
                         </span>

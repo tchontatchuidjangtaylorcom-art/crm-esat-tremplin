@@ -139,19 +139,20 @@ export default function MesKpis() {
             />
           </div>
 
-          {/* Appels : un numéro compte une fois par jour (clic ou copie). */}
+          {/* Appels : uniques (un numéro une fois par jour) + en doublon
+              (nouvelles tentatives sur un numéro déjà appelé le même jour). */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
             <CarteKpi
               icone="📞"
-              titre="Appels aujourd'hui"
-              valeur={String(data.aujourdHui.appels ?? 0)}
-              detail={`${data.aujourdHui.entreprisesAppelees ?? 0} entreprise${(data.aujourdHui.entreprisesAppelees ?? 0) > 1 ? "s" : ""} appelée${(data.aujourdHui.entreprisesAppelees ?? 0) > 1 ? "s" : ""}`}
+              titre="Appels aujourd'hui (total)"
+              valeur={String(data.aujourdHui.appelsTotal ?? data.aujourdHui.appels ?? 0)}
+              detail={`${data.aujourdHui.appels ?? 0} uniques · ${data.aujourdHui.appelsDoublons ?? 0} en doublon · ${data.aujourdHui.entreprisesAppelees ?? 0} entreprise${(data.aujourdHui.entreprisesAppelees ?? 0) > 1 ? "s" : ""}`}
             />
             <CarteKpi
               icone="📈"
-              titre={semaine === 0 ? "Appels cette semaine" : "Appels de la semaine"}
-              valeur={String(data.semaine.appels ?? 0)}
-              detail={`${data.semaine.entreprisesAppelees ?? 0} entreprise${(data.semaine.entreprisesAppelees ?? 0) > 1 ? "s" : ""} appelée${(data.semaine.entreprisesAppelees ?? 0) > 1 ? "s" : ""}`}
+              titre={semaine === 0 ? "Appels cette semaine (total)" : "Appels de la semaine (total)"}
+              valeur={String(data.semaine.appelsTotal ?? data.semaine.appels ?? 0)}
+              detail={`${data.semaine.appels ?? 0} uniques · ${data.semaine.appelsDoublons ?? 0} en doublon · ${data.semaine.entreprisesAppelees ?? 0} entreprise${(data.semaine.entreprisesAppelees ?? 0) > 1 ? "s" : ""}`}
             />
           </div>
 
@@ -180,8 +181,13 @@ export default function MesKpis() {
                     <span className="w-16 text-right font-semibold text-slate-800 dark:text-slate-100">
                       {secondes > 0 ? formatDureeTravail(secondes) : "—"}
                     </span>
-                    <span className="w-20 text-right text-xs text-slate-600 dark:text-slate-300" title="Appels (numéros distincts appelés ce jour)">
-                      {j.appels ? `📞 ${j.appels}` : ""}
+                    <span
+                      className="w-36 text-right text-xs text-slate-600 dark:text-slate-300"
+                      title="Appels du jour : total (uniques + en doublon)"
+                    >
+                      {j.appelsTotal || j.appels
+                        ? `📞 ${j.appelsTotal ?? j.appels}${j.appelsDoublons ? ` (${j.appels} uniq. + ${j.appelsDoublons} doubl.)` : ""}`
+                        : ""}
                     </span>
                     <span className="w-28 text-right text-xs text-slate-400 dark:text-slate-500">
                       {j.present ? `${formatHeureCourte(j.premiereActivite)} → ${formatHeureCourte(j.derniereActivite)}` : ""}
@@ -196,7 +202,8 @@ export default function MesKpis() {
             Le temps actif est mesuré à partir de votre activité dans le CRM (souris, clavier, défilement, appels en
             cours). Après 5 minutes sans aucune activité, le chrono se met automatiquement en pause et reprend dès
             votre retour. Les week-ends et jours fériés ne comptent pas dans le taux de présence. Un appel est compté quand
-            vous cliquez sur un numéro ou le copiez ; un même numéro ne compte qu'une fois par jour.
+            vous cliquez sur un numéro ou le copiez. Appels uniques : chaque numéro une fois par jour ; appels en doublon :
+            les nouvelles tentatives sur un numéro déjà appelé le même jour (à plus d'une minute d'intervalle).
           </p>
         </>
       )}
