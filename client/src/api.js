@@ -137,6 +137,13 @@ export const api = {
   listArchives: (commeAgentId) =>
     fetch(`${BASE}/archives${commeAgentId ? `?commeAgentId=${commeAgentId}` : ""}`).then(handle),
 
+  definirSuperviseur: (id, utilisateurId) =>
+    fetch(`${BASE}/entreprises/${id}/superviseur`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ utilisateurId: utilisateurId || null }),
+    }).then(handle),
+
   assignerEntreprise: (id, utilisateurId) =>
     fetch(`${BASE}/entreprises/${id}/assigner`, {
       method: "POST",

@@ -35,6 +35,7 @@ const EXCLUS = [
 const ACTIONS = [
   [/^POST \/entreprises\/[^/]+\/appels$/, "Issue d'appel"],
   [/^POST \/entreprises\/[^/]+\/assigner$/, "Attribution d'une fiche"],
+  [/^POST \/entreprises\/[^/]+\/superviseur$/, "Superviseur du lead"],
   [/^POST \/entreprises\/assigner-groupe$/, "Attribution groupée"],
   [/^POST \/entreprises\/statut-groupe$/, "Changement de statut groupé"],
   [/^POST \/lots\/.+\/assigner$/, "Attribution d'une vague"],
@@ -88,7 +89,9 @@ export function installerJournal(app, { trouverUtilisateurParId, estAdmin, libel
     const chemin = req.path.replace(/\/+$/, "");
     const idFiche = /^\/entreprises\/([^/]+)/.exec(chemin)?.[1];
     const ficheAvant = idFiche ? ficheParId(idFiche) : null;
-    const avant = ficheAvant ? { statut: ficheAvant.statut, assigneA: ficheAvant.assigneA || null } : null;
+    const avant = ficheAvant
+      ? { statut: ficheAvant.statut, assigneA: ficheAvant.assigneA || null, superviseurId: ficheAvant.superviseurId || null }
+      : null;
     const corps = req.body || {};
 
     res.on("finish", () => {
@@ -119,6 +122,9 @@ export function installerJournal(app, { trouverUtilisateurParId, estAdmin, libel
 
       if (avant && fiche) {
         if (avant.statut !== fiche.statut) details.push(`Statut : ${libelle(avant.statut)} → ${libelle(fiche.statut)}`);
+        if (avant.superviseurId !== (fiche.superviseurId || null)) {
+          details.push(`Superviseur : ${nomDe(avant.superviseurId) || "aucun"} → ${nomDe(fiche.superviseurId) || "aucun"}`);
+        }
         if (avant.assigneA !== (fiche.assigneA || null)) {
           details.push(`Agent : ${nomDe(avant.assigneA) || "personne"} → ${nomDe(fiche.assigneA) || "personne"}`);
           if (fiche.assigneA === u.id && avant.assigneA && avant.assigneA !== u.id) {

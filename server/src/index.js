@@ -201,13 +201,32 @@ function enrichir(entreprise) {
     collecteur: determinerCollecteur(entreprise),
     ligneBareme: trouverLigneBareme(entreprise.effectif),
     assigneANom: assigne ? assigne.prenom || assigne.email : null,
+    superviseurNom: nomUtilisateur(entreprise.superviseurId),
   };
+}
+
+function nomUtilisateur(id) {
+  const u = id ? trouverUtilisateurParId(id) : null;
+  return u ? u.prenom || u.email : null;
+}
+
+// Superviseur : travaille comme un agent (ses fiches), et peut en plus
+// prendre en charge le lead d'un agent (superviseurId) — en particulier les
+// Clients Potentiels qu'aucun superviseur ne suit encore.
+function estSuperviseur(utilisateur) {
+  return utilisateur?.role === "superviseur";
 }
 
 // Un agent ne voit/traite que les dossiers qui lui sont assignés ;
 // l'administrateur garde une vue et un accès globaux sur tout le pipeline.
 function estVisiblePar(entreprise, utilisateur) {
-  return estAdmin(utilisateur) || entreprise.assigneA === utilisateur.id;
+  return (
+    estAdmin(utilisateur) ||
+    entreprise.assigneA === utilisateur.id ||
+    entreprise.superviseurId === utilisateur.id ||
+    // File des Clients Potentiels à prendre : visible de tous les superviseurs.
+    (estSuperviseur(utilisateur) && entreprise.statut === "fiche" && !entreprise.superviseurId)
+  );
 }
 
 // Attache req.entreprise si elle existe ET est visible par l'utilisateur
@@ -394,7 +413,7 @@ app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
       telephone: String(req.body.telephone || "").trim(),
       siret: siretSaisi,
       entrepriseLieeId: entrepriseLiee?.id || null,
-      role: ["admin", "super_admin"].includes(req.body.role) ? req.body.role : "agent",
+      role: ["admin", "super_admin", "superviseur"].includes(req.body.role) ? req.body.role : "agent",
       appUrl: APP_URL,
       motDePasse: req.body.motDePasse ? String(req.body.motDePasse) : null,
     });
@@ -458,7 +477,7 @@ app.post("/api/utilisateurs/:id/valider", exigerAdmin, async (req, res) => {
   if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
   const etaitEnAttente = utilisateur.statut === "en_attente";
   utilisateur.statut = "valide";
-  utilisateur.role = ["admin", "super_admin"].includes(req.body.role) ? req.body.role : "agent";
+  utilisateur.role = ["admin", "super_admin", "superviseur"].includes(req.body.role) ? req.body.role : "agent";
   utilisateur.dateValidation = new Date().toISOString();
   await db.write();
 
@@ -2081,6 +2100,48 @@ app.post("/api/entreprises/:id/assigner", exigerAdmin, async (req, res) => {
   rechercherNumerosAttribues(utilisateurId, [entreprise]);
 });
 
+// Superviseur d'un lead (lead partagé avec l'agent, qui reste assigné) :
+// un superviseur se l'attribue (« Prendre ce lead ») ou le rend ; un
+// administrateur désigne n'importe quel superviseur. Noté dans l'historique.
+app.post("/api/entreprises/:id/superviseur", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
+  const u = req.utilisateur;
+  const cible = req.body.utilisateurId || null;
+  if (!estAdmin(u)) {
+    if (!estSuperviseur(u)) return res.status(403).json({ error: "Réservé aux superviseurs et aux administrateurs." });
+    if (cible && cible !== u.id) return res.status(403).json({ error: "Un superviseur ne peut prendre un lead que pour lui-même." });
+    if (!cible && entreprise.superviseurId !== u.id) return res.status(403).json({ error: "Ce lead n'est pas suivi par vous." });
+    if (cible && entreprise.superviseurId && entreprise.superviseurId !== u.id) {
+      return res.status(409).json({ error: `Ce lead est déjà suivi par ${nomUtilisateur(entreprise.superviseurId)}.` });
+    }
+  }
+  if (cible) {
+    const s = trouverUtilisateurParId(cible);
+    if (!s || s.statut !== "valide" || !(estSuperviseur(s) || estAdmin(s))) {
+      return res.status(400).json({ error: "Choisissez un superviseur (ou un administrateur)." });
+    }
+  }
+  if ((entreprise.superviseurId || null) !== cible) {
+    const avant = nomUtilisateur(entreprise.superviseurId);
+    const agent = nomUtilisateur(entreprise.assigneA);
+    entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+    entreprise.commentaires.unshift({
+      id: nanoid(),
+      date: new Date().toISOString(),
+      auteur: "Système",
+      texte: cible
+        ? `🤝 Lead pris en charge par le superviseur ${nomUtilisateur(cible)}${agent ? ` (agent : ${agent})` : ""}${
+            avant ? ` — auparavant suivi par ${avant}` : ""
+          }${cible !== u.id ? `, désigné par ${u.prenom || u.email}` : ""}.`
+        : `🤝 ${avant || "Le superviseur"} ne suit plus ce lead (${u.prenom || u.email}).`,
+    });
+    entreprise.superviseurId = cible;
+    entreprise.dateSupervision = cible ? new Date().toISOString() : null;
+    await db.write();
+  }
+  res.json(enrichir(entreprise));
+});
+
 // Assignation en masse de toute une vague (lot) de prospection à un agent —
 // réservé aux administrateurs. Le nom du lot arrive encodé dans l'URL (les
 // noms de lot contiennent souvent des espaces/tirets).
@@ -2996,7 +3057,7 @@ function calculerNotifications(utilisateur) {
   const mesEntreprises =
     estAdmin(utilisateur)
       ? db.data.entreprises
-      : db.data.entreprises.filter((e) => e.assigneA === utilisateur.id);
+      : db.data.entreprises.filter((e) => estVisiblePar(e, utilisateur));
 
   const nouveauxLeads = mesEntreprises
     .filter((e) => e.assigneA === utilisateur.id && e.assignationVue === false)
@@ -3065,7 +3126,10 @@ app.get("/api/echeances", exigerAuth, (req, res) => {
     // la personne qui a programmé le RDV / rappel. Jamais chez toute l'équipe
     // (avant, tous les administrateurs la recevaient pour les fiches non
     // assignées et les Clients Potentiels).
-    const concernee = e.assigneA ? e.assigneA === utilisateur.id : e.echeanceProgrammeePar === utilisateur.id;
+    // Lead partagé : l'alerte sonne aussi chez le superviseur qui le suit.
+    const concernee =
+      (e.assigneA ? e.assigneA === utilisateur.id : e.echeanceProgrammeePar === utilisateur.id) ||
+      e.superviseurId === utilisateur.id;
     if (!concernee) continue;
     // "Me rappelle" (et Mail + "doit aussi me rappeler") n'a pas de date :
     // l'entreprise rappelle quand elle veut, donc pas d'alerte — une date

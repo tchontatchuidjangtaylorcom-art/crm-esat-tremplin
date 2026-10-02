@@ -144,7 +144,7 @@ export async function creerUtilisateurParAdmin(
     telephone: telephone.trim() || null,
     siret: siret.trim() || null,
     entrepriseLieeId: entrepriseLieeId || null,
-    role: ["admin", "super_admin"].includes(role) ? role : "agent",
+    role: ["admin", "super_admin", "superviseur"].includes(role) ? role : "agent",
     statut: "valide",
     motDePasseHash,
     dateCreation: new Date().toISOString(),

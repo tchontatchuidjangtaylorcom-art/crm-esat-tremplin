@@ -231,11 +231,12 @@ export function calculerKpiAgent(utilisateur, { maintenant = new Date(), decalag
     : secondesDepuisActivite <= SEUIL_EN_LIGNE_SECONDES
       ? "actif"
       : "pause";
+  // Superviseurs : suivis comme les agents (ils prospectent aussi).
   // "Pas encore connecté" devient une alerte pour le manager passé
   // HEURE_ALERTE_ARRIVEE un jour ouvré — avant, c'est juste un agent pas
   // encore arrivé.
   const retardAujourdHui =
-    utilisateur.role === "agent" &&
+    estSuiviPresence(utilisateur) &&
     etat === "absent" &&
     estJourOuvre(aujourdHui) &&
     heureLocale(maintenant) >= HEURE_ALERTE_ARRIVEE &&
@@ -247,7 +248,7 @@ export function calculerKpiAgent(utilisateur, { maintenant = new Date(), decalag
   // sont pas soumis au suivi de présence.
   const veille = jourOuvrePrecedent(aujourdHui);
   const alerteAbsence =
-    utilisateur.role === "agent" && (!debut || veille > debut) && !trouverJour(utilisateur.id, veille)?.secondesActives
+    estSuiviPresence(utilisateur) && (!debut || veille > debut) && !trouverJour(utilisateur.id, veille)?.secondesActives
       ? { jour: veille }
       : null;
 
@@ -288,7 +289,7 @@ export function calculerKpiEquipe(utilisateurs, options = {}) {
 
   // Le résumé ne porte que sur les agents (les admins, non soumis au suivi,
   // restent visibles dans le tableau mais ne faussent pas les moyennes).
-  const agents = membres.filter((m) => m.utilisateur.role === "agent");
+  const agents = membres.filter((m) => estSuiviPresence(m.utilisateur));
   const taux = agents.map((m) => m.semaine.tauxPresence).filter((t) => t !== null);
   return {
     aujourdHui: jourLocal(options.maintenant || new Date()),
@@ -314,4 +315,10 @@ export function alertesAbsenceEquipe(utilisateurs, maintenant = new Date()) {
     .map((u) => ({ u, alerte: calculerKpiAgent(u, { maintenant }).alerteAbsence }))
     .filter(({ alerte }) => alerte)
     .map(({ u, alerte }) => ({ utilisateurId: u.id, prenom: u.prenom, nom: u.nom, email: u.email, jour: alerte.jour }));
+}
+
+// Agents et superviseurs sont soumis au suivi de présence (alertes de retard
+// et d'absence, moyennes d'équipe) ; les administrateurs non.
+function estSuiviPresence(utilisateur) {
+  return utilisateur?.role === "agent" || utilisateur?.role === "superviseur";
 }

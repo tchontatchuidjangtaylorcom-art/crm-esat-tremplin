@@ -306,6 +306,7 @@ export default function AdminUtilisateurs() {
               className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
             >
               <option value="agent">Agent</option>
+              <option value="superviseur">Superviseur</option>
               <option value="admin">Administrateur</option>
               <option value="super_admin">Super-administrateur</option>
             </select>
@@ -472,6 +473,23 @@ export default function AdminUtilisateurs() {
                           className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline mr-3"
                         >
                           Valider
+                        </button>
+                      )}
+                      {u.statut === "valide" && u.role === "agent" && (
+                        <button
+                          onClick={() => valider(u.id, "superviseur")}
+                          title="Peut prendre en charge les leads des agents (Clients Potentiels)"
+                          className="text-xs text-violet-700 dark:text-violet-300 hover:underline mr-3"
+                        >
+                          Passer superviseur
+                        </button>
+                      )}
+                      {u.statut === "valide" && u.role === "superviseur" && (
+                        <button
+                          onClick={() => valider(u.id, "agent")}
+                          className="text-xs text-slate-600 dark:text-slate-300 hover:underline mr-3"
+                        >
+                          Repasser agent
                         </button>
                       )}
                       {u.statut === "valide" && u.role !== "admin" && u.role !== "super_admin" && (

@@ -22,6 +22,7 @@ import CalculObligationFiche from "../components/CalculObligationFiche.jsx";
 import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
 import BadgeEcheance from "../components/BadgeEcheance.jsx";
 import ChoixAgentFiche from "../components/ChoixAgentFiche.jsx";
+import ChoixSuperviseurFiche from "../components/ChoixSuperviseurFiche.jsx";
 import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
@@ -470,6 +471,7 @@ export default function EntrepriseDetail() {
             <StatusSelect entreprise={entreprise} />
             {/* Administrateur : liste déroulante pour réattribuer la fiche. */}
             <ChoixAgentFiche entreprise={entreprise} onMaj={setEntreprise} />
+            <ChoixSuperviseurFiche entreprise={entreprise} onMaj={setEntreprise} />
             {/* Cliquable : déplacer le RDV / rappel (voir BadgeEcheance). */}
             <BadgeEcheance entreprise={entreprise} onMaj={setEntreprise} />
           </div>

@@ -231,6 +231,15 @@ export default function EntrepriseTable({
                     {e.effectif ?? "?"} sal. · {e.categorie?.label}
                     {e.lot ? ` · ${e.lot}` : ""}
                   </span>
+                  {e.superviseurNom ? (
+                    <span className="block text-[11px] font-medium text-violet-700 dark:text-violet-300">
+                      🤝 {e.assigneANom || "—"} → sup. {e.superviseurNom}
+                    </span>
+                  ) : (
+                    e.statut === "fiche" && (
+                      <span className="block text-[11px] text-violet-500 dark:text-violet-400">🤝 Sans superviseur{e.assigneANom ? ` · agent ${e.assigneANom}` : ""}</span>
+                    )
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <StatusSelect entreprise={e} />
