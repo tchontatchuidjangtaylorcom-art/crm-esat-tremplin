@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { api } from "../api.js";
+import { reserveAuxAdmins } from "../reserveAdmin.jsx";
 
 // "✓ Corriger l'orthographe" sous un message rédigé à la main : l'IA corrige
 // accents, a / à, accords et ponctuation sans changer le sens. Le texte
 // d'avant reste récupérable avec "Annuler la correction".
-export default function BoutonCorrection({ texte, onCorrige }) {
+function BoutonCorrection({ texte, onCorrige }) {
   const [enCours, setEnCours] = useState(false);
   const [avant, setAvant] = useState(null);
   const [info, setInfo] = useState(null);
@@ -56,3 +57,6 @@ export default function BoutonCorrection({ texte, onCorrige }) {
     </div>
   );
 }
+
+// Fonction IA (payante) : réservée aux administrateurs.
+export default reserveAuxAdmins(BoutonCorrection);

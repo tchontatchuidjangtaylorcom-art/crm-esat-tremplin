@@ -472,10 +472,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Recherche des numéros par Claude pour l'agent : uniquement ses
-          propres fiches sans numéro (le serveur limite le périmètre et la
-          taille de chaque lancement). */}
-      {!estAdmin && <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />}
 
       {/* Demande de leads en libre-service : agents, et admins qui prospectent
           eux-mêmes (fiches attribuées à leur propre compte — elles

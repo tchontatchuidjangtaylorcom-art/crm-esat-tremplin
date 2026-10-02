@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import BoutonRechargeCredits from "./BoutonRechargeCredits.jsx";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
+import { reserveAuxAdmins } from "../reserveAdmin.jsx";
 
 // Enrichissement en lot des fiches déjà présentes dans le CRM qui n'ont
 // toujours aucun numéro de téléphone — typiquement les leads importés par
@@ -13,7 +14,7 @@ import { estAdmin } from "../roles.js";
 // pipeline existant, à ne pas lancer sans le vouloir. Le traitement tourne en
 // arrière-plan côté serveur ; ce composant se contente d'interroger
 // périodiquement /api/leads/enrichir-telephones/statut pendant qu'il tourne.
-export default function EnrichissementTelephones({ manquants, onMaj }) {
+function EnrichissementTelephones({ manquants, onMaj }) {
   const { utilisateur } = useAuth();
   // Un admin couvre tout le pipeline ; un agent, ses propres fiches, avec un
   // plafond par lancement (voir /api/leads/enrichir-telephones).
@@ -241,3 +242,6 @@ export default function EnrichissementTelephones({ manquants, onMaj }) {
     </div>
   );
 }
+
+// Fonction IA (payante) : réservée aux administrateurs.
+export default reserveAuxAdmins(EnrichissementTelephones);

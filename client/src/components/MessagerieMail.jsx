@@ -4,6 +4,8 @@ import { useContenuAide } from "../useContenuAide.js";
 import { formatDateHeure } from "../constants.js";
 import { construireSignature } from "../mailSignature.js";
 import BoutonCorrection from "./BoutonCorrection.jsx";
+import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 
 // Fil de messagerie mail réel avec le contact de l'entreprise (boîte IMAP/SMTP
 // du pôle — voir server/src/mail.js). Reste utilisable même sans boîte
@@ -22,6 +24,9 @@ function destinatairesDisponibles(entreprise) {
 }
 
 export default function MessagerieMail({ entreprise, onMaj }) {
+  // Rédaction par l'IA (payante) réservée aux administrateurs.
+  const { utilisateur } = useAuth();
+  const iaAutorisee = estAdmin(utilisateur);
   // Repliée par défaut (une seule ligne) : remontée en haut de la fiche (voir
   // EntrepriseDetail.jsx), elle ne doit pas occuper une pleine section tant
   // qu'aucun mail n'est en cours de rédaction — un clic déplie le fil complet
@@ -316,7 +321,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             </div>
           )}
 
-          {iaConfiguree !== false && (
+          {iaAutorisee && iaConfiguree !== false && (
             <div className="mb-1">
               <button
                 type="button"

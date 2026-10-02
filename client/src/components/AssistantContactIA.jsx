@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
+import { reserveAuxAdmins } from "../reserveAdmin.jsx";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -31,7 +32,7 @@ function creerReconnaissanceVocale() {
 // "Enregistrer sur la fiche" journalise l'échange en commentaire ET associe
 // le contact trouvé en un seul geste, pour que l'agent reste concentré sur
 // l'appel plutôt que de ressaisir ce que l'IA vient de trouver.
-export default function AssistantContactIA({ entreprise, onMaj, prenomAgent }) {
+function AssistantContactIA({ entreprise, onMaj, prenomAgent }) {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]); // { id, question, reponse, contact, source, confiance, enregistre }
   const [enCours, setEnCours] = useState(false);
@@ -224,3 +225,6 @@ export default function AssistantContactIA({ entreprise, onMaj, prenomAgent }) {
     </div>
   );
 }
+
+// Fonction IA (payante) : réservée aux administrateurs.
+export default reserveAuxAdmins(AssistantContactIA);

@@ -4,6 +4,8 @@ import { diffuserEntrepriseMaj } from "../telephony/CallContext.jsx";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { construireSignature } from "../mailSignature.js";
 import BoutonCorrection from "./BoutonCorrection.jsx";
+import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 
 // Interface d'envoi d'e-mail ciblée depuis le tableau principal — deux
 // entrées distinctes selon que la fiche a déjà une adresse connue ou non
@@ -21,7 +23,12 @@ import BoutonCorrection from "./BoutonCorrection.jsx";
 // sans quitter le tableau.
 // objetInitial / corpsInitial : e-mail déjà rédigé (ex. récapitulatif OETH
 // préparé depuis l'en-tête de la fiche), à relire avant envoi.
-export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = true, objetInitial = "", corpsInitial = "" }) {
+export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: autoGenererDemande = true, objetInitial = "", corpsInitial = "" }) {
+  // Rédaction par l'IA (payante) réservée aux administrateurs : pour un agent,
+  // la fenêtre sert à écrire et envoyer le mail lui-même (ex. "Résumé").
+  const { utilisateur } = useAuth();
+  const iaAutorisee = estAdmin(utilisateur);
+  const autoGenerer = autoGenererDemande && iaAutorisee;
   const [destinataire, setDestinataire] = useState(
     entreprise.contact?.email || entreprise.contact?.emailsAlternatifs?.[0]?.email || ""
   );
@@ -184,7 +191,7 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer = 
               />
             </label>
 
-            {!autoGenerer && !objet.trim() && !corps.trim() && (
+            {iaAutorisee && !autoGenerer && !objet.trim() && !corps.trim() && (
               <button
                 type="button"
                 onClick={genererAvecIA}

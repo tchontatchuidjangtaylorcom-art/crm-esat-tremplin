@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import { usePresence } from "../PresenceContext.jsx";
+import { reserveAuxAdmins } from "../reserveAdmin.jsx";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -17,7 +18,7 @@ const ACCUEIL_TEXTE =
 // dans son prompt (voir rechercheContact.js) — jamais une réponse inventée,
 // et jamais liée à une entreprise précise (usage général de préparation
 // d'appel, contrairement à AssistantContactIA.jsx qui porte sur UNE fiche).
-export default function AssistantDomaineCrm() {
+function AssistantDomaineCrm() {
   const [ouvert, setOuvert] = useState(false);
   // Le bandeau "Chrono en pause" (PresenceContext) occupe aussi le coin bas
   // gauche : on remonte alors le bouton juste au-dessus.
@@ -133,3 +134,6 @@ export default function AssistantDomaineCrm() {
     </div>
   );
 }
+
+// Fonction IA (payante) : réservée aux administrateurs.
+export default reserveAuxAdmins(AssistantDomaineCrm);

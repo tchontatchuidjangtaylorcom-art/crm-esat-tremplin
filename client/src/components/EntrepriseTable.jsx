@@ -264,10 +264,10 @@ export default function EntrepriseTable({
                   {sansEmailConnu(e) ? (
                     <button
                       onClick={() => setEmailOuvertPour(e)}
-                      title="Aucune adresse mail connue — générer un e-mail avec l'IA"
+                      title={estAdmin ? "Aucune adresse mail connue — générer un e-mail avec l'IA" : "Aucune adresse mail connue — écrire un e-mail"}
                       className="block mt-1 text-[11px] font-medium text-marine-700 dark:text-marine-300 hover:underline whitespace-nowrap"
                     >
-                      ✨ Générer un e-mail
+                      {estAdmin ? "✨ Générer un e-mail" : "✉️ Écrire un e-mail"}
                     </button>
                   ) : (
                     <button

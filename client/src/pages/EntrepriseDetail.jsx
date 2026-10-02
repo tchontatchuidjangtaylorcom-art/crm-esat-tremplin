@@ -11,7 +11,8 @@ import AssistantContactIA from "../components/AssistantContactIA.jsx";
 import DicteeCommentaire from "../components/DicteeCommentaire.jsx";
 import ActionsRapidesStatut from "../components/ActionsRapidesStatut.jsx";
 import AlerteDoublons from "../components/AlerteDoublons.jsx";
-import ContactRhAuto from "../components/ContactRhAuto.jsx";
+import { useAuth } from "../AuthContext.jsx";
+import { estAdmin } from "../roles.js";
 import ChampDateHeure from "../components/ChampDateHeure.jsx";
 import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
@@ -62,6 +63,10 @@ export default function EntrepriseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { prenom: prenomAgent } = useIdentiteActuelle();
+  // Fonctions IA (payantes) réservées aux administrateurs : un agent ne voit
+  // que les pistes de recherche manuelles (Google, Societe.com…).
+  const { utilisateur } = useAuth();
+  const admin = estAdmin(utilisateur);
   const [entreprise, setEntreprise] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
@@ -588,7 +593,6 @@ export default function EntrepriseDetail() {
         </div>
       )}
 
-      <ContactRhAuto entreprise={entreprise} onMaj={setEntreprise} />
       <AlerteDoublons entreprise={entreprise} prenomAgent={prenomAgent} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -754,9 +758,11 @@ export default function EntrepriseDetail() {
 
           {/* Espace IA : contact alternatif en cas de numéro invalide */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Espace IA — Contact alternatif</h2>
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">
+              {admin ? "Espace IA — Contact alternatif" : "Trouver un numéro ou un contact"}
+            </h2>
 
-            {!entreprise.contact?.telephoneInvalide ? (
+            {!admin ? null : !entreprise.contact?.telephoneInvalide ? (
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   Numéro {estNumeroAffichable(entreprise.contact?.telephone) ? entreprise.contact.telephone : "(aucun renseigné)"}{" "}
@@ -822,7 +828,7 @@ export default function EntrepriseDetail() {
               </a>
             </div>
 
-            {entreprise.contact?.telephoneInvalide && (
+            {admin && entreprise.contact?.telephoneInvalide && (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <button

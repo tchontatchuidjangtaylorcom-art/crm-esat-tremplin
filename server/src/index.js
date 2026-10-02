@@ -875,6 +875,7 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
 enregistrerRoutesVitrineRdv(app);
 enregistrerRoutesRechercheNumeros(app, {
   exigerAuth,
+  exigerAdmin,
   chargerEntrepriseAutorisee,
   findEntreprise,
   // Recherche automatique à l'ouverture d'une fiche sans numéro : e-mails
@@ -897,7 +898,7 @@ enregistrerRoutesAnnulationDistribution(app, {
 enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });
 
 // Correction orthographique d'un mail rédigé à la main (boîte mail de la fiche).
-app.post("/api/ia/corriger-texte", exigerAuth, async (req, res) => {
+app.post("/api/ia/corriger-texte", exigerAdmin, async (req, res) => {
   const texte = String(req.body.texte || "");
   if (!texte.trim()) return res.status(400).json({ error: "Texte vide." });
   if (texte.length > 12000) return res.status(400).json({ error: "Texte trop long (12 000 caractères maximum)." });
@@ -1183,6 +1184,13 @@ const DELAI_ENTRE_APPELS_IA_MS = Number(process.env.ANTHROPIC_ENRICHISSEMENT_DEL
 // laisser tourner un lot de 100 fiches pour zéro résultat.
 const ECHECS_CONSECUTIFS_MAX = 5;
 
+// Dépenses IA : seuls les administrateurs déclenchent des appels à Claude
+// (routes IA en exigerAdmin) ; les recherches automatiques ne portent que sur
+// les nouvelles fiches (imports, fiches générées depuis Sirene). Les
+// recherches automatiques liées à l'activité des agents (ouverture du tableau
+// de bord, attribution, distribution) sont coupées.
+const RECHERCHE_IA_DECLENCHEE_PAR_LES_AGENTS = false;
+
 // Corps JSON d'une erreur IA renvoyée au frontend : `lienRecharge` (crédit
 // Anthropic épuisé, voir rechercheContact.js) déclenche côté client le
 // bandeau "Recharger les crédits".
@@ -1354,7 +1362,7 @@ function appliquerContactRhIa(entreprise, resultat) {
   return true;
 }
 
-app.post("/api/entreprises/:id/contact-rh-auto", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+app.post("/api/entreprises/:id/contact-rh-auto", exigerAdmin, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
   const aDejaUnNom = entreprise.contact?.nom && entreprise.contact.nom !== "-";
   if (aDejaUnNom || entreprise.rechercheContactRH || recherchesContactRhEnCours.has(entreprise.id) || !estRechercheIaConfiguree()) {
@@ -1479,7 +1487,7 @@ function fichesSansTelephone(utilisateur) {
 // couvre tout le pipeline ; un agent, ses propres fiches (30 au plus par
 // lancement). Tous les lots passent par la même file que l'enrichissement à
 // l'import : un seul à la fois, jamais de rafale de requêtes vers Anthropic.
-app.post("/api/leads/enrichir-telephones", exigerAuth, async (req, res) => {
+app.post("/api/leads/enrichir-telephones", exigerAdmin, async (req, res) => {
   const utilisateur = req.utilisateur;
   if (!estRechercheIaConfiguree()) {
     return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
@@ -1798,8 +1806,8 @@ async function traiterDemandeLeads(req, res) {
     termine: generer ? null : maintenant,
   });
   res.status(202).json(etatDemandeLeads(utilisateur.id));
-  // Fiches existantes attribuées sans numéro : recherche Claude tout de suite.
-  rechercherNumerosDemande(demandesLeads.get(utilisateur.id), pool);
+  // Fiches existantes remises : plus de recherche Claude (coût) — seules les
+  // fiches nouvellement créées ci-dessous sont cherchées automatiquement.
   if (!generer) return;
 
   // 2) Génération du complément, en arrière-plan.
@@ -1918,6 +1926,10 @@ function ordreFichesAAttribuer(a, b) {
 // recherche à la fois sur le serveur (même file que les autres lots) ; les
 // fiches déjà cherchées sans succès ou déjà programmées sont ignorées.
 function rechercherNumerosAttribues(utilisateurId, fiches) {
+  // Désactivée (coût) : attribuer ou distribuer des fiches existantes ne lance
+  // plus de recherche Claude ; seules les nouvelles fiches sont cherchées
+  // automatiquement, et l'administrateur garde le lancement manuel.
+  if (RECHERCHE_IA_DECLENCHEE_PAR_LES_AGENTS !== true) return 0;
   if (!utilisateurId || !estRechercheIaConfiguree()) return 0;
   const cibles = fiches.filter(
     (e) => e && !e.contact?.telephone && !estDejaTenteeSansSucces(e) && !fichesEnEnrichissement.has(e.id)
@@ -1971,6 +1983,11 @@ function rechercherNumerosAttribues(utilisateurId, fiches) {
 // Pas de relance automatique pendant une heure après une interruption
 // (crédit épuisé, panne) : l'agent ou l'administrateur relance à la main.
 function rechercheAutomatiqueAgent(utilisateur) {
+  // Désactivée : déclenchée à chaque affichage du tableau de bord d'un agent,
+  // elle consommait des crédits Claude en continu. Les numéros sont cherchés
+  // automatiquement à l'arrivée des nouvelles fiches (imports, fiches générées
+  // depuis Sirene) ; un administrateur peut lancer une recherche à la main.
+  if (RECHERCHE_IA_DECLENCHEE_PAR_LES_AGENTS !== true) return;
   if (estAdmin(utilisateur) || !estRechercheIaConfiguree()) return;
   const etat = etatsEnrichissement.get(utilisateur.id);
   if (etat?.enCours) return;
@@ -2429,7 +2446,7 @@ app.post("/api/entreprises/:id/telephone-invalide", exigerAuth, chargerEntrepris
 // écrit en base ici, l'agent doit valider via le formulaire existant
 // (numéro : POST .../telephone-invalide puis PATCH ; catégorie : PATCH
 // categorieForcee) avant que ça n'affecte la fiche.
-app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+app.post("/api/entreprises/:id/rechercher-contact", exigerAdmin, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
   if (!estRechercheIaConfiguree()) {
@@ -2471,7 +2488,7 @@ app.post("/api/entreprises/:id/rechercher-contact", exigerAuth, chargerEntrepris
 // consultation, l'enregistrement (commentaire + association du contact) se
 // fait via les routes existantes /commentaires et PATCH une fois l'agent
 // satisfait de la réponse, pour ne jamais écrire une identité non validée.
-app.post("/api/entreprises/:id/question-contact-ia", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+app.post("/api/entreprises/:id/question-contact-ia", exigerAdmin, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
   const question = String(req.body.question || "").trim();
   if (!question) return res.status(400).json({ error: "Question vide." });
@@ -2505,7 +2522,7 @@ app.get("/api/oeth/bareme", exigerAuth, (req, res) => {
 // contribution / surcontribution / ESAT Tremplin / TIH, sans lien avec une
 // entreprise précise — voir repondreQuestionDomaine (tous les chiffres cités
 // viennent de oeth.js, jamais inventés par le modèle).
-app.post("/api/assistant-domaine", exigerAuth, async (req, res) => {
+app.post("/api/assistant-domaine", exigerAdmin, async (req, res) => {
   const question = String(req.body.question || "").trim();
   if (!question) return res.status(400).json({ error: "Question vide." });
   if (question.length > 500) return res.status(400).json({ error: "Question trop longue (500 caractères maximum)." });
@@ -2532,7 +2549,7 @@ app.post("/api/assistant-domaine", exigerAuth, async (req, res) => {
 // partir du contenu d'un appel privé. Ne persiste RIEN — l'agent valide et
 // enregistre explicitement (commentaire + association du contact) via les
 // routes existantes une fois satisfait du résultat.
-app.post("/api/entreprises/:id/dictee-ia", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+app.post("/api/entreprises/:id/dictee-ia", exigerAdmin, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
   const transcription = String(req.body.transcription || "").trim();
   if (!transcription) return res.status(400).json({ error: "Dictée vide." });
@@ -2562,7 +2579,7 @@ app.post("/api/entreprises/:id/dictee-ia", exigerAuth, chargerEntrepriseAutorise
 // PROPOSITION (objet + corps) qui pré-remplit le formulaire d'envoi
 // existant côté client ; rien n'est envoyé ni journalisé par cette route,
 // l'agent relit et clique lui-même sur "Envoyer".
-app.post("/api/entreprises/:id/generer-email", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+app.post("/api/entreprises/:id/generer-email", exigerAdmin, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = enrichir(req.entreprise);
 
   if (!estRechercheIaConfiguree()) {

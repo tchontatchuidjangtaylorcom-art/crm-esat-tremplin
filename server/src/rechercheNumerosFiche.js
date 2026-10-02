@@ -106,13 +106,14 @@ function ajouterNumerosTrouves(entreprise, resultat, auteur, { ajouterEmailFiche
 
 export function enregistrerRoutesRechercheNumeros(
   app,
-  { exigerAuth, chargerEntrepriseAutorisee, findEntreprise, ajouterEmailFiche, marquerRechercheTelephone, dejaRecherchee }
+  { exigerAuth, exigerAdmin, chargerEntrepriseAutorisee, findEntreprise, ajouterEmailFiche, marquerRechercheTelephone, dejaRecherchee }
 ) {
   app.get("/api/entreprises/:id/recherche-numeros", exigerAuth, chargerEntrepriseAutorisee, (req, res) => {
     res.json(recherches.get(req.entreprise.id) || { enCours: false });
   });
 
-  app.post("/api/entreprises/:id/recherche-numeros", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  // Recherche Claude (payante) : réservée aux administrateurs.
+  app.post("/api/entreprises/:id/recherche-numeros", exigerAdmin, chargerEntrepriseAutorisee, async (req, res) => {
     if (!estRechercheIaConfiguree()) {
       return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
     }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
-import { estNumeroAffichable } from "../telephone.js";
+import { reserveAuxAdmins } from "../reserveAdmin.jsx";
 
 async function appel(url, options) {
   const res = await fetch(url, options);
@@ -14,34 +14,16 @@ async function appel(url, options) {
 // L'agent peut appeler d'autres fiches pendant ce temps : les numéros trouvés
 // s'ajoutent d'eux-mêmes à la fiche (numéros supplémentaires), et la fiche se
 // met à jour dès la fin si elle est encore ouverte.
-export default function BoutonRechercheNumeros({ entreprise, onMaj }) {
+function BoutonRechercheNumeros({ entreprise, onMaj }) {
   const [etat, setEtat] = useState(null);
   const [erreur, setErreur] = useState(null);
   const url = `/api/entreprises/${entreprise.id}/recherche-numeros`;
 
-  // Reprend l'affichage si une recherche tourne déjà pour cette fiche ; sinon,
-  // fiche sans numéro : Claude cherche tout seul les numéros, e-mails et
-  // contact RH dès l'ouverture (le serveur ne relance jamais une fiche déjà
-  // cherchée).
+  // Reprend l'affichage si une recherche tourne déjà pour cette fiche. (Plus
+  // de lancement automatique à l'ouverture : chaque recherche consomme des
+  // crédits Claude ; les nouvelles fiches sont cherchées à leur import.)
   useEffect(() => {
-    let annule = false;
-    appel(url)
-      .then(async (e) => {
-        if (annule) return;
-        setEtat(e);
-        if (!e?.enCours && !estNumeroAffichable(entreprise.contact?.telephone) && !entreprise.rechercheTelephoneIA) {
-          const lancement = await appel(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ auto: true }),
-          });
-          if (!annule && lancement?.enCours) setEtat(lancement);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      annule = true;
-    };
+    appel(url).then(setEtat).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entreprise.id]);
 
@@ -105,3 +87,6 @@ export default function BoutonRechercheNumeros({ entreprise, onMaj }) {
     </div>
   );
 }
+
+// Fonction IA (payante) : réservée aux administrateurs.
+export default reserveAuxAdmins(BoutonRechercheNumeros);

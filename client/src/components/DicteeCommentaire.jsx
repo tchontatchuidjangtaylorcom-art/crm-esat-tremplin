@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { api } from "../api.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
+import { reserveAuxAdmins } from "../reserveAdmin.jsx";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -30,7 +31,7 @@ function creerReconnaissanceVocale() {
 // — l'agent reste concentré sur l'appel suivant plutôt que de ressaisir ce
 // qu'il vient de dire. Même principe "IA propose, agent valide" que le reste
 // de l'Espace IA : rien n'est écrit avant ce clic.
-export default function DicteeCommentaire({ entreprise, onMaj, prenomAgent }) {
+function DicteeCommentaire({ entreprise, onMaj, prenomAgent }) {
   const [transcription, setTranscription] = useState("");
   const [interim, setInterim] = useState("");
   const [enregistrement, setEnregistrement] = useState(false);
@@ -219,3 +220,6 @@ export default function DicteeCommentaire({ entreprise, onMaj, prenomAgent }) {
     </div>
   );
 }
+
+// Fonction IA (payante) : réservée aux administrateurs.
+export default reserveAuxAdmins(DicteeCommentaire);
