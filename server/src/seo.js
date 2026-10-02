@@ -105,6 +105,11 @@ function donneesStructurees(chemin, seo) {
 // Bloc <head> propre à une page (remplace le <title> du build).
 export function balisesHead(chemin) {
   const seo = seoPourChemin(chemin);
+  // Prise de rendez-vous depuis un e-mail (lien propre à une entreprise) :
+  // page publique, mais jamais indexée.
+  if (chemin.startsWith("/vitrine/rendez-vous/")) {
+    return `<title>Prendre rendez-vous — Pôle OETH / AGEFIPH</title>\n    <meta name="robots" content="noindex, nofollow" />`;
+  }
   if (!seo) {
     // Pages CRM / inconnues : titre neutre, jamais indexées.
     return `<title>CRM OETH — Espace sécurisé</title>\n    <meta name="robots" content="noindex, nofollow" />`;

@@ -13,6 +13,7 @@ const NotreDemarche = lazy(() => import("./pages/NotreDemarche.jsx"));
 const Vigilance = lazy(() => import("./pages/Vigilance.jsx"));
 const Actualites = lazy(() => import("./pages/Actualites.jsx"));
 const Faq = lazy(() => import("./pages/Faq.jsx"));
+const RendezVousClient = lazy(() => import("./pages/RendezVousClient.jsx"));
 
 // Titre et description mis à jour lors de la navigation interne (le serveur
 // les injecte déjà dans le HTML initial, voir server/src/seo.js).
@@ -35,6 +36,10 @@ function Chargement() {
 }
 
 export default function VitrineApp() {
+  const { pathname } = useLocation();
+  // Page de prise de rendez-vous ouverte depuis un e-mail : sans les boutons
+  // flottants, pour que le client se concentre sur le choix du créneau.
+  const pageRendezVous = pathname.startsWith("/vitrine/rendez-vous/");
   return (
     <>
       <SeoNavigation />
@@ -48,12 +53,14 @@ export default function VitrineApp() {
             <Route path="/vitrine/vigilance" element={<Vigilance />} />
             <Route path="/vitrine/actualites" element={<Actualites />} />
             <Route path="/vitrine/faq" element={<Faq />} />
+            {/* Prise de rendez-vous depuis un e-mail (lien propre à une fiche). */}
+            <Route path="/vitrine/rendez-vous/:jeton" element={<RendezVousClient />} />
             <Route path="/vitrine/*" element={<SiteVitrine />} />
           </Route>
         </Routes>
       </Suspense>
       {/* Boutons flottants (FAQ, Actualité, Vigilance, Assistance). */}
-      <WidgetsVitrine />
+      {!pageRendezVous && <WidgetsVitrine />}
     </>
   );
 }

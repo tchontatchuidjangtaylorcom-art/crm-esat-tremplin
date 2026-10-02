@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import { useContenuAide } from "../useContenuAide.js";
 import { diffuserEntrepriseMaj } from "../telephony/CallContext.jsx";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { construireSignature } from "../mailSignature.js";
@@ -86,10 +87,29 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statutMail]);
 
-  // Mise en page officielle (bandeau du pôle, récapitulatif contribution /
-  // surcontribution, boutons simulation et conseiller — voir
+  // Modèles de mails : la fenêtre ouverte sans texte (agent, ou fiche sans
+  // brouillon IA) est pré-remplie avec le premier modèle (« Régularisation
+  // DOETH 2026 ») ; les autres sont à un clic.
+  const { data: modeles } = useContenuAide("modeles-mails", api.getModelesMails);
+  function inserer(modele) {
+    setObjet(modele.objet);
+    setCorps(statutMail ? modele.corps.replaceAll("{{SIGNATURE}}", construireSignature({ statutMail })) : modele.corps);
+  }
+  const [preRempli, setPreRempli] = useState(false);
+  useEffect(() => {
+    const premier = modeles?.modeles?.[0];
+    if (preRempli || !premier || autoGenerer || objetInitial || corpsInitial) return;
+    setPreRempli(true);
+    if (!objet.trim() && !corps.trim()) inserer(premier);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeles]);
+
+  // Mise en page officielle (bandeau du pôle, bouton « Parler à un
+  // conseiller » qui mène à la prise de rendez-vous — voir
   // server/src/emailOfficiel.js), et envoi de test à sa propre adresse.
   const [formatOfficiel, setFormatOfficiel] = useState(true);
+  // Synthèse PDF optionnelle, décochée par défaut.
+  const [joindrePdf, setJoindrePdf] = useState(false);
   const [testEnCours, setTestEnCours] = useState(false);
   const [testEnvoye, setTestEnvoye] = useState(null);
 
@@ -110,7 +130,7 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
     setErreur(null);
     setTestEnvoye(null);
     try {
-      const r = await appelEnvoi({ objet, corps, joindrePdf: true, formatOfficiel, testVersMoi: true });
+      const r = await appelEnvoi({ objet, corps, joindrePdf, formatOfficiel, testVersMoi: true });
       setTestEnvoye(r.destinataire);
     } catch (e) {
       setErreur(e.message);
@@ -126,7 +146,7 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
     setEnvoiEnCours(true);
     setErreur(null);
     try {
-      let updated = await appelEnvoi({ objet, corps, joindrePdf: true, destinataire: adresse, formatOfficiel });
+      let updated = await appelEnvoi({ objet, corps, joindrePdf, destinataire: adresse, formatOfficiel });
       // Cette modale n'apparaît que quand la fiche n'a encore aucune adresse
       // connue — l'adresse qu'on vient d'utiliser devient donc l'adresse
       // principale, pour ne pas la faire ressaisir à la prochaine relance.
@@ -201,6 +221,21 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
               </button>
             )}
 
+            {!autoGenerer && modeles?.modeles?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {modeles.modeles.map((m) => (
+                  <button
+                    key={m.cle || m.titre}
+                    type="button"
+                    onClick={() => inserer(m)}
+                    className="text-[11px] px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                  >
+                    {m.titre}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <label className="block text-xs text-slate-500 dark:text-slate-400">
               Objet
               <input
@@ -232,8 +267,14 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
                 className="mt-0.5"
               />
               <span>
-                <strong>Mise en page officielle</strong> — bandeau du Pôle OETH / AGEFIPH, récapitulatif contribution /
-                surcontribution, boutons « Faire ma simulation » et « Parler à un conseiller ». Synthèse PDF jointe.
+                <strong>Mise en page officielle</strong> — bandeau du Pôle OETH / AGEFIPH et bouton « Parler à un conseiller » :
+                le client choisit un créneau (lundi–vendredi, 9h–17h30) et vous êtes prévenu.
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input type="checkbox" checked={joindrePdf} onChange={(e) => setJoindrePdf(e.target.checked)} className="mt-0.5" />
+              <span>
+                Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée) — <em>facultatif</em>
               </span>
             </label>
 

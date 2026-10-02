@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { Low } from "lowdb";
 import { JSONFile } from "lowdb/node";
 import { buildSeedData } from "./seed.js";
+import { MODELES_PAR_DEFAUT, CLE_ANCIEN_PREMIER_MODELE } from "./modelesMails.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -107,6 +108,18 @@ export async function initDb() {
   if (!db.data.contenusEditables) {
     db.data.contenusEditables = { argumentaire: null, scriptVente: null, modelesMails: null };
     aEcrire = true;
+  }
+  // Le premier modèle de mail a été remplacé par « Régularisation DOETH 2026 »
+  // (octobre 2026) : une liste déjà personnalisée par un super-administrateur
+  // contenait encore l'ancien (clé urgence_ecrit_accueil) — il y est remplacé
+  // par le nouveau, les autres modèles personnalisés restent intacts.
+  const modelesPerso = db.data.contenusEditables.modelesMails;
+  if (Array.isArray(modelesPerso)) {
+    const i = modelesPerso.findIndex((m) => m.cle === CLE_ANCIEN_PREMIER_MODELE);
+    if (i !== -1) {
+      modelesPerso[i] = { ...MODELES_PAR_DEFAUT[0] };
+      aEcrire = true;
+    }
   }
   // Canal "Infos Générales" : visible de tous implicitement (voir
   // estMembreCanal côté index.js), pas besoin d'y lister chaque agent.

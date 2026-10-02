@@ -274,6 +274,17 @@ export const api = {
 
   getOptionsDemo: () => fetch(`${BASE}/vitrine/demo/options`).then(handle),
 
+  // Prise de rendez-vous depuis le bouton « Parler à un conseiller » d'un
+  // e-mail (lien propre à la fiche, voir server/src/vitrineRdv.js).
+  getRdvClient: (jeton) => fetch(`${BASE}/vitrine/rdv-client/${encodeURIComponent(jeton)}`).then(handle),
+  reserverRdvClient: (jeton, donnees) =>
+    fetch(`${BASE}/vitrine/rdv-client/${encodeURIComponent(jeton)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  marquerRdvClientVu: (id) => fetch(`${BASE}/entreprises/${id}/rdv-client/vu`, { method: "POST" }).then(handle),
+
   signalerSollicitation: (donnees) =>
     fetch(`${BASE}/vitrine/vigilance`, {
       method: "POST",
@@ -325,7 +336,7 @@ export const api = {
 
   marquerEmailsLus: (id) => fetch(`${BASE}/entreprises/${id}/emails/lu`, { method: "POST" }).then(handle),
 
-  envoyerEmail: (id, { objet, corps, joindrePdf = true, destinataire }) =>
+  envoyerEmail: (id, { objet, corps, joindrePdf = false, destinataire }) =>
     fetch(`${BASE}/entreprises/${id}/emails/envoyer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

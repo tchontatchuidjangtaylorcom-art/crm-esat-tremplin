@@ -40,7 +40,7 @@ import {
 } from "./mail.js";
 import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
 import { genererEmailOfficielHtml } from "./emailOfficiel.js";
-import { enregistrerRoutesVitrineRdv } from "./vitrineRdv.js";
+import { enregistrerRoutesVitrineRdv, lienRendezVousClient, destinataireAlerteRdvClient } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { enregistrerRoutesImportFichier } from "./importFichier.js";
 import { enregistrerRoutesDistributionEquipe } from "./distributionEquipe.js";
@@ -1030,6 +1030,12 @@ app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (r
   // assigné ouvre la fiche.
   if (req.entreprise.demandeSiteNonVue && (estAdmin(req.utilisateur) || req.entreprise.assigneA === req.utilisateur.id)) {
     req.entreprise.demandeSiteNonVue = false;
+    await db.write();
+  }
+  // Rendez-vous réservé par le client depuis l'e-mail : vu dès que l'agent
+  // prévenu ouvre la fiche.
+  if (req.entreprise.rdvClient?.nonVu && destinataireAlerteRdvClient(req.entreprise) === req.utilisateur.id) {
+    req.entreprise.rdvClient.nonVu = false;
     await db.write();
   }
   res.json(enrichir(req.entreprise));
@@ -2750,7 +2756,8 @@ app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorise
 app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
 
-  const { objet, corps, joindrePdf = true, destinataire, formatOfficiel = false, testVersMoi = false, cc = [] } = req.body;
+  // Synthèse PDF : optionnelle, jointe seulement si l'agent coche la case.
+  const { objet, corps, joindrePdf = false, destinataire, formatOfficiel = false, testVersMoi = false, cc = [] } = req.body;
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
@@ -2803,9 +2810,8 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   // reste de toute façon la boîte unique du pôle (contact@oeth-fiph.fr).
   const nomExpediteur = "Pôle OETH / AGEFIPH";
 
-  // PDF de synthèse OETH, joint automatiquement (voir pdfSynthese.js) —
-  // désactivable ponctuellement par l'agent (ex: mail de confirmation de RDV
-  // où la synthèse chiffrée n'a pas sa place).
+  // PDF de synthèse OETH (voir pdfSynthese.js), joint seulement quand l'agent
+  // coche la case : les montants sont d'abord présentés au téléphone.
   let piecesJointes = [];
   let piecesJointesEnvoi;
   if (joindrePdf) {
@@ -2819,15 +2825,19 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     piecesJointes = [{ nom: nomFichier, taille: pdf.length }];
   }
 
-  // Mise en page officielle (voir emailOfficiel.js) : bandeau du pôle,
-  // récapitulatif contribution / surcontribution, boutons simulation et
-  // conseiller. Le texte brut reste envoyé en version alternative.
+  // Mise en page officielle (voir emailOfficiel.js) : bandeau du pôle et
+  // bouton « Parler à un conseiller », qui mène à la page de prise de
+  // rendez-vous de cette fiche (voir vitrineRdv.js) — le client choisit un
+  // créneau et l'agent est prévenu. Le texte brut reste envoyé en version
+  // alternative, avec le même lien.
+  const rendezVous = formatOfficiel ? lienRendezVousClient(entreprise) : null;
   const html = formatOfficiel
     ? genererEmailOfficielHtml({
         entreprise,
-        oeth: calculerObligationOeth(entreprise),
         corps,
         poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+        lienRendezVous: rendezVous.url,
+        avecPdf: Boolean(joindrePdf),
       })
     : undefined;
 
@@ -2836,7 +2846,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       to: destinataireFinal,
       cc: copiesEnvoi,
       subject: testVersMoi ? `[TEST] ${objet}` : objet,
-      text: corps,
+      text: rendezVous ? `${corps}\n\nParler à un conseiller — choisir un créneau de rendez-vous : ${rendezVous.url}` : corps,
       html,
       fromName: nomExpediteur,
       attachments: piecesJointesEnvoi,
@@ -2849,7 +2859,18 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
     return res.status(statutHttp).json({ error: e.message });
   }
-  if (testVersMoi) return res.json({ test: true, destinataire: destinataireFinal });
+  if (testVersMoi) {
+    // Lien du test valable lui aussi : le jeton créé doit survivre à un redémarrage.
+    if (rendezVous?.cree) await db.write();
+    return res.json({ test: true, destinataire: destinataireFinal });
+  }
+  // Qui prévenir si le client réserve (fiche non assignée), et à quelle
+  // adresse lui confirmer son rendez-vous.
+  if (rendezVous) {
+    entreprise.rdvClient.envoyePar = req.utilisateur.id;
+    entreprise.rdvClient.email = destinataireFinal;
+    entreprise.rdvClient.dateEnvoi = new Date().toISOString();
+  }
 
   entreprise.emails = entreprise.emails || [];
   entreprise.emails.unshift({
@@ -3110,8 +3131,32 @@ function calculerNotifications(utilisateur) {
     .map((e) => ({ id: e.id, nom: e.nom, type: e.demandesSite?.[0]?.libelle || "Demande site web", date: e.demandesSite?.[0]?.date || null }))
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-  return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles, alertePresence, alertesPresenceEquipe, demandesSite };
+  // Rendez-vous réservés par un client depuis le lien de l'e-mail (voir
+  // vitrineRdv.js) : alerte (fenêtre + son) chez l'agent qui suit la fiche —
+  // à défaut celui qui a envoyé l'e-mail, à défaut les administrateurs.
+  const rdvClients = db.data.entreprises
+    .filter((e) => {
+      if (!e.rdvClient?.nonVu) return false;
+      const destinataire = destinataireAlerteRdvClient(e);
+      return destinataire ? destinataire === utilisateur.id : estAdmin(utilisateur);
+    })
+    .map((e) => {
+      const r = e.rdvClient.reservations?.[0] || {};
+      return { id: e.id, nom: e.nom, dateRdv: e.dateRdv, contact: r.nom || "", telephone: r.telephone || "", date: r.dateCreation || null };
+    })
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles, alertePresence, alertesPresenceEquipe, demandesSite, rdvClients };
 }
+
+// L'agent a vu l'alerte "le client a réservé un rendez-vous".
+app.post("/api/entreprises/:id/rdv-client/vu", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  if (req.entreprise.rdvClient?.nonVu) {
+    req.entreprise.rdvClient.nonVu = false;
+    await db.write();
+  }
+  res.json({ ok: true });
+});
 
 // Rappels et rendez-vous à venir (ou manqués) de l'utilisateur, pour l'alerte
 // sonore à l'heure prévue (voir client/src/components/RappelsEcheances.jsx) :

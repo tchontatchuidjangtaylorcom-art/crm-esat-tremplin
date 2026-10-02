@@ -38,7 +38,9 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [statutMail, setStatutMail] = useState(null);
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
-  const [joindrePdf, setJoindrePdf] = useState(true);
+  // Synthèse PDF optionnelle : décochée par défaut (les montants sont
+  // présentés au téléphone), l'agent la coche s'il veut la joindre.
+  const [joindrePdf, setJoindrePdf] = useState(false);
   // Mise en page officielle (voir server/src/emailOfficiel.js) et envoi de
   // test à l'adresse du compte connecté, sans rien inscrire sur la fiche.
   const [formatOfficiel, setFormatOfficiel] = useState(true);
@@ -441,11 +443,11 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           <BoutonCorrection texte={corps} onCorrige={setCorps} />
           <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <input type="checkbox" checked={joindrePdf} onChange={(e) => setJoindrePdf(e.target.checked)} />
-            Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée)
+            Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée) — facultatif
           </label>
           <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <input type="checkbox" checked={formatOfficiel} onChange={(e) => setFormatOfficiel(e.target.checked)} />
-            Mise en page officielle (bandeau du pôle, récapitulatif contribution / surcontribution, boutons simulation et conseiller)
+            Mise en page officielle (bandeau du pôle + bouton « Parler à un conseiller » : le client choisit un créneau, vous êtes prévenu)
           </label>
           {testEnvoye && (
             <p className="text-xs text-emerald-700 dark:text-emerald-400">

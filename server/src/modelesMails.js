@@ -26,12 +26,17 @@
 // Contenu par défaut — voir getModelesMails ci-dessous pour la substitution
 // par un contenu personnalisé (édition super-admin, PUT /api/modeles-mails).
 export const MODELES_PAR_DEFAUT = [
+      // Premier e-mail envoyé à l'entreprise (texte fourni par l'équipe,
+      // octobre 2026) : volontairement sans montant ni simulation — les
+      // chiffres sont présentés par le conseiller au téléphone. Le bouton
+      // « Parler à un conseiller » de la mise en page officielle mène à la
+      // prise de rendez-vous (voir emailOfficiel.js et vitrineRdv.js).
       {
-        cle: "urgence_ecrit_accueil",
-        titre: "1. Suite à un échange avec l'accueil (écrit demandé)",
-        objet: "Obligation OETH — suite à notre appel, action requise",
+        cle: "regularisation_doeth_2026",
+        titre: "1. Régularisation DOETH 2026",
+        objet: "Régularisation DOETH 2026",
         corps:
-          "Bonjour,\n\nSuite à notre échange téléphonique avec votre service d'accueil, qui nous a invités à vous envoyer un mail, je vous contacte au sujet de l'obligation d'emploi des travailleurs handicapés (OETH) de votre entreprise.\n\nDans le cadre de la nouvelle démarche simplifiée du Pôle OETH / AGEFIPH, nous accompagnons les entreprises pour rendre cette obligation simple, rapide et compréhensible :\n• comprendre votre obligation (6 % de votre effectif) et le montant de votre contribution ;\n• identifier les bénéficiaires (RQTH) que vous employez peut-être déjà sans les avoir déclarés — un handicap n'est pas toujours visible ;\n• mettre en place les solutions qui réduisent, voire évitent, la contribution due au titre des unités manquantes (recrutement, Cap Emploi, sous-traitance ESAT / TIH).\n\nD'après les effectifs déclarés, votre entreprise présente un déficit d'unités bénéficiaires au regard du quota légal de 6 % : notre estimation, établie sur la base de 0 bénéficiaire (RQTH) déclaré à ce jour, est détaillée dans la synthèse jointe.\n\nCes informations peuvent ne plus être à jour : un recrutement récent, un départ ou une reconnaissance RQTH en cours changent le calcul. Il est donc important de les confirmer : en 2 minutes sur notre simulateur gratuit, qui vous permet de télécharger votre récapitulatif (https://oeth-fiph.fr/vitrine), ou avec l'un de nos conseillers, qui vous guidera pas à pas.\n\nCalendrier de l'exercice 2026 : seules les actions réalisées avant le 31 décembre 2026 (recrutement, sous-traitance auprès d'un ESAT / d'une EA / d'un TIH) comptent pour 2026 ; la contribution de l'exercice 2026 sera ensuite déclarée dans la DSN d'avril 2027 et réglée auprès de l'URSSAF. Plus tôt votre dossier est finalisé, plus vous avez de solutions pour réduire le montant.\n\nUn échange de 15 minutes suffit pour faire le point. Si votre entreprise est déjà en conformité, un simple retour de mail nous permet de mettre votre dossier à jour, sans nouvel échange.\n\nPour rappel, la contribution se déclare dans la DSN et se règle auprès de l'URSSAF : un dossier non régularisé expose à des majorations de retard, voire à un redressement sur la contribution OETH. Mieux vaut vérifier vos chiffres dès maintenant.\n\n{{SIGNATURE}}",
+          "Bonjour,\n\nNous faisons suite à l'absence de régularisation de votre obligation d'emploi de travailleurs handicapés (OETH), telle que prévue par le Code du travail, notamment aux articles L5212-1 à L5212-5. Pour rappel, toute entreprise d'au moins 20 salariés est tenue d'employer au moins 6 % de travailleurs en situation de handicap, sous peine de devoir s'acquitter d'une contribution financière auprès de l'AGEFIPH (Association de gestion du fonds pour l'insertion professionnelle des personnes handicapées).\n\nAfin de mieux comprendre les éventuelles problématiques rencontrées en interne et d'identifier les solutions pouvant être mises en place, il serait pertinent que nous puissions nous entretenir à nouveau.\n\nL'objectif est de faire le point sur votre situation et de vous accompagner dans sa régularisation avant les délais impartis.\n\nJe reste à votre disposition afin de convenir d'un créneau d'échange.\n\nBien cordialement,\n\n{{SIGNATURE}}",
       },
       {
         cle: "relance_nrp",
@@ -67,6 +72,10 @@ export const MODELES_PAR_DEFAUT = [
 // PUT /api/modeles-mails dans index.js), persisté dans
 // db.data.contenusEditables.modelesMails — absent/null tant que personne n'a
 // rien modifié, auquel cas MODELES_PAR_DEFAUT s'applique.
+// Ancien premier modèle, remplacé par « Régularisation DOETH 2026 » (voir
+// remplacerAncienPremierModele dans db.js pour les listes personnalisées).
+export const CLE_ANCIEN_PREMIER_MODELE = "urgence_ecrit_accueil";
+
 export function getModelesMails(modeles = null) {
   return { modeles: modeles || MODELES_PAR_DEFAUT };
 }

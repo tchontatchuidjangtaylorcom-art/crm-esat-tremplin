@@ -6,6 +6,8 @@ import crypto from "crypto";
 import db from "./db.js";
 import { envoyerMail, estEnvoiConfigure, adresseMailPole, telephonePole } from "./mail.js";
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
+import { estJourOuvre as estJourOuvreHorsFeries } from "./presence.js";
+import { SITE_URL } from "./seo.js";
 
 // Date/heure de Paris → ISO UTC (gère l'heure d'été / d'hiver).
 function isoDepuisParis(date, heure) {
@@ -112,7 +114,222 @@ async function notifier({ sujetPole, textePole, replyTo, destinataireVisiteur, s
   }
 }
 
+// ---- Rendez-vous demandé depuis un e-mail envoyé à une entreprise ----
+//
+// Le bouton « Parler à un conseiller » des e-mails envoyés depuis une fiche
+// (mise en page officielle, voir emailOfficiel.js) mène à une page publique
+// propre à cette fiche (/vitrine/rendez-vous/<jeton>) : le client y choisit un
+// créneau dans les horaires du pôle (lundi au vendredi, 9h–17h30, heure de
+// Paris, jours fériés exclus) et valide. La fiche passe alors en « RDV » à
+// cette date, et l'agent qui suit le dossier est prévenu (alerte dans le CRM +
+// e-mail). Le jeton, aléatoire, ne donne accès qu'au nom de l'entreprise.
+const RDV_CLIENT = { debut: "09:00", fin: "17:30", pasMinutes: 30, horizonJours: 30, delaiMinutes: 60 };
+const MAX_RESERVATIONS_PAR_LIEN = 10;
+
+const enMinutes = (h) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+const versHeure = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+const CRENEAUX_CLIENT = (() => {
+  const liste = [];
+  for (let m = enMinutes(RDV_CLIENT.debut); m + RDV_CLIENT.pasMinutes <= enMinutes(RDV_CLIENT.fin); m += RDV_CLIENT.pasMinutes) {
+    liste.push(versHeure(m));
+  }
+  return liste;
+})();
+
+// Lien de prise de rendez-vous de la fiche (jeton créé au premier envoi).
+// `cree` : le jeton vient d'être ajouté à la fiche (à enregistrer).
+export function lienRendezVousClient(entreprise) {
+  entreprise.rdvClient = entreprise.rdvClient || {};
+  let cree = false;
+  if (!entreprise.rdvClient.jeton) {
+    entreprise.rdvClient.jeton = crypto.randomBytes(18).toString("base64url");
+    cree = true;
+  }
+  return { url: `${SITE_URL}/vitrine/rendez-vous/${entreprise.rdvClient.jeton}`, cree };
+}
+
+// Personne prévenue quand le client réserve : l'agent assigné, à défaut celui
+// qui a envoyé l'e-mail.
+export function destinataireAlerteRdvClient(entreprise) {
+  return entreprise.assigneA || entreprise.rdvClient?.envoyePar || null;
+}
+
+function maintenantParis() {
+  const [jour, heure] = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Paris" }).split(" ");
+  return { jour, minutes: enMinutes(heure) };
+}
+
+// Date d'une fiche ("AAAA-MM-JJTHH:MM", heure de Paris comme saisie dans le
+// CRM ; ou ISO UTC pour les anciens RDV du site) → { jour, minutes } à Paris.
+function dateRdvParis(valeur) {
+  if (!valeur) return null;
+  const v = String(valeur);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return { jour: v.slice(0, 10), minutes: enMinutes(v.slice(11, 16)) };
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  const [jour, heure] = d.toLocaleString("sv-SE", { timeZone: "Europe/Paris" }).split(" ");
+  return { jour, minutes: enMinutes(heure) };
+}
+
+// Créneaux libres de l'agent qui suit la fiche : hors RDV qu'il a déjà
+// (30 min autour), à partir d'une heure après maintenant.
+function disponibilitesClient(entreprise) {
+  const agentId = destinataireAlerteRdvClient(entreprise);
+  const occupes = [];
+  for (const e of db.data.entreprises) {
+    if (e.id === entreprise.id || e.statut !== "rdv" || !e.dateRdv) continue;
+    const responsable = e.assigneA || e.echeanceProgrammeePar || null;
+    if (!agentId || responsable !== agentId) continue;
+    const d = dateRdvParis(e.dateRdv);
+    if (d) occupes.push(d);
+  }
+  const { jour: aujourdhui, minutes: maintenant } = maintenantParis();
+  const jours = {};
+  for (let i = 0; i <= RDV_CLIENT.horizonJours; i++) {
+    const iso = ajouterJours(aujourdhui, i);
+    if (!estJourOuvreHorsFeries(iso)) continue;
+    const libres = CRENEAUX_CLIENT.filter((h) => {
+      const m = enMinutes(h);
+      if (iso === aujourdhui && m < maintenant + RDV_CLIENT.delaiMinutes) return false;
+      return !occupes.some((o) => o.jour === iso && Math.abs(o.minutes - m) < RDV_CLIENT.pasMinutes);
+    });
+    if (libres.length) jours[iso] = libres;
+  }
+  return jours;
+}
+
+function ficheParJeton(jeton) {
+  const j = String(jeton || "");
+  if (j.length < 16) return null;
+  return db.data.entreprises.find((e) => e.rdvClient?.jeton === j) || null;
+}
+
+function rdvClientAVenir(entreprise) {
+  const derniere = entreprise.rdvClient?.reservations?.[0];
+  if (!derniere || entreprise.statut !== "rdv" || entreprise.dateRdv !== `${derniere.date}T${derniere.heure}`) return null;
+  const d = dateRdvParis(entreprise.dateRdv);
+  const { jour, minutes } = maintenantParis();
+  if (!d || d.jour < jour || (d.jour === jour && d.minutes < minutes)) return null;
+  return { date: derniere.date, heure: derniere.heure };
+}
+
 export function enregistrerRoutesVitrineRdv(app) {
+  app.get("/api/vitrine/rdv-client/:jeton", (req, res) => {
+    const entreprise = ficheParJeton(req.params.jeton);
+    if (!entreprise) {
+      return res.status(404).json({
+        error: `Ce lien de rendez-vous n'est plus valide. Contactez-nous à ${adresseMailPole()}${telephonePole() ? ` ou au ${telephonePole()}` : ""}.`,
+      });
+    }
+    res.json({
+      entreprise: entreprise.nom || "",
+      dureeMinutes: RDV_CLIENT.pasMinutes,
+      horaires: { debut: RDV_CLIENT.debut, fin: RDV_CLIENT.fin },
+      fuseau: "Europe/Paris",
+      jours: disponibilitesClient(entreprise),
+      rdvConfirme: rdvClientAVenir(entreprise),
+      pole: { email: adresseMailPole(), telephone: telephonePole() },
+    });
+  });
+
+  app.post("/api/vitrine/rdv-client/:jeton", async (req, res) => {
+    const b = req.body || {};
+    if (b.siteWeb) return res.json({ ok: true }); // champ piège anti-robots
+    const entreprise = ficheParJeton(req.params.jeton);
+    if (!entreprise) return res.status(404).json({ error: "Ce lien de rendez-vous n'est plus valide." });
+    const date = texte(b.date, 10);
+    const heure = texte(b.heure, 5);
+    const nomContact = texte(b.nom, 120);
+    const telephone = texte(b.telephone, 30);
+    const message = texte(b.message, 1000);
+    const reservations = entreprise.rdvClient.reservations || [];
+    if (reservations.length >= MAX_RESERVATIONS_PAR_LIEN) {
+      return res.status(429).json({ error: "Trop de demandes avec ce lien. Merci de nous contacter directement." });
+    }
+    if (!disponibilitesClient(entreprise)[date]?.includes(heure)) {
+      return res.status(409).json({ error: "Ce créneau n'est plus disponible. Merci d'en choisir un autre." });
+    }
+
+    const maintenant = new Date().toISOString();
+    const dateRdv = `${date}T${heure}`;
+    const quand = `${dateLongueFr(date)} à ${heure.replace(":", "h")} (heure de Paris)`;
+    const modification = Boolean(rdvClientAVenir(entreprise));
+    entreprise.rdvClient.reservations = [{ date, heure, nom: nomContact, telephone, message, dateCreation: maintenant }, ...reservations];
+    entreprise.rdvClient.nonVu = true;
+    entreprise.statut = "rdv";
+    entreprise.dateRdv = dateRdv;
+    // Fiche non assignée : l'alerte à l'heure du RDV sonne chez l'agent qui a
+    // envoyé l'e-mail (voir /api/echeances).
+    if (!entreprise.assigneA && entreprise.rdvClient.envoyePar) entreprise.echeanceProgrammeePar = entreprise.rdvClient.envoyePar;
+    entreprise.contact = entreprise.contact || {};
+    if (telephone && !entreprise.contact.telephone) entreprise.contact.telephone = telephone;
+    const coordonnees = [nomContact, telephone].filter(Boolean).join(" — ");
+    entreprise.historiqueAppels = [
+      {
+        id: crypto.randomUUID(),
+        date: maintenant,
+        type: "rdv_client",
+        issue: "rdv",
+        issueLabel: modification ? "RDV modifié par le client (lien e-mail)" : "RDV demandé par le client (lien e-mail)",
+        details: [quand, coordonnees].filter(Boolean).join(" — "),
+        dateProgrammee: dateRdv,
+        dureeSecondes: null,
+      },
+      ...(entreprise.historiqueAppels || []),
+    ];
+    entreprise.commentaires = [
+      {
+        id: crypto.randomUUID(),
+        date: maintenant,
+        auteur: "Site web",
+        texte: [
+          `📅 Le client ${modification ? "a modifié sa" : "a confirmé une"} demande de rendez-vous depuis le lien de l'e-mail : ${quand}.`,
+          coordonnees ? `Contact : ${coordonnees}` : null,
+          message ? `Message : ${message}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      },
+      ...(entreprise.commentaires || []),
+    ];
+    await db.write();
+
+    let confirmationEnvoyee = false;
+    if (estEnvoiConfigure()) {
+      const agent = db.data.utilisateurs.find((u) => u.id === destinataireAlerteRdvClient(entreprise));
+      const sujet = `📅 ${modification ? "RDV modifié" : "Demande de RDV confirmée"} — ${entreprise.nom} — ${date} ${heure}`;
+      const corpsAgent =
+        `Le client ${entreprise.nom} ${modification ? "a modifié sa" : "vient de confirmer une"} demande de rendez-vous ` +
+        `depuis le lien de votre e-mail.\n\nQuand : ${quand}, ${RDV_CLIENT.pasMinutes} min\n` +
+        `Contact : ${coordonnees || "-"}\nMessage : ${message || "(aucun)"}\n\n` +
+        `La fiche est passée en « RDV » à cette date : ${SITE_URL}/entreprise/${entreprise.id}`;
+      try {
+        await envoyerMail({ to: agent?.email || adresseMailPole(), subject: sujet, text: corpsAgent, fromName: "CRM — Rendez-vous client" });
+      } catch (e) {
+        console.error("[rdv-client] Alerte agent impossible :", e.message);
+      }
+      if (entreprise.rdvClient.email) {
+        try {
+          await envoyerMail({
+            to: entreprise.rdvClient.email,
+            subject: "Votre demande de rendez-vous est bien enregistrée",
+            text:
+              `Bonjour,\n\nVotre demande de rendez-vous est bien enregistrée : ${quand}.\n` +
+              `Un conseiller du Pôle OETH / AGEFIPH vous appellera à cette date${telephone ? ` au ${telephone}` : ""}.\n\n` +
+              `Pour modifier ce créneau, utilisez à nouveau le lien reçu par e-mail ou répondez simplement à ce message.\n\n${signature()}`,
+            fromName: "Pôle OETH / AGEFIPH",
+          });
+          confirmationEnvoyee = true;
+        } catch (e) {
+          console.error("[rdv-client] Confirmation client impossible :", e.message);
+        }
+      }
+    }
+
+    res.json({ ok: true, date, heure, dureeMinutes: RDV_CLIENT.pasMinutes, confirmationEnvoyee });
+  });
+
   // Référentiels du formulaire de démo (listes fermées, validées côté serveur).
   app.get("/api/vitrine/demo/options", (req, res) => {
     res.json({ fonctions: FONCTIONS, tailles: TAILLES, sujets: SUJETS });
