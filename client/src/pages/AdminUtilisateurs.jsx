@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { formatDate } from "../constants.js";
+import { useAuth } from "../AuthContext.jsx";
 
 const LIBELLES_STATUT = {
   en_attente: { label: "En attente", classe: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -32,6 +33,7 @@ async function copierPressePapier(texte) {
 // (exigerAdmin) refuse déjà l'accès à qui n'est pas admin ; cette page se
 // contente d'afficher l'erreur renvoyée le cas échéant.
 export default function AdminUtilisateurs() {
+  const { utilisateur: moi } = useAuth();
   const [utilisateurs, setUtilisateurs] = useState(null);
   // Recherche instantanée dans la liste (e-mail, prénom, nom, téléphone).
   const [recherche, setRecherche] = useState("");
@@ -475,39 +477,48 @@ export default function AdminUtilisateurs() {
                           Valider
                         </button>
                       )}
-                      {u.statut === "valide" && u.role === "agent" && (
-                        <button
-                          onClick={() => valider(u.id, "superviseur")}
-                          title="Peut prendre en charge les leads des agents (Clients Potentiels)"
-                          className="text-xs text-violet-700 dark:text-violet-300 hover:underline mr-3"
-                        >
-                          Passer superviseur
-                        </button>
-                      )}
-                      {u.statut === "valide" && u.role === "superviseur" && (
-                        <button
-                          onClick={() => valider(u.id, "agent")}
-                          className="text-xs text-slate-600 dark:text-slate-300 hover:underline mr-3"
-                        >
-                          Repasser agent
-                        </button>
-                      )}
-                      {u.statut === "valide" && u.role !== "admin" && u.role !== "super_admin" && (
-                        <button
-                          onClick={() => valider(u.id, "admin")}
-                          className="text-xs text-marine-700 dark:text-marine-300 hover:underline mr-3"
-                        >
-                          Passer admin
-                        </button>
-                      )}
-                      {u.statut === "valide" && u.role !== "super_admin" && (
-                        <button
-                          onClick={() => valider(u.id, "super_admin")}
-                          title="Débloque l'édition de l'argumentaire AGEFIPH, du script de vente et des modèles de mails"
-                          className="text-xs text-amber-700 dark:text-amber-400 hover:underline mr-3"
-                        >
-                          Passer super-admin
-                        </button>
+                      {/* Changements de rôle masqués sur sa propre ligne : le serveur les
+                          refuse de toute façon (voir POST .../valider) — un admin qui se
+                          rétrograderait lui-même pourrait se retrouver verrouillé hors de
+                          cette page s'il était le seul admin. */}
+                      {u.statut === "valide" && u.id !== moi?.id && (
+                        <>
+                          {u.role === "agent" && (
+                            <button
+                              onClick={() => valider(u.id, "superviseur")}
+                              title="Peut prendre en charge les leads des agents (Clients Potentiels)"
+                              className="text-xs text-violet-700 dark:text-violet-300 hover:underline mr-3"
+                            >
+                              Passer superviseur
+                            </button>
+                          )}
+                          {u.role !== "agent" && (
+                            <button
+                              onClick={() => valider(u.id, "agent")}
+                              title="Retire tous les droits élevés (superviseur/admin/super-admin) — redevient un agent standard"
+                              className="text-xs text-slate-600 dark:text-slate-300 hover:underline mr-3"
+                            >
+                              Repasser agent
+                            </button>
+                          )}
+                          {u.role !== "admin" && u.role !== "super_admin" && (
+                            <button
+                              onClick={() => valider(u.id, "admin")}
+                              className="text-xs text-marine-700 dark:text-marine-300 hover:underline mr-3"
+                            >
+                              Passer admin
+                            </button>
+                          )}
+                          {u.role !== "super_admin" && (
+                            <button
+                              onClick={() => valider(u.id, "super_admin")}
+                              title="Débloque l'édition de l'argumentaire AGEFIPH, du script de vente et des modèles de mails"
+                              className="text-xs text-amber-700 dark:text-amber-400 hover:underline mr-3"
+                            >
+                              Passer super-admin
+                            </button>
+                          )}
+                        </>
                       )}
                       {u.statut !== "refuse" && (
                         <button

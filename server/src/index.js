@@ -473,6 +473,13 @@ app.post("/api/utilisateurs/:id/renvoyer-lien", exigerAdmin, async (req, res) =>
 });
 
 app.post("/api/utilisateurs/:id/valider", exigerAdmin, async (req, res) => {
+  // Même garde-fou que la suppression ci-dessous : un admin qui se
+  // rétrograde lui-même (ex. "Repasser agent" sur sa propre ligne) pourrait
+  // se retrouver verrouillé hors de cette page s'il était le seul admin —
+  // déjà vécu par le passé avec le bootstrap "premier compte = admin".
+  if (req.params.id === req.utilisateur.id) {
+    return res.status(400).json({ error: "Vous ne pouvez pas modifier le rôle de votre propre compte." });
+  }
   const utilisateur = trouverUtilisateurParId(req.params.id);
   if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
   const etaitEnAttente = utilisateur.statut === "en_attente";
