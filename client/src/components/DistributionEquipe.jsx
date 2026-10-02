@@ -8,7 +8,7 @@ import { trierPersonnes } from "./SelecteurPersonne.jsx";
 // QUELLES fiches (Nouveau, NRP 1, NRP 2…), À QUI (toute l'équipe ou des
 // personnes cherchées par leur nom) et COMBIEN par personne. Les fiches NRP /
 // À relancer… redistribuées repartent en « Nouveau » chez leur nouvel agent.
-export default function DistributionEquipe({ onDistribue }) {
+export default function DistributionEquipe({ onDistribue, donnees }) {
   const { utilisateur } = useAuth();
   const [apercu, setApercu] = useState([]);
   const [statut, setStatut] = useState("nouveau");
@@ -29,11 +29,22 @@ export default function DistributionEquipe({ onDistribue }) {
       .catch(() => {});
   }
   useEffect(() => {
-    chargerApercu();
     api
       .listUtilisateurs()
       .then((l) => setEquipe(l.filter((u) => u.statut === "valide")))
       .catch(() => {});
+  }, []);
+
+  // Nombre de fiches par statut toujours à jour : une fiche passée en NRP 2
+  // (par un agent ou ailleurs) doit apparaître ici sans recharger la page —
+  // sinon « NRP 2 — 0 dispo. » restait affiché et le bouton grisé. Rechargé à
+  // chaque mise à jour du tableau de bord (`donnees`) et toutes les 30 s.
+  useEffect(() => {
+    chargerApercu();
+  }, [donnees]);
+  useEffect(() => {
+    const id = setInterval(chargerApercu, 30000);
+    return () => clearInterval(id);
   }, []);
 
   const nom = (u) => [u.prenom, u.nom].filter(Boolean).join(" ") || u.email;
@@ -101,7 +112,7 @@ export default function DistributionEquipe({ onDistribue }) {
 
         <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
           Fiches à distribuer
-          <select value={statut} onChange={(e) => setStatut(e.target.value)} className={champ}>
+          <select value={statut} onChange={(e) => setStatut(e.target.value)} onFocus={chargerApercu} className={champ}>
             {(apercu.length ? apercu : [{ statut: "nouveau", label: "Nouveau (non assignées)", disponibles: "…" }]).map((a) => (
               <option key={a.statut} value={a.statut}>
                 {a.label} — {a.disponibles} dispo.

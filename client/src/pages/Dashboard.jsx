@@ -464,7 +464,7 @@ export default function Dashboard() {
         <div className="mb-4">
           <EnrichissementTelephones manquants={nbSansTelephone} onMaj={charger} />
           <ImportLot categories={categories} agents={agentsAssignables} moiId={utilisateur?.id} lots={lots} lotsParSecteur={lotsParSecteur} onImporte={charger} />
-          <DistributionEquipe onDistribue={() => {
+          <DistributionEquipe donnees={toutesEntreprises} onDistribue={() => {
             charger();
             setVersionDistributions((v) => v + 1);
           }} />
