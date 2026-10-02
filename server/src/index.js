@@ -2697,20 +2697,19 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   ].filter(Boolean);
   // `testVersMoi` : aperçu réel envoyé à l'adresse du compte connecté
   // (jamais une adresse arbitraire), sans rien inscrire sur la fiche.
-  // Fiche encore sans adresse valide : la fenêtre d'envoi (GenererEmailModal)
-  // permet de saisir celle de l'entreprise, qui devient ensuite son adresse
-  // principale — elle est acceptée si son format est correct.
+  // Adresse tapée par l'agent dans la boîte mail (fiche sans e-mail, ou
+  // « Autre adresse… ») : acceptée si son format est correct, puis
+  // enregistrée sur la fiche après l'envoi (principale si la fiche n'en a
+  // pas, sinon secondaire).
   const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const aucuneAdresseConnue = !emailsConnus.some((e) => EMAIL_VALIDE.test(e));
-  const premiereAdresse =
-    aucuneAdresseConnue && typeof destinataire === "string" && EMAIL_VALIDE.test(destinataire.trim())
-      ? destinataire.trim()
-      : null;
+  const saisie = typeof destinataire === "string" ? destinataire.trim() : "";
+  const nouvelleAdresse =
+    saisie && EMAIL_VALIDE.test(saisie) && !emailsConnus.some((e) => e.toLowerCase() === saisie.toLowerCase()) ? saisie : null;
   const destinataireFinal = testVersMoi
     ? req.utilisateur.email
     : destinataire && emailsConnus.includes(destinataire)
       ? destinataire
-      : premiereAdresse || (EMAIL_VALIDE.test(entreprise.contact?.email || "") ? entreprise.contact.email : null);
+      : nouvelleAdresse || (EMAIL_VALIDE.test(entreprise.contact?.email || "") ? entreprise.contact.email : null);
   if (!destinataireFinal) {
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
   }
@@ -2813,10 +2812,9 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     dureeSecondes: null,
   });
   entreprise.statut = "mail";
-  if (copiesEnvoi.length) {
-    entreprise.contact = entreprise.contact || {};
-    for (const adresse of copiesEnvoi) ajouterEmailFiche(entreprise.contact, adresse, "Ajoutée en copie d'un mail");
-  }
+  entreprise.contact = entreprise.contact || {};
+  if (nouvelleAdresse) ajouterEmailFiche(entreprise.contact, nouvelleAdresse, "Ajoutée depuis la boîte mail");
+  for (const adresse of copiesEnvoi) ajouterEmailFiche(entreprise.contact, adresse, "Ajoutée en copie d'un mail");
 
   await db.write();
   res.json(enrichir(entreprise));

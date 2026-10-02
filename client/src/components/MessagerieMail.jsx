@@ -13,6 +13,9 @@ import { estAdmin } from "../roles.js";
 // Toutes les adresses connues pour cette entreprise (principale + alternatifs
 // gérés dans "Informations structure" — voir GestionEmails.jsx), pour le
 // sélecteur de destinataire ci-dessous.
+const AUTRE_ADRESSE = "__autre__";
+const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function destinatairesDisponibles(entreprise) {
   const contact = entreprise.contact || {};
   const liste = [];
@@ -49,20 +52,27 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [erreurGeneration, setErreurGeneration] = useState(null);
   const destinataires = destinatairesDisponibles(entreprise);
   const [destinataire, setDestinataire] = useState(entreprise.contact?.email || destinataires[0]?.email || "");
+  // Adresse tapée directement ici (fiche sans e-mail, ou « Autre adresse… ») :
+  // enregistrée sur la fiche à l'envoi, sans repasser par "Informations
+  // structure".
+  const [autreAdresse, setAutreAdresse] = useState("");
+  const saisieLibre = destinataires.length === 0 || destinataire === AUTRE_ADRESSE;
+  const destinataireEffectif = saisieLibre ? autreAdresse.trim() : destinataire;
   // Copie (CC) : autres adresses de la fiche cochées + adresses saisies
   // (données par l'interlocuteur), séparées par des virgules.
   const [copiesCochees, setCopiesCochees] = useState([]);
   const [copiesSaisies, setCopiesSaisies] = useState("");
   const copies = [
-    ...copiesCochees.filter((a) => a !== destinataire && destinataires.some((d) => d.email === a)),
-    ...copiesSaisies.split(/[s,;]+/).map((a) => a.trim()).filter(Boolean),
+    ...copiesCochees.filter((a) => a !== destinataireEffectif && destinataires.some((d) => d.email === a)),
+    ...copiesSaisies.split(/[\s,;]+/).map((a) => a.trim()).filter(Boolean),
   ];
+  const [adressesEnregistrees, setAdressesEnregistrees] = useState(null);
 
   // Reste sur l'adresse choisie tant qu'elle existe toujours dans la liste ;
   // ne revient sur la principale que si elle a disparu (fiche changée,
   // adresse retirée dans "Informations structure" pendant que ce fil est ouvert).
   useEffect(() => {
-    if (!destinataires.some((d) => d.email === destinataire)) {
+    if (destinataire !== AUTRE_ADRESSE && !destinataires.some((d) => d.email === destinataire)) {
       setDestinataire(entreprise.contact?.email || destinataires[0]?.email || "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,13 +166,26 @@ export default function MessagerieMail({ entreprise, onMaj }) {
 
   async function envoyer(ev) {
     ev.preventDefault();
-    if (!objet.trim() || !corps.trim() || !destinataire) return;
+    if (!objet.trim() || !corps.trim() || !destinataireEffectif) return;
+    const invalide = [destinataireEffectif, ...copies].find((a) => !EMAIL_VALIDE.test(a));
+    if (invalide) return setErreur(`Adresse invalide : ${invalide}`);
     setEnvoiEnCours(true);
     setErreur(null);
     try {
-      const updated = await appelEnvoi({ objet, corps, joindrePdf, destinataire, formatOfficiel, cc: copies });
+      const updated = await appelEnvoi({
+        objet,
+        corps,
+        joindrePdf,
+        destinataire: destinataireEffectif,
+        formatOfficiel,
+        cc: copies,
+      });
       onMaj(updated);
-      setToastEnvoi(`E-mail envoyé à ${destinataire}${copies.length ? ` (+ ${copies.length} en copie)` : ""}.`);
+      setToastEnvoi(
+        `E-mail envoyé à ${destinataireEffectif}${copies.length ? ` (+ ${copies.length} en copie)` : ""} — adresses enregistrées sur la fiche.`
+      );
+      setDestinataire(destinataireEffectif);
+      setAutreAdresse("");
       setObjet("");
       setCorps("");
       setCopiesCochees([]);
@@ -172,6 +195,44 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       setErreur(e.message);
     } finally {
       setEnvoiEnCours(false);
+    }
+  }
+
+  // Enregistre sur la fiche les adresses tapées ici (destinataire + copies),
+  // sans envoyer : la première devient l'adresse principale si la fiche n'en
+  // a pas encore, les autres vont dans les adresses secondaires.
+  async function enregistrerAdresses() {
+    const contact = { ...(entreprise.contact || {}) };
+    const connues = new Set(destinataires.map((d) => d.email.toLowerCase()));
+    const nouvelles = [...(saisieLibre ? [destinataireEffectif] : []), ...copiesSaisies.split(/[\s,;]+/).map((a) => a.trim())]
+      .filter(Boolean)
+      .filter((a, i, l) => l.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i)
+      .filter((a) => !connues.has(a.toLowerCase()));
+    if (nouvelles.length === 0) return setErreur("Aucune nouvelle adresse à enregistrer.");
+    const invalide = nouvelles.find((a) => !EMAIL_VALIDE.test(a));
+    if (invalide) return setErreur(`Adresse invalide : ${invalide}`);
+    const restantes = [...nouvelles];
+    if (!contact.email) contact.email = restantes.shift();
+    contact.emailsAlternatifs = [
+      ...(contact.emailsAlternatifs || []),
+      ...restantes.map((email) => ({
+        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${email}`,
+        email,
+        note: "Ajoutée depuis la boîte mail",
+        dateAjout: new Date().toISOString(),
+      })),
+    ];
+    setErreur(null);
+    try {
+      const updated = await api.patchEntreprise(entreprise.id, { contact });
+      onMaj(updated);
+      if (saisieLibre) setDestinataire(destinataireEffectif);
+      setAutreAdresse("");
+      setCopiesCochees((l) => [...l, ...nouvelles.filter((a) => a !== destinataireEffectif)]);
+      setCopiesSaisies("");
+      setAdressesEnregistrees(nouvelles.length);
+    } catch (e) {
+      setErreur(e.message);
     }
   }
 
@@ -207,27 +268,38 @@ export default function MessagerieMail({ entreprise, onMaj }) {
 
       {ouvert && (
       <div className="mt-3">
-      {destinataires.length > 0 ? (
-        <label className="flex items-center gap-2 mb-4 text-xs text-slate-500 dark:text-slate-400">
-          Destinataire
+      <div className="flex flex-wrap items-center gap-2 mb-4 text-xs text-slate-500 dark:text-slate-400">
+        <span>Destinataire</span>
+        {destinataires.length > 0 && (
           <select
             value={destinataire}
             onChange={(e) => setDestinataire(e.target.value)}
-            className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
+            className="flex-1 min-w-[12rem] rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
           >
             {destinataires.map((d) => (
               <option key={d.email} value={d.email}>
                 {d.email} — {d.label}
               </option>
             ))}
+            <option value={AUTRE_ADRESSE}>✏️ Autre adresse (la taper)…</option>
           </select>
-        </label>
-      ) : null}
-      {destinataires.length > 0 && (
+        )}
+        {saisieLibre && (
+          <input
+            type="email"
+            value={autreAdresse}
+            onChange={(e) => setAutreAdresse(e.target.value)}
+            placeholder="Adresse du destinataire (ex : contact@entreprise.fr)"
+            autoFocus={destinataires.length > 0}
+            className="flex-1 min-w-[14rem] rounded-lg border border-marine-300 dark:border-marine-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
+          />
+        )}
+      </div>
+      {(
         <div className="mb-4 -mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
           <span>Copie (CC)</span>
           {destinataires
-            .filter((d) => d.email !== destinataire)
+            .filter((d) => d.email !== destinataireEffectif)
             .map((d) => (
               <label key={d.email} className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300">
                 <input
@@ -247,12 +319,24 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             placeholder="Autres adresses, séparées par une virgule"
             className="min-w-[14rem] flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
           />
+          <span className="w-full flex flex-wrap items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
+            Les nouvelles adresses sont enregistrées sur la fiche à l'envoi.
+            {((saisieLibre && destinataireEffectif) || copiesSaisies.trim()) && (
+              <button
+                type="button"
+                onClick={enregistrerAdresses}
+                className="rounded-full border border-marine-300 dark:border-marine-700 px-2 py-0.5 text-marine-700 dark:text-marine-300 hover:bg-marine-50 dark:hover:bg-marine-900/40"
+              >
+                💾 Les enregistrer maintenant, sans envoyer
+              </button>
+            )}
+            {adressesEnregistrees && (
+              <span className="text-emerald-600 dark:text-emerald-400">
+                ✓ {adressesEnregistrees} adresse{adressesEnregistrees > 1 ? "s" : ""} enregistrée{adressesEnregistrees > 1 ? "s" : ""}.
+              </span>
+            )}
+          </span>
         </div>
-      )}
-      {destinataires.length === 0 && (
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-          Aucune adresse mail connue — ajoutez-en une dans "Informations structure".
-        </p>
       )}
 
       {statutMail && !statutMail.configuree && (
@@ -302,8 +386,8 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       <form onSubmit={envoyer} className="space-y-2 pt-3 border-t border-marine-100 dark:border-marine-900/30">
           {destinataires.length === 0 && (
             <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-lg p-2">
-              Aucun e-mail connu pour ce contact — générez un brouillon dès maintenant, puis ajoutez une adresse dans
-              "Informations structure" pour pouvoir l'envoyer.
+              Aucun e-mail connu pour ce contact : tapez son adresse dans « Destinataire » ci-dessus, elle sera
+              enregistrée sur la fiche à l'envoi.
             </p>
           )}
           {modeles?.modeles?.length > 0 && (
@@ -380,7 +464,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           </button>
           <button
             type="submit"
-            disabled={!objet.trim() || !corps.trim() || !destinataire || envoiEnCours || statutMail?.configuree === false}
+            disabled={!objet.trim() || !corps.trim() || !destinataireEffectif || envoiEnCours || statutMail?.configuree === false}
             className="rounded-lg bg-marine-600 hover:bg-marine-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
             {envoiEnCours ? "Envoi…" : "Envoyer (signé Pôle OETH / AGEFIPH)"}

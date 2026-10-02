@@ -78,7 +78,23 @@ export default function GestionEmails({ entreprise, onMaj }) {
   }
 
   function retirer(alt) {
+    if (!window.confirm(`Supprimer l'adresse ${alt.email} de la fiche ?`)) return;
     sauvegarderContact({ emailsAlternatifs: alternatifs.filter((a) => a.id !== alt.id) });
+  }
+
+  // Adresse principale ajoutée par erreur : la première adresse secondaire
+  // (s'il y en a une) devient la principale.
+  async function retirerPrincipal() {
+    if (!contact.email) return;
+    const [suivante, ...autres] = alternatifs;
+    if (
+      !window.confirm(
+        `Supprimer l'adresse principale ${contact.email} ?${suivante ? `\n${suivante.email} deviendra l'adresse principale.` : ""}`
+      )
+    )
+      return;
+    const updated = await sauvegarderContact({ email: suivante?.email || null, emailsAlternatifs: autres });
+    if (updated) setEmailPrincipal(suivante?.email || "");
   }
 
   return (
@@ -101,6 +117,17 @@ export default function GestionEmails({ entreprise, onMaj }) {
         >
           Enregistrer
         </button>
+        {estAdminConnecte && contact.email && (
+          <button
+            type="button"
+            onClick={retirerPrincipal}
+            disabled={enCours}
+            title="Supprimer cette adresse de la fiche"
+            className="rounded-lg border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 text-xs font-medium px-2.5 py-[7px] hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40"
+          >
+            Supprimer
+          </button>
+        )}
       </form>
 
       {alternatifs.length > 0 && (
