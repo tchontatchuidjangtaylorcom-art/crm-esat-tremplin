@@ -156,7 +156,23 @@ export default function Dashboard() {
   const [nbArchivees, setNbArchivees] = useState(0);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState(null);
-  const [filtreStatut, setFiltreStatut] = useState(null);
+  // Statut choisi (Nouveau, NRP 1…) gardé après un rafraîchissement de la page.
+  const [filtreStatut, setFiltreStatutState] = useState(() => {
+    try {
+      return localStorage.getItem("crm-filtre-statut") || null;
+    } catch {
+      return null;
+    }
+  });
+  function setFiltreStatut(valeur) {
+    setFiltreStatutState(valeur);
+    try {
+      if (valeur) localStorage.setItem("crm-filtre-statut", valeur);
+      else localStorage.removeItem("crm-filtre-statut");
+    } catch {
+      // stockage indisponible : le choix vaut pour la session en cours
+    }
+  }
   const [filtreCategorie, setFiltreCategorie] = useState("");
   const [filtreLot, setFiltreLot] = useState("");
   const [prioritairesUniquement, setPrioritairesUniquement] = useState(true);
@@ -230,6 +246,23 @@ export default function Dashboard() {
       window.removeEventListener("entreprise:archivee", onArchive);
     };
   }, []);
+
+  // Retour sur l'onglet du tableau de bord (après avoir traité des fiches dans
+  // d'autres onglets) : rechargement silencieux, filtres conservés — rattrape
+  // aussi les changements faits par un collègue ou un administrateur.
+  useEffect(() => {
+    let cache = 0;
+    function auRetour() {
+      if (document.visibilityState !== "visible") {
+        cache = Date.now();
+        return;
+      }
+      if (cache && Date.now() - cache > 3000) charger();
+    }
+    document.addEventListener("visibilitychange", auRetour);
+    return () => document.removeEventListener("visibilitychange", auRetour);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commeAgentId]);
 
   // Retire de la sélection toute entreprise qui n'est plus dans la liste
   // active (archivée, réassignée hors de vue en Mode Manager…) — la

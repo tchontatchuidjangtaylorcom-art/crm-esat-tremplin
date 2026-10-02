@@ -21,16 +21,40 @@ function chargerModeInitial() {
 }
 
 // Diffuse une entreprise mise à jour à toutes les pages ouvertes (Dashboard,
-// fiche entreprise), sans dépendance ajoutée : un simple événement DOM suffit
-// pour ce volume d'écrans.
+// fiche entreprise) : un événement DOM dans l'onglet courant, et le même
+// message aux AUTRES onglets du CRM (BroadcastChannel) — une fiche ouverte
+// dans un nouvel onglet et passée en NRP met donc à jour le tableau de bord
+// resté ouvert dans le premier, sans le rafraîchir.
+let canalOnglets = null;
+try {
+  canalOnglets = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("crm-entreprises") : null;
+  if (canalOnglets) {
+    canalOnglets.onmessage = (ev) => {
+      const { type, entreprise } = ev.data || {};
+      if (type && entreprise) window.dispatchEvent(new CustomEvent(type, { detail: entreprise }));
+    };
+  }
+} catch {
+  canalOnglets = null;
+}
+
+function diffuser(type, entreprise) {
+  window.dispatchEvent(new CustomEvent(type, { detail: entreprise }));
+  try {
+    canalOnglets?.postMessage({ type, entreprise });
+  } catch {
+    // message non transmissible : les autres onglets se mettront à jour au retour
+  }
+}
+
 export function diffuserEntrepriseMaj(entreprise) {
-  window.dispatchEvent(new CustomEvent("entreprise:maj", { detail: entreprise }));
+  diffuser("entreprise:maj", entreprise);
 }
 
 // Diffusé quand un dossier passe "mort" et est archivé côté serveur : le
 // tableau de bord doit le retirer de la liste active plutôt que le mettre à jour.
 export function diffuserEntrepriseArchivee(entreprise) {
-  window.dispatchEvent(new CustomEvent("entreprise:archivee", { detail: entreprise }));
+  diffuser("entreprise:archivee", entreprise);
 }
 
 export function CallProvider({ children }) {
