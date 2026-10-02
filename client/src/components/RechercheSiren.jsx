@@ -4,10 +4,12 @@ import { STATUTS } from "../constants.js";
 
 // Recherche d'entreprise sur tout le CRM (fiches actives et archivées, quels
 // que soient les filtres du tableau) : par nom, même approximatif (fautes de
-// frappe tolérées), par SIRET/SIREN ou par numéro de téléphone. Les résultats
-// s'affichent pendant la frappe ; un clic ouvre la fiche dans un nouvel
-// onglet. Un SIREN/SIRET inconnu du CRM peut toujours créer le lead depuis le
-// répertoire Sirene (INSEE), comme avant.
+// frappe tolérées), par SIRET/SIREN, par numéro de téléphone, ou par adresse
+// e-mail (principale ou alternative — utile pour retrouver la fiche à partir
+// d'un mail reçu d'un contact, sans connaître le nom de l'entreprise). Les
+// résultats s'affichent pendant la frappe ; un clic ouvre la fiche dans un
+// nouvel onglet. Un SIREN/SIRET inconnu du CRM peut toujours créer le lead
+// depuis le répertoire Sirene (INSEE), comme avant.
 
 const MAX_RESULTATS = 8;
 
@@ -68,12 +70,32 @@ function indexer(e, archivee) {
     .filter(Boolean)
     .map(chiffresTelephone)
     .filter((d) => d.length >= 6);
+  // Un agent retrouve souvent une fiche à partir d'un mail reçu (réponse
+  // d'un contact) plutôt qu'à partir du nom de l'entreprise — indexe aussi
+  // l'adresse principale ET les adresses alternatives (voir GestionEmails.jsx).
+  const emails = [e.contact?.email, ...(e.contact?.emailsAlternatifs || []).map((a) => a.email)]
+    .filter(Boolean)
+    .map((a) => a.toLowerCase().trim());
   const nom = normaliser(e.nom);
-  return { e, archivee, nom, mots: nom.split(" ").filter(Boolean), siret: String(e.siret || "").replace(/\D/g, ""), telephones };
+  return {
+    e,
+    archivee,
+    nom,
+    mots: nom.split(" ").filter(Boolean),
+    siret: String(e.siret || "").replace(/\D/g, ""),
+    telephones,
+    emails,
+  };
 }
 
 function scorer(entree, requete) {
   const brut = requete.trim();
+  if (brut.includes("@")) {
+    const q = brut.toLowerCase();
+    if (entree.emails.includes(q)) return 100;
+    if (q.length >= 3 && entree.emails.some((m) => m.includes(q))) return 70;
+    return 0;
+  }
   const chiffres = brut.replace(/\D/g, "");
   const estNumerique = chiffres.length >= 4 && /^[\d\s.+()/-]+$/.test(brut);
   if (estNumerique) {
@@ -177,7 +199,7 @@ export default function RechercheSiren({
       type: "error",
       texte: saisie.trim()
         ? "Aucune entreprise trouvée dans le CRM. Pour créer un lead, saisissez son SIREN (9 chiffres) ou SIRET (14 chiffres)."
-        : "Tapez un nom d'entreprise, un SIRET ou un numéro de téléphone.",
+        : "Tapez un nom d'entreprise, un SIRET, un numéro de téléphone ou une adresse e-mail.",
     });
   }
 
@@ -221,7 +243,7 @@ export default function RechercheSiren({
         </svg>
         <input
           type="search"
-          placeholder="Rechercher une entreprise : nom, SIRET ou téléphone (ou SIREN pour créer un lead)"
+          placeholder="Rechercher une entreprise : nom, SIRET, téléphone ou e-mail (ou SIREN pour créer un lead)"
           aria-label="Rechercher une entreprise"
           value={saisie}
           onChange={(e) => {
@@ -269,6 +291,7 @@ export default function RechercheSiren({
                         [e.codePostal, e.ville].filter(Boolean).join(" "),
                         e.siret ? `SIRET ${e.siret}` : null,
                         e.contact?.telephone ? `☎ ${e.contact.telephone}` : null,
+                        e.contact?.email ? `✉️ ${e.contact.email}` : null,
                         e.assigneANom ? `👤 ${e.assigneANom}` : "Non assigné",
                       ]
                         .filter(Boolean)
