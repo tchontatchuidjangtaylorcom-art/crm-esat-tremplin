@@ -398,6 +398,31 @@ export default function Dashboard() {
     return liste;
   }, [entreprises, filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche, tri]);
 
+  // Recherche en bas : combien d'entreprises correspondent au texte mais sont
+  // cachées par un filtre (statut « Nouveau » gardé, secteur, vague,
+  // prioritaires, territoire, « Mes leads »).
+  const nbMasquesParFiltres = useMemo(() => {
+    if (!recherche.trim()) return 0;
+    return toutesEntreprises.filter((e) => correspondRecherche(e, recherche)).length - entreprisesFiltrees.length;
+  }, [toutesEntreprises, entreprisesFiltrees, recherche]);
+
+  function retirerFiltres() {
+    setFiltreStatut(null);
+    setFiltreCategorie("");
+    setFiltreLot("");
+    setPrioritairesUniquement(false);
+    setTerritoire("tous");
+    if (estAdmin && !commeAgentId) setPerimetre("tous");
+  }
+
+  // « Afficher dans la liste » depuis la recherche du haut : la fiche apparaît
+  // dans le tableau (filtres retirés), pour l'assigner ou la traiter sur place.
+  function afficherDansListe(e) {
+    retirerFiltres();
+    setRecherche(e.siret || e.nom);
+    setTimeout(() => document.getElementById("liste-entreprises")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+
   const nbPages = Math.max(1, Math.ceil(entreprisesFiltrees.length / tailleParPage));
   const pageCourante = Math.min(page, nbPages);
   const entreprisesPage = useMemo(
@@ -547,6 +572,9 @@ export default function Dashboard() {
           <RechercheSiren
             entreprises={toutesEntreprises}
             archives={archives}
+            agents={estAdmin && !commeAgentId ? agentsAssignables : null}
+            onAssigner={assignerEntreprise}
+            onAfficherDansListe={afficherDansListe}
             onEntreprise={(entreprise, existant, archive) => {
               if (archive) {
                 setNbArchivees((n) => n + (existant ? 0 : 1));
@@ -609,7 +637,22 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          {nbMasquesParFiltres > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-2 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+              🔎 {nbMasquesParFiltres} autre{nbMasquesParFiltres > 1 ? "s" : ""} entreprise{nbMasquesParFiltres > 1 ? "s" : ""} correspond
+              {nbMasquesParFiltres > 1 ? "ent" : ""} à « {recherche.trim()} » mais {nbMasquesParFiltres > 1 ? "sont cachées" : "est cachée"} par les
+              filtres{filtreStatut ? ` (statut : ${filtreStatut})` : ""}.
+              <button
+                type="button"
+                onClick={retirerFiltres}
+                className="rounded-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium px-3 py-1"
+              >
+                Tout afficher
+              </button>
+            </div>
+          )}
+
+          <div id="liste-entreprises" className="flex flex-wrap items-center justify-between gap-2 mb-2 scroll-mt-20">
             <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
               Entreprises
               {filtreStatut ? ` — statut : ${filtreStatut}` : ""}

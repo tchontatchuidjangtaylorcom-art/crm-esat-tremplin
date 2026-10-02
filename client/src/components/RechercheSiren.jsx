@@ -96,7 +96,19 @@ function scorer(entree, requete) {
   return 30 + (scores.reduce((a, b) => a + b, 0) / termes.length) * 10;
 }
 
-export default function RechercheSiren({ onEntreprise, entreprises = [], archives = [] }) {
+// Un clic sur un résultat ouvre d'abord un petit panneau sur place : ouvrir
+// la fiche (nouvel onglet), l'afficher dans la liste du tableau de bord, ou —
+// administrateur — l'assigner directement à quelqu'un (`agents`).
+export default function RechercheSiren({
+  onEntreprise,
+  entreprises = [],
+  archives = [],
+  agents = null,
+  onAssigner,
+  onAfficherDansListe,
+}) {
+  const [detail, setDetail] = useState(null);
+  const [infoAssignation, setInfoAssignation] = useState(null);
   const [saisie, setSaisie] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [message, setMessage] = useState(null);
@@ -154,7 +166,12 @@ export default function RechercheSiren({ onEntreprise, entreprises = [], archive
 
   function soumettre(ev) {
     ev.preventDefault();
-    if (resultats[selection]) return ouvrirFiche(resultats[selection].entree.e.id);
+    if (resultats[selection]) {
+      // Entrée : panneau d'actions du résultat sélectionné.
+      const id = resultats[selection].entree.e.id;
+      setOuvert(true);
+      return setDetail((d) => (d === id ? null : id));
+    }
     if (proposerCreation) return creerDepuisSirene();
     setMessage({
       type: "error",
@@ -229,7 +246,10 @@ export default function RechercheSiren({ onEntreprise, entreprises = [], archive
                   <button
                     type="button"
                     onMouseDown={(ev) => ev.preventDefault()}
-                    onClick={() => ouvrirFiche(e.id)}
+                    onClick={() => {
+                      setInfoAssignation(null);
+                      setDetail((d) => (d === e.id ? null : e.id));
+                    }}
                     onMouseEnter={() => setSelection(i)}
                     className={`w-full text-left px-3 py-2 ${i === selection ? "bg-marine-50 dark:bg-marine-900/40" : "hover:bg-slate-50 dark:hover:bg-slate-700/50"}`}
                   >
@@ -255,6 +275,58 @@ export default function RechercheSiren({ onEntreprise, entreprises = [], archive
                         .join(" · ")}
                     </div>
                   </button>
+                  {detail === e.id && (
+                    <div className="flex flex-wrap items-center gap-2 px-3 pb-2.5 pt-1 bg-marine-50/60 dark:bg-marine-900/20 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => ouvrirFiche(e.id)}
+                        className="rounded-lg bg-marine-700 hover:bg-marine-800 text-white font-medium px-3 py-1.5"
+                      >
+                        ↗ Ouvrir la fiche
+                      </button>
+                      {!entree.archivee && onAfficherDansListe && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onAfficherDansListe(e);
+                            setOuvert(false);
+                          }}
+                          className="rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-3 py-1.5 hover:bg-white dark:hover:bg-slate-700"
+                        >
+                          📋 Afficher dans la liste
+                        </button>
+                      )}
+                      {!entree.archivee && agents && onAssigner && (
+                        <label className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                          Assigner à
+                          <select
+                            value={e.assigneA || ""}
+                            onChange={async (ev) => {
+                              const id = ev.target.value || null;
+                              const nom = agents.find((a) => a.id === id);
+                              try {
+                                await onAssigner(e.id, id);
+                                setInfoAssignation(
+                                  id ? `✓ Attribuée à ${nom ? nom.prenom || nom.email : "?"}` : "✓ Fiche retirée"
+                                );
+                              } catch (err) {
+                                setInfoAssignation(`Erreur : ${err.message}`);
+                              }
+                            }}
+                            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-700 dark:text-slate-200"
+                          >
+                            <option value="">Non assigné</option>
+                            {agents.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.role === null ? a.prenom : [a.prenom, a.nom].filter(Boolean).join(" ") || a.email}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {infoAssignation && <span className="text-emerald-700 dark:text-emerald-400">{infoAssignation}</span>}
+                    </div>
+                  )}
                 </li>
               );
             })}
