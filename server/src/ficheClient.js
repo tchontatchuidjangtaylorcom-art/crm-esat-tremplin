@@ -14,7 +14,8 @@ import crypto from "crypto";
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, adresseMailPole, telephonePole } from "./mail.js";
-import { calculerObligationOeth } from "./oeth.js";
+import { calculerObligationOeth, simulerContributionOeth, smicPourExercice, exerciceParDefaut } from "./oeth.js";
+import { lienRendezVousClient } from "./vitrineRdv.js";
 import { determinerCollecteur } from "./secteurs.js";
 import { SITE_URL } from "./seo.js";
 
@@ -38,13 +39,40 @@ function ficheParJeton(jeton) {
 }
 
 // Ce que voit le client : jamais plus que ses propres chiffres.
-function resume(entreprise, effectif = entreprise.effectif, rqth = entreprise.effectifBeneficiaire) {
+// Aucun bénéficiaire : depuis quand ? La surcontribution s'applique quand
+// l'entreprise n'a employé aucun bénéficiaire (ni sous-traité suffisamment)
+// sur les 4 dernières années : pour l'exercice 2026, à 0 depuis 2023 ou
+// avant → surcontribution ; depuis 2024 ou plus récemment → contribution
+// classique. « Je ne sais pas » → contribution classique (à vérifier avec le
+// conseiller).
+export const DEPUIS_ZERO = {
+  recent: "Depuis 2024 ou plus récemment",
+  2023: "Depuis 2023",
+  avant: "Avant 2023 (ou jamais)",
+  inconnu: "Ne sait pas",
+};
+const surcontributionSelon = (depuisZero) => (depuisZero === "2023" || depuisZero === "avant" ? true : depuisZero ? false : null);
+
+function resume(entreprise, effectif = entreprise.effectif, rqth = entreprise.effectifBeneficiaire, depuisZero = null) {
   const collecteur = determinerCollecteur(entreprise);
   const oeth = calculerObligationOeth({
     effectif: Number(effectif) || 0,
     effectifBeneficiaire: Number(rqth) || 0,
     dateCreation: entreprise.dateCreation,
   });
+  // Réponse « depuis quand à 0 » : recalcul avec la surcontribution décidée.
+  const decision = Number(rqth) === 0 ? surcontributionSelon(depuisZero) : null;
+  if (decision !== null && oeth.assujetti && !oeth.neutralisation?.neutralise) {
+    const exercice = exerciceParDefaut();
+    const sim = simulerContributionOeth({
+      effectif: Number(effectif) || 0,
+      boeth: 0,
+      smicHoraire: smicPourExercice(exercice),
+      surcontributionDeclaree: decision,
+    });
+    oeth.montantEstime = Math.round(sim.contributionNette);
+    oeth.surcontribution = sim.surcontribution;
+  }
   return {
     collecteur,
     assujetti: oeth.assujetti,
@@ -177,7 +205,8 @@ export function enregistrerRoutesFicheClient(
     const effectif = entier(req.query.effectif);
     const rqth = entier(req.query.rqth);
     if (effectif === null || rqth === null) return res.status(400).json({ error: "Nombres invalides." });
-    res.json(resume(entreprise, effectif, rqth));
+    const depuisZero = DEPUIS_ZERO[req.query.depuisZero] ? String(req.query.depuisZero) : null;
+    res.json(resume(entreprise, effectif, rqth, depuisZero));
   });
 
   app.post("/api/vitrine/ma-fiche/:jeton", async (req, res) => {
@@ -207,16 +236,23 @@ export function enregistrerRoutesFicheClient(
     const maintenant = new Date().toISOString();
     entreprise.effectif = effectif;
     entreprise.effectifBeneficiaire = rqth;
-    entreprise.confirmationClient = { date: maintenant, effectif, rqth, nom, fonction, commentaire, avant, vuPar: [] };
+    const depuisZero = rqth === 0 && DEPUIS_ZERO[b.depuisZero] ? String(b.depuisZero) : null;
+    const telephone = String(b.telephone || "").trim().slice(0, 30);
+    entreprise.confirmationClient = { date: maintenant, effectif, rqth, depuisZero, nom, fonction, telephone, commentaire, avant, vuPar: [] };
+    if (telephone) {
+      entreprise.contact = entreprise.contact || {};
+      if (!entreprise.contact.telephone) entreprise.contact.telephone = telephone;
+    }
     entreprise.ficheClient.historique = [{ date: maintenant, effectif, rqth, nom }, ...(entreprise.ficheClient.historique || [])].slice(0, 50);
 
-    const calcul = resume(entreprise);
+    const calcul = resume(entreprise, effectif, rqth, depuisZero);
     const changement = (a, b2) => (a === b2 ? `${b2}` : `${b2} (avant : ${a ?? "non renseigné"})`);
     const ligne =
       `✅ Fiche confirmée par le client — ${nom}${fonction ? `, ${fonction}` : ""} : effectif ${changement(avant.effectif, effectif)}, ` +
       `bénéficiaires RQTH ${changement(avant.rqth, rqth)} → ${calcul.unitesManquantes} unité(s) manquante(s)` +
       (calcul.montantEstime != null ? `, contribution estimée ${calcul.montantEstime.toLocaleString("fr-FR")} €` : "") +
-      `.${commentaire ? ` Message : ${commentaire}` : ""}`;
+      `.${depuisZero ? ` Aucun bénéficiaire : ${DEPUIS_ZERO[depuisZero].toLowerCase()}${calcul.surcontribution ? " (surcontribution)" : ""}.` : ""}` +
+      `${telephone ? ` Téléphone : ${telephone}.` : ""}${commentaire ? ` Message : ${commentaire}` : ""}`;
     entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
     entreprise.commentaires.unshift({ id: nanoid(), date: maintenant, auteur: "Client", texte: ligne });
     await db.write();
@@ -236,7 +272,11 @@ export function enregistrerRoutesFicheClient(
         console.error(`[fiche-client] Échec de l'e-mail à ${to} :`, e.message);
       }
     }
-    res.json({ ok: true, calcul });
+    // Lien de prise de rendez-vous de la fiche, proposé juste après la
+    // confirmation (la réservation prévient le CRM, voir vitrineRdv.js).
+    const rdv = lienRendezVousClient(entreprise);
+    if (rdv.cree) await db.write();
+    res.json({ ok: true, calcul, rdvUrl: new URL(rdv.url).pathname });
   });
 
   // « Recevoir mon lien » (lien perdu) : le client tape son e-mail ; s'il est

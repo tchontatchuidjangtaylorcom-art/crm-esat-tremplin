@@ -291,9 +291,9 @@ export const api = {
       body: JSON.stringify({ email }),
     }).then(handle),
   getMaFiche: (jeton) => fetch(`${BASE}/vitrine/ma-fiche/${encodeURIComponent(jeton)}`).then(handle),
-  calculMaFiche: (jeton, effectif, rqth) =>
+  calculMaFiche: (jeton, effectif, rqth, depuisZero = "") =>
     fetch(
-      `${BASE}/vitrine/ma-fiche/${encodeURIComponent(jeton)}/calcul?effectif=${encodeURIComponent(effectif)}&rqth=${encodeURIComponent(rqth)}`
+      `${BASE}/vitrine/ma-fiche/${encodeURIComponent(jeton)}/calcul?effectif=${encodeURIComponent(effectif)}&rqth=${encodeURIComponent(rqth)}&depuisZero=${encodeURIComponent(depuisZero)}`
     ).then(handle),
   confirmerMaFiche: (jeton, donnees) =>
     fetch(`${BASE}/vitrine/ma-fiche/${encodeURIComponent(jeton)}`, {

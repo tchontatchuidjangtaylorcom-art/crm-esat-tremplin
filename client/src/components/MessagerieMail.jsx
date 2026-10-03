@@ -64,6 +64,18 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   // pendant l'appel, et ouverture de la page client pour la tester.
   const [ficheClientEnCours, setFicheClientEnCours] = useState(false);
   const [ficheClientInfo, setFicheClientInfo] = useState(null);
+  // Lien de la page client préparé dès l'ouverture de la boîte mail : un vrai
+  // lien (et non un bouton qui ouvre un onglet après coup) s'ouvre toujours,
+  // sans être bloqué par le navigateur.
+  const [lienPageClient, setLienPageClient] = useState(null);
+  useEffect(() => {
+    if (!ouvert || lienPageClient) return;
+    api
+      .lienFicheClient(entreprise.id)
+      .then(({ url }) => setLienPageClient(new URL(url).pathname))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ouvert, entreprise.id]);
   // Copie (CC) : autres adresses de la fiche cochées + adresses saisies
   // (données par l'interlocuteur), séparées par des virgules.
   const [copiesCochees, setCopiesCochees] = useState([]);
@@ -408,13 +420,24 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         >
           🔗 Copier le lien
         </button>
-        <button
-          type="button"
-          onClick={voirPageClient}
-          className="rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-3 py-1.5 hover:bg-white dark:hover:bg-emerald-900/40"
-        >
-          👁 Voir la page client
-        </button>
+        {lienPageClient ? (
+          <a
+            href={lienPageClient}
+            target="_blank"
+            rel="noopener"
+            className="rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-3 py-1.5 hover:bg-white dark:hover:bg-emerald-900/40"
+          >
+            👁 Voir la page client
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={voirPageClient}
+            className="rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-3 py-1.5 hover:bg-white dark:hover:bg-emerald-900/40"
+          >
+            👁 Voir la page client
+          </button>
+        )}
         {entreprise.confirmationClient ? (
           <span className="text-emerald-800 dark:text-emerald-300">
             ✅ Confirmée par {entreprise.confirmationClient.nom} le {formatDateHeure(entreprise.confirmationClient.date)}
