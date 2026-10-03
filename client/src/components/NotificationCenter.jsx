@@ -44,8 +44,10 @@ export default function NotificationCenter() {
   const demandesAcces = data.demandesAcces || [];
   const demandesSite = data.demandesSite || [];
   const rdvClients = data.rdvClients || [];
+  const confirmationsClient = data.confirmationsClient || [];
   const total =
     rdvClients.length +
+    confirmationsClient.length +
     demandesSite.length +
     data.messagesNonLus +
     data.nouveauxLeads.length +
@@ -116,6 +118,24 @@ export default function NotificationCenter() {
                   </span>
                 </button>
               )}
+
+              {/* Fiches confirmées par le client (lien « Confirmer ma fiche »). */}
+              {confirmationsClient.map((c) => (
+                <button
+                  key={`confirmation-${c.id}`}
+                  onClick={() => {
+                    setOuvert(false);
+                    navigate(`/entreprise/${c.id}`);
+                  }}
+                  className="w-full text-left px-4 py-2.5 bg-emerald-50/70 dark:bg-emerald-950/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 flex items-center gap-2"
+                >
+                  <span aria-hidden>✅</span>
+                  <span className="text-emerald-800 dark:text-emerald-300 truncate">
+                    Fiche confirmée par le client : <strong>{c.nom}</strong>
+                    {c.par ? ` (${c.par})` : ""}
+                  </span>
+                </button>
+              ))}
 
               {/* Rendez-vous réservés par un client depuis le lien d'un e-mail. */}
               {rdvClients.map((r) => (

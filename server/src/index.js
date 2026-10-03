@@ -46,6 +46,7 @@ import { enregistrerRoutesImportFichier } from "./importFichier.js";
 import { enregistrerRoutesDistributionEquipe } from "./distributionEquipe.js";
 import { enregistrerRoutesAnnulationDistribution } from "./annulationDistribution.js";
 import { installerJournal, enregistrerRoutesSupervision } from "./journalAudit.js";
+import { enregistrerRoutesFicheClient } from "./ficheClient.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -899,6 +900,16 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
 // qualifie ensuite manuellement, comme n'importe quelle demande entrante).
 // Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
 enregistrerRoutesVitrineRdv(app);
+// « Confirmer ma fiche » : lien envoyé au client pendant l'appel (voir ficheClient.js).
+const ficheClient = enregistrerRoutesFicheClient(app, {
+  exigerAuth,
+  chargerEntrepriseAutorisee,
+  findEntreprise,
+  enrichir,
+  ajouterEmailFiche,
+  trouverUtilisateurParId,
+  estAdmin,
+});
 enregistrerRoutesRechercheNumeros(app, {
   exigerAuth,
   exigerAdmin,
@@ -1038,6 +1049,8 @@ app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (r
     req.entreprise.rdvClient.nonVu = false;
     await db.write();
   }
+  // Fiche confirmée par le client : vue (pour cette personne) à l'ouverture.
+  if (ficheClient.marquerVue(req.entreprise, req.utilisateur)) await db.write();
   res.json(enrichir(req.entreprise));
 });
 
@@ -3146,7 +3159,18 @@ function calculerNotifications(utilisateur) {
     })
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-  return { messagesNonLus, nouveauxLeads, rdvAVenir, fichesPotentielles, alertePresence, alertesPresenceEquipe, demandesSite, rdvClients };
+  const confirmationsClient = ficheClient.confirmationsPour(utilisateur);
+  return {
+    messagesNonLus,
+    nouveauxLeads,
+    rdvAVenir,
+    fichesPotentielles,
+    alertePresence,
+    alertesPresenceEquipe,
+    demandesSite,
+    rdvClients,
+    confirmationsClient,
+  };
 }
 
 // L'agent a vu l'alerte "le client a réservé un rendez-vous".

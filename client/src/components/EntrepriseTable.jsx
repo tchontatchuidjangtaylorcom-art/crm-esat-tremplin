@@ -227,6 +227,14 @@ export default function EntrepriseTable({
                       🌐 Site web{e.demandeSiteNonVue ? " · nouveau" : ""}
                     </span>
                   )}
+                  {e.confirmationClient && (
+                    <span
+                      title={`Effectif et bénéficiaires confirmés par ${e.confirmationClient.nom} le ${new Date(e.confirmationClient.date).toLocaleDateString("fr-FR")}`}
+                      className="ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold align-middle bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    >
+                      ✅ Confirmée client
+                    </span>
+                  )}
                   <span className="block text-[11px] text-slate-400 dark:text-slate-500">
                     {e.effectif ?? "?"} sal. · {e.categorie?.label}
                     {e.lot ? ` · ${e.lot}` : ""}

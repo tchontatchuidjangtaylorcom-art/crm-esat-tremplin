@@ -60,6 +60,10 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const [autreAdresse, setAutreAdresse] = useState("");
   const saisieLibre = destinataires.length === 0 || destinataire === AUTRE_ADRESSE;
   const destinataireEffectif = saisieLibre ? autreAdresse.trim() : destinataire;
+  // « Confirmer ma fiche » (voir server/src/ficheClient.js) : envoi en un clic
+  // pendant l'appel, et ouverture de la page client pour la tester.
+  const [ficheClientEnCours, setFicheClientEnCours] = useState(false);
+  const [ficheClientInfo, setFicheClientInfo] = useState(null);
   // Copie (CC) : autres adresses de la fiche cochées + adresses saisies
   // (données par l'interlocuteur), séparées par des virgules.
   const [copiesCochees, setCopiesCochees] = useState([]);
@@ -238,6 +242,43 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     }
   }
 
+  async function envoyerFicheClient() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destinataireEffectif || "")) {
+      return setFicheClientInfo({ erreur: "Indiquez d'abord l'adresse e-mail du client (Destinataire)." });
+    }
+    setFicheClientEnCours(true);
+    setFicheClientInfo(null);
+    try {
+      const maj = await api.envoyerFicheClient(entreprise.id, destinataireEffectif, copies);
+      onMaj(maj);
+      setFicheClientInfo({ ok: `Fiche à confirmer envoyée à ${destinataireEffectif}.` });
+      if (saisieLibre) {
+        setDestinataire(destinataireEffectif);
+        setAutreAdresse("");
+      }
+    } catch (e) {
+      setFicheClientInfo({ erreur: e.message });
+    } finally {
+      setFicheClientEnCours(false);
+    }
+  }
+
+  async function voirPageClient() {
+    // Onglet ouvert tout de suite (sinon bloqué par le navigateur), puis dirigé
+    // vers le lien une fois obtenu.
+    const onglet = window.open("", "_blank");
+    try {
+      const { url } = await api.lienFicheClient(entreprise.id);
+      const local = new URL(url);
+      const cible = `${window.location.origin}${local.pathname}`;
+      if (onglet) onglet.location.href = cible;
+      else window.open(cible, "_blank");
+    } catch (e) {
+      onglet?.close();
+      setFicheClientInfo({ erreur: e.message });
+    }
+  }
+
   const emails = entreprise.emails || [];
 
   return (
@@ -340,6 +381,35 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           </span>
         </div>
       )}
+
+      {/* Pendant l'appel : le client donne son e-mail, un clic lui envoie sa
+          fiche à confirmer (effectif, bénéficiaires, estimation). */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50/70 dark:bg-emerald-950/30 px-3 py-2 text-xs">
+        <button
+          type="button"
+          onClick={envoyerFicheClient}
+          disabled={ficheClientEnCours || statutMail?.configuree === false}
+          className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-1.5 disabled:opacity-50"
+        >
+          {ficheClientEnCours ? "Envoi…" : "📋 Envoyer la fiche à confirmer"}
+        </button>
+        <button
+          type="button"
+          onClick={voirPageClient}
+          className="rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-3 py-1.5 hover:bg-white dark:hover:bg-emerald-900/40"
+        >
+          👁 Voir la page client
+        </button>
+        {entreprise.confirmationClient ? (
+          <span className="text-emerald-800 dark:text-emerald-300">
+            ✅ Confirmée par {entreprise.confirmationClient.nom} le {formatDateHeure(entreprise.confirmationClient.date)}
+          </span>
+        ) : (
+          <span className="text-slate-500 dark:text-slate-400">Le client confirme son effectif et ses bénéficiaires RQTH en une minute.</span>
+        )}
+        {ficheClientInfo?.ok && <span className="w-full text-emerald-700 dark:text-emerald-400">✓ {ficheClientInfo.ok}</span>}
+        {ficheClientInfo?.erreur && <span className="w-full text-red-600 dark:text-red-400">{ficheClientInfo.erreur}</span>}
+      </div>
 
       {statutMail && !statutMail.configuree && (
         <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-lg p-2 mb-4">

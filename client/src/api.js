@@ -276,6 +276,26 @@ export const api = {
 
   // Prise de rendez-vous depuis le bouton « Parler à un conseiller » d'un
   // e-mail (lien propre à la fiche, voir server/src/vitrineRdv.js).
+  // « Confirmer ma fiche » (voir server/src/ficheClient.js).
+  envoyerFicheClient: (id, destinataire, cc = []) =>
+    fetch(`${BASE}/entreprises/${id}/fiche-client/envoyer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destinataire, cc }),
+    }).then(handle),
+  lienFicheClient: (id) => fetch(`${BASE}/entreprises/${id}/fiche-client/lien`).then(handle),
+  getMaFiche: (jeton) => fetch(`${BASE}/vitrine/ma-fiche/${encodeURIComponent(jeton)}`).then(handle),
+  calculMaFiche: (jeton, effectif, rqth) =>
+    fetch(
+      `${BASE}/vitrine/ma-fiche/${encodeURIComponent(jeton)}/calcul?effectif=${encodeURIComponent(effectif)}&rqth=${encodeURIComponent(rqth)}`
+    ).then(handle),
+  confirmerMaFiche: (jeton, donnees) =>
+    fetch(`${BASE}/vitrine/ma-fiche/${encodeURIComponent(jeton)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+
   getRdvClient: (jeton) => fetch(`${BASE}/vitrine/rdv-client/${encodeURIComponent(jeton)}`).then(handle),
   reserverRdvClient: (jeton, donnees) =>
     fetch(`${BASE}/vitrine/rdv-client/${encodeURIComponent(jeton)}`, {

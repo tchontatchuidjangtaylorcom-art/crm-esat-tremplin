@@ -110,6 +110,10 @@ export function balisesHead(chemin) {
   if (chemin.startsWith("/vitrine/rendez-vous/")) {
     return `<title>Prendre rendez-vous — Pôle OETH / AGEFIPH</title>\n    <meta name="robots" content="noindex, nofollow" />`;
   }
+  // « Confirmer ma fiche » (lien propre à une entreprise, voir ficheClient.js).
+  if (chemin.startsWith("/vitrine/ma-fiche/")) {
+    return `<title>Confirmer ma fiche — Pôle OETH</title>\n    <meta name="robots" content="noindex, nofollow" />`;
+  }
   if (!seo) {
     // Pages CRM / inconnues : titre neutre, jamais indexées.
     return `<title>CRM OETH — Espace sécurisé</title>\n    <meta name="robots" content="noindex, nofollow" />`;
