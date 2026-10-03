@@ -101,7 +101,7 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
   </td></tr>
 
   <tr><td align="center" style="padding:22px 24px 16px;">
-    <img src="${SITE_URL}/logo-192.png" width="52" height="52" alt="" style="display:block;border:0;border-radius:10px;margin:0 auto 10px;">
+    <img src="${SITE_URL}/logo-oeth.png" width="56" height="56" alt="Pôle OETH" style="display:block;border:0;border-radius:50%;margin:0 auto 10px;">
     <div style="font-size:22px;font-weight:700;color:${BLEU};">${nomPole}</div>
     <div style="font-size:12px;color:${GRIS_CLAIR};margin-top:4px;">Mission d'accompagnement à l'obligation d'emploi des travailleurs handicapés</div>
   </td></tr>

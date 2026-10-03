@@ -36,7 +36,7 @@ export default function MonLienDossier() {
     <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-white">
       <header className="max-w-xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <img src="/logo-192.png" alt="" width="40" height="40" className="w-10 h-10 rounded-lg" />
+          <img src="/logo-oeth.png" alt="Logo Pôle OETH" width="40" height="40" className="w-10 h-10 rounded-full" />
           <p className="font-bold leading-tight">Pôle OETH</p>
         </div>
         <BoutonThemeVitrine />
