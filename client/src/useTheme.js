@@ -9,8 +9,8 @@ function themeInitial() {
   } catch {
     // localStorage indisponible (navigation privée, etc.) : on ignore.
   }
-  const prefereSombre = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-  return prefereSombre ? "sombre" : "clair";
+  // Clair (blanc) par défaut ; le mode sombre reste un choix de l'agent.
+  return "clair";
 }
 
 // État partagé par tous les composants qui appellent useTheme() : la barre

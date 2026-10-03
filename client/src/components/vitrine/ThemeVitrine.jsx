@@ -1,14 +1,18 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 
-// Thème du site vitrine, indépendant de celui du CRM : sombre ("bleu") par
-// défaut, bascule clair (blanc & bleu) au choix du visiteur, mémorisée.
+// Thème du site vitrine, indépendant de celui du CRM : clair (blanc) par
+// défaut, bascule sombre au choix du visiteur. Seul un choix explicite
+// (bouton soleil/lune) est mémorisé.
 // S'appuie sur la classe "dark" de <html> (darkMode: "class" dans
 // tailwind.config.js), comme le CRM : chaque couleur du site a sa variante
 // claire par défaut et sa variante `dark:` d'origine.
-const CLE_STOCKAGE = "vitrine-theme";
+// Nouvelle clé : l'ancienne ("vitrine-theme") enregistrait automatiquement
+// le thème sombre par défaut à la première visite ; elle est ignorée pour
+// que tous les visiteurs repartent en clair.
+const CLE_STOCKAGE = "vitrine-theme-choix";
 
-const ThemeVitrineContext = createContext({ theme: "sombre", basculer: () => {} });
+const ThemeVitrineContext = createContext({ theme: "clair", basculer: () => {} });
 
 function themeInitial() {
   // ?theme=clair|sombre dans l'URL : lien direct vers un mode donné.
@@ -20,7 +24,7 @@ function themeInitial() {
   } catch {
     // localStorage indisponible (navigation privée, etc.) : thème par défaut.
   }
-  return "sombre";
+  return "clair";
 }
 
 // Route "mise en page" enveloppant toutes les pages /vitrine/*.
@@ -37,15 +41,18 @@ export function ThemeVitrineLayout() {
   // useLayoutEffect : appliqué avant l'affichage, pas de flash du mauvais thème.
   useLayoutEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "sombre");
-    try {
-      localStorage.setItem(CLE_STOCKAGE, theme);
-    } catch {
-      // Rien à faire si le stockage local est indisponible.
-    }
   }, [theme]);
 
   function basculer() {
-    setTheme((t) => (t === "sombre" ? "clair" : "sombre"));
+    setTheme((t) => {
+      const suivant = t === "sombre" ? "clair" : "sombre";
+      try {
+        localStorage.setItem(CLE_STOCKAGE, suivant);
+      } catch {
+        // Rien à faire si le stockage local est indisponible.
+      }
+      return suivant;
+    });
   }
 
   return (
