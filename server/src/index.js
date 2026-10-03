@@ -46,7 +46,8 @@ import { enregistrerRoutesImportFichier } from "./importFichier.js";
 import { enregistrerRoutesDistributionEquipe } from "./distributionEquipe.js";
 import { enregistrerRoutesAnnulationDistribution } from "./annulationDistribution.js";
 import { installerJournal, enregistrerRoutesSupervision } from "./journalAudit.js";
-import { enregistrerRoutesFicheClient } from "./ficheClient.js";
+import { enregistrerRoutesFicheClient, lienFicheClient } from "./ficheClient.js";
+import { avecModelesPublic } from "./modelesMailsPublic.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -565,7 +566,8 @@ app.get("/api/script-vente", (req, res) => {
 });
 
 app.get("/api/modeles-mails", (req, res) => {
-  res.json(getModelesMails(db.data.contenusEditables?.modelesMails));
+  // + modèles du secteur public (FIPHFP), proposés pour les fiches publiques.
+  res.json(avecModelesPublic(getModelesMails(db.data.contenusEditables?.modelesMails)));
 });
 
 // Édition des 3 contenus ci-dessus — réservée aux super-administrateurs (voir
@@ -887,6 +889,19 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
       replyTo: adresseMailPole(),
       attachments: [{ filename: `simulation-oeth-${saisie.annee}.pdf`, content: pdf, contentType: "application/pdf" }],
     });
+    // Le visiteur a laissé son e-mail : fiche « Demandes site web » (admins).
+    await enregistrerDemandeSiteSansEchec({
+      type: "simulation",
+      email,
+      entreprise: nomEntreprise,
+      effectif: saisie.effectif,
+      beneficiaires: saisie.boeth,
+      siret: String(req.body.siret || "").trim().slice(0, 20),
+      details: [
+        `Simulation ${saisie.annee} : effectif ${saisie.effectif}, bénéficiaires ${saisie.boeth ?? 0}, ` +
+          `${simulation.manque ?? "?"} unité(s) manquante(s), contribution estimée ${Math.round(simulation.contributionNette || 0).toLocaleString("fr-FR")} €.`,
+      ],
+    });
     res.json({ ok: true });
   } catch (e) {
     res.status(502).json({ error: "L'envoi a échoué. Téléchargez le PDF ou réessayez plus tard." });
@@ -1045,8 +1060,8 @@ app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (r
   }
   // Rendez-vous réservé par le client depuis l'e-mail : vu dès que l'agent
   // prévenu ouvre la fiche.
-  if (req.entreprise.rdvClient?.nonVu && destinataireAlerteRdvClient(req.entreprise) === req.utilisateur.id) {
-    req.entreprise.rdvClient.nonVu = false;
+  if (req.entreprise.rdvClient?.nonVu && !(req.entreprise.rdvClient.vuPar || []).includes(req.utilisateur.id)) {
+    req.entreprise.rdvClient.vuPar = [...(req.entreprise.rdvClient.vuPar || []), req.utilisateur.id];
     await db.write();
   }
   // Fiche confirmée par le client : vue (pour cette personne) à l'ouverture.
@@ -2821,7 +2836,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   // l'identité générale du pôle, jamais le nom de l'agent (voir mailSignature.js
   // côté client pour le même bloc dans le corps du mail) — l'adresse d'envoi
   // reste de toute façon la boîte unique du pôle (contact@oeth-fiph.fr).
-  const nomExpediteur = "Pôle OETH / AGEFIPH";
+  const nomExpediteur = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
 
   // PDF de synthèse OETH (voir pdfSynthese.js), joint seulement quand l'agent
   // coche la case : les montants sont d'abord présentés au téléphone.
@@ -2844,12 +2859,14 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   // créneau et l'agent est prévenu. Le texte brut reste envoyé en version
   // alternative, avec le même lien.
   const rendezVous = formatOfficiel ? lienRendezVousClient(entreprise) : null;
+  const dossier = formatOfficiel ? lienFicheClient(entreprise) : null;
   const html = formatOfficiel
     ? genererEmailOfficielHtml({
         entreprise,
         corps,
         poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
         lienRendezVous: rendezVous.url,
+        lienDossier: dossier.url,
         avecPdf: Boolean(joindrePdf),
       })
     : undefined;
@@ -2859,7 +2876,10 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       to: destinataireFinal,
       cc: copiesEnvoi,
       subject: testVersMoi ? `[TEST] ${objet}` : objet,
-      text: rendezVous ? `${corps}\n\nParler à un conseiller — choisir un créneau de rendez-vous : ${rendezVous.url}` : corps,
+      text: rendezVous
+        ? `${corps}\n\nParler à un conseiller — choisir un créneau de rendez-vous : ${rendezVous.url}` +
+          `\nVérifier et confirmer vos informations : ${dossier.url}`
+        : corps,
       html,
       fromName: nomExpediteur,
       attachments: piecesJointesEnvoi,
@@ -3149,9 +3169,9 @@ function calculerNotifications(utilisateur) {
   // à défaut celui qui a envoyé l'e-mail, à défaut les administrateurs.
   const rdvClients = db.data.entreprises
     .filter((e) => {
-      if (!e.rdvClient?.nonVu) return false;
+      if (!e.rdvClient?.nonVu || (e.rdvClient.vuPar || []).includes(utilisateur.id)) return false;
       const destinataire = destinataireAlerteRdvClient(e);
-      return destinataire ? destinataire === utilisateur.id : estAdmin(utilisateur);
+      return estAdmin(utilisateur) || destinataire === utilisateur.id || e.superviseurId === utilisateur.id;
     })
     .map((e) => {
       const r = e.rdvClient.reservations?.[0] || {};
@@ -3175,8 +3195,8 @@ function calculerNotifications(utilisateur) {
 
 // L'agent a vu l'alerte "le client a réservé un rendez-vous".
 app.post("/api/entreprises/:id/rdv-client/vu", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
-  if (req.entreprise.rdvClient?.nonVu) {
-    req.entreprise.rdvClient.nonVu = false;
+  if (req.entreprise.rdvClient?.nonVu && !(req.entreprise.rdvClient.vuPar || []).includes(req.utilisateur.id)) {
+    req.entreprise.rdvClient.vuPar = [...(req.entreprise.rdvClient.vuPar || []), req.utilisateur.id];
     await db.write();
   }
   res.json({ ok: true });

@@ -11,9 +11,10 @@
 // chiffres sont présentés par le conseiller au téléphone, et la mise en page
 // officielle propose le bouton « Parler à un conseiller » (prise de
 // rendez-vous, voir server/src/emailOfficiel.js).
-export function construireSignature({ statutMail } = {}) {
+// `collecteur` : "FIPHFP" pour une fiche publique (signature « Pôle FIPHFP »).
+export function construireSignature({ statutMail, collecteur } = {}) {
   const ligneEmail = statutMail?.adresse ? `\n✉️ ${statutMail.adresse}` : "";
   const ligneTelephone = statutMail?.telephone ? `\n📞 ${statutMail.telephone}` : "";
   // Pas d'adresse postale : les bureaux changent, un conseiller la communique.
-  return `— Pôle OETH / AGEFIPH${ligneEmail}${ligneTelephone}`;
+  return `— ${collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH"}${ligneEmail}${ligneTelephone}`;
 }

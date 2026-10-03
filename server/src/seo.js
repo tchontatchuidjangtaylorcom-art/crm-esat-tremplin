@@ -111,7 +111,7 @@ export function balisesHead(chemin) {
     return `<title>Prendre rendez-vous — Pôle OETH / AGEFIPH</title>\n    <meta name="robots" content="noindex, nofollow" />`;
   }
   // « Confirmer ma fiche » (lien propre à une entreprise, voir ficheClient.js).
-  if (chemin.startsWith("/vitrine/ma-fiche/")) {
+  if (chemin.startsWith("/vitrine/ma-fiche/") || chemin === "/vitrine/mon-dossier") {
     return `<title>Confirmer ma fiche — Pôle OETH</title>\n    <meta name="robots" content="noindex, nofollow" />`;
   }
   if (!seo) {

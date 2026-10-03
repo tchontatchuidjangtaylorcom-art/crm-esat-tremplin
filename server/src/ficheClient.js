@@ -239,6 +239,50 @@ export function enregistrerRoutesFicheClient(
     res.json({ ok: true, calcul });
   });
 
+  // « Recevoir mon lien » (lien perdu) : le client tape son e-mail ; s'il est
+  // connu sur une fiche, le lien lui est ENVOYÉ PAR MAIL — jamais affiché à
+  // l'écran, et la réponse est toujours la même (on ne révèle pas si une
+  // adresse est connue). Limité à 3 demandes par heure et par connexion.
+  const demandesLien = new Map();
+  app.post("/api/vitrine/lien-dossier", async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!EMAIL_VALIDE.test(email) || email.length > 200) return res.status(400).json({ error: "Adresse e-mail invalide." });
+    const ip =
+      String(req.headers["cf-connecting-ip"] || String(req.headers["x-forwarded-for"] || "").split(",")[0]).trim() || req.ip || "?";
+    const maintenant = Date.now();
+    const recents = (demandesLien.get(ip) || []).filter((t) => maintenant - t < 3600_000);
+    if (recents.length >= 3) return res.status(429).json({ error: "Trop de demandes. Réessayez dans une heure." });
+    demandesLien.set(ip, [...recents, maintenant]);
+
+    const fiches = db.data.entreprises
+      .filter((e) =>
+        [e.contact?.email, ...(e.contact?.emailsAlternatifs || []).map((a) => a.email)]
+          .filter(Boolean)
+          .some((a) => a.toLowerCase() === email)
+      )
+      .slice(0, 3);
+    let aEcrire = false;
+    for (const e of fiches) {
+      const { url, cree } = lienFicheClient(e);
+      aEcrire = aEcrire || cree;
+      try {
+        await envoyerMail({
+          to: email,
+          subject: `Votre lien pour confirmer la fiche de ${e.nom}`,
+          text:
+            `Bonjour,\n\nVoici votre lien personnel pour vérifier et confirmer les informations de ${e.nom} :\n\n${url}\n\n` +
+            `Si vous n'êtes pas à l'origine de cette demande, ignorez simplement ce message.\n\n` +
+            `${adresseMailPole()}${telephonePole() ? ` · ${telephonePole()}` : ""}`,
+          fromName: determinerCollecteur(e) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH",
+        });
+      } catch (err) {
+        console.error("[fiche-client] Envoi du lien impossible :", err.message);
+      }
+    }
+    if (aEcrire) await db.write();
+    res.json({ ok: true });
+  });
+
   // Notifications : fiches confirmées non encore ouvertes, pour l'agent qui
   // suit la fiche (ou son superviseur) et pour les administrateurs.
   return {

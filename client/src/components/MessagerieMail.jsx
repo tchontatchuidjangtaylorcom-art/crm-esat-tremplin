@@ -119,7 +119,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     setCorps(
       modele.corps.replaceAll(
         "{{SIGNATURE}}",
-        construireSignature({ statutMail })
+        construireSignature({ statutMail, collecteur: entreprise.collecteur })
       )
     );
   }
@@ -299,7 +299,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         className="w-full flex items-center justify-between gap-2 text-left"
       >
         <h2 className="font-semibold text-slate-800 dark:text-slate-100">
-          ✉️ Boîte mail — Pôle OETH/AGEFIPH
+          ✉️ Boîte mail — {entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH/AGEFIPH"}
           {emails.length > 0 && (
             <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
               {emails.length} échange{emails.length > 1 ? "s" : ""}
@@ -395,6 +395,21 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         </button>
         <button
           type="button"
+          onClick={async () => {
+            try {
+              const { url } = await api.lienFicheClient(entreprise.id);
+              await navigator.clipboard.writeText(url);
+              setFicheClientInfo({ ok: "Lien copié : collez-le dans un SMS ou un message au client." });
+            } catch (e) {
+              setFicheClientInfo({ erreur: e.message || "Copie impossible." });
+            }
+          }}
+          className="rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-3 py-1.5 hover:bg-white dark:hover:bg-emerald-900/40"
+        >
+          🔗 Copier le lien
+        </button>
+        <button
+          type="button"
           onClick={voirPageClient}
           className="rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-3 py-1.5 hover:bg-white dark:hover:bg-emerald-900/40"
         >
@@ -464,7 +479,14 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           )}
           {modeles?.modeles?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1">
-              {modeles.modeles.map((m) => (
+              {/* Fiche publique (FIPHFP) : modèles du public uniquement ;
+                  sinon, ceux du privé (AGEFIPH / URSSAF). */}
+              {entreprise.collecteur === "FIPHFP" && (
+                <span className="self-center text-[11px] font-semibold text-violet-700 dark:text-violet-300">🏛 Secteur public (FIPHFP) :</span>
+              )}
+              {modeles.modeles
+                .filter((m) => (entreprise.collecteur === "FIPHFP" ? m.secteur === "public" : m.secteur !== "public"))
+                .map((m) => (
                 <button
                   key={m.cle}
                   type="button"
@@ -539,7 +561,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             disabled={!objet.trim() || !corps.trim() || !destinataireEffectif || envoiEnCours || statutMail?.configuree === false}
             className="rounded-lg bg-marine-600 hover:bg-marine-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
-            {envoiEnCours ? "Envoi…" : "Envoyer (signé Pôle OETH / AGEFIPH)"}
+            {envoiEnCours ? "Envoi…" : `Envoyer (signé ${entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH"})`}
           </button>
       </form>
       </div>

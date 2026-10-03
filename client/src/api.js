@@ -284,6 +284,12 @@ export const api = {
       body: JSON.stringify({ destinataire, cc }),
     }).then(handle),
   lienFicheClient: (id) => fetch(`${BASE}/entreprises/${id}/fiche-client/lien`).then(handle),
+  recevoirLienDossier: (email) =>
+    fetch(`${BASE}/vitrine/lien-dossier`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    }).then(handle),
   getMaFiche: (jeton) => fetch(`${BASE}/vitrine/ma-fiche/${encodeURIComponent(jeton)}`).then(handle),
   calculMaFiche: (jeton, effectif, rqth) =>
     fetch(

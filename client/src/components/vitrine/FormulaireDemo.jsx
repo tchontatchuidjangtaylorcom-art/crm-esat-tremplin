@@ -10,6 +10,7 @@ const VIDE = {
   email: "",
   telephone: "",
   entreprise: "",
+  siret: "",
   fonction: "",
   taille: "",
   sujets: [],
@@ -99,6 +100,10 @@ export default function FormulaireDemo() {
         <label className="text-xs text-slate-500 dark:text-slate-400">
           Entreprise / organisation *
           <input required className={`mt-1.5 ${CLASSE_INPUT}`} {...champ("entreprise")} />
+        </label>
+        <label className="text-xs text-slate-500 dark:text-slate-400">
+          SIRET (facultatif)
+          <input inputMode="numeric" maxLength={20} className={`mt-1.5 ${CLASSE_INPUT}`} {...champ("siret")} />
         </label>
         <label className="text-xs text-slate-500 dark:text-slate-400">
           Fonction *

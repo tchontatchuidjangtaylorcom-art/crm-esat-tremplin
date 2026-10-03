@@ -8,6 +8,7 @@ import { envoyerMail, estEnvoiConfigure, adresseMailPole, telephonePole } from "
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
 import { estJourOuvre as estJourOuvreHorsFeries } from "./presence.js";
 import { SITE_URL } from "./seo.js";
+import { lienFicheClient } from "./ficheClient.js";
 
 // Date/heure de Paris → ISO UTC (gère l'heure d'été / d'hiver).
 function isoDepuisParis(date, heure) {
@@ -257,6 +258,9 @@ export function enregistrerRoutesVitrineRdv(app) {
     const modification = Boolean(rdvClientAVenir(entreprise));
     entreprise.rdvClient.reservations = [{ date, heure, nom: nomContact, telephone, message, dateCreation: maintenant }, ...reservations];
     entreprise.rdvClient.nonVu = true;
+    // Alerte chez l'agent ET chez chaque administrateur : chacun l'éteint pour
+    // lui-même (voir rdvClients dans calculerNotifications).
+    entreprise.rdvClient.vuPar = [];
     entreprise.statut = "rdv";
     entreprise.dateRdv = dateRdv;
     // Fiche non assignée : l'alerte à l'heure du RDV sonne chez l'agent qui a
@@ -304,10 +308,13 @@ export function enregistrerRoutesVitrineRdv(app) {
         `depuis le lien de votre e-mail.\n\nQuand : ${quand}, ${RDV_CLIENT.pasMinutes} min\n` +
         `Contact : ${coordonnees || "-"}\nMessage : ${message || "(aucun)"}\n\n` +
         `La fiche est passée en « RDV » à cette date : ${SITE_URL}/entreprise/${entreprise.id}`;
-      try {
-        await envoyerMail({ to: agent?.email || adresseMailPole(), subject: sujet, text: corpsAgent, fromName: "CRM — Rendez-vous client" });
-      } catch (e) {
-        console.error("[rdv-client] Alerte agent impossible :", e.message);
+      // L'agent qui suit la fiche ET la boîte du pôle (administrateurs).
+      for (const to of [...new Set([agent?.email, adresseMailPole()].filter(Boolean))]) {
+        try {
+          await envoyerMail({ to, subject: sujet, text: corpsAgent, fromName: "CRM — Rendez-vous client" });
+        } catch (e) {
+          console.error(`[rdv-client] Alerte à ${to} impossible :`, e.message);
+        }
       }
       if (entreprise.rdvClient.email) {
         try {
@@ -317,7 +324,9 @@ export function enregistrerRoutesVitrineRdv(app) {
             text:
               `Bonjour,\n\nVotre demande de rendez-vous est bien enregistrée : ${quand}.\n` +
               `Un conseiller du Pôle OETH / AGEFIPH vous appellera à cette date${telephone ? ` au ${telephone}` : ""}.\n\n` +
-              `Pour modifier ce créneau, utilisez à nouveau le lien reçu par e-mail ou répondez simplement à ce message.\n\n${signature()}`,
+              `Pour modifier ce créneau, utilisez à nouveau le lien reçu par e-mail ou répondez simplement à ce message.\n\n` +
+              `Pour préparer l'échange, vous pouvez vérifier et confirmer dès maintenant votre effectif et votre nombre de ` +
+              `salariés bénéficiaires : ${lienFicheClient(entreprise).url}\n\n${signature()}`,
             fromName: "Pôle OETH / AGEFIPH",
           });
           confirmationEnvoyee = true;
@@ -393,6 +402,7 @@ export function enregistrerRoutesVitrineRdv(app) {
       email,
       telephone,
       entreprise,
+      siret: texte(b.siret, 20),
       message,
       details: [`Rendez-vous réservé : ${quandLibelle}, ${DUREE_MINUTES} min`],
     });
@@ -491,6 +501,7 @@ export function enregistrerRoutesVitrineRdv(app) {
       email: texte(b.email, 160),
       telephone: texte(b.telephone, 30),
       entreprise: texte(b.entreprise, 160),
+      siret: texte(b.siret, 20),
       fonction: FONCTIONS.includes(b.fonction) ? b.fonction : "",
       taille: TAILLES.includes(b.taille) ? b.taille : "",
       sujets: Array.isArray(b.sujets) ? b.sujets.filter((x) => SUJETS.includes(x)) : [],

@@ -5,6 +5,7 @@ import { useChat } from "../chat/ChatContext.jsx";
 import { formatDateHeure } from "../constants.js";
 import { formatJourCourt } from "../PresenceContext.jsx";
 import AlerteRdvClient from "./AlerteRdvClient.jsx";
+import AlerteDemandeSite from "./AlerteDemandeSite.jsx";
 
 const INTERVALLE_POLLING_MS = 20000;
 
@@ -65,6 +66,8 @@ export default function NotificationCenter() {
 
   return (
     <div className="relative">
+      {/* Nouvelles demandes du site public : fenêtre + son, administrateurs. */}
+      <AlerteDemandeSite demandes={demandesSite} />
       <AlerteRdvClient
         rdvClients={rdvClients}
         onVu={(id) => setData((d) => ({ ...d, rdvClients: (d.rdvClients || []).filter((x) => x.id !== id) }))}

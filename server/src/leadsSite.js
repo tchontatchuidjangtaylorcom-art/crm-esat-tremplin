@@ -6,6 +6,7 @@
 // rappelle le client et complète la fiche (SIRET, effectif, contact...).
 import { nanoid } from "nanoid";
 import db from "./db.js";
+import { normaliserSiren, estSirenValide, rechercherEntrepriseParSiren } from "./insee.js";
 
 export const LOT_DEMANDES_SITE = "Demandes site web";
 
@@ -14,6 +15,7 @@ export const TYPES_DEMANDE = {
   demo: "Demande de démo",
   contact: "Formulaire de contact",
   vigilance: "Vérification d'une sollicitation",
+  simulation: "Simulation (synthèse demandée par e-mail)",
 };
 
 const normaliserNom = (s) =>
@@ -27,11 +29,12 @@ const normaliserNom = (s) =>
 // Retrouve une fiche existante (active ou archivée) : même e-mail de contact,
 // sinon même raison sociale, pour éviter les doublons quand un client écrit
 // plusieurs fois.
-function trouverFicheExistante({ email, entreprise }) {
+function trouverFicheExistante({ email, entreprise, siren }) {
   const mail = String(email || "").toLowerCase();
   const nom = normaliserNom(entreprise);
   const toutes = [...db.data.entreprises, ...db.data.archives];
   return (
+    (siren && toutes.find((e) => String(e.siret || "").replace(/\D/g, "").startsWith(siren))) ||
     (mail && toutes.find((e) => (e.contact?.email || "").toLowerCase() === mail)) ||
     (nom && nom.length > 2 && toutes.find((e) => normaliserNom(e.nom) === nom)) ||
     null
@@ -49,9 +52,16 @@ export async function enregistrerDemandeSite({
   entreprise = "",
   fonction = "",
   effectif = null,
+  beneficiaires = null,
+  siret = "",
   message = "",
   details = [],
 }) {
+  // SIRET (facultatif) saisi par le visiteur : sert à retrouver la fiche et,
+  // pour une nouvelle fiche, à la compléter depuis le répertoire INSEE.
+  const siren = siret ? normaliserSiren(siret) : "";
+  const sirenValide = siren && estSirenValide(siren) ? siren : "";
+  if (sirenValide) details = [...details, `SIRET / SIREN indiqué : ${String(siret).trim()}`];
   const libelleType = TYPES_DEMANDE[type] || "Demande site web";
   const nomContact = [prenom, nom].filter(Boolean).join(" ").trim() || "-";
   const maintenant = new Date().toISOString();
@@ -68,8 +78,9 @@ export async function enregistrerDemandeSite({
   const commentaire = { id: nanoid(), date: maintenant, auteur: "Site web", texte: texteCommentaire };
   const demande = { type, libelle: libelleType, date: maintenant };
 
-  const existante = trouverFicheExistante({ email, entreprise });
+  const existante = trouverFicheExistante({ email, entreprise, siren: sirenValide });
   if (existante) {
+    if (sirenValide && !existante.siret) existante.siret = String(siret).replace(/\D/g, "");
     existante.commentaires = [commentaire, ...(existante.commentaires || [])];
     existante.demandesSite = [demande, ...(existante.demandesSite || [])];
     existante.demandeSiteNonVue = true;
@@ -106,7 +117,7 @@ export async function enregistrerDemandeSite({
     dateAssignation: null,
     dateCreation: null,
     effectif: Number.isFinite(Number(effectif)) && Number(effectif) > 0 ? Number(effectif) : null,
-    effectifBeneficiaire: 0,
+    effectifBeneficiaire: Number.isInteger(Number(beneficiaires)) && Number(beneficiaires) >= 0 ? Number(beneficiaires) : 0,
     typeContrat: "-",
     esatAssocie: "-",
     statut: "nouveau",
@@ -124,6 +135,26 @@ export async function enregistrerDemandeSite({
     historiqueAppels: [],
     emails: [],
   };
+  if (sirenValide) {
+    try {
+      const insee = await rechercherEntrepriseParSiren(sirenValide);
+      Object.assign(fiche, {
+        nom: insee.nom || fiche.nom,
+        siret: insee.siret || String(siret).replace(/\D/g, ""),
+        formeJuridique: insee.formeJuridique || "",
+        adresse: insee.adresse || "",
+        codePostal: insee.codePostal || "",
+        ville: insee.ville || "",
+        secteurActivite: insee.secteurActivite || "",
+        secteurPublic: Boolean(insee.secteurPublic),
+        effectif: fiche.effectif || insee.effectifEstime || null,
+      });
+      commentaire.texte += `\n🏢 Fiche complétée automatiquement depuis le répertoire INSEE (SIRET ${fiche.siret}).`;
+    } catch (e) {
+      fiche.siret = String(siret).replace(/\D/g, "");
+      console.error("[site] Enrichissement INSEE impossible :", e.message);
+    }
+  }
   db.data.entreprises.push(fiche);
   await db.write();
   return { entreprise: fiche, nouvelle: true };

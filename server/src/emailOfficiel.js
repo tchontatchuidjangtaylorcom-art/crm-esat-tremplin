@@ -15,6 +15,7 @@
 // HTML d'e-mail : tableaux et styles en ligne uniquement (Gmail, Outlook et
 // les clients mobiles ignorent les feuilles de style et les mises en page
 // modernes).
+import { determinerCollecteur } from "./secteurs.js";
 import { SITE_URL } from "./seo.js";
 
 const BLEU = "#1e3a8a";
@@ -66,8 +67,10 @@ function bouton(href, texte, plein) {
 // { email, telephone } ; `lienRendezVous` : page de prise de rendez-vous de
 // la fiche (à défaut, le bouton ouvre un e-mail au pôle) ; `avecPdf` : la
 // synthèse PDF est jointe (optionnelle, cochée par l'agent).
-export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRendezVous = null, avecPdf = false }) {
+// `lienDossier` : page « Confirmer ma fiche » du client (voir ficheClient.js).
+export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRendezVous = null, avecPdf = false, lienDossier = null }) {
   const nom = echapper(entreprise.nom || "votre entreprise");
+  const nomPole = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
   // Référence unique à chaque envoi : Gmail replie derrière "•••" tout
   // contenu identique à un message précédent du même fil (ex. une relance
   // après un premier e-mail) — une ligne qui change à chaque envoi l'en empêche.
@@ -83,7 +86,7 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
 
   return `<!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pôle OETH / AGEFIPH</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${nomPole}</title></head>
 <body style="margin:0;padding:0;background:#f1f5f9;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;">
 <tr><td align="center" style="padding:24px 12px;">
@@ -99,7 +102,7 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
 
   <tr><td align="center" style="padding:22px 24px 16px;">
     <img src="${SITE_URL}/logo-192.png" width="52" height="52" alt="" style="display:block;border:0;border-radius:10px;margin:0 auto 10px;">
-    <div style="font-size:22px;font-weight:700;color:${BLEU};">Pôle OETH / AGEFIPH</div>
+    <div style="font-size:22px;font-weight:700;color:${BLEU};">${nomPole}</div>
     <div style="font-size:12px;color:${GRIS_CLAIR};margin-top:4px;">Mission d'accompagnement à l'obligation d'emploi des travailleurs handicapés</div>
   </td></tr>
 
@@ -115,6 +118,7 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
 
     <div style="margin:24px 0 8px;text-align:center;">
       ${bouton(lienConseiller, "Parler à un conseiller", true)}
+      ${lienDossier ? bouton(lienDossier, "Vérifier mes informations", false) : ""}
     </div>
     <p style="margin:6px 0 22px;text-align:center;font-size:12px;color:${GRIS_CLAIR};">
       ${lienRendezVous ? "Choisissez votre créneau, du lundi au vendredi de 9 h à 17 h 30.<br>" : ""}${echapper(poleInfo.email)} · ${echapper(poleInfo.telephone)}

@@ -104,7 +104,10 @@ export default function MaFicheClient() {
 
             {erreurChargement && (
               <p className="mt-6 rounded-xl border border-red-300/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 text-sm px-4 py-3">
-                {erreurChargement}
+                {erreurChargement}{" "}
+                <a href="/vitrine/mon-dossier" className="underline font-medium">
+                  Recevoir un nouveau lien
+                </a>
               </p>
             )}
             {!infos && !erreurChargement && <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Chargement de votre fiche…</p>}
@@ -152,10 +155,22 @@ export default function MaFicheClient() {
                         <input type="number" min="0" inputMode="numeric" required {...champ("rqth")} className={`mt-1 ${CLASSE_INPUT}`} />
                       </label>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                      Indiquez 0 si vous n'en connaissez pas : un handicap n'est pas toujours visible ni déclaré, votre conseiller vous aide à
-                      faire le point. Ces informations restent confidentielles.
-                    </p>
+                    <div className="mt-3 rounded-xl bg-marine-50/70 dark:bg-white/5 border border-marine-100 dark:border-white/10 px-4 py-3 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                      <p>
+                        <strong>Pourquoi le nombre de bénéficiaires est parfois à 0 ?</strong> Ce nombre n'est publié nulle part : c'est une
+                        information confidentielle, que seule votre entreprise connaît. Tant qu'il ne nous a pas été communiqué, l'estimation
+                        part de 0 — ce n'est pas un jugement sur votre situation. Indiquez votre nombre réel (salariés ayant une RQTH ou un
+                        statut équivalent) pour une estimation juste.
+                      </p>
+                      {calcul?.collecteur !== "FIPHFP" && Number(form.effectif) >= 20 && (
+                        <p>
+                          <strong>Repère :</strong> en moyenne, les entreprises privées emploient environ 3,5 % de travailleurs handicapés,
+                          soit environ <strong>{Math.max(1, Math.round(Number(form.effectif) * 0.035))}</strong> pour un effectif de{" "}
+                          {Number(form.effectif)} salariés. Ce n'est qu'une moyenne nationale, pas le chiffre de votre entreprise.
+                        </p>
+                      )}
+                      <p>Un handicap n'est pas toujours visible ni déclaré : votre conseiller vous aide à faire le point. Ces informations restent confidentielles.</p>
+                    </div>
                   </div>
 
                   {calcul && (

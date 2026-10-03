@@ -15,6 +15,7 @@ const Actualites = lazy(() => import("./pages/Actualites.jsx"));
 const Faq = lazy(() => import("./pages/Faq.jsx"));
 const RendezVousClient = lazy(() => import("./pages/RendezVousClient.jsx"));
 const MaFicheClient = lazy(() => import("./pages/MaFicheClient.jsx"));
+const MonLienDossier = lazy(() => import("./pages/MonLienDossier.jsx"));
 
 // Titre et description mis à jour lors de la navigation interne (le serveur
 // les injecte déjà dans le HTML initial, voir server/src/seo.js).
@@ -40,7 +41,7 @@ export default function VitrineApp() {
   const { pathname } = useLocation();
   // Page de prise de rendez-vous ouverte depuis un e-mail : sans les boutons
   // flottants, pour que le client se concentre sur le choix du créneau.
-  const pageRendezVous = pathname.startsWith("/vitrine/rendez-vous/") || pathname.startsWith("/vitrine/ma-fiche/");
+  const pageRendezVous = pathname.startsWith("/vitrine/rendez-vous/") || pathname.startsWith("/vitrine/ma-fiche/") || pathname === "/vitrine/mon-dossier";
   return (
     <>
       <SeoNavigation />
@@ -57,6 +58,7 @@ export default function VitrineApp() {
             {/* Prise de rendez-vous depuis un e-mail (lien propre à une fiche). */}
             <Route path="/vitrine/rendez-vous/:jeton" element={<RendezVousClient />} />
             <Route path="/vitrine/ma-fiche/:jeton" element={<MaFicheClient />} />
+            <Route path="/vitrine/mon-dossier" element={<MonLienDossier />} />
             <Route path="/vitrine/*" element={<SiteVitrine />} />
           </Route>
         </Routes>

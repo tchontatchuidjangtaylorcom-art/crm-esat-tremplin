@@ -36,7 +36,7 @@ export default function PriseRendezVous({ onFermer }) {
   const [jour, setJour] = useState(null);
   const [heure, setHeure] = useState(null);
   const [etape, setEtape] = useState("creneau"); // creneau | coordonnees | confirme
-  const [form, setForm] = useState({ prenom: "", nom: "", email: "", telephone: "", entreprise: "", message: "", siteWeb: "" });
+  const [form, setForm] = useState({ prenom: "", nom: "", email: "", telephone: "", entreprise: "", siret: "", message: "", siteWeb: "" });
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState(null);
   const fermerRef = useRef(null);
@@ -248,7 +248,8 @@ export default function PriseRendezVous({ onFermer }) {
                 <input required placeholder="Nom *" className={CLASSE_INPUT} {...champ("nom")} />
                 <input required type="email" placeholder="E-mail professionnel *" className={CLASSE_INPUT} {...champ("email")} />
                 <input type="tel" placeholder="Téléphone" className={CLASSE_INPUT} {...champ("telephone")} />
-                <input required placeholder="Entreprise / organisation *" className={`${CLASSE_INPUT} sm:col-span-2`} {...champ("entreprise")} />
+                <input required placeholder="Entreprise / organisation *" className={CLASSE_INPUT} {...champ("entreprise")} />
+                <input placeholder="SIRET (facultatif)" inputMode="numeric" maxLength={20} className={CLASSE_INPUT} {...champ("siret")} />
                 <textarea
                   rows={3}
                   placeholder="Votre contexte ou vos questions (facultatif)"
