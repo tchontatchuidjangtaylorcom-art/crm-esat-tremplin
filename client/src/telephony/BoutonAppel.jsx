@@ -1,3 +1,4 @@
+import { numeroInternational } from "../telephone.js";
 import { useTelephonie } from "./CallContext.jsx";
 import { estNumeroAffichable } from "../telephone.js";
 import { compterAppel } from "./compterAppel.js";
@@ -10,8 +11,9 @@ const STYLE_LIEN = "text-blue-600 hover:underline font-medium";
 // besoin d'un vrai lien tel: garanti (agent sur le terrain, téléphone
 // natif) plutôt que du bouton ci-dessous, qui bascule vers le dialer VoIP
 // interne selon le mode de téléphonie choisi.
+// Lien tel: au format international (+33, +262, +590…), voir numeroInternational.
 export function versLienTel(numero) {
-  return "tel:" + numero.replace(/[^\d+]/g, "");
+  return "tel:" + numeroInternational(numero);
 }
 
 // Bouton d'appel unique utilisé partout où un numéro de téléphone est affiché

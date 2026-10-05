@@ -17,7 +17,7 @@ import ChampDateHeure from "../components/ChampDateHeure.jsx";
 import BoutonAppel, { versLienTel } from "../telephony/BoutonAppel.jsx";
 import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
-import { erreurNumero, estNumeroAffichable } from "../telephone.js";
+import { erreurNumero, estNumeroAffichable, numeroInternational } from "../telephone.js";
 import CalculObligationFiche from "../components/CalculObligationFiche.jsx";
 import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
 import BadgeEcheance from "../components/BadgeEcheance.jsx";
@@ -519,7 +519,7 @@ export default function EntrepriseDetail() {
                 {entreprise.contact.telephone}
               </a>
               <BoutonCopier
-                texte={entreprise.contact.telephone}
+                texte={numeroInternational(entreprise.contact.telephone)}
                 libelle="Copier le numéro"
                 onCopie={() => compterAppel(entreprise.id, entreprise.contact.telephone, "copie")}
               />

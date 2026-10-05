@@ -1,3 +1,4 @@
+import { TAILLES_EFFECTIF, dansTaille } from "../taillesEffectif.js";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import Header from "../components/Header.jsx";
@@ -176,6 +177,23 @@ export default function Dashboard() {
   const [filtreCategorie, setFiltreCategorie] = useState("");
   const [filtreLot, setFiltreLot] = useState("");
   const [prioritairesUniquement, setPrioritairesUniquement] = useState(true);
+  // Taille d'entreprise (20 à 249 salariés…), gardée après un rafraîchissement.
+  const [filtreTaille, setFiltreTailleState] = useState(() => {
+    try {
+      return localStorage.getItem("crm-filtre-taille") || "";
+    } catch {
+      return "";
+    }
+  });
+  function setFiltreTaille(valeur) {
+    setFiltreTailleState(valeur);
+    try {
+      if (valeur) localStorage.setItem("crm-filtre-taille", valeur);
+      else localStorage.removeItem("crm-filtre-taille");
+    } catch {
+      // stockage indisponible : le choix vaut pour la session en cours
+    }
+  }
   const [recherche, setRecherche] = useState("");
   const [tailleParPage, setTailleParPage] = useState(20);
   const [page, setPage] = useState(1);
@@ -225,7 +243,7 @@ export default function Dashboard() {
   // pour ne jamais rester bloqué sur une page qui n'a plus de résultats.
   useEffect(() => {
     setPage(1);
-  }, [filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche, tailleParPage, tri]);
+  }, [filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, filtreTaille, recherche, tailleParPage, tri]);
 
   // Reçoit les mises à jour émises par le panneau d'appel (module AGIR / VoIP)
   // sans avoir à tout recharger depuis l'API.
@@ -286,6 +304,7 @@ export default function Dashboard() {
     const c = Object.fromEntries(ORDRE_STATUTS.map((s) => [s, 0]));
     for (const e of entreprises) {
       if (prioritairesUniquement && !e.oeth?.assujetti) continue;
+      if (filtreTaille && !dansTaille(e, filtreTaille)) continue;
       if (filtreCategorie && e.categorie?.cle !== filtreCategorie) continue;
       if (filtreLot && e.lot !== filtreLot) continue;
       if (!correspondRecherche(e, recherche)) continue;
@@ -293,12 +312,13 @@ export default function Dashboard() {
       if (e.statut === "mail" && e.aussiMeRappelle && c.me_rappelle !== undefined) c.me_rappelle += 1;
     }
     return c;
-  }, [entreprises, prioritairesUniquement, filtreCategorie, filtreLot, recherche]);
+  }, [entreprises, prioritairesUniquement, filtreTaille, filtreCategorie, filtreLot, recherche]);
 
   const compteursCategorie = useMemo(() => {
     const c = {};
     for (const e of entreprises) {
       if (prioritairesUniquement && !e.oeth?.assujetti) continue;
+      if (filtreTaille && !dansTaille(e, filtreTaille)) continue;
       if (filtreStatut && !correspondStatut(e, filtreStatut)) continue;
       if (filtreLot && e.lot !== filtreLot) continue;
       if (!correspondRecherche(e, recherche)) continue;
@@ -306,19 +326,20 @@ export default function Dashboard() {
       if (cle) c[cle] = (c[cle] || 0) + 1;
     }
     return c;
-  }, [entreprises, prioritairesUniquement, filtreStatut, filtreLot, recherche]);
+  }, [entreprises, prioritairesUniquement, filtreTaille, filtreStatut, filtreLot, recherche]);
 
   const compteursLot = useMemo(() => {
     const c = {};
     for (const e of entreprises) {
       if (prioritairesUniquement && !e.oeth?.assujetti) continue;
+      if (filtreTaille && !dansTaille(e, filtreTaille)) continue;
       if (filtreStatut && !correspondStatut(e, filtreStatut)) continue;
       if (filtreCategorie && e.categorie?.cle !== filtreCategorie) continue;
       if (!correspondRecherche(e, recherche)) continue;
       if (e.lot) c[e.lot] = (c[e.lot] || 0) + 1;
     }
     return c;
-  }, [entreprises, prioritairesUniquement, filtreStatut, filtreCategorie, recherche]);
+  }, [entreprises, prioritairesUniquement, filtreTaille, filtreStatut, filtreCategorie, recherche]);
 
   // Vagues regroupées par SECTEUR RÉEL des fiches (catégorie calculée), pas
   // par nom de vague : une vague mal nommée (ex. « nettoyage 1 » contenant
@@ -330,6 +351,7 @@ export default function Dashboard() {
     for (const e of entreprises) {
       if (!e.lot) continue;
       if (prioritairesUniquement && !e.oeth?.assujetti) continue;
+      if (filtreTaille && !dansTaille(e, filtreTaille)) continue;
       if (filtreStatut && !correspondStatut(e, filtreStatut)) continue;
       if (!correspondRecherche(e, recherche)) continue;
       const cle = e.categorie?.cle || "autre";
@@ -344,7 +366,7 @@ export default function Dashboard() {
         lotsDuSecteur.sort((a, b) => a.lot.localeCompare(b.lot, "fr", { numeric: true }));
         return { cle: c.value, label: c.label, total: lotsDuSecteur.reduce((t, l) => t + l.nombre, 0), lots: lotsDuSecteur };
       });
-  }, [entreprises, categories, prioritairesUniquement, filtreStatut, recherche]);
+  }, [entreprises, categories, prioritairesUniquement, filtreTaille, filtreStatut, recherche]);
 
   // Toutes les vagues existantes par secteur, sans filtre : sert à proposer
   // le prochain nom de vague (ex. « Sécurité 2 ») lors d'une génération.
@@ -386,6 +408,7 @@ export default function Dashboard() {
   const entreprisesFiltrees = useMemo(() => {
     let liste = entreprises.filter((e) => {
       if (prioritairesUniquement && !e.oeth?.assujetti) return false;
+      if (filtreTaille && !dansTaille(e, filtreTaille)) return false;
       if (filtreStatut && !correspondStatut(e, filtreStatut)) return false;
       if (filtreCategorie && e.categorie?.cle !== filtreCategorie) return false;
       if (filtreLot && e.lot !== filtreLot) return false;
@@ -396,7 +419,7 @@ export default function Dashboard() {
     // priorité au déficit d'unités bénéficiaires le plus élevé en tête.
     liste = [...liste].sort((a, b) => (tri ? comparerTri(a, b, tri) : (b.oeth?.deficit || 0) - (a.oeth?.deficit || 0)));
     return liste;
-  }, [entreprises, filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, recherche, tri]);
+  }, [entreprises, filtreStatut, filtreCategorie, filtreLot, prioritairesUniquement, filtreTaille, recherche, tri]);
 
   // Recherche en bas : combien d'entreprises correspondent au texte mais sont
   // cachées par un filtre (statut « Nouveau » gardé, secteur, vague,
@@ -670,6 +693,24 @@ export default function Dashboard() {
                 />
                 Prioritaires uniquement (effectif ≥ 20) — {nbPrioritaires}/{entreprises.length}
               </label>
+
+              <select
+                value={filtreTaille}
+                onChange={(e) => setFiltreTaille(e.target.value)}
+                title="Taille des entreprises affichées (tranches d'effectif INSEE)"
+                className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+                  filtreTaille
+                    ? "border-marine-500 bg-marine-50 text-marine-800 dark:bg-marine-900/40 dark:text-marine-200"
+                    : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                }`}
+              >
+                <option value="">Toutes tailles</option>
+                {TAILLES_EFFECTIF.filter((t) => t.cle !== "20+").map((t) => (
+                  <option key={t.cle} value={t.cle}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
 
               <span
                 className="text-sm text-slate-400 dark:text-slate-500"
