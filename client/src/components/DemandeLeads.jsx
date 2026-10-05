@@ -158,6 +158,7 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
         <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
           {etat.enCours ? "⏳ " : "✓ "}
           {etat.attribues} fiche{etat.attribues > 1 ? "s" : ""} attribuée{etat.attribues > 1 ? "s" : ""}
+          {etat.recyclees > 0 && ` (dont ${etat.recyclees} NRP remise${etat.recyclees > 1 ? "s" : ""} en Nouveau)`}
           {etat.aGenerer > 0 &&
             ` + ${etat.generes} / ${etat.aGenerer} nouvelle${etat.aGenerer > 1 ? "s" : ""} fiche${
               etat.aGenerer > 1 ? "s" : ""

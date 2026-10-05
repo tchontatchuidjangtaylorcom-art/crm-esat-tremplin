@@ -87,6 +87,7 @@ import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
 import { reparerChampsContact, estNumeroTelephone } from "./telephone.js";
 import { territoireDe, territoireValide, nomTerritoire } from "./territoires.js";
+import { verifierProcedureCollective } from "./bodacc.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -111,7 +112,7 @@ installerJournal(app, {
   trouverUtilisateurParId,
   estAdmin,
   libelleStatut: (s) =>
-    ISSUES_APPEL[s] || SORTIES_DOSSIER[s] || { nouveau: "Nouveau", a_relancer: "À relancer", numero_invalide: "Numéro invalide" }[s] || s,
+    ISSUES_APPEL[s] || SORTIES_DOSSIER[s] || { nouveau: "Nouveau", a_relancer: "À relancer", numero_invalide: "Numéro invalide", pdn: "PDN (pas de numéro)" }[s] || s,
 });
 enregistrerRoutesSupervision(app, { exigerSuperAdmin, trouverUtilisateurParId });
 
@@ -196,6 +197,9 @@ function enrichir(entreprise) {
   return {
     ...entreprise,
     emails: entreprise.emails || [],
+    // Recherche d'e-mail PDN en cours (voir rechercherEmailPdn) : l'interface
+    // recharge la fiche jusqu'à ce qu'elle se termine.
+    rechercheEmailPdnEnCours: rechercheEmailPdnEnCours(entreprise),
     oeth: calculerObligationOeth(entreprise),
     categorie: classifierSecteur(entreprise.secteurActivite, {
       secteurPublic: entreprise.secteurPublic,
@@ -941,12 +945,12 @@ enregistrerRoutesDistributionEquipe(app, {
   exigerAdmin,
   estAdmin,
   ordreFiches: ordreFichesAAttribuer,
-  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
+  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau", pdn: "PDN (pas de numéro)" }[s] || s,
   apresAttribution: (utilisateurId, fiches) => rechercherNumerosAttribues(utilisateurId, fiches),
 });
 enregistrerRoutesAnnulationDistribution(app, {
   exigerAdmin,
-  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
+  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau", pdn: "PDN (pas de numéro)" }[s] || s,
 });
 enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });
 
@@ -1114,6 +1118,17 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null,
   }
 
   const donnees = await rechercherEntrepriseParSiren(siren);
+  // Sirene laisse "active" une société en liquidation tant qu'elle n'est pas
+  // radiée : on consulte aussi le BODACC. Meilleur effort — une panne du
+  // BODACC ne bloque pas la création, le balayage périodique repassera.
+  let procedure;
+  if (donnees.actif) {
+    try {
+      procedure = await verifierProcedureCollective(siren);
+    } catch (e) {
+      console.warn(`[bodacc] Vérification impossible pour ${siren} : ${e.message}`);
+    }
+  }
 
   const nouvelle = {
     id: nanoid(),
@@ -1161,14 +1176,153 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null,
     emails: [],
   };
 
-  if (donnees.actif) {
-    db.data.entreprises.push(nouvelle);
-  } else {
+  if (procedure !== undefined) appliquerProcedureCollective(nouvelle, procedure);
+  const archivee = !donnees.actif || nouvelle.statut === "mort";
+  if (archivee) {
     db.data.archives.push(nouvelle);
+  } else {
+    db.data.entreprises.push(nouvelle);
   }
   await db.write();
-  return { existant: false, archive: !donnees.actif, entreprise: enrichir(nouvelle) };
+  return {
+    existant: false,
+    archive: archivee,
+    liquidation: nouvelle.procedureCollective?.type === "liquidation",
+    entreprise: enrichir(nouvelle),
+  };
 }
+
+// ---- Procédures collectives (BODACC) ----
+// Une fiche en CP a déjà un interlocuteur engagé : on la signale sans la
+// sortir du pipeline, c'est à l'agent de décider.
+const STATUTS_PROTEGES_LIQUIDATION = new Set(["fiche", "fiche_one_shot"]);
+// Une fiche n'est revérifiée au BODACC qu'au-delà de ce délai.
+const DELAI_REVERIFICATION_BODACC_MS = 7 * 24 * 3600 * 1000;
+const PAUSE_BODACC_MS = 300;
+
+const LIBELLES_PROCEDURE = {
+  liquidation: "liquidation judiciaire",
+  redressement: "redressement judiciaire",
+  sauvegarde: "procédure de sauvegarde",
+};
+
+// Applique le résultat d'une vérification BODACC à une fiche (sans écrire en
+// base) : mémorise la procédure, ajoute un commentaire système quand elle
+// est nouvelle, et passe la fiche en "mort" si elle est en liquidation — à
+// l'appelant de la déplacer vers les archives (voir archiver()).
+// Renvoie "archivee", "signalee" ou null.
+function appliquerProcedureCollective(entreprise, procedure) {
+  const precedente = entreprise.procedureCollective || null;
+  entreprise.bodaccVerifieLe = new Date().toISOString();
+  entreprise.procedureCollective = procedure;
+  if (!procedure) return null;
+
+  const nouvelle =
+    !precedente || precedente.type !== procedure.type || precedente.dateJugement !== procedure.dateJugement;
+  const liquidation = procedure.type === "liquidation";
+  const aArchiver = liquidation && !STATUTS_PROTEGES_LIQUIDATION.has(entreprise.statut);
+  if (!nouvelle && !aArchiver) return null;
+
+  const quand = procedure.dateJugement ? ` (jugement du ${procedure.dateJugement})` : "";
+  const ou = procedure.tribunal ? ` — ${procedure.tribunal}` : "";
+  let texte = `BODACC : ${procedure.nature}${quand}${ou}.`;
+  if (aArchiver) texte += " Entreprise en liquidation judiciaire — dossier archivé automatiquement, aucune action requise.";
+  else if (liquidation) texte += " Entreprise en liquidation judiciaire : fiche en CP conservée, à vérifier par l'agent.";
+  else texte += ` Entreprise en ${LIBELLES_PROCEDURE[procedure.type]} : toujours en activité, mais prudence sur l'engagement.`;
+
+  entreprise.commentaires = entreprise.commentaires || [];
+  entreprise.commentaires.push({ id: nanoid(), date: new Date().toISOString(), auteur: "Système", texte });
+  if (aArchiver) entreprise.statut = "mort";
+  return aArchiver ? "archivee" : "signalee";
+}
+
+// Balayage des fiches actives au BODACC, en tâche de fond : au démarrage
+// puis toutes les 6 heures (fiches non vérifiées depuis 7 jours), ou à la
+// demande d'un administrateur (toutes les fiches actives).
+const etatBalayageBodacc = {
+  enCours: false,
+  total: 0,
+  traites: 0,
+  archivees: [],
+  signalees: 0,
+  erreurs: 0,
+  derniereErreur: null,
+  demarre: null,
+  termine: null,
+};
+
+async function balayerProceduresCollectives({ toutes = false } = {}) {
+  if (etatBalayageBodacc.enCours) return false;
+  const limite = Date.now() - DELAI_REVERIFICATION_BODACC_MS;
+  const cibles = db.data.entreprises.filter(
+    (e) => sirenDe(e) && (toutes || !e.bodaccVerifieLe || Date.parse(e.bodaccVerifieLe) < limite)
+  );
+  Object.assign(etatBalayageBodacc, {
+    enCours: true,
+    total: cibles.length,
+    traites: 0,
+    archivees: [],
+    signalees: 0,
+    erreurs: 0,
+    derniereErreur: null,
+    demarre: new Date().toISOString(),
+    termine: null,
+  });
+
+  try {
+    for (const entreprise of cibles) {
+      // La fiche a pu être archivée/supprimée entre-temps.
+      if (!db.data.entreprises.includes(entreprise)) continue;
+      try {
+        const procedure = await verifierProcedureCollective(sirenDe(entreprise));
+        const resultat = appliquerProcedureCollective(entreprise, procedure);
+        if (resultat === "archivee") {
+          archiver(entreprise);
+          etatBalayageBodacc.archivees.push({ id: entreprise.id, nom: entreprise.nom, nature: procedure.nature, dateJugement: procedure.dateJugement });
+          console.log(`[bodacc] ${entreprise.nom} (${sirenDe(entreprise)}) en liquidation judiciaire — archivée.`);
+        } else if (resultat === "signalee") {
+          etatBalayageBodacc.signalees += 1;
+        }
+        await db.write();
+      } catch (e) {
+        etatBalayageBodacc.erreurs += 1;
+        etatBalayageBodacc.derniereErreur = e.message;
+        // API saturée : inutile d'insister, le prochain passage reprendra là.
+        if (e.code === "BODACC_SATURE") break;
+      } finally {
+        etatBalayageBodacc.traites += 1;
+      }
+      await new Promise((resolve) => setTimeout(resolve, PAUSE_BODACC_MS));
+    }
+  } finally {
+    etatBalayageBodacc.enCours = false;
+    etatBalayageBodacc.termine = new Date().toISOString();
+    if (etatBalayageBodacc.archivees.length) {
+      console.log(`[bodacc] Balayage terminé : ${etatBalayageBodacc.archivees.length} fiche(s) en liquidation archivée(s).`);
+    }
+  }
+  return true;
+}
+
+// Lance un balayage complet de toutes les fiches actives (bouton admin).
+app.post("/api/leads/verifier-liquidations", exigerAdmin, (req, res) => {
+  if (etatBalayageBodacc.enCours) {
+    return res.status(409).json({ error: "Une vérification BODACC est déjà en cours.", ...etatBalayageBodacc });
+  }
+  balayerProceduresCollectives({ toutes: true }).catch((e) => console.error("[bodacc] Échec du balayage :", e.message));
+  res.status(202).json(etatBalayageBodacc);
+});
+
+app.get("/api/leads/verifier-liquidations/statut", exigerAdmin, (req, res) => {
+  res.json(etatBalayageBodacc);
+});
+
+setTimeout(() => {
+  balayerProceduresCollectives().catch((e) => console.error("[bodacc] Échec du balayage :", e.message));
+  setInterval(() => {
+    balayerProceduresCollectives().catch((e) => console.error("[bodacc] Échec du balayage :", e.message));
+  }, 6 * 3600 * 1000);
+}, 60_000);
 
 // Module d'automatisation des leads par SIREN : déduplication, puis
 // enrichissement + qualification automatique via le répertoire Sirene (INSEE).
@@ -1280,6 +1434,87 @@ function marquerRechercheTelephone(entreprise, resultat, erreur = null) {
     erreurs: resultat === "erreur" ? (precedente.erreurs || 0) + 1 : 0,
     ...(erreur ? { derniereErreur: erreur } : {}),
   };
+}
+
+// ---- PDN (Pas De Numéro) ----
+// Posé À LA MAIN par l'agent après une recherche Google infructueuse : la
+// fiche n'est plus prospectable au téléphone, elle se travaille par mail.
+// Au passage en PDN, l'e-mail est cherché aussitôt (recherche IA en tâche de
+// fond) si la fiche n'en a pas déjà un. Une seule recherche par fiche.
+const QUESTION_EMAIL_PDN =
+  "Aucun numéro de téléphone n'a été trouvé pour cette entreprise. Trouve l'adresse e-mail la plus utile pour la " +
+  "prospecter : idéalement celle du ou de la DRH / responsable RH / recrutement / référent handicap, sinon l'adresse " +
+  "RH ou recrutement générique, sinon l'adresse de contact générale. Uniquement une adresse réellement publiée.";
+
+function aUnNumeroUtilisable(entreprise) {
+  const contact = entreprise.contact || {};
+  const principal = String(contact.telephone || "").replace(/\D/g, "").length >= 9 && !contact.telephoneInvalide;
+  return principal || (contact.telephonesAlternatifs || []).length > 0;
+}
+
+// Fiches dont la recherche d'e-mail tourne (mémoire du processus) : un
+// "en_cours" persisté par un serveur redémarré en pleine recherche n'est
+// donc jamais pris pour une recherche active.
+const recherchesEmailPdnEnCours = new Set();
+
+function rechercheEmailPdnEnCours(entreprise) {
+  return recherchesEmailPdnEnCours.has(entreprise.id);
+}
+
+// Lancée sans attendre par les routes de changement de statut : la
+// recherche IA prend 30 s à 2 min. L'interface interroge la fiche tant que
+// `rechercheEmailPdn.resultat` vaut "en_cours".
+async function rechercherEmailPdn(entreprise, auteur) {
+  if (recherchesEmailPdnEnCours.has(entreprise.id)) return;
+  const contact = (entreprise.contact ||= {});
+  const maintenant = () => new Date().toISOString();
+  const noter = (texte) => {
+    entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+    entreprise.commentaires.unshift({ id: nanoid(), date: maintenant(), auteur: "Assistant IA", texte });
+  };
+
+  if (contact.email) {
+    entreprise.rechercheEmailPdn = { date: maintenant(), resultat: "deja_connu" };
+    return;
+  }
+  if (entreprise.rechercheEmailPdn && entreprise.rechercheEmailPdn.resultat !== "erreur" && entreprise.rechercheEmailPdn.resultat !== "en_cours") {
+    return; // déjà cherché une fois sans succès : pas de dépense répétée
+  }
+  if (!estRechercheIaConfiguree()) {
+    noter(`Fiche passée en PDN par ${auteur} — recherche d'e-mail automatique indisponible (IA non configurée) : à compléter à la main.`);
+    return;
+  }
+
+  recherchesEmailPdnEnCours.add(entreprise.id);
+  entreprise.rechercheEmailPdn = { date: maintenant(), resultat: "en_cours" };
+  try {
+    const reponse = await poserQuestionContact(entreprise, QUESTION_EMAIL_PDN);
+    const fiche = findEntreprise(entreprise.id) || entreprise;
+    if (reponse.contact?.nom) appliquerContactRhIa(fiche, reponse);
+    const email = nettoieEmail(reponse.contact?.email);
+    if (email) ajouterEmailFiche(fiche.contact, email, "Trouvé par l'IA (recherche e-mail PDN)");
+    fiche.rechercheEmailPdn = { date: maintenant(), resultat: fiche.contact.email ? "trouve" : "introuvable" };
+    if (!fiche.contact.email) {
+      noter(`Fiche passée en PDN par ${auteur} — aucune adresse e-mail publiée trouvée : à compléter à la main.`);
+    } else if (!reponse.contact?.nom) {
+      noter(`Fiche passée en PDN par ${auteur} — e-mail trouvé : ${fiche.contact.email}. Prospection par mail.`);
+    }
+  } catch (e) {
+    console.error(`[ia] Échec de la recherche d'e-mail PDN pour ${entreprise.nom} :`, e.message);
+    entreprise.rechercheEmailPdn = { date: maintenant(), resultat: "erreur", erreur: e.message };
+    noter(`Recherche d'e-mail (PDN) en échec : ${e.message}`);
+  } finally {
+    recherchesEmailPdnEnCours.delete(entreprise.id);
+    await db.write().catch(() => {});
+  }
+}
+
+// Appelée après un changement de statut : passage en PDN → recherche e-mail.
+function apresPassageStatut(entreprise, ancienStatut, utilisateur) {
+  if (entreprise.statut !== "pdn" || ancienStatut === "pdn") return;
+  rechercherEmailPdn(entreprise, utilisateur.prenom || utilisateur.email).catch((e) =>
+    console.error("[ia] Recherche e-mail PDN :", e.message)
+  );
 }
 
 // Une fiche est ignorée par le lot si Claude n'a rien trouvé, ou si la
@@ -1740,6 +1975,9 @@ app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
 // SEUIL_NOUVEAUX_DEMANDE fiches "nouveau" jamais traitées.
 const TAILLE_DEMANDE_LEADS = 20;
 const SEUIL_NOUVEAUX_DEMANDE = 10;
+// Fiches NRP sans nouvelle tentative depuis ce nombre de jours : recyclées
+// avant toute génération de nouvelles fiches (voir traiterDemandeLeads).
+const DELAI_RECYCLAGE_NRP_JOURS = 3;
 // Suivi par agent (mémoire process, comme l'enrichissement en lot).
 const demandesLeads = new Map();
 
@@ -1850,15 +2088,60 @@ async function traiterDemandeLeads(req, res) {
       texte: `Fiche attribuée automatiquement à ${nomAgent}, à sa demande.`,
     });
   }
-  if (pool.length) await db.write();
+  // 1 bis) Pas assez de fiches « Nouveau » : on recycle des fiches NRP 1 /
+  // NRP 2 d'autres agents restées sans nouvelle tentative depuis
+  // DELAI_RECYCLAGE_NRP_JOURS jours (avec un numéro), remises en « Nouveau »
+  // chez le demandeur — un autre agent retente, sans aucun coût. On ne
+  // génère de nouvelles fiches (recherche Claude des numéros, payante) que
+  // s'il en manque encore ensuite. Même trace que la distribution, pour
+  // pouvoir l'annuler (voir annulationDistribution.js).
+  const limiteRecyclage = Date.now() - DELAI_RECYCLAGE_NRP_JOURS * 24 * 3600 * 1000;
+  const derniereActivite = (e) => new Date(e.historiqueAppels?.[0]?.date || e.dateAssignation || 0).getTime();
+  const recyclees = db.data.entreprises
+    .filter(
+      (e) =>
+        (e.statut === "nrp" || e.statut === "nrp2") &&
+        e.assigneA !== utilisateur.id &&
+        estNumeroTelephone(String(e.contact?.telephone || "").trim()) &&
+        derniereActivite(e) < limiteRecyclage &&
+        correspondDepartement(e, departement) &&
+        dansTerritoire(e) &&
+        dansTaille(e, taille) &&
+        (!cle ||
+          classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle === cle)
+    )
+    .sort((a, b) => ordreFichesAAttribuer(a, b) || derniereActivite(a) - derniereActivite(b))
+    .slice(0, TAILLE_DEMANDE_LEADS - pool.length);
+  for (const e of recyclees) {
+    const ancienStatut = e.statut;
+    const ancienAgent = e.assigneA && db.data.utilisateurs.find((u) => u.id === e.assigneA);
+    e.assigneA = utilisateur.id;
+    e.assignationVue = true;
+    e.dateAssignation = maintenant;
+    e.statut = "nouveau";
+    e.dateRappel = null;
+    e.dateRdv = null;
+    e.commentaires = Array.isArray(e.commentaires) ? e.commentaires : [];
+    e.commentaires.unshift({
+      id: nanoid(),
+      date: maintenant,
+      auteur: "Système",
+      texte:
+        `Fiche attribuée à ${nomAgent} (distribution par ${nomAgent}) : ${ISSUES_APPEL[ancienStatut] || ancienStatut}${
+          ancienAgent ? ` chez ${ancienAgent.prenom || ancienAgent.email}` : ""
+        }, remise en Nouveau.`,
+    });
+  }
+  if (pool.length || recyclees.length) await db.write();
 
-  const manquants = TAILLE_DEMANDE_LEADS - pool.length;
+  const manquants = TAILLE_DEMANDE_LEADS - pool.length - recyclees.length;
   // Sans secteur choisi, on ne génère pas : on ne sait pas quoi chercher.
   const generer = manquants > 0 && Boolean(categorie);
 
   demandesLeads.set(utilisateur.id, {
     enCours: generer,
-    attribues: pool.length,
+    attribues: pool.length + recyclees.length,
+    recyclees: recyclees.length,
     generes: 0,
     aGenerer: generer ? manquants : 0,
     categorieLabel: categorie?.label || null,
@@ -2091,11 +2374,25 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
     // "Me rappelle" (sans date ni alerte). Sans effet hors statut mail.
     "aussiMeRappelle",
   ];
+  const ancienStatut = entreprise.statut;
   for (const champ of champsAutorises) {
     if (champ in req.body) entreprise[champ] = req.body[champ];
   }
   if ("contact" in req.body) reparerChampsContact(entreprise.contact);
+  // Fiche PDN à laquelle on vient d'ajouter un numéro : elle redevient
+  // prospectable au téléphone.
+  if ("contact" in req.body && !("statut" in req.body) && entreprise.statut === "pdn" && aUnNumeroUtilisable(entreprise)) {
+    entreprise.statut = "nouveau";
+    entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+    entreprise.commentaires.unshift({
+      id: nanoid(),
+      date: new Date().toISOString(),
+      auteur: "Système",
+      texte: `Numéro ajouté par ${req.utilisateur.prenom || req.utilisateur.email} — fiche sortie de PDN, remise en Nouveau.`,
+    });
+  }
   if (req.body.dateRappel || req.body.dateRdv) entreprise.echeanceProgrammeePar = req.utilisateur.id;
+  apresPassageStatut(entreprise, ancienStatut, req.utilisateur);
 
   await db.write();
   res.json(enrichir(entreprise));
@@ -2371,7 +2668,7 @@ app.post("/api/entreprises/assigner-groupe", exigerAdmin, async (req, res) => {
 // /telephone-invalide, mais reste sélectionnable ici (badge de statut
 // cliquable, changement groupé) pour qu'un agent puisse aussi le lever/poser
 // manuellement sans repasser par le bouton dédié.
-const STATUTS_DIRECTS_AUTORISES = new Set(["nouveau", "a_relancer", "numero_invalide"]);
+const STATUTS_DIRECTS_AUTORISES = new Set(["nouveau", "a_relancer", "numero_invalide", "pdn"]);
 
 function libelleStatutGroupe(statut) {
   return ISSUES_APPEL[statut] || SORTIES_DOSSIER[statut] || (STATUTS_DIRECTS_AUTORISES.has(statut) ? statut : null);
@@ -2410,11 +2707,13 @@ app.post("/api/entreprises/statut-groupe", exigerAuth, async (req, res) => {
       dateProgrammee: null,
       dureeSecondes: null,
     });
+    const ancienStatut = entreprise.statut;
     entreprise.statut = statut;
     // Statut changé sur UNE fiche (menu de statut de la liste ou de la
     // fiche) = un appel dans les KPI ; pas un changement groupé.
     if (ids.length === 1) compterAppelStatut(req.utilisateur.id, entreprise, statut);
     if (archive) archiver(entreprise);
+    apresPassageStatut(entreprise, ancienStatut, req.utilisateur);
     entreprisesTouchees.push(enrichir(entreprise));
   }
 
