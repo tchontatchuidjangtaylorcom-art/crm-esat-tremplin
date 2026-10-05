@@ -40,10 +40,16 @@ export default function KpisEquipe() {
 
   function voirDetail(u) {
     setAgentSupervise({ id: u.id, prenom: u.prenom, email: u.email });
-    navigate("/mes-kpis");
+    // Même semaine que celle affichée ici.
+    navigate("/mes-kpis", { state: { semaine } });
   }
 
-  const alertes = data
+  // Semaine passée : rien de « maintenant » ni d'« aujourd'hui » à afficher.
+  const semaineEnCours = semaine === 0;
+  const appelsEquipe = data
+    ? data.membres.reduce((s, m) => s + (m.semaine.appelsTotal ?? 0), 0)
+    : 0;
+  const alertes = data && semaineEnCours
     ? data.membres.flatMap((m) => {
         const liste = [];
         if (m.alerteAbsence) liste.push({ m, texte: `aucune connexion ${formatJourCourt(m.alerteAbsence.jour)}` });
@@ -79,13 +85,16 @@ export default function KpisEquipe() {
 
       {data && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${semaineEnCours ? "lg:grid-cols-5" : "lg:grid-cols-3"} gap-3 mb-5`}>
+            {semaineEnCours && (
             <CarteKpi
               icone="🟢"
               titre="Agents actifs en ce moment"
               valeur={`${data.resume.actifsMaintenant} / ${data.resume.total}`}
               detail={`${data.resume.presentsAujourdHui} connecté${data.resume.presentsAujourdHui > 1 ? "s" : ""} aujourd'hui`}
             />
+            )}
+            {semaineEnCours && (
             <CarteKpi
               icone="🚨"
               titre="Alertes d'absence"
@@ -95,6 +104,7 @@ export default function KpisEquipe() {
                 data.resume.retardsAujourdHui
               } non connecté${data.resume.retardsAujourdHui > 1 ? "s" : ""} ce jour`}
             />
+            )}
             <CarteKpi
               icone="✅"
               titre="Taux de présence moyen"
@@ -108,6 +118,12 @@ export default function KpisEquipe() {
               titre="Temps actif cumulé"
               valeur={formatDureeTravail(data.resume.secondesActivesSemaine)}
               detail="Tous les agents, sur la semaine"
+            />
+            <CarteKpi
+              icone="📈"
+              titre="Appels de la semaine"
+              valeur={appelsEquipe}
+              detail="Toute l'équipe (clics, copies et résultats d'appel)"
             />
           </div>
 
@@ -132,19 +148,23 @@ export default function KpisEquipe() {
               <thead className="bg-slate-50 dark:bg-slate-900/50 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="text-left px-4 py-2.5 font-semibold">Collaborateur</th>
-                  <th className="text-left px-3 py-2.5 font-semibold">Maintenant</th>
-                  <th className="text-left px-3 py-2.5 font-semibold">Arrivée</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">Aujourd'hui</th>
+                  {semaineEnCours && (
+                    <>
+                      <th className="text-left px-3 py-2.5 font-semibold">Maintenant</th>
+                      <th className="text-left px-3 py-2.5 font-semibold">Arrivée</th>
+                      <th className="text-right px-3 py-2.5 font-semibold">Aujourd'hui</th>
+                    </>
+                  )}
                   <th className="text-left px-3 py-2.5 font-semibold">Semaine</th>
                   <th className="text-right px-3 py-2.5 font-semibold">Temps semaine</th>
-                  <th className="text-right px-3 py-2.5 font-semibold" title="Total des appels (clic ou copie) : uniques + en doublon (même numéro rappelé le même jour)">Appels auj. / sem.</th>
+                  <th className="text-right px-3 py-2.5 font-semibold" title="Total des appels (clic, copie ou résultat d'appel enregistré) : uniques + en doublon (même numéro rappelé le même jour)">{semaineEnCours ? "Appels auj. / sem." : "Appels sem."}</th>
                   <th className="text-left px-3 py-2.5 font-semibold w-40">Présence</th>
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {data.membres.map((m) => {
-                  const enAlerte = Boolean(m.alerteAbsence || m.aujourdHui.retard);
+                  const enAlerte = semaineEnCours && Boolean(m.alerteAbsence || m.aujourdHui.retard);
                   const taux = m.semaine.tauxPresence;
                   return (
                     <tr key={m.utilisateur.id} className={enAlerte ? "bg-red-50/60 dark:bg-red-950/20" : ""}>
@@ -156,12 +176,14 @@ export default function KpisEquipe() {
                           )}
                         </div>
                         <div className="text-xs text-slate-400 dark:text-slate-500">{m.utilisateur.email}</div>
-                        {m.alerteAbsence && (
+                        {semaineEnCours && m.alerteAbsence && (
                           <div className="text-xs font-semibold text-red-600 dark:text-red-400">
                             Absent {formatJourCourt(m.alerteAbsence.jour)}
                           </div>
                         )}
                       </td>
+                      {semaineEnCours && (
+                      <>
                       <td className="px-3 py-2.5">
                         <PastilleEtat etat={m.aujourdHui.etat} retard={m.aujourdHui.retard} />
                         {m.aujourdHui.etat === "pause" && (
@@ -176,6 +198,8 @@ export default function KpisEquipe() {
                       <td className="px-3 py-2.5 text-right font-semibold text-slate-800 dark:text-slate-100">
                         {m.aujourdHui.secondesActives ? formatDureeTravail(m.aujourdHui.secondesActives) : "—"}
                       </td>
+                      </>
+                      )}
                       <td className="px-3 py-2.5">
                         <MiniSemaine jours={m.semaine.jours} objectifSecondesJour={data.objectifSecondesJour} />
                       </td>
@@ -183,8 +207,14 @@ export default function KpisEquipe() {
                         {formatDureeTravail(m.semaine.secondesActives)}
                       </td>
                       <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                        <span className="font-semibold">{m.aujourdHui.appelsTotal ?? m.aujourdHui.appels ?? 0}</span> /{" "}
-                        {m.semaine.appelsTotal ?? m.semaine.appels ?? 0}
+                        {semaineEnCours ? (
+                          <>
+                            <span className="font-semibold">{m.aujourdHui.appelsTotal ?? m.aujourdHui.appels ?? 0}</span> /{" "}
+                            {m.semaine.appelsTotal ?? m.semaine.appels ?? 0}
+                          </>
+                        ) : (
+                          <span className="font-semibold">{m.semaine.appelsTotal ?? m.semaine.appels ?? 0}</span>
+                        )}
                         <span className="block text-[11px] text-slate-400 dark:text-slate-500">
                           sem. : {m.semaine.appels ?? 0} uniques · {m.semaine.appelsDoublons ?? 0} en doublon
                         </span>
@@ -223,7 +253,7 @@ export default function KpisEquipe() {
                 })}
                 {data.membres.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    <td colSpan={semaineEnCours ? 9 : 6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                       Aucun compte validé.
                     </td>
                   </tr>

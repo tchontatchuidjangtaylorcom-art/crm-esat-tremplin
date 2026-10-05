@@ -280,6 +280,7 @@ export default function RappelsEcheances() {
         issue: alerte.type,
         date: nouvelle,
         details: `Reporté ${formatQuand(nouvelle)}${motifReport.trim() ? ` — ${motifReport.trim()}` : " à la demande du client"}.`,
+        report: true,
       });
       mettreAJour({ traites: { [cleAlerte]: Date.now() } });
       setAutreDate(null);

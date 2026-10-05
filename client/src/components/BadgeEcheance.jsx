@@ -40,7 +40,7 @@ export default function BadgeEcheance({ entreprise, onMaj }) {
       if (entreprise.statut === "rdv" || entreprise.statut === "a_rappeler") {
         // Même route que les issues d'appel : statut conservé, date mise à
         // jour, ligne dans l'historique des appels.
-        maj = await api.enregistrerAppel(entreprise.id, { issue: entreprise.statut, date, details });
+        maj = await api.enregistrerAppel(entreprise.id, { issue: entreprise.statut, date, details, report: true });
       } else {
         // Autres statuts (ex. Client Potentiel) : seule la date bouge.
         await api.patchEntreprise(entreprise.id, estRdv ? { dateRdv: date } : { dateRappel: date });

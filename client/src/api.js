@@ -58,11 +58,12 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handle),
 
-  enregistrerAppel: (id, { issue, date, details, dureeSecondes }) =>
+  // `report` : simple report d'un RDV / rappel (pas un nouvel appel dans les KPI).
+  enregistrerAppel: (id, { issue, date, details, dureeSecondes, report = false }) =>
     fetch(`${BASE}/entreprises/${id}/appels`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ issue, date, details, dureeSecondes }),
+      body: JSON.stringify({ issue, date, details, dureeSecondes, report }),
     }).then(handle),
 
   enregistrerSortie: (id, { sortie, details, dureeSecondes, doublonDe }) =>

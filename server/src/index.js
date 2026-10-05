@@ -49,7 +49,7 @@ import { installerJournal, enregistrerRoutesSupervision } from "./journalAudit.j
 import { enregistrerRoutesFicheClient, lienFicheClient } from "./ficheClient.js";
 import { avecModelesPublic } from "./modelesMailsPublic.js";
 import { tailleEffectif, dansTaille } from "./taillesEffectif.js";
-import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi } from "./appelsAgents.js";
+import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi, compterAppelStatut } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
@@ -2241,6 +2241,9 @@ app.post("/api/entreprises/:id/appels", exigerAuth, chargerEntrepriseAutorisee, 
   // Qui a programmé l'échéance : seul destinataire de l'alerte si la fiche
   // n'est assignée à personne (voir /api/echeances).
   if (date) entreprise.echeanceProgrammeePar = req.utilisateur.id;
+  // Résultat d'appel = un appel dans les KPI (voir appelsAgents.js) — sauf
+  // le simple report d'un RDV / rappel déjà prévu (`report`).
+  if (!req.body.report) compterAppelStatut(req.utilisateur.id, entreprise, issue);
 
   await db.write();
   res.json(enrichir(entreprise));
@@ -2268,6 +2271,8 @@ app.post("/api/entreprises/:id/sortie", exigerAuth, chargerEntrepriseAutorisee, 
 
   entreprise.historiqueAppels.unshift(entree);
   entreprise.statut = sortie;
+  // CP, Refus, Mort… = un appel dans les KPI (pas Doublon, voir appelsAgents.js).
+  compterAppelStatut(req.utilisateur.id, entreprise, sortie);
   if (sortie === "doublon" && req.body.doublonDe && req.body.doublonDe !== entreprise.id && findEntreprise(req.body.doublonDe)) {
     entreprise.doublonDe = req.body.doublonDe;
   }
@@ -2406,6 +2411,9 @@ app.post("/api/entreprises/statut-groupe", exigerAuth, async (req, res) => {
       dureeSecondes: null,
     });
     entreprise.statut = statut;
+    // Statut changé sur UNE fiche (menu de statut de la liste ou de la
+    // fiche) = un appel dans les KPI ; pas un changement groupé.
+    if (ids.length === 1) compterAppelStatut(req.utilisateur.id, entreprise, statut);
     if (archive) archiver(entreprise);
     entreprisesTouchees.push(enrichir(entreprise));
   }
