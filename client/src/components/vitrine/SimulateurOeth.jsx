@@ -846,7 +846,7 @@ export default function SimulateurOeth() {
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-marine-500/60 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] max-w-full h-[500px] rounded-full bg-marine-600/10 blur-3xl" />
 
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+      <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 space-y-4">
         {/* ─────────── En-tête + fil d'étapes ─────────── */}
         <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 overflow-hidden">
           <div className="flex h-1">
@@ -875,7 +875,7 @@ export default function SimulateurOeth() {
 
         {/* ─────────── Étape 1 : le questionnaire, une section à la fois ─────────── */}
         {etape === "questionnaire" && (
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px] gap-4 xl:gap-6 items-start">
         <div className="min-w-0 space-y-3">
         {section === 1 && (
         <>
@@ -1639,7 +1639,7 @@ export default function SimulateurOeth() {
 
         {/* ─────────── Étape 2 : récapitulatif à valider ─────────── */}
         {etape === "recap" && (
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px] gap-4 xl:gap-6 items-start">
             <div className="min-w-0 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-marine-950 px-4 sm:px-8 py-5 sm:py-7">
               <h2 className="text-xl sm:text-2xl font-bold">Récapitulatif de votre simulation {ANNEE_REFERENCE}</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Vérifiez vos réponses avant de voir vos résultats.</p>

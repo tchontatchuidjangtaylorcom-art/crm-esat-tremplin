@@ -107,7 +107,7 @@ export default function EnteteVitrine({ onSimuler }) {
         menuOuvert ? "bg-white dark:bg-black border-b border-slate-900/10 dark:border-white/10" : fond
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 xl:py-4 flex items-center justify-between gap-3 lg:gap-4">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 py-3 xl:py-4 flex items-center justify-between gap-3 lg:gap-4">
         <Link
           to="/vitrine"
           className="text-[13px] sm:text-sm font-semibold tracking-tight transition-colors shrink-0 whitespace-nowrap text-slate-900 dark:text-white"
