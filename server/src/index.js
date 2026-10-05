@@ -1854,9 +1854,10 @@ app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
 // SEUIL_NOUVEAUX_DEMANDE fiches "nouveau" jamais traitées.
 const TAILLE_DEMANDE_LEADS = 20;
 const SEUIL_NOUVEAUX_DEMANDE = 10;
-// Fiches NRP sans nouvelle tentative depuis ce nombre de jours : recyclées
-// avant toute génération de nouvelles fiches (voir traiterDemandeLeads).
-const DELAI_RECYCLAGE_NRP_JOURS = 3;
+// Fiches NRP sans nouvelle tentative depuis ce délai : recyclées avant
+// toute génération de nouvelles fiches (voir traiterDemandeLeads). NRP 2
+// (l'accueil a décroché, les RH non) : 48 h ; NRP 1 : 24 h.
+const DELAI_RECYCLAGE_NRP_HEURES = { nrp: 24, nrp2: 48 };
 // Suivi par agent (mémoire process, comme l'enrichissement en lot).
 const demandesLeads = new Map();
 
@@ -1968,21 +1969,31 @@ async function traiterDemandeLeads(req, res) {
     });
   }
   // 1 bis) Pas assez de fiches « Nouveau » : on recycle des fiches NRP 1 /
-  // NRP 2 d'autres agents restées sans nouvelle tentative depuis
-  // DELAI_RECYCLAGE_NRP_JOURS jours (avec un numéro), remises en « Nouveau »
+  // NRP 2 d'autres agents restées sans nouvelle tentative depuis 24 h (NRP 1)
+  // ou 48 h (NRP 2), avec un numéro, remises en « Nouveau »
   // chez le demandeur — un autre agent retente, sans aucun coût. On ne
   // génère de nouvelles fiches (recherche Claude des numéros, payante) que
   // s'il en manque encore ensuite. Même trace que la distribution, pour
   // pouvoir l'annuler (voir annulationDistribution.js).
-  const limiteRecyclage = Date.now() - DELAI_RECYCLAGE_NRP_JOURS * 24 * 3600 * 1000;
   const derniereActivite = (e) => new Date(e.historiqueAppels?.[0]?.date || e.dateAssignation || 0).getTime();
+  const assezAncienne = (e) => derniereActivite(e) < Date.now() - DELAI_RECYCLAGE_NRP_HEURES[e.statut] * 3600 * 1000;
+  // Tourne entre les agents : jamais rendue à quelqu'un qui l'a déjà eue.
+  const dejaEue = (e) =>
+    (e.commentaires || []).some(
+      (c) =>
+        c.auteur === "Système" &&
+        (String(c.texte || "").startsWith(`Fiche attribuée à ${nomAgent} `) ||
+          String(c.texte || "").startsWith(`Fiche attribuée automatiquement à ${nomAgent},`) ||
+          String(c.texte || "").includes(` chez ${nomAgent},`))
+    );
   const recyclees = db.data.entreprises
     .filter(
       (e) =>
         (e.statut === "nrp" || e.statut === "nrp2") &&
         e.assigneA !== utilisateur.id &&
         estNumeroTelephone(String(e.contact?.telephone || "").trim()) &&
-        derniereActivite(e) < limiteRecyclage &&
+        assezAncienne(e) &&
+        !dejaEue(e) &&
         correspondDepartement(e, departement) &&
         dansTerritoire(e) &&
         dansTaille(e, taille) &&
