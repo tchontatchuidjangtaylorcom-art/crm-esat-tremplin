@@ -11,7 +11,7 @@ import db from "./db.js";
 import { rechercherEntreprisesParSecteur } from "./insee.js";
 import { tailleEffectif } from "./taillesEffectif.js";
 
-const MAX_TOTAL = 2000;
+const MAX_TOTAL = 5000;
 const PAUSE_MS = 250; // politesse envers l'API publique Sirene
 
 let etat = { enCours: false };

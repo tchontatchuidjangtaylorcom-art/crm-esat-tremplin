@@ -12,7 +12,7 @@ async function appel(url, options) {
 }
 
 // « Remplir le stock de l'équipe » (voir server/src/stockEquipe.js) : génère
-// d'un coup jusqu'à 2 000 fiches réparties sur tous les secteurs, dans la
+// d'un coup jusqu'à 5 000 fiches réparties sur tous les secteurs, dans la
 // taille choisie, sans recherche Claude (les agents cherchent les numéros).
 // Ensuite : « Distribuer des fiches » pour en donner à chacun.
 export default function RemplirStockEquipe({ onImporte }) {
@@ -43,7 +43,7 @@ export default function RemplirStockEquipe({ onImporte }) {
 
   async function lancer(ev) {
     ev.preventDefault();
-    const n = Math.min(Math.max(1, Number(total) || 0), 2000);
+    const n = Math.min(Math.max(1, Number(total) || 0), 5000);
     if (!window.confirm(`Générer ${n} nouvelles fiches (${TAILLES_EFFECTIF.find((t) => t.cle === taille)?.label}) sur tous les secteurs ?\nSans recherche Claude : les fiches arrivent sans numéro.`)) return;
     setErreur(null);
     try {
@@ -68,8 +68,8 @@ export default function RemplirStockEquipe({ onImporte }) {
       </p>
       <form onSubmit={lancer} className="flex flex-wrap items-end gap-3">
         <label className="block text-xs text-slate-500 dark:text-slate-400">
-          Nombre de fiches (max 2 000)
-          <input type="number" min="1" max="2000" value={total} onChange={(e) => setTotal(e.target.value)} className={`${champ} w-28`} />
+          Nombre de fiches (max 5 000)
+          <input type="number" min="1" max="5000" value={total} onChange={(e) => setTotal(e.target.value)} className={`${champ} w-28`} />
         </label>
         <label className="block text-xs text-slate-500 dark:text-slate-400">
           Taille des entreprises
