@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { TERRITOIRES } from "../territoires.js";
+import { TAILLES_EFFECTIF } from "../taillesEffectif.js";
 import SelecteurPersonne from "./SelecteurPersonne.jsx";
 import { extraireDepuisFichier, extraireDepuisTexte } from "../extractionEntreprises.js";
 
@@ -402,6 +403,8 @@ function GenererVagueSecteur({ categories, agents, moiId, lots = [], lotsParSect
   const [territoire, setTerritoire] = useState("");
   const territoireOutreMer = territoire && territoire !== "metropole";
   const [quantite, setQuantite] = useState(100);
+  // Taille ciblée : 20 à 249 salariés par défaut (voir taillesEffectif.js).
+  const [taille, setTaille] = useState("20-249");
   const [lot, setLot] = useState("");
   const [assigneA, setAssigneA] = useState("");
   const [rechercheTelephoneIA, setRechercheTelephoneIA] = useState(true);
@@ -437,6 +440,7 @@ function GenererVagueSecteur({ categories, agents, moiId, lots = [], lotsParSect
         departement: territoireOutreMer ? null : departement.trim() || null,
         limite: Math.min(Number(quantite) || 100, 300),
         territoire: territoire || null,
+        taille,
       });
       setApercu(reponse);
     } catch (e) {
@@ -557,6 +561,21 @@ function GenererVagueSecteur({ categories, agents, moiId, lots = [], lotsParSect
         </label>
 
         <label className="block text-xs text-slate-500 dark:text-slate-400">
+          Taille des entreprises
+          <select
+            value={taille}
+            onChange={(e) => setTaille(e.target.value)}
+            className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+          >
+            {TAILLES_EFFECTIF.map((t) => (
+              <option key={t.cle} value={t.cle}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block text-xs text-slate-500 dark:text-slate-400">
           Quantité (max 300)
           <input
             type="number"
@@ -583,7 +602,7 @@ function GenererVagueSecteur({ categories, agents, moiId, lots = [], lotsParSect
         <div className="space-y-3 border border-marine-200 dark:border-marine-900/50 rounded-lg p-3">
           <p className="text-sm text-slate-700 dark:text-slate-200">
             <strong>{apercu.total}</strong> entreprise{apercu.total > 1 ? "s" : ""} trouvée
-            {apercu.total > 1 ? "s" : ""} pour « {apercu.categorieLabel} »
+            {apercu.total > 1 ? "s" : ""} pour « {apercu.categorieLabel} »{apercu.tailleLabel ? ` — ${apercu.tailleLabel.replace(" (conseillé)", "")}` : ""}
             {territoire ? ` — ${TERRITOIRES.find((t) => t.cle === territoire)?.nom}` : ""}
             {departement && !territoireOutreMer ? ` (département ${departement})` : ""}, pas encore dans le CRM.
           </p>
@@ -594,6 +613,7 @@ function GenererVagueSecteur({ categories, agents, moiId, lots = [], lotsParSect
                 {apercu.entreprises.slice(0, 15).map((e) => (
                   <li key={e.siren}>
                     {e.nom} — {e.ville}
+                    {e.trancheEffectifLabel ? ` · ${e.trancheEffectifLabel}` : ""}
                   </li>
                 ))}
                 {apercu.total > 15 && <li>… et {apercu.total - 15} de plus.</li>}

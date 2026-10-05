@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { TERRITOIRES } from "../territoires.js";
+import { TAILLES_EFFECTIF } from "../taillesEffectif.js";
 
 // Demande de leads en libre-service (agents) : attribue des fiches non
 // assignées du secteur choisi, puis génère le complément depuis Sirene en
@@ -10,6 +11,8 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
   const [etat, setEtat] = useState(null);
   const [categorie, setCategorie] = useState("");
   const [departement, setDepartement] = useState("");
+  // Taille des entreprises demandées : 20 à 249 salariés par défaut.
+  const [taille, setTaille] = useState("20-249");
   // Territoire des fiches demandées : par défaut celui choisi sur le tableau
   // de bord (l'agent qui travaille La Réunion reçoit des fiches de La Réunion).
   const [territoire, setTerritoire] = useState(territoireDuTableau);
@@ -45,7 +48,7 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
     setEnvoi(true);
     setErreur(null);
     try {
-      const e = await api.demanderLeads(categorie, territoireOutreMer ? "" : departement.trim(), territoire);
+      const e = await api.demanderLeads(categorie, territoireOutreMer ? "" : departement.trim(), territoire, taille);
       setEtat(e);
       onMaj?.();
       onDemandeEnvoyee?.();
@@ -110,6 +113,21 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
             {TERRITOIRES.map((t) => (
               <option key={t.cle} value={t.cle}>
                 {t.nom}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block text-xs text-slate-500 dark:text-slate-400">
+          Taille des entreprises
+          <select
+            value={taille}
+            onChange={(e) => setTaille(e.target.value)}
+            className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200 px-3 py-2"
+          >
+            {TAILLES_EFFECTIF.map((t) => (
+              <option key={t.cle} value={t.cle}>
+                {t.label}
               </option>
             ))}
           </select>

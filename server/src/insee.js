@@ -302,7 +302,7 @@ export async function rechercherEntrepriseParSiren(siren) {
 // l'API publique).
 export async function rechercherEntreprisesParSecteur(
   { nafCodes, estAdministration } = {},
-  { departement, limite = 100, effectifMin20 = false, exclure = null, pagesMax = 40 } = {}
+  { departement, limite = 100, effectifMin20 = false, tranches = null, exclure = null, pagesMax = 40 } = {}
 ) {
   // `exclure` (Set de SIREN déjà connus) : les pages sont parcourues jusqu'à
   // trouver `limite` entreprises NOUVELLES — sans ça, une recherche répétée
@@ -325,7 +325,9 @@ export async function rechercherEntreprisesParSecteur(
       params.set("activite_principale", nafCodes.join(","));
     }
     if (departement) params.set("departement", departement);
-    if (effectifMin20) params.set("tranche_effectif_salarie", "12,21,22,31,32,41,42,51,52,53");
+    // `tranches` (voir taillesEffectif.js) : taille d'entreprise ciblée.
+    if (tranches?.length) params.set("tranche_effectif_salarie", tranches.join(","));
+    else if (effectifMin20) params.set("tranche_effectif_salarie", "12,21,22,31,32,41,42,51,52,53");
 
     const reponse = await fetchAvecRetry(`${BASE_URL}?${params.toString()}`);
     if (!reponse.ok) {

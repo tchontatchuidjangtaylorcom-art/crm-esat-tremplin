@@ -48,6 +48,7 @@ import { enregistrerRoutesAnnulationDistribution } from "./annulationDistributio
 import { installerJournal, enregistrerRoutesSupervision } from "./journalAudit.js";
 import { enregistrerRoutesFicheClient, lienFicheClient } from "./ficheClient.js";
 import { avecModelesPublic } from "./modelesMailsPublic.js";
+import { tailleEffectif, dansTaille } from "./taillesEffectif.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -1650,19 +1651,20 @@ app.post("/api/leads/secteur/rechercher", exigerAdmin, async (req, res) => {
       ? territoire
       : null;
   const limite = Math.min(Number(req.body.limite) || 100, 300);
+  const taille = tailleEffectif(req.body.taille) || tailleEffectif("20+");
 
   try {
     const candidats = (
       await rechercherEntreprisesParSecteur(
         { nafCodes: categorie.nafCodes, estAdministration: categorie.estAdministration },
-        { departement, limite: territoire ? Math.min(limite * 3, 300) : limite }
+        { departement, limite: territoire ? Math.min(limite * 3, 300) : limite, tranches: taille.tranches }
       )
     )
       .filter((c) => !territoire || territoireDe(c.codePostal) === territoire)
       .slice(0, limite);
     const connus = new Set([...db.data.entreprises, ...db.data.archives].map(sirenDe));
     const nouveaux = candidats.filter((c) => !connus.has(c.siren));
-    res.json({ categorie: cle, categorieLabel: categorie.label, total: nouveaux.length, entreprises: nouveaux });
+    res.json({ categorie: cle, categorieLabel: categorie.label, tailleLabel: taille.label, total: nouveaux.length, entreprises: nouveaux });
   } catch (e) {
     res.status(502).json({ error: e.message });
   }
@@ -1810,6 +1812,8 @@ async function traiterDemandeLeads(req, res) {
       ? territoire
       : null;
   const dansTerritoire = (e) => !territoire || territoireDe(e.codePostal) === territoire;
+  // Taille d'entreprise ciblée (voir taillesEffectif.js) : "" = toutes.
+  const taille = tailleEffectif(req.body.taille);
   if (departement && !/^(\d{2,3}|2[AB])$/.test(departement)) {
     return res.status(400).json({ error: "Département invalide (ex : 75, 69, 2A, 971)." });
   }
@@ -1826,6 +1830,7 @@ async function traiterDemandeLeads(req, res) {
         e.statut === "nouveau" &&
         correspondDepartement(e, departement) &&
         dansTerritoire(e) &&
+        dansTaille(e, taille) &&
         (!cle ||
           classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle === cle)
     )
@@ -1891,6 +1896,7 @@ async function traiterDemandeLeads(req, res) {
           departement,
           limite: departement ? manquants * 4 : territoire ? manquants * 2 : manquants + 5,
           effectifMin20: !categorie.estAdministration,
+          tranches: taille?.tranches || null,
           exclure: connus,
         }
       )

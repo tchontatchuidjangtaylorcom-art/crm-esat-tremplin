@@ -99,12 +99,12 @@ export const api = {
 
   // Recherche seule (rien n'est créé côté serveur) : réessai automatique
   // pendant un redémarrage du serveur.
-  rechercherProspectsParSecteur: (categorie, { departement, limite, territoire } = {}) =>
+  rechercherProspectsParSecteur: (categorie, { departement, limite, territoire, taille } = {}) =>
     avecReprise(() =>
       fetch(`${BASE}/leads/secteur/rechercher`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categorie, departement: departement || null, limite, territoire: territoire || null }),
+        body: JSON.stringify({ categorie, departement: departement || null, limite, territoire: territoire || null, taille: taille || null }),
       }).then(handle)
     ),
 
@@ -116,11 +116,16 @@ export const api = {
     }).then(handle),
 
   getDemandeLeads: () => fetch(`${BASE}/leads/demande`).then(handle),
-  demanderLeads: (categorie, departement, territoire) =>
+  demanderLeads: (categorie, departement, territoire, taille) =>
     fetch(`${BASE}/leads/demande`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categorie: categorie || null, departement: departement || null, territoire: territoire || null }),
+      body: JSON.stringify({
+        categorie: categorie || null,
+        departement: departement || null,
+        territoire: territoire || null,
+        taille: taille || null,
+      }),
     }).then(handle),
 
   lancerEnrichissementTelephones: (inclureDejaTentees = false) =>
