@@ -55,9 +55,14 @@ export default function UserMenu({ theme, onBasculerTheme }) {
             personnes={agents}
             valeur={agentSupervise?.id || ""}
             onChange={choisirAgentSupervise}
-            optionsSpeciales={agentSupervise ? [{ valeur: "", label: "Revenir à mon compte" }] : []}
+            // Toujours en tête : son propre compte, à son nom — affiché dans le
+            // bouton quand on est sur son compte, et un clic pour y revenir
+            // depuis le compte d'un agent.
+            optionsSpeciales={[
+              { valeur: "", label: `👤 Mon compte (${utilisateur?.prenom || utilisateur?.email || "moi"})` },
+            ]}
             placeholder="Voir le compte de…"
-            titre="Mode Manager : consulter le tableau de bord d'un agent"
+            titre="Mode Manager : choisir un agent pour voir son compte — « Mon compte » pour revenir au vôtre"
             className="text-sm rounded-full px-3 py-1.5 max-w-[200px]"
           />
 
