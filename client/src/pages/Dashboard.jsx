@@ -528,6 +528,15 @@ export default function Dashboard() {
         min={OBJECTIF_MENSUEL_MIN}
         max={OBJECTIF_MENSUEL_MAX}
         fiches={fichesQualifieesCeMois}
+        // Administrateur sur son compte : moyenne par agent + une barre par
+        // agent (agents et superviseurs ; les administrateurs n'ont pas d'objectif).
+        equipe={
+          estAdmin && !commeAgentId
+            ? agents
+                .filter((a) => a.role === "agent" || a.role === "superviseur")
+                .map((a) => ({ id: a.id, nom: [a.prenom, a.nom].filter(Boolean).join(" ") || a.email }))
+            : null
+        }
       />
 
       {erreur && (

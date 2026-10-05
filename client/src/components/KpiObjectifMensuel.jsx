@@ -16,15 +16,35 @@ function raisonHorsCompteur(f) {
   return null;
 }
 
+// Couleur d'une barre face à l'objectif : vert atteint, orange à mi-chemin,
+// rouge en dessous.
+function couleurBarre(v, min) {
+  return v >= min ? "bg-green-500" : v >= min / 2 ? "bg-orange-400" : "bg-red-400";
+}
+
 // Indicateur de performance : nombre de fiches qualifiées (passées en
-// "Client Potentiel", "Fiche one-shot" ou "Conforme") ce mois-ci, face à un
-// objectif de prospection cible. Un clic déplie la liste de ces fiches, avec
+// "Client Potentiel", "Fiche one-shot" ou "Conforme") ce mois-ci, face à
+// l'objectif de 20 à 30 PAR AGENT. Un clic déplie la liste de ces fiches, avec
 // leur statut actuel — une fiche qualifiée reste comptée même si son statut a
 // changé depuis (RDV, mail, conforme archivé…).
-export default function KpiObjectifMensuel({ valeur, min, max, fiches = [] }) {
+//
+// `equipe` (administrateur, hors Mode Manager) : la barre montre la MOYENNE
+// par agent (total ÷ nombre d'agents), et le détail une barre par agent
+// (CP attribué à l'agent assigné à la fiche). Sans `equipe` (agent, ou admin
+// sur le compte d'un agent) : ses propres fiches qualifiées.
+export default function KpiObjectifMensuel({ valeur, min, max, fiches = [], equipe = null }) {
   const [ouvert, setOuvert] = useState(false);
-  const pourcentage = Math.min(100, Math.round((valeur / min) * 100));
-  const atteint = valeur >= min;
+  const vueEquipe = Array.isArray(equipe) && equipe.length > 0;
+  const moyenne = vueEquipe ? valeur / equipe.length : valeur;
+  const pourcentage = Math.min(100, Math.round((moyenne / min) * 100));
+  const atteint = moyenne >= min;
+  const parAgent = vueEquipe
+    ? equipe
+        .map((a) => ({ ...a, cp: fiches.filter((f) => f.entreprise.assigneA === a.id).length }))
+        .sort((a, b) => b.cp - a.cp || a.nom.localeCompare(b.nom, "fr"))
+    : [];
+  const sansAgent = vueEquipe ? fiches.filter((f) => !equipe.some((a) => a.id === f.entreprise.assigneA)).length : 0;
+  const moyenneTexte = moyenne.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-4">
@@ -41,15 +61,26 @@ export default function KpiObjectifMensuel({ valeur, min, max, fiches = [] }) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
             <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
-              Objectif du mois — fiches qualifiées
+              Objectif du mois — fiches qualifiées{vueEquipe ? " (moyenne par agent)" : ""}
             </span>
             <span className={`text-sm font-bold ${atteint ? "text-green-600 dark:text-green-400" : "text-slate-700 dark:text-slate-200"}`}>
-              {valeur} / {min}-{max}
+              {vueEquipe ? (
+                <>
+                  {moyenneTexte} / {min}-{max} par agent
+                  <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                    ({valeur} CP · {equipe.length} agent{equipe.length > 1 ? "s" : ""})
+                  </span>
+                </>
+              ) : (
+                <>
+                  {valeur} / {min}-{max}
+                </>
+              )}
             </span>
           </div>
           <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all ${atteint ? "bg-green-500" : "bg-orange-400"}`}
+              className={`h-full rounded-full transition-all ${couleurBarre(moyenne, min)}`}
               style={{ width: `${pourcentage}%` }}
             />
           </div>
@@ -59,6 +90,29 @@ export default function KpiObjectifMensuel({ valeur, min, max, fiches = [] }) {
 
       {ouvert && (
         <div className="px-4 pb-3 border-t border-slate-100 dark:border-slate-700">
+          {vueEquipe && (
+            <div className="py-2 space-y-1.5">
+              <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Par agent — objectif {min} à {max} CP ce mois-ci</p>
+              {parAgent.map((a) => (
+                <div key={a.id} className="flex items-center gap-3 text-sm">
+                  <span className="w-40 truncate text-slate-700 dark:text-slate-200" title={a.nom}>
+                    {a.nom}
+                  </span>
+                  <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                    <div className={`h-full rounded-full ${couleurBarre(a.cp, min)}`} style={{ width: `${Math.min(100, (a.cp / min) * 100)}%` }} />
+                  </div>
+                  <span className={`w-16 text-right font-semibold ${a.cp >= min ? "text-green-600 dark:text-green-400" : "text-slate-700 dark:text-slate-200"}`}>
+                    {a.cp} / {min}
+                  </span>
+                </div>
+              ))}
+              {sansAgent > 0 && (
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  + {sansAgent} CP sur des fiches sans agent (ou d'un administrateur) — comptés dans le total, pas dans les barres.
+                </p>
+              )}
+            </div>
+          )}
           <p className="text-xs text-slate-500 dark:text-slate-400 py-2">
             Compte chaque entreprise passée en <strong>Client Potentiel</strong>, <strong>Fiche one-shot</strong> ou{" "}
             <strong>Conforme</strong> ce mois-ci, même si son statut a changé depuis. Le compteur « Client Potentiel
