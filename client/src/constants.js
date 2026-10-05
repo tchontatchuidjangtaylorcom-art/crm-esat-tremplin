@@ -7,6 +7,21 @@ export const STATUTS = {
   me_rappelle: { label: "Me rappelle", badge: "bg-purple-100 text-purple-700 border border-purple-300" },
   a_rappeler: { label: "À rappeler", badge: "bg-blue-100 text-blue-700 border border-blue-300" },
   numero_invalide: { label: "Numéro invalide", badge: "bg-red-100 text-red-800 border border-red-400 font-semibold" },
+  // PDN = Pas De Numéro : posé à la main après une recherche Google sans résultat —
+  // l'e-mail est alors cherché automatiquement et la fiche se prospecte par mail.
+  pdn: {
+    label: "PDN",
+    badge: "bg-teal-100 text-teal-800 border border-teal-400 font-semibold",
+    titre: "Pas De Numéro — aucun numéro trouvé sur Google : fiches à prospecter par mail",
+  },
+  // ANGLAIS : entreprise anglophone (siège ou RH ne parlant pas français),
+  // posé à la main — comme PDN, l'e-mail est alors cherché automatiquement
+  // et la fiche se prospecte par mail plutôt que par téléphone.
+  anglais: {
+    label: "Anglais",
+    badge: "bg-indigo-100 text-indigo-800 border border-indigo-400 font-semibold",
+    titre: "Entreprise anglophone — se prospecte par mail, pas par téléphone",
+  },
   rdv: { label: "RDV", badge: "bg-green-100 text-green-700 border border-green-300" },
   mail: { label: "Mail", badge: "bg-cyan-100 text-cyan-700 border border-cyan-300" },
   autre: { label: "Autre", badge: "bg-gray-100 text-gray-700 border border-gray-300" },
@@ -38,6 +53,8 @@ export const ORDRE_STATUTS = [
   "me_rappelle",
   "a_rappeler",
   "numero_invalide",
+  "pdn",
+  "anglais",
   "rdv",
   "mail",
   "autre",

@@ -660,6 +660,39 @@ export default function Dashboard() {
             ))}
           </div>
 
+          {filtreStatut === "pdn" && (
+            <div className="mb-2 rounded-lg border border-teal-300 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 px-3 py-2 text-sm text-teal-800 dark:text-teal-300">
+              ✉️ <strong>PDN — Pas De Numéro</strong> : aucun numéro trouvé sur Google pour ces entreprises, elles se prospectent{" "}
+              <strong>par mail</strong>. La boîte mail s'ouvre directement sur chaque fiche ; si un numéro est ajouté, la fiche
+              repasse en « Nouveau ».
+              {(() => {
+                const pdn = entreprisesFiltrees.filter((e) => e.statut === "pdn");
+                const sansEmail = pdn.filter((e) => !e.contact?.email).length;
+                return sansEmail > 0 ? (
+                  <span className="block mt-1 text-xs">
+                    {sansEmail} fiche{sansEmail > 1 ? "s" : ""} sans adresse e-mail : à compléter à la main.
+                  </span>
+                ) : null;
+              })()}
+            </div>
+          )}
+
+          {filtreStatut === "anglais" && (
+            <div className="mb-2 rounded-lg border border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-3 py-2 text-sm text-indigo-800 dark:text-indigo-300">
+              ✉️ <strong>Anglais</strong> : entreprises anglophones, démarchées <strong>par mail</strong> et non par téléphone. La
+              boîte mail s'ouvre directement sur chaque fiche.
+              {(() => {
+                const anglais = entreprisesFiltrees.filter((e) => e.statut === "anglais");
+                const sansEmail = anglais.filter((e) => !e.contact?.email).length;
+                return sansEmail > 0 ? (
+                  <span className="block mt-1 text-xs">
+                    {sansEmail} fiche{sansEmail > 1 ? "s" : ""} sans adresse e-mail : à compléter à la main.
+                  </span>
+                ) : null;
+              })()}
+            </div>
+          )}
+
           {nbMasquesParFiltres > 0 && (
             <div className="flex flex-wrap items-center gap-2 mb-2 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
               🔎 {nbMasquesParFiltres} autre{nbMasquesParFiltres > 1 ? "s" : ""} entreprise{nbMasquesParFiltres > 1 ? "s" : ""} correspond

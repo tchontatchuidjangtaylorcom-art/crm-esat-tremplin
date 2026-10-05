@@ -34,7 +34,13 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   // EntrepriseDetail.jsx), elle ne doit pas occuper une pleine section tant
   // qu'aucun mail n'est en cours de rédaction — un clic déplie le fil complet
   // + le formulaire, et l'envoi replie automatiquement pour regagner l'espace.
-  const [ouvert, setOuvert] = useState(false);
+  // Fiche PDN (pas de numéro) ou Anglais (entreprise anglophone) : le mail
+  // est le seul canal, boîte ouverte d'office.
+  const estProspectionMail = entreprise.statut === "pdn" || entreprise.statut === "anglais";
+  const [ouvert, setOuvert] = useState(estProspectionMail);
+  useEffect(() => {
+    if (estProspectionMail) setOuvert(true);
+  }, [estProspectionMail]);
   const [statutMail, setStatutMail] = useState(null);
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
@@ -320,6 +326,28 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         </h2>
         <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ouvert ? "▲ Réduire" : "▼ Écrire un mail"}</span>
       </button>
+
+      {ouvert && estProspectionMail && (
+        <p
+          className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+            entreprise.statut === "anglais"
+              ? "border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300"
+              : "border-teal-300 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
+          }`}
+        >
+          {entreprise.statut === "anglais"
+            ? entreprise.rechercheEmailAutoEnCours
+              ? "🔎 Anglais — recherche de l'adresse e-mail en cours… elle s'ajoutera ici automatiquement."
+              : entreprise.contact?.email
+                ? "✉️ Anglais — entreprise anglophone : se prospecte par mail, pas par téléphone."
+                : "✉️ Anglais — aucune adresse e-mail trouvée : saisissez-en une ci-dessous si vous la connaissez."
+            : entreprise.rechercheEmailAutoEnCours
+              ? "🔎 PDN — recherche de l'adresse e-mail en cours… elle s'ajoutera ici automatiquement."
+              : entreprise.contact?.email
+                ? "✉️ PDN — pas de numéro : cette entreprise se prospecte par mail."
+                : "✉️ PDN — aucune adresse e-mail trouvée : saisissez-en une ci-dessous si vous la connaissez."}
+        </p>
+      )}
 
       {ouvert && (
       <div className="mt-3">

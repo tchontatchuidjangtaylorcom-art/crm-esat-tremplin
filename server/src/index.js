@@ -113,7 +113,10 @@ installerJournal(app, {
   trouverUtilisateurParId,
   estAdmin,
   libelleStatut: (s) =>
-    ISSUES_APPEL[s] || SORTIES_DOSSIER[s] || { nouveau: "Nouveau", a_relancer: "À relancer", numero_invalide: "Numéro invalide" }[s] || s,
+    ISSUES_APPEL[s] ||
+    SORTIES_DOSSIER[s] ||
+    { nouveau: "Nouveau", a_relancer: "À relancer", numero_invalide: "Numéro invalide", pdn: "PDN (pas de numéro)", anglais: "Anglais (prospection par mail)" }[s] ||
+    s,
 });
 enregistrerRoutesSupervision(app, { exigerSuperAdmin, trouverUtilisateurParId });
 
@@ -198,6 +201,9 @@ function enrichir(entreprise) {
   return {
     ...entreprise,
     emails: entreprise.emails || [],
+    // Recherche d'e-mail PDN/Anglais en cours (voir rechercherEmailAuto) :
+    // l'interface recharge la fiche jusqu'à ce qu'elle se termine.
+    rechercheEmailAutoEnCours: rechercheEmailAutoEnCours(entreprise),
     oeth: calculerObligationOeth(entreprise),
     categorie: classifierSecteur(entreprise.secteurActivite, {
       secteurPublic: entreprise.secteurPublic,
@@ -947,12 +953,12 @@ enregistrerRoutesDistributionEquipe(app, {
   exigerAdmin,
   estAdmin,
   ordreFiches: ordreFichesAAttribuer,
-  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
+  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau", pdn: "PDN (pas de numéro)", anglais: "Anglais (prospection par mail)" }[s] || s,
   apresAttribution: (utilisateurId, fiches) => rechercherNumerosAttribues(utilisateurId, fiches),
 });
 enregistrerRoutesAnnulationDistribution(app, {
   exigerAdmin,
-  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau" }[s] || s,
+  libelleStatut: (s) => ISSUES_APPEL[s] || { a_relancer: "À relancer", nouveau: "Nouveau", pdn: "PDN (pas de numéro)", anglais: "Anglais (prospection par mail)" }[s] || s,
 });
 enregistrerRoutesAppelsAgents(app, { exigerAuth, chargerEntrepriseAutorisee });
 
@@ -1286,6 +1292,108 @@ function marquerRechercheTelephone(entreprise, resultat, erreur = null) {
     erreurs: resultat === "erreur" ? (precedente.erreurs || 0) + 1 : 0,
     ...(erreur ? { derniereErreur: erreur } : {}),
   };
+}
+
+// ---- Statuts "prospection par mail" (PDN, Anglais) ----
+// Posés À LA MAIN par l'agent — PDN après une recherche Google infructueuse
+// (pas de numéro trouvé), Anglais pour une entreprise anglophone qu'on ne
+// démarche pas par téléphone. Dans les deux cas, la fiche n'est plus
+// prospectable au téléphone, elle se travaille par mail : l'e-mail est
+// cherché aussitôt (recherche IA en tâche de fond) si la fiche n'en a pas
+// déjà un. Une seule recherche par fiche.
+const STATUTS_PROSPECTION_MAIL = {
+  pdn: {
+    label: "PDN",
+    question:
+      "Aucun numéro de téléphone n'a été trouvé pour cette entreprise. Trouve l'adresse e-mail la plus utile pour la " +
+      "prospecter : idéalement celle du ou de la DRH / responsable RH / recrutement / référent handicap, sinon l'adresse " +
+      "RH ou recrutement générique, sinon l'adresse de contact générale. Uniquement une adresse réellement publiée.",
+  },
+  anglais: {
+    label: "Anglais",
+    question:
+      "Cette entreprise est anglophone (siège ou équipe RH ne parlant pas français) et se prospecte par e-mail, pas par " +
+      "téléphone. Trouve l'adresse e-mail la plus utile pour la contacter : idéalement celle du/de la HR manager / " +
+      "recruiter / disability officer, sinon l'adresse RH ou recrutement générique, sinon l'adresse de contact générale. " +
+      "Uniquement une adresse réellement publiée.",
+  },
+};
+
+function aUnNumeroUtilisable(entreprise) {
+  const contact = entreprise.contact || {};
+  const principal = String(contact.telephone || "").replace(/\D/g, "").length >= 9 && !contact.telephoneInvalide;
+  return principal || (contact.telephonesAlternatifs || []).length > 0;
+}
+
+// Fiches dont la recherche d'e-mail tourne (mémoire du processus) : un
+// "en_cours" persisté par un serveur redémarré en pleine recherche n'est
+// donc jamais pris pour une recherche active.
+const recherchesEmailAutoEnCours = new Set();
+
+function rechercheEmailAutoEnCours(entreprise) {
+  return recherchesEmailAutoEnCours.has(entreprise.id);
+}
+
+// Lancée sans attendre par les routes de changement de statut : la
+// recherche IA prend 30 s à 2 min. L'interface interroge la fiche tant que
+// `rechercheEmailAuto.resultat` vaut "en_cours".
+async function rechercherEmailAuto(entreprise, auteur, statut) {
+  const config = STATUTS_PROSPECTION_MAIL[statut];
+  if (!config) return;
+  if (recherchesEmailAutoEnCours.has(entreprise.id)) return;
+  const contact = (entreprise.contact ||= {});
+  const maintenant = () => new Date().toISOString();
+  const noter = (texte) => {
+    entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+    entreprise.commentaires.unshift({ id: nanoid(), date: maintenant(), auteur: "Assistant IA", texte });
+  };
+
+  if (contact.email) {
+    entreprise.rechercheEmailAuto = { date: maintenant(), resultat: "deja_connu" };
+    return;
+  }
+  if (
+    entreprise.rechercheEmailAuto &&
+    entreprise.rechercheEmailAuto.resultat !== "erreur" &&
+    entreprise.rechercheEmailAuto.resultat !== "en_cours"
+  ) {
+    return; // déjà cherché une fois sans succès : pas de dépense répétée
+  }
+  if (!estRechercheIaConfiguree()) {
+    noter(`Fiche passée en ${config.label} par ${auteur} — recherche d'e-mail automatique indisponible (IA non configurée) : à compléter à la main.`);
+    return;
+  }
+
+  recherchesEmailAutoEnCours.add(entreprise.id);
+  entreprise.rechercheEmailAuto = { date: maintenant(), resultat: "en_cours" };
+  try {
+    const reponse = await poserQuestionContact(entreprise, config.question);
+    const fiche = findEntreprise(entreprise.id) || entreprise;
+    if (reponse.contact?.nom) appliquerContactRhIa(fiche, reponse);
+    const email = nettoieEmail(reponse.contact?.email);
+    if (email) ajouterEmailFiche(fiche.contact, email, `Trouvé par l'IA (recherche e-mail ${config.label})`);
+    fiche.rechercheEmailAuto = { date: maintenant(), resultat: fiche.contact.email ? "trouve" : "introuvable" };
+    if (!fiche.contact.email) {
+      noter(`Fiche passée en ${config.label} par ${auteur} — aucune adresse e-mail publiée trouvée : à compléter à la main.`);
+    } else if (!reponse.contact?.nom) {
+      noter(`Fiche passée en ${config.label} par ${auteur} — e-mail trouvé : ${fiche.contact.email}. Prospection par mail.`);
+    }
+  } catch (e) {
+    console.error(`[ia] Échec de la recherche d'e-mail ${config.label} pour ${entreprise.nom} :`, e.message);
+    entreprise.rechercheEmailAuto = { date: maintenant(), resultat: "erreur", erreur: e.message };
+    noter(`Recherche d'e-mail (${config.label}) en échec : ${e.message}`);
+  } finally {
+    recherchesEmailAutoEnCours.delete(entreprise.id);
+    await db.write().catch(() => {});
+  }
+}
+
+// Appelée après un changement de statut : passage en PDN/Anglais → recherche e-mail.
+function apresPassageStatut(entreprise, ancienStatut, utilisateur) {
+  if (!STATUTS_PROSPECTION_MAIL[entreprise.statut] || entreprise.statut === ancienStatut) return;
+  rechercherEmailAuto(entreprise, utilisateur.prenom || utilisateur.email, entreprise.statut).catch((e) =>
+    console.error("[ia] Recherche e-mail automatique :", e.message)
+  );
 }
 
 // Une fiche est ignorée par le lot si Claude n'a rien trouvé, ou si la
@@ -2145,11 +2253,25 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
     // "Me rappelle" (sans date ni alerte). Sans effet hors statut mail.
     "aussiMeRappelle",
   ];
+  const ancienStatut = entreprise.statut;
   for (const champ of champsAutorises) {
     if (champ in req.body) entreprise[champ] = req.body[champ];
   }
   if ("contact" in req.body) reparerChampsContact(entreprise.contact);
+  // Fiche PDN à laquelle on vient d'ajouter un numéro : elle redevient
+  // prospectable au téléphone.
+  if ("contact" in req.body && !("statut" in req.body) && entreprise.statut === "pdn" && aUnNumeroUtilisable(entreprise)) {
+    entreprise.statut = "nouveau";
+    entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+    entreprise.commentaires.unshift({
+      id: nanoid(),
+      date: new Date().toISOString(),
+      auteur: "Système",
+      texte: `Numéro ajouté par ${req.utilisateur.prenom || req.utilisateur.email} — fiche sortie de PDN, remise en Nouveau.`,
+    });
+  }
   if (req.body.dateRappel || req.body.dateRdv) entreprise.echeanceProgrammeePar = req.utilisateur.id;
+  apresPassageStatut(entreprise, ancienStatut, req.utilisateur);
 
   await db.write();
   res.json(enrichir(entreprise));
@@ -2425,7 +2547,7 @@ app.post("/api/entreprises/assigner-groupe", exigerAdmin, async (req, res) => {
 // /telephone-invalide, mais reste sélectionnable ici (badge de statut
 // cliquable, changement groupé) pour qu'un agent puisse aussi le lever/poser
 // manuellement sans repasser par le bouton dédié.
-const STATUTS_DIRECTS_AUTORISES = new Set(["nouveau", "a_relancer", "numero_invalide"]);
+const STATUTS_DIRECTS_AUTORISES = new Set(["nouveau", "a_relancer", "numero_invalide", "pdn", "anglais"]);
 
 function libelleStatutGroupe(statut) {
   return ISSUES_APPEL[statut] || SORTIES_DOSSIER[statut] || (STATUTS_DIRECTS_AUTORISES.has(statut) ? statut : null);
@@ -2464,11 +2586,13 @@ app.post("/api/entreprises/statut-groupe", exigerAuth, async (req, res) => {
       dateProgrammee: null,
       dureeSecondes: null,
     });
+    const ancienStatut = entreprise.statut;
     entreprise.statut = statut;
     // Statut changé sur UNE fiche (menu de statut de la liste ou de la
     // fiche) = un appel dans les KPI ; pas un changement groupé.
     if (ids.length === 1) compterAppelStatut(req.utilisateur.id, entreprise, statut);
     if (archive) archiver(entreprise);
+    apresPassageStatut(entreprise, ancienStatut, req.utilisateur);
     entreprisesTouchees.push(enrichir(entreprise));
   }
 

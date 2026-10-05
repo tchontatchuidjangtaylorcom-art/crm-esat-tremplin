@@ -121,6 +121,20 @@ export default function EntrepriseDetail() {
       .catch((e) => setErreur(e.message));
   }
 
+  // Passage en PDN ou Anglais : le serveur cherche l'e-mail en tâche de fond
+  // (30 s à 2 min) — on recharge la fiche jusqu'à la fin pour afficher l'adresse.
+  const rechercheEmailAutoEnCours = Boolean(entreprise?.rechercheEmailAutoEnCours);
+  useEffect(() => {
+    if (!rechercheEmailAutoEnCours) return;
+    const minuteur = setInterval(() => {
+      api
+        .getEntreprise(id)
+        .then(setEntreprise)
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(minuteur);
+  }, [rechercheEmailAutoEnCours, id]);
+
   useEffect(() => {
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
