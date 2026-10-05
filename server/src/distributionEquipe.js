@@ -15,7 +15,7 @@
 import { nanoid } from "nanoid";
 import db from "./db.js";
 
-const MAX_PAR_PERSONNE = 50;
+const MAX_PAR_PERSONNE = 200;
 
 export const STATUTS_DISTRIBUABLES = {
   nouveau: "Nouveau (non assignées)",

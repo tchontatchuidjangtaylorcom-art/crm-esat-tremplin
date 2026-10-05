@@ -123,7 +123,7 @@ export default function DistributionEquipe({ onDistribue, donnees }) {
 
         <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
           Par personne
-          <input type="number" min="1" max="50" value={parPersonne} onChange={(e) => setParPersonne(e.target.value)} className={`w-20 ${champ}`} />
+          <input type="number" min="1" max="200" value={parPersonne} onChange={(e) => setParPersonne(e.target.value)} className={`w-20 ${champ}`} />
         </label>
 
         <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">

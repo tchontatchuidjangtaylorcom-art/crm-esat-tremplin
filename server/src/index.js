@@ -49,6 +49,8 @@ import { installerJournal, enregistrerRoutesSupervision } from "./journalAudit.j
 import { enregistrerRoutesFicheClient, lienFicheClient } from "./ficheClient.js";
 import { avecModelesPublic } from "./modelesMailsPublic.js";
 import { tailleEffectif, dansTaille } from "./taillesEffectif.js";
+import { demarrerRecyclageNrp } from "./recyclageNrp.js";
+import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi, compterAppelStatut } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -916,6 +918,10 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
 // qualifie ensuite manuellement, comme n'importe quelle demande entrante).
 // Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
 enregistrerRoutesVitrineRdv(app);
+// Remplissage du stock de fiches de l'équipe (admin, sans recherche Claude).
+enregistrerRoutesStockEquipe(app, { exigerAdmin, creerLeadDepuisSiren, CATEGORIES, sirenDe });
+// NRP 1 / NRP 2 remis en « Nouveau » chez le même agent 24 h après le dernier essai.
+demarrerRecyclageNrp();
 // « Confirmer ma fiche » : lien envoyé au client pendant l'appel (voir ficheClient.js).
 const ficheClient = enregistrerRoutesFicheClient(app, {
   exigerAuth,

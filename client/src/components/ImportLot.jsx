@@ -1,3 +1,4 @@
+import RemplirStockEquipe from "./RemplirStockEquipe.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { TERRITOIRES } from "../territoires.js";
@@ -168,7 +169,19 @@ export default function ImportLot({ categories, agents, moiId, lots = [], lotsPa
             >
               🔎 Générer par secteur
             </button>
+            <button
+              onClick={() => setMode("stock")}
+              className={`px-3 py-1.5 rounded-t-lg font-medium ${
+                mode === "stock"
+                  ? "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100"
+                  : "text-slate-400 dark:text-slate-500 hover:text-slate-600"
+              }`}
+            >
+              🚀 Remplir le stock de l'équipe
+            </button>
           </div>
+
+          {mode === "stock" && <RemplirStockEquipe onImporte={onImporte} />}
 
           {mode === "secteur" && (
             <GenererVagueSecteur
