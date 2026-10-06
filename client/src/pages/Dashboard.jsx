@@ -565,16 +565,15 @@ export default function Dashboard() {
 
       {/* Demande de leads en libre-service : agents, et admins qui prospectent
           eux-mêmes (fiches attribuées à leur propre compte — elles
-          apparaissent alors dans "Mes leads"). Pas en Mode Manager : la
-          demande serait faite au nom de l'admin, pas de l'agent consulté. */}
-      {!commeAgentId && (
-        <DemandeLeads
-          categories={categories}
-          onMaj={charger}
-          onDemandeEnvoyee={estAdmin ? () => setPerimetre("moi") : undefined}
-          territoire={territoire === "tous" ? "" : territoire}
-        />
-      )}
+          apparaissent alors dans "Mes leads"). En Mode Manager : la demande
+          est faite POUR l'agent consulté (les fiches lui sont attribuées). */}
+      <DemandeLeads
+        categories={categories}
+        onMaj={charger}
+        onDemandeEnvoyee={estAdmin && !commeAgentId ? () => setPerimetre("moi") : undefined}
+        territoire={territoire === "tous" ? "" : territoire}
+        pourAgent={commeAgentId ? agentSupervise : null}
+      />
 
       <SelecteurTerritoire
         valeur={territoire}

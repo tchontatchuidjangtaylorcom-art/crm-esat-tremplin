@@ -116,8 +116,10 @@ export const api = {
       body: JSON.stringify({ categorie, lot, sirens, assigneA: assigneA || null, rechercheTelephoneIA }),
     }).then(handle),
 
-  getDemandeLeads: () => fetch(`${BASE}/leads/demande`).then(handle),
-  demanderLeads: (categorie, departement, territoire, taille) =>
+  // `pourAgentId` : un administrateur demande des fiches pour un agent (Mode Manager).
+  getDemandeLeads: (pourAgentId) =>
+    fetch(`${BASE}/leads/demande${pourAgentId ? `?pourAgentId=${encodeURIComponent(pourAgentId)}` : ""}`).then(handle),
+  demanderLeads: (categorie, departement, territoire, taille, nombre, pourAgentId) =>
     fetch(`${BASE}/leads/demande`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -126,6 +128,8 @@ export const api = {
         departement: departement || null,
         territoire: territoire || null,
         taille: taille || null,
+        nombre: nombre || null,
+        pourAgentId: pourAgentId || null,
       }),
     }).then(handle),
 

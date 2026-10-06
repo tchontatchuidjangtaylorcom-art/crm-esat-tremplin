@@ -7,8 +7,13 @@ import { TAILLES_EFFECTIF } from "../taillesEffectif.js";
 // assignées du secteur choisi, puis génère le complément depuis Sirene en
 // arrière-plan s'il en manque (voir /api/leads/demande côté serveur). Évite
 // qu'un agent reste sans fiches quand aucun manager n'est disponible.
-export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, territoire: territoireDuTableau = "" }) {
+// `pourAgent` : { id, prenom } — un administrateur en Mode Manager demande
+// des fiches pour l'agent consulté.
+export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, territoire: territoireDuTableau = "", pourAgent = null }) {
   const [etat, setEtat] = useState(null);
+  // Nombre de fiches demandées : 50, 100 ou 150.
+  const [nombre, setNombre] = useState(50);
+  const pourAgentId = pourAgent?.id || null;
   const [categorie, setCategorie] = useState("");
   const [departement, setDepartement] = useState("");
   // Taille des entreprises demandées : 20 à 249 salariés par défaut.
@@ -22,8 +27,9 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
   const [erreur, setErreur] = useState(null);
 
   useEffect(() => {
-    api.getDemandeLeads().then(setEtat).catch(() => {});
-  }, []);
+    setEtat(null);
+    api.getDemandeLeads(pourAgentId).then(setEtat).catch(() => {});
+  }, [pourAgentId]);
 
   // Suivi de la génération et de la recherche des numéros en arrière-plan :
   // le tableau de bord se met à jour à chaque tick (numéros trouvés inclus).
@@ -32,7 +38,7 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
     if (!suiviActif) return;
     const id = setInterval(async () => {
       try {
-        const e = await api.getDemandeLeads();
+        const e = await api.getDemandeLeads(pourAgentId);
         setEtat(e);
         onMaj?.();
       } catch {
@@ -48,7 +54,7 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
     setEnvoi(true);
     setErreur(null);
     try {
-      const e = await api.demanderLeads(categorie, territoireOutreMer ? "" : departement.trim(), territoire, taille);
+      const e = await api.demanderLeads(categorie, territoireOutreMer ? "" : departement.trim(), territoire, taille, nombre, pourAgentId);
       setEtat(e);
       onMaj?.();
       onDemandeEnvoyee?.();
@@ -61,7 +67,7 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
           ? "Le serveur redémarre ou ne répond pas pour le moment. Réessayez dans une minute."
           : e.message
       );
-      api.getDemandeLeads().then(setEtat).catch(() => {});
+      api.getDemandeLeads(pourAgentId).then(setEtat).catch(() => {});
     } finally {
       setEnvoi(false);
     }
@@ -76,13 +82,31 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
     <div className="mb-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm px-4 py-3">
       <form onSubmit={demander} className="flex flex-wrap items-end gap-3">
         <div className="mr-auto">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Besoin de nouvelles fiches ?</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            {pourAgent ? `Demander des fiches pour ${pourAgent.prenom || "cet agent"}` : "Besoin de nouvelles fiches ?"}
+          </p>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {etat.peutDemander
-              ? `Recevez ${etat.taille} fiches du secteur de votre choix — générées automatiquement s'il n'en reste plus.`
+              ? `Fiches libres d'abord, puis NRP d'autres agents remises en Nouveau, puis nouvelles fiches générées s'il en manque (secteur choisi).`
               : `Encore ${etat.nouveauxNonTraites} fiches « Nouveau » à traiter : nouvelle demande possible sous ${etat.seuil}.`}
           </p>
         </div>
+
+        <label className="block text-xs text-slate-500 dark:text-slate-400">
+          Nombre
+          <select
+            value={nombre}
+            onChange={(e) => setNombre(Number(e.target.value))}
+            disabled={bloque}
+            className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200 px-3 py-2 disabled:opacity-50"
+          >
+            {(etat.choix || [50, 100, 150]).map((n) => (
+              <option key={n} value={n}>
+                {n} fiches
+              </option>
+            ))}
+          </select>
+        </label>
 
         <label className="block text-xs text-slate-500 dark:text-slate-400">
           Secteur
@@ -150,7 +174,7 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
           disabled={bloque}
           className="rounded-lg bg-marine-600 hover:bg-marine-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40 whitespace-nowrap"
         >
-          {etat.enCours || envoi ? "Préparation…" : `Demander ${etat.taille} fiches`}
+          {etat.enCours || envoi ? "Préparation…" : `Demander ${nombre} fiches`}
         </button>
       </form>
 

@@ -1855,7 +1855,12 @@ app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
 //    la requête HTTP (voir les 502 rencontrés sur les imports longs).
 // Garde-fou : pas de nouvelle demande tant que l'agent a encore
 // SEUIL_NOUVEAUX_DEMANDE fiches "nouveau" jamais traitées.
-const TAILLE_DEMANDE_LEADS = 20;
+// Nombre de fiches demandées, au choix de l'agent : 50, 100 ou 150. Les
+// nouvelles fiches générées (recherche Claude des numéros, payante) sont
+// plafonnées par demande ; le reste vient des fiches existantes et des NRP.
+const NOMBRES_DEMANDE_LEADS = [50, 100, 150];
+const TAILLE_DEMANDE_LEADS = NOMBRES_DEMANDE_LEADS[0];
+const MAX_GENERATION_DEMANDE = 50;
 const SEUIL_NOUVEAUX_DEMANDE = 10;
 // Fiches NRP sans nouvelle tentative depuis ce délai : recyclées avant
 // toute génération de nouvelles fiches (voir traiterDemandeLeads). NRP 2
@@ -1872,6 +1877,7 @@ function etatDemandeLeads(utilisateurId) {
   const nouveaux = nouveauxNonTraites(utilisateurId);
   return {
     taille: TAILLE_DEMANDE_LEADS,
+    choix: NOMBRES_DEMANDE_LEADS,
     seuil: SEUIL_NOUVEAUX_DEMANDE,
     nouveauxNonTraites: nouveaux,
     peutDemander: nouveaux < SEUIL_NOUVEAUX_DEMANDE,
@@ -1886,8 +1892,19 @@ function correspondDepartement(entreprise, departement) {
   return cp.startsWith(departement);
 }
 
+// Un administrateur peut demander des fiches POUR un agent (Mode Manager :
+// `pourAgentId`) ; sinon la demande est pour soi.
+function cibleDemandeLeads(req) {
+  const id = req.query.pourAgentId || req.body?.pourAgentId;
+  if (!id || id === req.utilisateur.id || !estAdmin(req.utilisateur)) return req.utilisateur;
+  const agent = trouverUtilisateurParId(id);
+  return agent && agent.statut === "valide" ? agent : null;
+}
+
 app.get("/api/leads/demande", exigerAuth, (req, res) => {
-  res.json(etatDemandeLeads(req.utilisateur.id));
+  const cible = cibleDemandeLeads(req);
+  if (!cible) return res.status(404).json({ error: "Agent introuvable." });
+  res.json(etatDemandeLeads(cible.id));
 });
 
 // Toute erreur imprévue renvoie un message clair : sans ce filet, une
@@ -1898,7 +1915,7 @@ app.post("/api/leads/demande", exigerAuth, async (req, res) => {
     await traiterDemandeLeads(req, res);
   } catch (e) {
     console.error("[demande-leads] Échec :", e?.stack || e);
-    const suivi = demandesLeads.get(req.utilisateur.id);
+    const suivi = demandesLeads.get(cibleDemandeLeads(req)?.id || req.utilisateur.id);
     if (suivi?.enCours) {
       suivi.enCours = false;
       suivi.erreur = e.message;
@@ -1911,7 +1928,11 @@ app.post("/api/leads/demande", exigerAuth, async (req, res) => {
 });
 
 async function traiterDemandeLeads(req, res) {
-  const utilisateur = req.utilisateur;
+  const utilisateur = cibleDemandeLeads(req);
+  if (!utilisateur) return res.status(404).json({ error: "Agent introuvable." });
+  const pourAutrui = utilisateur.id !== req.utilisateur.id;
+  const nomDemandeur = req.utilisateur.prenom || req.utilisateur.email;
+  const nombre = NOMBRES_DEMANDE_LEADS.includes(Number(req.body.nombre)) ? Number(req.body.nombre) : TAILLE_DEMANDE_LEADS;
   const etat = etatDemandeLeads(utilisateur.id);
   if (etat.enCours) return res.status(409).json({ error: "Une demande est déjà en cours.", ...etat });
   if (!etat.peutDemander) {
@@ -1951,12 +1972,12 @@ async function traiterDemandeLeads(req, res) {
         e.statut === "nouveau" &&
         correspondDepartement(e, departement) &&
         dansTerritoire(e) &&
-        dansTaille(e, taille) &&
+        (dansTaille(e, taille) || e.effectif == null || e.effectif === "") &&
         (!cle ||
           classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle === cle)
     )
     .sort(ordreFichesAAttribuer)
-    .slice(0, TAILLE_DEMANDE_LEADS);
+    .slice(0, nombre);
 
   for (const e of pool) {
     e.assigneA = utilisateur.id;
@@ -1968,7 +1989,7 @@ async function traiterDemandeLeads(req, res) {
       id: nanoid(),
       date: maintenant,
       auteur: "Système",
-      texte: `Fiche attribuée automatiquement à ${nomAgent}, à sa demande.`,
+      texte: `Fiche attribuée automatiquement à ${nomAgent}, ${pourAutrui ? `à la demande de ${nomDemandeur}` : "à sa demande"}.`,
     });
   }
   // 1 bis) Pas assez de fiches « Nouveau » : on recycle des fiches NRP 1 /
@@ -1999,12 +2020,12 @@ async function traiterDemandeLeads(req, res) {
         !dejaEue(e) &&
         correspondDepartement(e, departement) &&
         dansTerritoire(e) &&
-        dansTaille(e, taille) &&
+        (dansTaille(e, taille) || e.effectif == null || e.effectif === "") &&
         (!cle ||
           classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle === cle)
     )
     .sort((a, b) => ordreFichesAAttribuer(a, b) || derniereActivite(a) - derniereActivite(b))
-    .slice(0, TAILLE_DEMANDE_LEADS - pool.length);
+    .slice(0, nombre - pool.length);
   for (const e of recyclees) {
     const ancienStatut = e.statut;
     const ancienAgent = e.assigneA && db.data.utilisateurs.find((u) => u.id === e.assigneA);
@@ -2020,14 +2041,14 @@ async function traiterDemandeLeads(req, res) {
       date: maintenant,
       auteur: "Système",
       texte:
-        `Fiche attribuée à ${nomAgent} (distribution par ${nomAgent}) : ${ISSUES_APPEL[ancienStatut] || ancienStatut}${
+        `Fiche attribuée à ${nomAgent} (distribution par ${nomDemandeur}) : ${ISSUES_APPEL[ancienStatut] || ancienStatut}${
           ancienAgent ? ` chez ${ancienAgent.prenom || ancienAgent.email}` : ""
         }, remise en Nouveau.`,
     });
   }
   if (pool.length || recyclees.length) await db.write();
 
-  const manquants = TAILLE_DEMANDE_LEADS - pool.length - recyclees.length;
+  const manquants = Math.min(nombre - pool.length - recyclees.length, MAX_GENERATION_DEMANDE);
   // Sans secteur choisi, on ne génère pas : on ne sait pas quoi chercher.
   const generer = manquants > 0 && Boolean(categorie);
 
