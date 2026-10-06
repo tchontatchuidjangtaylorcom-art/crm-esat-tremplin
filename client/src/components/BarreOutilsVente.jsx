@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { useTheme } from "../useTheme.js";
+import { api } from "../api.js";
 
 // Charte de couleurs exacte demandée : Argumentaire (vert), Script de vente
 // (marron), Modèles de mails (orange) — conservée comme repère de couleur
@@ -36,6 +38,50 @@ const OUTILS = [
   },
 ];
 
+// Coordonnées du pôle, toujours visibles en haut du CRM : l'agent au téléphone
+// les dicte ou les copie en un clic quand le client demande où écrire.
+function CoordonneesPole() {
+  const [pole, setPole] = useState(null);
+  const [copie, setCopie] = useState(null);
+  useEffect(() => {
+    api
+      .getStatutMail()
+      .then((s) => setPole({ email: s.adresse, telephone: s.telephone }))
+      .catch(() => {});
+  }, []);
+  if (!pole?.email && !pole?.telephone) return null;
+
+  async function copier(cle, valeur) {
+    try {
+      await navigator.clipboard.writeText(valeur);
+      setCopie(cle);
+      setTimeout(() => setCopie(null), 1500);
+    } catch {
+      // copie impossible : la valeur reste lisible à l'écran
+    }
+  }
+  const element = (cle, icone, valeur) =>
+    valeur && (
+      <button
+        type="button"
+        onClick={() => copier(cle, valeur)}
+        title="Cliquer pour copier"
+        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
+      >
+        <span aria-hidden>{icone}</span>
+        <span className="font-medium text-slate-700 dark:text-slate-200">{valeur}</span>
+        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 w-10 text-left">{copie === cle ? "copié ✓" : ""}</span>
+      </button>
+    );
+  return (
+    <div className="hidden xl:flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 min-w-0">
+      {element("email", "✉️", pole.email)}
+      <span aria-hidden className="text-slate-300 dark:text-slate-600">·</span>
+      {element("tel", "📞", pole.telephone)}
+    </div>
+  );
+}
+
 export default function BarreOutilsVente({ outilActif, onSelect }) {
   // Barre présente sur toutes les pages du CRM : c'est ici que le thème
   // clair/sombre est appliqué et qu'on peut le changer, où qu'on soit.
@@ -66,6 +112,8 @@ export default function BarreOutilsVente({ outilActif, onSelect }) {
           );
         })}
       </div>
+
+      <CoordonneesPole />
 
       {/* Landing page publique — totalement indépendante du CRM (pas de session
           partagée, pas d'habillage) : ouverte dans un nouvel onglet pour ne pas
