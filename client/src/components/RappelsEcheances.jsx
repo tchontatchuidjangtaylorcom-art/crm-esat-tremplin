@@ -383,6 +383,30 @@ export default function RappelsEcheances() {
           {/* Report à un autre jour : le client demande de rappeler plus tard. */}
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-2">
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">📅 Reporter (le client demande de rappeler plus tard) :</p>
+            {/* Plus tard dans la journée : dans 1, 2 ou 3 heures (arrondi aux
+                5 minutes suivantes). */}
+            <div className="flex gap-2">
+              {[1, 2, 3].map((heures) => {
+                const d = new Date(Date.now() + heures * 3600 * 1000);
+                d.setSeconds(0, 0);
+                d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5);
+                return (
+                  <button
+                    key={heures}
+                    type="button"
+                    disabled={reportEnCours}
+                    onClick={() => reporterA(d)}
+                    className="flex-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-2 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 disabled:opacity-50"
+                    title={`Reporter à ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`}
+                  >
+                    Dans {heures} h
+                    <span className="block text-[10px] font-normal opacity-75">
+                      à {d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
             <div className="flex gap-2">
               {[1, 2].map((jours) => {
                 const d = memeHeureDansJours(alerte.date, jours);
