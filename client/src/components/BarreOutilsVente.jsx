@@ -40,7 +40,9 @@ const OUTILS = [
 
 // Coordonnées du pôle, toujours visibles en haut du CRM : l'agent au téléphone
 // les dicte ou les copie en un clic quand le client demande où écrire.
-function CoordonneesPole() {
+// `className` : sur grand écran, au milieu de la barre ; sur téléphone et
+// écran moyen, sur une petite ligne juste en dessous.
+function CoordonneesPole({ className = "hidden xl:flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 min-w-0" }) {
   const [pole, setPole] = useState(null);
   const [copie, setCopie] = useState(null);
   useEffect(() => {
@@ -70,11 +72,11 @@ function CoordonneesPole() {
       >
         <span aria-hidden>{icone}</span>
         <span className="font-medium text-slate-700 dark:text-slate-200">{valeur}</span>
-        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 w-10 text-left">{copie === cle ? "copié ✓" : ""}</span>
+        {copie === cle && <span className="text-[10px] text-emerald-600 dark:text-emerald-400">copié ✓</span>}
       </button>
     );
   return (
-    <div className="hidden xl:flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 min-w-0">
+    <div className={className}>
       {element("email", "✉️", pole.email)}
       <span aria-hidden className="text-slate-300 dark:text-slate-600">·</span>
       {element("tel", "📞", pole.telephone)}
@@ -89,7 +91,8 @@ export default function BarreOutilsVente({ outilActif, onSelect }) {
   const sombre = theme === "sombre";
 
   return (
-    <div className="sticky top-0 z-30 flex flex-nowrap items-center justify-between gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+    <div className="sticky top-0 z-30">
+    <div className="flex flex-nowrap items-center justify-between gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
       <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2 min-w-0">
         {OUTILS.map((o) => {
           const actif = outilActif === o.cle;
@@ -143,6 +146,8 @@ export default function BarreOutilsVente({ outilActif, onSelect }) {
         </svg>
       </a>
       </div>
+    </div>
+    <CoordonneesPole className="xl:hidden flex flex-wrap items-center justify-center gap-x-1 px-2 py-1 text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700" />
     </div>
   );
 }
