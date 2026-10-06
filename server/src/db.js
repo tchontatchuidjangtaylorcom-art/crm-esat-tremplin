@@ -134,6 +134,34 @@ export async function initDb() {
     });
     aEcrire = true;
   }
+  // Octobre 2026 : les entreprises de 1 000 salariés et plus sont retirées du
+  // CRM (hors cible : RH injoignables, contribution sans enjeu pour l'ESAT).
+  // Une seule fois : elles passent dans les archives (rien n'est supprimé,
+  // et leur SIREN y reste connu, donc elles ne sont pas regénérées depuis
+  // l'INSEE). Les dossiers en cours (RDV, Client Potentiel, fiche one-shot)
+  // restent dans le pipeline.
+  if (!db.data.retraitPlus1000) {
+    const EN_COURS = new Set(["rdv", "fiche", "fiche_one_shot"]);
+    const maintenant = new Date().toISOString();
+    const aRetirer = db.data.entreprises.filter((e) => Number(e.effectif) >= 1000 && !EN_COURS.has(e.statut));
+    for (const e of aRetirer) {
+      e.commentaires = Array.isArray(e.commentaires) ? e.commentaires : [];
+      e.commentaires.unshift({
+        id: `retrait1000-${e.id}`,
+        date: maintenant,
+        auteur: "Système",
+        texte: "Retirée du CRM : entreprise de 1 000 salariés et plus (hors cible). Conservée dans les archives.",
+      });
+      e.retireeGrandeEntreprise = maintenant;
+      db.data.archives.push(e);
+    }
+    const ids = new Set(aRetirer.map((e) => e.id));
+    db.data.entreprises = db.data.entreprises.filter((e) => !ids.has(e.id));
+    const gardees = db.data.entreprises.filter((e) => Number(e.effectif) >= 1000).length;
+    db.data.retraitPlus1000 = { date: maintenant, archivees: aRetirer.length, gardeesEnCours: gardees };
+    console.log(`[db] Entreprises de 1 000 salariés et plus : ${aRetirer.length} archivée(s), ${gardees} gardée(s) (RDV / CP en cours).`);
+    aEcrire = true;
+  }
   if (aEcrire) await db.write();
   return db;
 }

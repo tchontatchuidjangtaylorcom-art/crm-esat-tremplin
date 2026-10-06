@@ -14,8 +14,9 @@ export const TAILLES_EFFECTIF = {
   "100-199": { label: "100 à 199 salariés", min: 100, max: 199, tranches: ["22"] },
   "200-249": { label: "200 à 249 salariés", min: 200, max: 249, tranches: ["31"] },
   "250-999": { label: "250 à 999 salariés", min: 250, max: 999, tranches: ["32", "41"] },
-  "1000+": { label: "1 000 salariés et plus", min: 1000, max: Infinity, tranches: ["42", "51", "52", "53"] },
-  "20+": { label: "Toutes (20 salariés et plus)", min: 20, max: Infinity, tranches: ["12", "21", "22", "31", "32", "41", "42", "51", "52", "53"] },
+  // Plus de taille « 1 000 et plus » (octobre 2026) : ces entreprises sont
+  // hors cible et retirées du CRM (voir db.js) — « Toutes » s'arrête à 999.
+  "20+": { label: "Toutes (20 à 999 salariés)", min: 20, max: 999, tranches: ["12", "21", "22", "31", "32", "41"] },
 };
 
 export function tailleEffectif(cle) {
