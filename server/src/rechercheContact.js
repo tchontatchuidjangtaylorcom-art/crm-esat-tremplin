@@ -986,21 +986,36 @@ function extraireResultatDomaine(corpsReponse) {
     .map((bloc) => bloc.text || "")
     .join("\n");
 
+  // JSON absent, coupé ou invalide (réponse trop longue, consigne mal
+  // suivie) : on affiche quand même le texte reçu plutôt qu'une erreur, sans
+  // action — le texte avant le JSON, à défaut le début de "reponse".
+  const secours = () => {
+    const avantJson = texte.replace(/\{\s*"reponse"[\s\S]*$/, "").trim();
+    if (avantJson) return { reponse: avantJson, action: null };
+    const partiel = /"reponse"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(texte)?.[1];
+    if (!partiel) return null;
+    try {
+      return { reponse: `${JSON.parse(`"${partiel.replace(/\\$/, "")}"`)} …`, action: null };
+    } catch {
+      return { reponse: `${partiel.replace(/\\n/g, "\n")} …`, action: null };
+    }
+  };
+
   const bloc = extraireBlocJsonParCle(texte, "reponse");
-  if (!bloc) {
+  let resultat = null;
+  try {
+    resultat = bloc ? JSON.parse(bloc) : null;
+  } catch {
+    resultat = null;
+  }
+  if (!resultat?.reponse) {
+    const repli = secours();
+    if (repli) return repli;
+  }
+  if (!resultat) {
     const erreur = new Error("Réponse de l'IA illisible (pas de JSON de résultat trouvé).");
     erreur.code = "REPONSE_IA_INVALIDE";
     erreur.response = texte.slice(0, 500);
-    throw erreur;
-  }
-
-  let resultat;
-  try {
-    resultat = JSON.parse(bloc);
-  } catch {
-    const erreur = new Error("Réponse de l'IA illisible (JSON invalide).");
-    erreur.code = "REPONSE_IA_INVALIDE";
-    erreur.response = bloc;
     throw erreur;
   }
 
@@ -1026,7 +1041,10 @@ async function appelerClaudeDomaine(question, contexte, cle, modele) {
       headers: enTetes(cle),
       body: JSON.stringify({
         model: modele,
-        max_tokens: 512,
+        // Assez large pour la réponse ET sa copie dans le JSON final : à 512,
+        // une réponse un peu longue en français coupait le JSON (« réponse
+        // illisible »).
+        max_tokens: 1500,
         // Pas d'outil de recherche web : réponse construite uniquement à
         // partir des chiffres injectés ci-dessus (voir construirePromptDomaine).
         messages: [{ role: "user", content: construirePromptDomaine(question, contexte) }],
