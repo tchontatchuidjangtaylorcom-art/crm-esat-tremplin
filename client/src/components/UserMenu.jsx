@@ -7,6 +7,7 @@ import { useSupervision } from "../SupervisionContext.jsx";
 import { usePresence } from "../PresenceContext.jsx";
 import { api } from "../api.js";
 import NotificationCenter from "./NotificationCenter.jsx";
+import MonCompte from "./MonCompte.jsx";
 import SelecteurPersonne from "./SelecteurPersonne.jsx";
 
 // Widget de profil + bascule clair/sombre, en haut à droite du tableau de
@@ -29,6 +30,7 @@ export default function UserMenu({ theme, onBasculerTheme }) {
       .catch(() => {});
   }, [utilisateur]);
 
+  const [monCompteOuvert, setMonCompteOuvert] = useState(false);
   const initiales = `${identite.prenom?.[0] || "?"}${identite.nom?.[0] || ""}`.toUpperCase();
 
   async function deconnecter() {
@@ -115,7 +117,14 @@ export default function UserMenu({ theme, onBasculerTheme }) {
         {theme === "sombre" ? "☀️" : "🌙"}
       </button>
 
-      <div className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      {monCompteOuvert && <MonCompte onFermer={() => setMonCompteOuvert(false)} />}
+      {/* Clic sur son nom : « Mon compte » (nom, e-mail, mot de passe). */}
+      <button
+        type="button"
+        onClick={() => setMonCompteOuvert(true)}
+        title="Mon compte : modifier mon nom, mon adresse e-mail ou mon mot de passe"
+        className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+      >
         <div className="relative shrink-0">
           <div className="w-8 h-8 rounded-full bg-marine-800 dark:bg-marine-200 text-white dark:text-marine-900 flex items-center justify-center text-xs font-bold">
             {initiales}
@@ -135,7 +144,7 @@ export default function UserMenu({ theme, onBasculerTheme }) {
             {identite.role} · {identite.bureau}
           </p>
         </div>
-      </div>
+      </button>
 
       <button
         onClick={deconnecter}

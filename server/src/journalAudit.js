@@ -53,6 +53,9 @@ const ACTIONS = [
   [/^POST \/utilisateurs\/[^/]+\/refuser$/, "Refus d'un compte"],
   [/^DELETE \/utilisateurs\//, "Suppression d'un compte"],
   [/^(PATCH|PUT|POST) \/utilisateurs/, "Gestion des comptes"],
+  [/^POST \/moi\/mot-de-passe$/, "Changement de son mot de passe"],
+  [/^POST \/moi\/email$/, "Changement de son adresse e-mail"],
+  [/^POST \/moi\/profil$/, "Changement de son nom"],
   [/^POST \/leads\//, "Import / génération de fiches"],
   [/^(PUT|POST) \/(argumentaire-agefiph|script-vente|modeles-mails)/, "Contenus partagés"],
 ];
