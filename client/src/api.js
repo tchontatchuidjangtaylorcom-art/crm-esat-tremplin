@@ -133,6 +133,19 @@ export const api = {
       }),
     }).then(handle),
 
+  // Rendre des fiches au pool général (voir RendreLeads.jsx) : symétrique de
+  // la demande ci-dessus — un agent indisponible rend ses fiches non
+  // traitées, elles redeviennent disponibles pour n'importe qui.
+  // `pourAgentId` : un administrateur rend les fiches d'un agent (Mode Manager).
+  getRendreLeads: (pourAgentId) =>
+    fetch(`${BASE}/leads/rendre${pourAgentId ? `?pourAgentId=${encodeURIComponent(pourAgentId)}` : ""}`).then(handle),
+  rendreLeads: (statut, pourAgentId) =>
+    fetch(`${BASE}/leads/rendre`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ statut, pourAgentId: pourAgentId || null }),
+    }).then(handle),
+
   lancerEnrichissementTelephones: (inclureDejaTentees = false) =>
     fetch(`${BASE}/leads/enrichir-telephones`, {
       method: "POST",

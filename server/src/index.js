@@ -2132,6 +2132,85 @@ async function traiterDemandeLeads(req, res) {
   rechercherNumerosDemande(suivi, creees);
 }
 
+// ---- Rendre des fiches au pool général ----
+// Symétrique de "Demander des fiches" ci-dessus : un agent qui ne va pas
+// travailler (congé, absence) ne doit pas garder des fiches sur lui — il les
+// rend, elles redeviennent disponibles pour n'importe qui. Hors Client
+// Potentiel (CP)/Fiche one-shot (déjà qualifiées, un lien avec un
+// interlocuteur précis existe) et hors sorties archivées. Même logique que
+// la redistribution d'équipe (distributionEquipe.js) : une fiche qui change
+// de mains repart en Nouveau, sans historique d'un lien déjà créé avec
+// l'ancien agent.
+const STATUTS_RENDABLES = [
+  "nouveau",
+  "a_relancer",
+  "nrp",
+  "nrp2",
+  "me_rappelle",
+  "a_rappeler",
+  "numero_invalide",
+  "pdn",
+  "anglais",
+  "rdv",
+  "mail",
+  "autre",
+];
+
+function libelleStatutRendu(s) {
+  return (
+    ISSUES_APPEL[s] ||
+    { nouveau: "Nouveau", a_relancer: "À relancer", numero_invalide: "Numéro invalide", pdn: "PDN (pas de numéro)", anglais: "Anglais (prospection par mail)" }[
+      s
+    ] ||
+    s
+  );
+}
+
+// Aperçu : les fiches de l'agent (ou de pourAgentId en Mode Manager), par
+// statut rendable, pour choisir lesquelles renvoyer.
+app.get("/api/leads/rendre", exigerAuth, (req, res) => {
+  const cible = cibleDemandeLeads(req);
+  if (!cible) return res.status(404).json({ error: "Agent introuvable." });
+  const parStatut = STATUTS_RENDABLES.map((statut) => ({
+    statut,
+    label: libelleStatutRendu(statut),
+    total: db.data.entreprises.filter((e) => e.assigneA === cible.id && e.statut === statut).length,
+  })).filter((s) => s.total > 0);
+  res.json({ parStatut });
+});
+
+// Rend au pool général (sans agent, remises en Nouveau) les fiches de
+// l'agent dans le statut choisi.
+app.post("/api/leads/rendre", exigerAuth, async (req, res) => {
+  const cible = cibleDemandeLeads(req);
+  if (!cible) return res.status(404).json({ error: "Agent introuvable." });
+  const statut = String(req.body.statut || "");
+  if (!STATUTS_RENDABLES.includes(statut)) return res.status(400).json({ error: "Statut invalide." });
+
+  const auteur = req.utilisateur.prenom || req.utilisateur.email;
+  const nomAgent = cible.prenom || cible.email;
+  const pourAutrui = cible.id !== req.utilisateur.id;
+  const maintenant = new Date().toISOString();
+  const fiches = db.data.entreprises.filter((e) => e.assigneA === cible.id && e.statut === statut);
+  const libelle = libelleStatutRendu(statut);
+
+  for (const e of fiches) {
+    e.assigneA = null;
+    e.statut = "nouveau";
+    e.dateRappel = null;
+    e.dateRdv = null;
+    e.commentaires = Array.isArray(e.commentaires) ? e.commentaires : [];
+    e.commentaires.unshift({
+      id: nanoid(),
+      date: maintenant,
+      auteur: "Système",
+      texte: `Fiche rendue au pool général par ${auteur}${pourAutrui ? ` (pour ${nomAgent})` : ""} : ${libelle}, remise en Nouveau.`,
+    });
+  }
+  if (fiches.length) await db.write();
+  res.json({ rendues: fiches.length, statut: libelle });
+});
+
 // Recherche Claude des numéros manquants sur les fiches remises à un agent
 // par "Demander 20 fiches" (existantes comme nouvellement créées), avec une
 // progression visible dans le bloc de demande (suivi.numeros). Passe par la

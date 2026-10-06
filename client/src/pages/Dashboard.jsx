@@ -10,6 +10,7 @@ import DialerPanel from "../components/DialerPanel.jsx";
 import UserMenu from "../components/UserMenu.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import DemandeLeads from "../components/DemandeLeads.jsx";
+import RendreLeads from "../components/RendreLeads.jsx";
 import SelecteurTerritoire from "../components/SelecteurTerritoire.jsx";
 import { territoireDe } from "../territoires.js";
 import ImportLot from "../components/ImportLot.jsx";
@@ -579,6 +580,10 @@ export default function Dashboard() {
         territoire={territoire === "tous" ? "" : territoire}
         pourAgent={commeAgentId ? agentSupervise : null}
       />
+
+      {/* Symétrique de la demande ci-dessus : un agent indisponible rend ses
+          fiches non traitées plutôt que de les garder sans y toucher. */}
+      <RendreLeads onMaj={charger} pourAgent={commeAgentId ? agentSupervise : null} />
 
       <SelecteurTerritoire
         valeur={territoire}
