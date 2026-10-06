@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { reserveAuxAdmins } from "../reserveAdmin.jsx";
+import { ecouterPointeurAssistant, pointerElement } from "../assistantActions.js";
 
 async function appel(url, options) {
   const res = await fetch(url, options);
@@ -51,9 +52,13 @@ function BoutonRechercheNumeros({ entreprise, onMaj }) {
     }
   }
 
+  // L'assistant général du CRM ("comment trouver un numéro ?") pointe ce
+  // bouton plutôt que de se contenter de l'expliquer en texte.
+  useEffect(() => ecouterPointeurAssistant("recherche_numero", () => pointerElement("assistant-recherche-numero")), []);
+
   const fini = etat && !etat.enCours && etat.termine;
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+    <div id="assistant-recherche-numero" className="mt-2 flex flex-wrap items-center gap-2 text-xs">
       <button
         type="button"
         onClick={lancer}

@@ -23,6 +23,7 @@ import { useTheme } from "../useTheme.js";
 import { useAuth } from "../AuthContext.jsx";
 import { useSupervision } from "../SupervisionContext.jsx";
 import { ORDRE_STATUTS } from "../constants.js";
+import { ecouterPointeurAssistant, pointerElement } from "../assistantActions.js";
 
 const TAILLES_PAGE = [10, 20, 50];
 
@@ -294,6 +295,10 @@ export default function Dashboard() {
       return filtree.size === prev.size ? prev : filtree;
     });
   }, [entreprises]);
+
+  // Assistant général du CRM ("comment je retrouve une entreprise ?") :
+  // pointe la barre de recherche plutôt que de se contenter de l'expliquer.
+  useEffect(() => ecouterPointeurAssistant("recherche_entreprise", () => pointerElement("assistant-recherche")), []);
 
   // Chaque compteur de facette (statut, catégorie, lot) s'appuie sur les
   // MÊMES filtres actifs que la liste, à l'exception de sa propre dimension —
@@ -599,7 +604,7 @@ export default function Dashboard() {
           }}
         />
 
-        <div className="flex-1 min-w-0">
+        <div id="assistant-recherche" className="flex-1 min-w-0">
           <RechercheSiren
             entreprises={toutesEntreprises}
             archives={archives}

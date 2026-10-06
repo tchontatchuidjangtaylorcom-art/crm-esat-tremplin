@@ -26,6 +26,7 @@ import ChoixSuperviseurFiche from "../components/ChoixSuperviseurFiche.jsx";
 import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
+import { ecouterPointeurAssistant, pointerElement } from "../assistantActions.js";
 import { compterAppel } from "../telephony/compterAppel.js";
 import {
   formatMontant,
@@ -413,11 +414,23 @@ export default function EntrepriseDetail() {
       nom: entreprise.nom,
       effectif: entreprise.effectif,
       effectifBeneficiaire: entreprise.effectifBeneficiaire,
+      statut: entreprise.statut,
       enregistrer: (payload) => mettreAJourEffectifs(payload),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entreprise]);
   useEffect(() => () => publierFicheOuverte(null), []);
+
+  // Assistant général du CRM ("comment je change le statut / je retrouve
+  // l'historique / je télécharge le PDF ?") : pointe la zone concernée.
+  useEffect(() => {
+    const arreter = [
+      ecouterPointeurAssistant("statut", () => pointerElement("assistant-statut")),
+      ecouterPointeurAssistant("historique", () => pointerElement("assistant-historique")),
+      ecouterPointeurAssistant("pdf", () => pointerElement("assistant-pdf")),
+    ];
+    return () => arreter.forEach((fn) => fn());
+  }, []);
 
   if (erreur && !entreprise) {
     return (
@@ -482,7 +495,9 @@ export default function EntrepriseDetail() {
           <div className="flex flex-wrap items-center gap-3 mt-1.5">
             <BoutonRechercheNumeros entreprise={entreprise} onMaj={setEntreprise} />
             {/* Statut cliquable : change le statut sans descendre dans la fiche. */}
-            <StatusSelect entreprise={entreprise} />
+            <span id="assistant-statut">
+              <StatusSelect entreprise={entreprise} />
+            </span>
             {/* Administrateur : liste déroulante pour réattribuer la fiche. */}
             <ChoixAgentFiche entreprise={entreprise} onMaj={setEntreprise} />
             <ChoixSuperviseurFiche entreprise={entreprise} onMaj={setEntreprise} />
@@ -499,6 +514,7 @@ export default function EntrepriseDetail() {
             📝 Qualifier en Client Potentiel (CP)
           </button>
           <a
+            id="assistant-pdf"
             href={`/api/entreprises/${id}/rapport-pdf`}
             download
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700"
@@ -929,7 +945,7 @@ export default function EntrepriseDetail() {
               IA (au lieu d'être en bas de colonne, après le fil mail complet)
               pour rester joignable en un coup d'œil pendant un appel, sans
               scroller. */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
+          <div id="assistant-historique" className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Messagerie & historique</h2>
 
             <DicteeCommentaire entreprise={entreprise} onMaj={setEntreprise} prenomAgent={prenomAgent} />

@@ -866,27 +866,87 @@ export async function genererEmailProspection(entreprise) {
   return avecRetry429(() => appelerClaudeEmail(entreprise, cle, modele), entreprise.nom);
 }
 
-// Assistant de questions "domaine" (OETH / contribution / surcontribution /
-// ESAT Tremplin / TIH) : contrairement aux fonctions ci-dessus (qui portent
-// sur UNE entreprise précise), l'agent pose ici une question générale de
-// connaissance métier (ex : "à partir de combien de salariés on passe à 500
-// SMIC ?"), typiquement pour préparer ou sécuriser un argumentaire pendant un
-// appel — voir AssistantDomaineCrm.jsx (bouton flottant du CRM, au-dessus du
-// chat d'équipe). Pas d'outil de recherche web ici : tous les chiffres utiles
-// (barème, seuils, SMIC courant) sont injectés directement dans le prompt
-// depuis oeth.js (seule source de vérité déjà utilisée par le simulateur et
-// les fiches), pour qu'il ne puisse jamais répondre avec un montant obsolète
-// ou halluciné.
-function construirePromptDomaine(question) {
+// Assistant général du CRM : à la fois connaissance métier (OETH /
+// contribution / surcontribution / ESAT Tremplin / TIH) ET aide à
+// l'utilisation du CRM lui-même ("comment j'envoie un mail ?", "comment je
+// retrouve le numéro d'une entreprise ?"...) — contrairement aux fonctions
+// ci-dessus (qui portent sur UNE entreprise précise), l'agent pose ici une
+// question libre, typiquement pour se débloquer seul sans attendre qu'un
+// admin soit disponible. Voir AssistantDomaineCrm.jsx (bouton flottant du
+// CRM, au-dessus du chat d'équipe). Pas d'outil de recherche web ici : tous
+// les chiffres utiles (barème, seuils, SMIC courant) sont injectés
+// directement dans le prompt depuis oeth.js (seule source de vérité déjà
+// utilisée par le simulateur et les fiches), pour qu'il ne puisse jamais
+// répondre avec un montant obsolète ou halluciné.
+//
+// En plus du texte, l'assistant peut désigner AU PLUS une "action" parmi
+// cette liste fermée — jamais de code ni de clé libre, juste un pointeur
+// vers une zone déjà existante de l'interface (scroll + halo visuel, ou
+// ouverture d'un panneau) : voir assistantActions.js côté client pour ce que
+// chaque clé déclenche réellement. `ficheRequise` : l'action n'est proposée
+// que si le contexte envoyé par le client indique qu'une fiche est ouverte
+// (sécurité appliquée une seconde fois côté serveur dans repondreQuestionDomaine).
+const ACTIONS_ASSISTANT = [
+  { cle: "ecrire_mail", ficheRequise: true, description: "ouvre la boîte mail de la fiche" },
+  { cle: "recherche_numero", ficheRequise: true, description: "pointe le bouton de recherche de numéro de téléphone" },
+  { cle: "statut", ficheRequise: true, description: "pointe le sélecteur de statut de la fiche" },
+  { cle: "historique", ficheRequise: true, description: "pointe le fil d'historique / commentaires de la fiche" },
+  { cle: "pdf", ficheRequise: true, description: "pointe le bouton de téléchargement du rapport PDF interne" },
+  { cle: "argumentaire", ficheRequise: false, description: "ouvre le panneau Argumentaire AGEFIPH" },
+  { cle: "script_appel", ficheRequise: false, description: "ouvre le panneau Script d'appel" },
+  { cle: "modeles_mails", ficheRequise: false, description: "ouvre le panneau Modèles de mails (textes-types, pas l'envoi réel)" },
+  { cle: "esat_tremplin", ficheRequise: false, description: "ouvre le panneau Calcul rapide ESAT Tremplin / TIH" },
+  { cle: "recherche_entreprise", ficheRequise: false, description: "amène au tableau de bord et pointe la barre de recherche" },
+];
+const CLES_ACTIONS_ASSISTANT = new Set(ACTIONS_ASSISTANT.map((a) => a.cle));
+
+function construirePromptDomaine(question, contexte = {}) {
   const bareme = baremeParUnite();
   const lignesBareme = bareme.classique
     .map((t) => `- ${t.tranche} salariés : ${t.montantParUnite} € par unité manquante (coefficient ${t.coefficient} × SMIC)`)
     .join("\n");
 
+  const ficheOuverte = Boolean(contexte.ficheOuverte);
+  const contexteTexte = ficheOuverte
+    ? `une fiche entreprise est actuellement ouverte${contexte.statutFiche ? ` (statut actuel : ${contexte.statutFiche})` : ""}`
+    : "aucune fiche n'est ouverte : l'agent est sur le tableau de bord ou une autre page du CRM";
+
+  const blocCrm =
+    `Fonctionnement du CRM — à utiliser pour répondre aux questions "comment je fais pour…" :\n` +
+    `- Retrouver une entreprise : barre de recherche en haut du tableau de bord, par nom, SIRET, téléphone ou e-mail ` +
+    `(principal ou alternatif).\n` +
+    `- Pipeline de statuts d'une fiche : Nouveau → appel → NRP 1 (pas de réponse à l'accueil) / NRP 2 (accueil passé, ` +
+    `messagerie des RH) / Me rappelle / À rappeler (avec date) / RDV (avec date) / Mail / Autre. PDN = aucun numéro ` +
+    `trouvé après une recherche Google : la fiche sort du circuit d'appel, une recherche d'e-mail se lance ` +
+    `automatiquement, et elle se prospecte ensuite par mail. Anglais = entreprise anglophone, même logique que PDN ` +
+    `(prospection par mail uniquement, pas d'appel). Sorties de pipeline : Client Potentiel (CP), Fiche one-shot, ` +
+    `Conforme, Refus, Mort, Doublon (archivées automatiquement dès le changement de statut).\n` +
+    `- Envoyer un mail : bouton "Écrire un mail" tout en haut de la fiche (boîte repliée par défaut, un clic l'ouvre) ` +
+    `— destinataire au choix parmi l'e-mail principal ou un e-mail alternatif, correction orthographique IA ` +
+    `disponible, synthèse PDF jointe en option.\n` +
+    `- Trouver un numéro de téléphone : bouton "Rechercher d'autres numéros" (recherche IA sur Google), juste sous le ` +
+    `nom de l'entreprise en haut de la fiche. Si rien n'est trouvé, l'agent passe la fiche en statut PDN : un manager ` +
+    `pourra la relancer plus tard et transmettre un numéro trouvé entre-temps.\n` +
+    `- Historique d'une fiche : fil "Messagerie & historique" (appels, changements de statut, mails envoyés), avec un ` +
+    `bouton "Voir la suite" au-delà de 5 éléments.\n` +
+    `- Télécharger le rapport PDF : bouton en haut à droite de la fiche (indicateurs OETH + suivi de prospection, ` +
+    `usage interne — différent du PDF de synthèse envoyé au client par mail).\n` +
+    `- Outils de vente : barre d'onglets accessible depuis n'importe quelle page du CRM — Argumentaire AGEFIPH, ` +
+    `Script d'appel, Modèles de mails, Calcul rapide ESAT Tremplin / TIH.\n` +
+    `- Contexte actuel de l'agent qui pose la question : ${contexteTexte}.\n\n`;
+
+  const blocActions =
+    `Actions disponibles — choisis-en AU PLUS UNE, en indiquant sa clé exacte dans le JSON final, UNIQUEMENT si elle ` +
+    `aide concrètement à répondre à la question ; mets null sinon. Une action marquée (fiche requise) ne doit JAMAIS ` +
+    `être choisie si le contexte ci-dessus dit qu'aucune fiche n'est ouverte :\n` +
+    ACTIONS_ASSISTANT.map((a) => `- "${a.cle}"${a.ficheRequise ? " (fiche requise)" : ""} : ${a.description}.`).join("\n") +
+    `\n\n`;
+
   return (
-    `Tu es un assistant qui aide les agents du Pôle OETH/AGEFIPH à répondre à des questions de connaissance métier ` +
-    `pendant ou avant un appel commercial : obligation d'emploi des travailleurs handicapés (OETH), contribution, ` +
-    `surcontribution, dispositifs ESAT Tremplin et TIH (Travailleurs Indépendants Handicapés).\n\n` +
+    `Tu es l'assistant général du CRM du Pôle OETH/AGEFIPH, utilisé par les agents de prospection. Tu réponds à deux ` +
+    `types de questions : la connaissance métier (obligation d'emploi des travailleurs handicapés, contribution, ` +
+    `surcontribution, dispositifs ESAT Tremplin et TIH), ET l'utilisation concrète du CRM (où cliquer, comment faire ` +
+    `telle action) — pour que l'agent puisse se débloquer seul, même si aucun admin n'est disponible.\n\n` +
     `Données de référence EXACTES et À JOUR — n'utilise JAMAIS un chiffre différent de ceux-ci, n'en invente aucun :\n` +
     `- Seuil d'assujettissement : ${SEUIL_ASSUJETTISSEMENT} salariés\n` +
     `- Taux légal : ${TAUX_LEGAL * 100} % de l'effectif\n` +
@@ -908,12 +968,15 @@ function construirePromptDomaine(question) {
     `environ 9 232 €.\n` +
     `- TIH (Travailleurs Indépendants Handicapés) : dispositif alternatif de sous-traitance auprès d'un travailleur ` +
     `handicapé indépendant, soumis aux mêmes règles de seuil que l'EA/ESAT ci-dessus.\n\n` +
+    blocCrm +
+    blocActions +
     `Question de l'agent : "${question}"\n\n` +
-    `Réponds en français, en 2 à 5 phrases maximum, directement utilisable au téléphone ou pour se préparer avant ` +
-    `un appel. Si la question sort du champ OETH/contribution/ESAT/TIH/AGEFIPH, dis-le clairement plutôt que ` +
-    `d'inventer une réponse hors sujet.\n` +
+    `Réponds en français, en 2 à 6 phrases maximum, directement utilisable au téléphone ou pour se préparer avant un ` +
+    `appel. Si la question porte sur l'utilisation du CRM, explique concrètement où cliquer. Si la question sort du ` +
+    `champ OETH/contribution/ESAT/TIH/AGEFIPH/utilisation du CRM, dis-le clairement plutôt que d'inventer une ` +
+    `réponse hors sujet.\n` +
     `Termine IMPÉRATIVEMENT ta réponse par une seule ligne contenant uniquement un objet JSON strict, sans texte ` +
-    `autour, exactement au format :\n{"reponse": "<texte à afficher tel quel>"}`
+    `autour, exactement au format :\n{"reponse": "<texte à afficher tel quel>", "action": "<une des clés ci-dessus, ou null>"}`
   );
 }
 
@@ -946,10 +1009,14 @@ function extraireResultatDomaine(corpsReponse) {
     erreur.code = "REPONSE_IA_INVALIDE";
     throw erreur;
   }
-  return { reponse: String(resultat.reponse) };
+  // Clé libre non reconnue (ou hallucinée) : on l'ignore plutôt que de la
+  // transmettre telle quelle, le client ne sachant de toute façon réagir
+  // qu'aux clés de CLES_ACTIONS_ASSISTANT.
+  const action = typeof resultat.action === "string" && CLES_ACTIONS_ASSISTANT.has(resultat.action) ? resultat.action : null;
+  return { reponse: String(resultat.reponse), action };
 }
 
-async function appelerClaudeDomaine(question, cle, modele) {
+async function appelerClaudeDomaine(question, contexte, cle, modele) {
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
@@ -962,7 +1029,7 @@ async function appelerClaudeDomaine(question, cle, modele) {
         max_tokens: 512,
         // Pas d'outil de recherche web : réponse construite uniquement à
         // partir des chiffres injectés ci-dessus (voir construirePromptDomaine).
-        messages: [{ role: "user", content: construirePromptDomaine(question) }],
+        messages: [{ role: "user", content: construirePromptDomaine(question, contexte) }],
       }),
       signal: controleur.signal,
     });
@@ -993,9 +1060,11 @@ async function appelerClaudeDomaine(question, cle, modele) {
   return extraireResultatDomaine(corps);
 }
 
-// Assistant de questions "domaine" — voir construirePromptDomaine ci-dessus.
-// Ne persiste rien, aucun lien avec une entreprise précise.
-export async function repondreQuestionDomaine(question) {
+// Assistant général du CRM — voir construirePromptDomaine ci-dessus. Ne
+// persiste rien ; `contexte.ficheOuverte`/`contexte.statutFiche` ne sont que
+// des indications envoyées par le client pour adapter la réponse et l'action
+// proposée, jamais utilisées pour lire ou modifier une fiche précise ici.
+export async function repondreQuestionDomaine(question, contexte = {}) {
   const cle = cleApi();
   if (!cle) {
     const erreur = new Error("Recherche IA non configurée (renseignez ANTHROPIC_API_KEY).");
@@ -1003,7 +1072,12 @@ export async function repondreQuestionDomaine(question) {
     throw erreur;
   }
   const modele = process.env.ANTHROPIC_MODEL || MODELE_PAR_DEFAUT;
-  return avecRetry429(() => appelerClaudeDomaine(question, cle, modele), "assistant-domaine");
+  const resultat = await avecRetry429(() => appelerClaudeDomaine(question, contexte, cle, modele), "assistant-domaine");
+  // Second verrou (le prompt l'interdit déjà) : une action "fiche requise"
+  // ne sort jamais d'ici sans fiche ouverte annoncée par le client.
+  const config = ACTIONS_ASSISTANT.find((a) => a.cle === resultat.action);
+  if (config?.ficheRequise && !contexte.ficheOuverte) return { ...resultat, action: null };
+  return resultat;
 }
 
 // Correcteur d'orthographe des mails rédigés à la main : accents, a / à,

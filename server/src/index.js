@@ -2846,11 +2846,13 @@ app.get("/api/oeth/bareme", exigerAuth, (req, res) => {
   res.json(baremeParUnite());
 });
 
-// Assistant de questions "domaine" (AssistantDomaineCrm.jsx, bouton flottant
-// au-dessus du chat d'équipe) : question libre de connaissance métier OETH /
-// contribution / surcontribution / ESAT Tremplin / TIH, sans lien avec une
-// entreprise précise — voir repondreQuestionDomaine (tous les chiffres cités
-// viennent de oeth.js, jamais inventés par le modèle).
+// Assistant général du CRM (AssistantDomaineCrm.jsx, bouton flottant au-dessus
+// du chat d'équipe) : question libre de connaissance métier OETH /
+// contribution / surcontribution / ESAT Tremplin / TIH, OU question sur
+// l'utilisation du CRM lui-même ; sans lien avec une entreprise précise (le
+// contexte envoyé n'indique que si une fiche est ouverte et son statut, pour
+// adapter la réponse) — voir repondreQuestionDomaine (chiffres toujours issus
+// de oeth.js, jamais inventés par le modèle).
 app.post("/api/assistant-domaine", exigerAdmin, async (req, res) => {
   const question = String(req.body.question || "").trim();
   if (!question) return res.status(400).json({ error: "Question vide." });
@@ -2860,8 +2862,14 @@ app.post("/api/assistant-domaine", exigerAdmin, async (req, res) => {
     return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
   }
 
+  const contexteBrut = req.body.contexte && typeof req.body.contexte === "object" ? req.body.contexte : {};
+  const contexte = {
+    ficheOuverte: Boolean(contexteBrut.ficheOuverte),
+    statutFiche: typeof contexteBrut.statutFiche === "string" ? contexteBrut.statutFiche.slice(0, 40) : null,
+  };
+
   try {
-    const resultat = await repondreQuestionDomaine(question);
+    const resultat = await repondreQuestionDomaine(question, contexte);
     res.json(resultat);
   } catch (e) {
     console.error(`[ia] Échec de l'assistant domaine :`, JSON.stringify(detailErreurIa(e)));

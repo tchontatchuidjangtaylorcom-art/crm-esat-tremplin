@@ -1,23 +1,46 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { usePresence } from "../PresenceContext.jsx";
 import { reserveAuxAdmins } from "../reserveAdmin.jsx";
+import { useFicheOuverte } from "../ficheOuverte.js";
+import { declencherPointeurAssistant } from "../assistantActions.js";
 
 function idUnique() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 const ACCUEIL_TEXTE =
-  "Posez-moi une question sur l'OETH, la contribution, la surcontribution, ESAT Tremplin ou TIH — je réponds à partir des chiffres exacts du CRM (barème, SMIC, seuils), jamais approximés.";
+  "Posez-moi une question sur l'OETH (contribution, surcontribution, ESAT Tremplin, TIH) ou sur l'utilisation du CRM — \"comment j'envoie un mail ?\", \"comment je retrouve un numéro ?\" — je réponds à partir des chiffres exacts du CRM et je peux pointer directement l'endroit concerné.";
+
+// Clé d'action renvoyée par le serveur (voir ACTIONS_ASSISTANT dans
+// rechercheContact.js) → où elle s'applique (une fiche ouverte, le tableau
+// de bord, ou n'importe quelle page) et comment la déclencher. "ouvrirOutil"
+// réutilise l'événement "outils-vente:ouvrir" déjà écouté par
+// OutilsVenteLayout.jsx ; les autres sont pointées via assistantActions.js,
+// chaque composant concerné écoutant sa propre clé.
+const ACTIONS = {
+  ecrire_mail: { page: "fiche" },
+  recherche_numero: { page: "fiche" },
+  statut: { page: "fiche" },
+  historique: { page: "fiche" },
+  pdf: { page: "fiche" },
+  argumentaire: { page: null, ouvrirOutil: "argumentaire" },
+  script_appel: { page: null, ouvrirOutil: "script" },
+  modeles_mails: { page: null, ouvrirOutil: "mails" },
+  esat_tremplin: { page: null, ouvrirOutil: "esat" },
+  recherche_entreprise: { page: "dashboard" },
+};
 
 // Bouton flottant rond "Assist", en bas à gauche de l'écran : il ne recouvre
 // ni les panneaux d'outils (argumentaire, script, ESAT…) ancrés à droite, ni
 // le chat d'équipe (ChatWidget.jsx, en bas à droite), même ouvert. Contrairement au chat d'équipe, ce n'est pas une messagerie
 // entre collègues : chaque question part vers l'IA (repondreQuestionDomaine
-// côté serveur), qui répond UNIQUEMENT à partir des chiffres réels injectés
-// dans son prompt (voir rechercheContact.js) — jamais une réponse inventée,
-// et jamais liée à une entreprise précise (usage général de préparation
-// d'appel, contrairement à AssistantContactIA.jsx qui porte sur UNE fiche).
+// côté serveur), qui répond à partir des chiffres réels injectés dans son
+// prompt (voir rechercheContact.js) — jamais une réponse inventée — et peut
+// en plus désigner une action pour pointer/ouvrir directement la bonne zone
+// de l'interface, contrairement à AssistantContactIA.jsx qui porte sur UNE
+// fiche précise.
 function AssistantDomaineCrm() {
   const [ouvert, setOuvert] = useState(false);
   // Le bandeau "Chrono en pause" (PresenceContext) occupe aussi le coin bas
@@ -29,10 +52,32 @@ function AssistantDomaineCrm() {
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
   const finRef = useRef(null);
+  const ficheOuverte = useFicheOuverte();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     finRef.current?.scrollIntoView({ block: "end" });
   }, [messages, enCours]);
+
+  // Exécute l'action désignée par l'IA : navigue d'abord si elle ne
+  // s'applique pas à la page actuelle, puis ouvre le panneau d'outils
+  // concerné ou pointe (scroll + halo) l'élément concerné.
+  function executerAction(cle) {
+    const config = ACTIONS[cle];
+    if (!config) return;
+    if (config.page === "fiche" && !ficheOuverte) return; // sécurité : le serveur ne devrait déjà pas la renvoyer
+    const changeDePage = config.page === "dashboard" && location.pathname !== "/";
+    if (changeDePage) navigate("/");
+
+    const declencher = () => {
+      if (config.ouvrirOutil) window.dispatchEvent(new CustomEvent("outils-vente:ouvrir", { detail: config.ouvrirOutil }));
+      else declencherPointeurAssistant(cle);
+    };
+    // Laisse la page de destination se monter avant de pointer dessus.
+    if (changeDePage) setTimeout(declencher, 300);
+    else declencher();
+  }
 
   async function poserQuestion(ev) {
     ev.preventDefault();
@@ -43,8 +88,12 @@ function AssistantDomaineCrm() {
     setEnCours(true);
     setErreur(null);
     try {
-      const { reponse } = await api.demanderAssistantDomaine(texte);
+      const { reponse, action } = await api.demanderAssistantDomaine(texte, {
+        ficheOuverte: Boolean(ficheOuverte),
+        statutFiche: ficheOuverte?.statut || null,
+      });
       setMessages((m) => [...m, { id: idUnique(), auteur: "assistant", texte: reponse }]);
+      if (action) executerAction(action);
     } catch (e) {
       setErreur(e.message);
     } finally {
@@ -57,8 +106,8 @@ function AssistantDomaineCrm() {
       <button
         onClick={() => setOuvert(true)}
         className={`fixed ${bas} left-4 z-40 w-14 h-14 rounded-full bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-2xl flex items-center justify-center transition`}
-        title="Assistance OETH — questions de connaissance métier"
-        aria-label="Ouvrir l'assistance OETH"
+        title="Assistance — connaissance métier OETH et aide à l'utilisation du CRM"
+        aria-label="Ouvrir l'assistance"
       >
         Assist
       </button>
@@ -72,8 +121,8 @@ function AssistantDomaineCrm() {
           🎓
         </span>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">Assistance OETH</p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">Questions de connaissance métier, réponse IA immédiate</p>
+          <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">Assistance</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">OETH et utilisation du CRM, réponse IA immédiate</p>
         </div>
         <button
           onClick={() => setOuvert(false)}
@@ -118,7 +167,7 @@ function AssistantDomaineCrm() {
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ex : à partir de combien de salariés c'est 500 SMIC ?"
+          placeholder="Ex : comment j'envoie un mail ? / à partir de combien de salariés c'est 500 SMIC ?"
           aria-label="Votre question"
           className="flex-1 min-w-0 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500"
         />

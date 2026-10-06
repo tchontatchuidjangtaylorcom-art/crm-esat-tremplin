@@ -202,15 +202,17 @@ export const api = {
   // simulateur public et les fiches entreprise.
   getBaremeOeth: () => fetch(`${BASE}/oeth/bareme`).then(handle),
 
-  // Assistant de questions "domaine" (bouton flottant au-dessus du chat
-  // d'équipe, voir AssistantDomaineCrm.jsx) : question libre sur l'OETH, la
-  // contribution/surcontribution, ESAT Tremplin ou TIH — sans lien avec une
-  // entreprise précise.
-  demanderAssistantDomaine: (question) =>
+  // Assistant général du CRM (bouton flottant au-dessus du chat d'équipe,
+  // voir AssistantDomaineCrm.jsx) : question libre sur l'OETH, la
+  // contribution/surcontribution, ESAT Tremplin, TIH, OU sur l'utilisation du
+  // CRM — sans lien avec une entreprise précise. `contexte` indique juste si
+  // une fiche est ouverte (et son statut), pour adapter la réponse et
+  // éventuellement pointer la bonne zone de l'interface.
+  demanderAssistantDomaine: (question, contexte) =>
     fetch(`${BASE}/assistant-domaine`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, contexte }),
     }).then(handle),
 
   corrigerTexte: (texte) =>

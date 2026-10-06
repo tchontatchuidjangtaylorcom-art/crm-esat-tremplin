@@ -6,6 +6,7 @@ import { construireSignature } from "../mailSignature.js";
 import BoutonCorrection from "./BoutonCorrection.jsx";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
+import { ecouterPointeurAssistant, pointerElement } from "../assistantActions.js";
 
 // Fil de messagerie mail réel avec le contact de l'entreprise (boîte IMAP/SMTP
 // du pôle — voir server/src/mail.js). Reste utilisable même sans boîte
@@ -41,6 +42,16 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   useEffect(() => {
     if (estProspectionMail) setOuvert(true);
   }, [estProspectionMail]);
+  // L'assistant général du CRM ("comment envoyer un mail ?") peut ouvrir la
+  // boîte directement plutôt que de se contenter de l'expliquer en texte.
+  useEffect(
+    () =>
+      ecouterPointeurAssistant("ecrire_mail", () => {
+        setOuvert(true);
+        setTimeout(() => pointerElement("assistant-mail"), 50);
+      }),
+    []
+  );
   const [statutMail, setStatutMail] = useState(null);
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
@@ -310,7 +321,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           <span>{toastEnvoi}</span>
         </div>
       )}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
+      <div id="assistant-mail" className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
       <button
         type="button"
         onClick={() => setOuvert((v) => !v)}
