@@ -3211,7 +3211,8 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       cc: copiesEnvoi,
       subject: testVersMoi ? `[TEST] ${objet}` : objet,
       text: rendezVous
-        ? `${corps}\n\nMettre à jour mon dossier OETH (puis choisir un créneau avec un conseiller) : ${dossier.url}`
+        ? `${corps}\n\nCalculer ma contribution et mettre à jour mon dossier OETH : ${dossier.url}` +
+          `\nVous préférez en parler de vive voix ? Choisir un créneau avec un conseiller : ${rendezVous.url}`
         : corps,
       html,
       fromName: nomExpediteur,

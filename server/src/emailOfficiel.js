@@ -17,6 +17,7 @@
 // modernes).
 import { determinerCollecteur } from "./secteurs.js";
 import { SITE_URL } from "./seo.js";
+import { exerciceParDefaut } from "./oeth.js";
 
 const BLEU = "#1e3a8a";
 const GRIS = "#475569";
@@ -117,10 +118,18 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
     ${paragraphes(corps)}
 
     <div style="margin:24px 0 8px;text-align:center;">
-      ${lienDossier ? bouton(lienDossier, "Mettre à jour mon dossier OETH", true) : bouton(lienConseiller, "Parler à un conseiller", true)}
+      ${lienDossier ? bouton(lienDossier, `Calculer ma contribution ${exerciceParDefaut()}`, true) : bouton(lienConseiller, "Parler à un conseiller", true)}
     </div>
+    ${
+      // Un seul bouton (le dossier : calcul + mise à jour, puis choix du
+      // créneau) ; parler directement à un conseiller reste possible par un
+      // simple lien, plus discret.
+      lienDossier
+        ? `<p style="margin:10px 0 0;text-align:center;font-size:13px;color:${GRIS};">Vous préférez en parler de vive voix ? <a href="${echapper(lienConseiller)}" style="color:${BLEU};font-weight:700;">Choisir un créneau avec un conseiller</a></p>`
+        : ""
+    }
     <p style="margin:6px 0 22px;text-align:center;font-size:12px;color:${GRIS_CLAIR};">
-      ${lienDossier ? "Confirmez vos chiffres en une minute, puis choisissez un créneau avec votre conseiller.<br>" : lienRendezVous ? "Choisissez votre créneau, du lundi au vendredi de 9 h à 17 h 30.<br>" : ""}${echapper(poleInfo.email)} · ${echapper(poleInfo.telephone)}
+      ${lienDossier ? "" : lienRendezVous ? "Choisissez votre créneau, du lundi au vendredi de 9 h à 17 h 30.<br>" : ""}${echapper(poleInfo.email)} · ${echapper(poleInfo.telephone)}
     </p>
   </td></tr>
 
