@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { usePresence } from "../PresenceContext.jsx";
-import { reserveAuxAdmins } from "../reserveAdmin.jsx";
 import { useFicheOuverte } from "../ficheOuverte.js";
 import { declencherPointeurAssistant } from "../assistantActions.js";
 
@@ -185,4 +184,6 @@ function AssistantDomaineCrm() {
 }
 
 // Fonction IA (payante) : réservée aux administrateurs.
-export default reserveAuxAdmins(AssistantDomaineCrm);
+// Visible de tous (agents compris) : le serveur plafonne les questions des
+// agents à 30 par jour (voir /api/assistant-domaine).
+export default AssistantDomaineCrm;

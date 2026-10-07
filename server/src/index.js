@@ -2934,10 +2934,28 @@ app.get("/api/oeth/bareme", exigerAuth, (req, res) => {
 // contexte envoyé n'indique que si une fiche est ouverte et son statut, pour
 // adapter la réponse) — voir repondreQuestionDomaine (chiffres toujours issus
 // de oeth.js, jamais inventés par le modèle).
-app.post("/api/assistant-domaine", exigerAdmin, async (req, res) => {
+// Assistance (Assist) : ouverte à TOUS les comptes depuis octobre 2026, à la
+// demande du responsable — mais plafonnée à QUOTA_ASSIST_JOUR questions par
+// agent et par jour (les administrateurs sans limite) : chaque question est
+// un appel Claude payant (petit : pas de recherche web), et un incident de
+// coût a déjà eu lieu avec des appels déclenchés par les agents.
+const QUOTA_ASSIST_JOUR = 30;
+const questionsAssistParJour = new Map();
+
+app.post("/api/assistant-domaine", exigerAuth, async (req, res) => {
   const question = String(req.body.question || "").trim();
   if (!question) return res.status(400).json({ error: "Question vide." });
   if (question.length > 500) return res.status(400).json({ error: "Question trop longue (500 caractères maximum)." });
+  if (!estAdmin(req.utilisateur)) {
+    const cleJour = `${req.utilisateur.id}:${new Date().toISOString().slice(0, 10)}`;
+    const deja = questionsAssistParJour.get(cleJour) || 0;
+    if (deja >= QUOTA_ASSIST_JOUR) {
+      return res.status(429).json({
+        error: `Limite de ${QUOTA_ASSIST_JOUR} questions par jour atteinte. Elle se remet à zéro demain ; en attendant, consultez l'Argumentaire ou le Script de vente.`,
+      });
+    }
+    questionsAssistParJour.set(cleJour, deja + 1);
+  }
 
   if (!estRechercheIaConfiguree()) {
     return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
