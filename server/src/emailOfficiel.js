@@ -71,7 +71,8 @@ function bouton(href, texte, plein) {
 // `lienDossier` : page « Confirmer ma fiche » du client (voir ficheClient.js).
 export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRendezVous = null, avecPdf = false, lienDossier = null }) {
   const nom = echapper(entreprise.nom || "votre entreprise");
-  const nomPole = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+  const publicFiphfp = determinerCollecteur(entreprise) === "FIPHFP";
+  const nomPole = publicFiphfp ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
   // Référence unique à chaque envoi : Gmail replie derrière "•••" tout
   // contenu identique à un message précédent du même fil (ex. une relance
   // après un premier e-mail) — une ligne qui change à chaque envoi l'en empêche.
@@ -137,10 +138,14 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
     <div style="padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
       <div style="font-size:13px;font-weight:700;color:#b91c1c;margin-bottom:6px;">Informations importantes</div>
       <p style="margin:0 0 6px;font-size:12px;line-height:1.55;color:${GRIS};">
-        ▸ La contribution OETH se déclare dans votre DSN et se règle <strong>uniquement auprès de l'URSSAF</strong> (ou de la MSA).
+        ${
+          publicFiphfp
+            ? "▸ Pour un employeur public, la contribution est versée <strong>uniquement au FIPHFP</strong>, lors de la déclaration annuelle de l'obligation d'emploi."
+            : "▸ La contribution OETH se déclare dans votre DSN et se règle <strong>uniquement auprès de l'URSSAF</strong> (ou de la MSA)."
+        }
       </p>
       <p style="margin:0 0 6px;font-size:12px;line-height:1.55;color:${GRIS};">
-        ▸ Le Pôle OETH / AGEFIPH ne vous demandera <strong>jamais</strong> de paiement, ni vos codes d'accès ou coordonnées bancaires.
+        ▸ Le ${nomPole} ne vous demandera <strong>jamais</strong> de paiement, ni vos codes d'accès ou coordonnées bancaires.
       </p>
       <p style="margin:0;font-size:12px;line-height:1.55;color:${GRIS};">
         ▸ En cas de doute sur une sollicitation : <a href="${SITE_URL}/vitrine/vigilance" style="color:${BLEU};">${SITE_URL.replace(/^https?:\/\//, "")}/vitrine/vigilance</a>
@@ -150,9 +155,12 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
 
   <tr><td style="padding:16px 32px 24px;background:#f1f5f9;">
     <p style="margin:0;font-size:11px;line-height:1.5;color:${GRIS_CLAIR};">
-      ${avecPdf ? "Ce message et sa pièce jointe sont" : "Ce message est"} une information du Pôle OETH / AGEFIPH. ${avecPdf ? "Ils ne constituent" : "Il ne constitue"}
-      ni une notification officielle de l'URSSAF, ni un avis de recouvrement, ni un document émanant de l'AGEFIPH ; seule
-      l'URSSAF est compétente pour notifier et recouvrer la contribution OETH.
+      ${avecPdf ? "Ce message et sa pièce jointe sont" : "Ce message est"} une information du ${nomPole}. ${avecPdf ? "Ils ne constituent" : "Il ne constitue"}
+      ${
+        publicFiphfp
+          ? "ni une notification officielle du FIPHFP, ni un appel de contribution, ni un document émanant du FIPHFP."
+          : "ni une notification officielle de l'URSSAF, ni un avis de recouvrement, ni un document émanant de l'AGEFIPH ; seule l'URSSAF est compétente pour notifier et recouvrer la contribution OETH."
+      }
       Si vous avez reçu ce message par erreur, merci de nous en informer à ${echapper(poleInfo.email)}.
     </p>
     <p style="margin:6px 0 0;font-size:10px;color:#94a3b8;">Réf. ${reference}</p>

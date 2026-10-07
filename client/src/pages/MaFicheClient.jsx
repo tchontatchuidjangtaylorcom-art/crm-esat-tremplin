@@ -224,7 +224,7 @@ export default function MaFicheClient() {
                         <div>
                           <p className="font-semibold">Depuis quand votre entreprise n'emploie-t-elle aucun bénéficiaire ?</p>
                           <div className="grid sm:grid-cols-2 gap-2 mt-3">
-                            {DEPUIS_ZERO.map((o) => (
+                            {(infos.depuisZero || DEPUIS_ZERO).map((o) => (
                               <button
                                 key={o.cle}
                                 type="button"

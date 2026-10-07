@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useContenuAide } from "../useContenuAide.js";
 import { formatDateHeure } from "../constants.js";
-import { construireSignature } from "../mailSignature.js";
+import { construireSignature, remplirJetons } from "../mailSignature.js";
 import BoutonCorrection from "./BoutonCorrection.jsx";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
@@ -144,13 +144,8 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   }, [entreprise.id]);
 
   function inserer(modele) {
-    setObjet(modele.objet);
-    setCorps(
-      modele.corps.replaceAll(
-        "{{SIGNATURE}}",
-        construireSignature({ statutMail, collecteur: entreprise.collecteur })
-      )
-    );
+    setObjet(remplirJetons(modele.objet, { statutMail, collecteur: entreprise.collecteur }));
+    setCorps(remplirJetons(modele.corps, { statutMail, collecteur: entreprise.collecteur }));
   }
 
   // Génération sur demande (jamais automatique) : l'agent déclenche
@@ -601,7 +596,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           </label>
           <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <input type="checkbox" checked={formatOfficiel} onChange={(e) => setFormatOfficiel(e.target.checked)} />
-            Mise en page officielle (bandeau du pôle + bouton « Parler à un conseiller » : le client choisit un créneau, vous êtes prévenu)
+            Mise en page officielle (bandeau du pôle + bouton « Calculer ma contribution » : le client met à jour son dossier puis choisit un créneau, vous êtes prévenu)
           </label>
           {testEnvoye && (
             <p className="text-xs text-emerald-700 dark:text-emerald-400">

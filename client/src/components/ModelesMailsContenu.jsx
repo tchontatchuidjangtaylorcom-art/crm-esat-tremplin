@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useContenuAide } from "../useContenuAide.js";
-import { construireSignature } from "../mailSignature.js";
+import { construireSignature, remplirAnnees } from "../mailSignature.js";
 
 // Modèles de mails prêts à copier-coller vers le client mail réel de
 // l'agent (pas d'envoi depuis le CRM — juste un copier/coller rapide). Même
@@ -17,8 +17,8 @@ export default function ModelesMailsContenu() {
   }, []);
 
   function copier(modele) {
-    const corps = modele.corps.replaceAll("{{SIGNATURE}}", construireSignature({ statutMail }));
-    const texte = `Objet : ${modele.objet}\n\n${corps}`;
+    const corps = remplirAnnees(modele.corps).replaceAll("{{SIGNATURE}}", construireSignature({ statutMail }));
+    const texte = `Objet : ${remplirAnnees(modele.objet)}\n\n${corps}`;
     navigator.clipboard
       ?.writeText(texte)
       .then(() => {
@@ -47,10 +47,10 @@ export default function ModelesMailsContenu() {
             </button>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-            <strong>Objet :</strong> {m.objet}
+            <strong>Objet :</strong> {remplirAnnees(m.objet)}
           </p>
           <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line">
-            {m.corps.replaceAll("{{SIGNATURE}}", signature)}
+            {remplirAnnees(m.corps).replaceAll("{{SIGNATURE}}", signature)}
           </p>
         </div>
       ))}

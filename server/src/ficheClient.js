@@ -41,17 +41,24 @@ function ficheParJeton(jeton) {
 // Ce que voit le client : jamais plus que ses propres chiffres.
 // Aucun bénéficiaire : depuis quand ? La surcontribution s'applique quand
 // l'entreprise n'a employé aucun bénéficiaire (ni sous-traité suffisamment)
-// sur les 4 dernières années : pour l'exercice 2026, à 0 depuis 2023 ou
-// avant → surcontribution ; depuis 2024 ou plus récemment → contribution
-// classique. « Je ne sais pas » → contribution classique (à vérifier avec le
-// conseiller).
-export const DEPUIS_ZERO = {
-  recent: "Depuis 2024 ou plus récemment",
-  2023: "Depuis 2023",
-  avant: "Avant 2023 (ou jamais)",
-  inconnu: "Ne sait pas",
-};
-const surcontributionSelon = (depuisZero) => (depuisZero === "2023" || depuisZero === "avant" ? true : depuisZero ? false : null);
+// sur les 4 dernières années. Années calculées d'après l'exercice en cours
+// (2026 : à 0 depuis 2023 ou avant → surcontribution ; en 2027, depuis 2024
+// ou avant, etc.). « Je ne sais pas » → contribution classique (à vérifier
+// avec le conseiller). « 2023 » : ancienne clé (fiches confirmées en 2026).
+export function optionsDepuisZero(exercice = exerciceParDefaut()) {
+  const limite = exercice - 3;
+  return {
+    recent: `Depuis ${limite + 1} ou plus récemment`,
+    limite: `Depuis ${limite}`,
+    avant: `Avant ${limite} (ou jamais)`,
+    inconnu: "Ne sait pas",
+  };
+}
+export function libelleDepuisZero(cle) {
+  return cle === "2023" ? "Depuis 2023" : optionsDepuisZero()[cle] || null;
+}
+const surcontributionSelon = (depuisZero) =>
+  depuisZero === "limite" || depuisZero === "2023" || depuisZero === "avant" ? true : depuisZero ? false : null;
 
 function resume(entreprise, effectif = entreprise.effectif, rqth = entreprise.effectifBeneficiaire, depuisZero = null) {
   const collecteur = determinerCollecteur(entreprise);
@@ -142,7 +149,7 @@ export function recapFicheClient(entreprise, trouverUtilisateurParId) {
     `3. RH : ${rh}`,
     `4. Numéro direct : ${c.telephone || contact.telephone || "-"}`,
     `5. Effectif : ${effectif ?? "-"}${avant(effectif, c.avant?.effectif)}`,
-    `6. RQTH : ${rqth}${avant(rqth, c.avant?.rqth)}${c.depuisZero && rqth === 0 ? ` — aucun bénéficiaire : ${(DEPUIS_ZERO[c.depuisZero] || "").toLowerCase()}` : ""}`,
+    `6. RQTH : ${rqth}${avant(rqth, c.avant?.rqth)}${c.depuisZero && rqth === 0 ? ` — aucun bénéficiaire : ${(libelleDepuisZero(c.depuisZero) || "").toLowerCase()}` : ""}`,
     `7. Manque : ${manque}`,
     `8. À rappeler : ${aRappeler}`,
     c.commentaire ? `\nMessage du client : ${c.commentaire}` : "",
@@ -257,6 +264,11 @@ export function enregistrerRoutesFicheClient(
       effectif: entreprise.effectif ?? null,
       rqth: entreprise.effectifBeneficiaire ?? 0,
       calcul: resume(entreprise),
+      // Choix « depuis quand aucun bénéficiaire », avec les années de l'exercice.
+      depuisZero: Object.entries(optionsDepuisZero()).map(([cle, label]) => ({
+        cle,
+        label: cle === "avant" ? label.replace(" (ou jamais)", ", ou jamais") : cle === "inconnu" ? "Je ne sais pas" : label,
+      })),
       dejaConfirmee: c ? { date: c.date, nom: c.nom, effectif: c.effectif, rqth: c.rqth } : null,
       pole: { email: adresseMailPole(), telephone: telephonePole() },
     });
@@ -269,7 +281,7 @@ export function enregistrerRoutesFicheClient(
     const effectif = entier(req.query.effectif);
     const rqth = entier(req.query.rqth);
     if (effectif === null || rqth === null) return res.status(400).json({ error: "Nombres invalides." });
-    const depuisZero = DEPUIS_ZERO[req.query.depuisZero] ? String(req.query.depuisZero) : null;
+    const depuisZero = libelleDepuisZero(req.query.depuisZero) ? String(req.query.depuisZero) : null;
     res.json(resume(entreprise, effectif, rqth, depuisZero));
   });
 
@@ -300,7 +312,7 @@ export function enregistrerRoutesFicheClient(
     const maintenant = new Date().toISOString();
     entreprise.effectif = effectif;
     entreprise.effectifBeneficiaire = rqth;
-    const depuisZero = rqth === 0 && DEPUIS_ZERO[b.depuisZero] ? String(b.depuisZero) : null;
+    const depuisZero = rqth === 0 && libelleDepuisZero(b.depuisZero) ? String(b.depuisZero) : null;
     const telephone = String(b.telephone || "").trim().slice(0, 30);
     entreprise.confirmationClient = { date: maintenant, effectif, rqth, depuisZero, nom, fonction, telephone, commentaire, avant, vuPar: [] };
     if (telephone) {
@@ -315,7 +327,7 @@ export function enregistrerRoutesFicheClient(
       `✅ Fiche confirmée par le client — ${nom}${fonction ? `, ${fonction}` : ""} : effectif ${changement(avant.effectif, effectif)}, ` +
       `bénéficiaires RQTH ${changement(avant.rqth, rqth)} → ${calcul.unitesManquantes} unité(s) manquante(s)` +
       (calcul.montantEstime != null ? `, contribution estimée ${calcul.montantEstime.toLocaleString("fr-FR")} €` : "") +
-      `.${depuisZero ? ` Aucun bénéficiaire : ${DEPUIS_ZERO[depuisZero].toLowerCase()}${calcul.surcontribution ? " (surcontribution)" : ""}.` : ""}` +
+      `.${depuisZero ? ` Aucun bénéficiaire : ${libelleDepuisZero(depuisZero).toLowerCase()}${calcul.surcontribution ? " (surcontribution)" : ""}.` : ""}` +
       `${telephone ? ` Téléphone : ${telephone}.` : ""}${commentaire ? ` Message : ${commentaire}` : ""}`;
     entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
     entreprise.commentaires.unshift({ id: nanoid(), date: maintenant, auteur: "Client", texte: ligne });

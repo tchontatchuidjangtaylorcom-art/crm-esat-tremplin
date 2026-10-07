@@ -3,7 +3,7 @@ import { api } from "../api.js";
 import { useContenuAide } from "../useContenuAide.js";
 import { diffuserEntrepriseMaj } from "../telephony/CallContext.jsx";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
-import { construireSignature } from "../mailSignature.js";
+import { construireSignature, remplirAnnees } from "../mailSignature.js";
 import BoutonCorrection from "./BoutonCorrection.jsx";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
@@ -92,8 +92,9 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
   // DOETH 2026 ») ; les autres sont à un clic.
   const { data: modeles } = useContenuAide("modeles-mails", api.getModelesMails);
   function inserer(modele) {
-    setObjet(modele.objet);
-    setCorps(statutMail ? modele.corps.replaceAll("{{SIGNATURE}}", construireSignature({ statutMail })) : modele.corps);
+    setObjet(remplirAnnees(modele.objet));
+    const corps = remplirAnnees(modele.corps);
+    setCorps(statutMail ? corps.replaceAll("{{SIGNATURE}}", construireSignature({ statutMail, collecteur: entreprise?.collecteur })) : corps);
   }
   const [preRempli, setPreRempli] = useState(false);
   useEffect(() => {
@@ -267,8 +268,8 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
                 className="mt-0.5"
               />
               <span>
-                <strong>Mise en page officielle</strong> — bandeau du Pôle OETH / AGEFIPH et bouton « Parler à un conseiller » :
-                le client choisit un créneau (lundi–vendredi, 9h–17h30) et vous êtes prévenu.
+                <strong>Mise en page officielle</strong> — bandeau du Pôle OETH / AGEFIPH et bouton « Calculer ma contribution » :
+                le client met à jour son dossier puis choisit un créneau (lundi–vendredi, 9h–17h30) et vous êtes prévenu.
               </span>
             </label>
             <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
