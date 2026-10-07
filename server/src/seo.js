@@ -205,14 +205,31 @@ export function servirFrontend(app, distClient) {
 
   app.get(/^(?!\/api\/).*/, (req, res) => {
     const chemin = req.path.replace(/\/+$/, "") || "/";
+    const requete = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
+    const publique = Boolean(seoPourChemin(chemin));
 
-    // Nom de domaine public : la racine mène à la vitrine pour un visiteur
-    // non connecté (les agents connectés gardent l'accès au CRM).
+    // Une seule adresse par page pour Google (Search Console : « Page en
+    // double : Google n'a pas choisi la même URL canonique ») :
+    //  1. pages publiques servies par l'adresse technique Render (ou tout autre
+    //     domaine que oeth-fiph.fr) → redirection permanente vers oeth-fiph.fr ;
+    //     le CRM, lui, reste utilisable sur l'adresse Render ;
+    if (publique && !DOMAINE_PUBLIC.test(req.hostname || "") && !/^(localhost|127\.0\.0\.1)$/.test(req.hostname || "")) {
+      return res.redirect(301, `${SITE_URL}${chemin}${requete}`);
+    }
+    //  2. barre finale (/vitrine/) → adresse sans barre (/vitrine) ;
+    if (publique && req.path !== chemin) {
+      return res.redirect(301, `${chemin}${requete}`);
+    }
+    //  3. racine du nom de domaine public : la vitrine pour un visiteur non
+    //     connecté (les agents connectés gardent l'accès au CRM). Permanente
+    //     pour Google, mais jamais mise en cache par le navigateur (sinon un
+    //     agent qui se connecte ensuite serait renvoyé vers la vitrine).
     if (chemin === "/" && DOMAINE_PUBLIC.test(req.hostname || "") && !/(^|;\s*)crm_session=/.test(req.headers.cookie || "")) {
-      return res.redirect(302, "/vitrine");
+      res.setHeader("Cache-Control", "no-store, private");
+      res.setHeader("Vary", "Cookie");
+      return res.redirect(301, "/vitrine");
     }
 
-    const publique = Boolean(seoPourChemin(chemin));
     if (!publique) res.setHeader("X-Robots-Tag", "noindex, nofollow");
     res.setHeader("Cache-Control", "no-cache");
     res.type("html").send(lireModele().replace(/<title>[\s\S]*?<\/title>/, balisesHead(chemin)));
