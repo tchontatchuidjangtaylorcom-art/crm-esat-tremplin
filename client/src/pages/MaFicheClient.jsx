@@ -85,6 +85,8 @@ export default function MaFicheClient() {
     try {
       const r = await api.confirmerMaFiche(jeton, { ...form, effectif, rqth });
       setTermine(r);
+      // Enchaîne sur la prise de rendez-vous avec un conseiller.
+      if (r.rdvUrl) setTimeout(() => window.location.assign(r.rdvUrl), 2500);
     } catch (e) {
       setErreur(e.message);
     } finally {
@@ -163,7 +165,8 @@ export default function MaFicheClient() {
                   <div className="mt-6 rounded-2xl border border-marine-200 dark:border-white/10 bg-marine-50/60 dark:bg-white/5 px-5 py-5">
                     <p className="font-semibold">Faisons le point ensemble</p>
                     <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                      Choisissez un créneau : votre conseiller vous appelle et vous présente les solutions adaptées.
+                      Ouverture du choix de votre créneau… Votre conseiller vous appelle à l'heure choisie et vous présente les solutions
+                      adaptées.
                     </p>
                     <a
                       href={termine.rdvUrl}

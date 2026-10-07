@@ -117,11 +117,10 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
     ${paragraphes(corps)}
 
     <div style="margin:24px 0 8px;text-align:center;">
-      ${bouton(lienConseiller, "Parler à un conseiller", true)}
-      ${lienDossier ? bouton(lienDossier, "Vérifier mes informations", false) : ""}
+      ${lienDossier ? bouton(lienDossier, "Mettre à jour mon dossier OETH", true) : bouton(lienConseiller, "Parler à un conseiller", true)}
     </div>
     <p style="margin:6px 0 22px;text-align:center;font-size:12px;color:${GRIS_CLAIR};">
-      ${lienRendezVous ? "Choisissez votre créneau, du lundi au vendredi de 9 h à 17 h 30.<br>" : ""}${echapper(poleInfo.email)} · ${echapper(poleInfo.telephone)}
+      ${lienDossier ? "Confirmez vos chiffres en une minute, puis choisissez un créneau avec votre conseiller.<br>" : lienRendezVous ? "Choisissez votre créneau, du lundi au vendredi de 9 h à 17 h 30.<br>" : ""}${echapper(poleInfo.email)} · ${echapper(poleInfo.telephone)}
     </p>
   </td></tr>
 
