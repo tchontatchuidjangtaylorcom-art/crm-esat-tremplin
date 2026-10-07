@@ -9,7 +9,17 @@ import { TAILLES_EFFECTIF } from "../taillesEffectif.js";
 // qu'un agent reste sans fiches quand aucun manager n'est disponible.
 // `pourAgent` : { id, prenom } — un administrateur en Mode Manager demande
 // des fiches pour l'agent consulté.
-export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, territoire: territoireDuTableau = "", pourAgent = null }) {
+// `onVoirNouveaux` : affiche dans la liste toutes les fiches « Nouveau » de
+// l'agent (filtres retirés) — utile quand la demande est bloquée par des
+// fiches cachées par un filtre (taille, territoire, prioritaires).
+export default function DemandeLeads({
+  categories,
+  onMaj,
+  onDemandeEnvoyee,
+  territoire: territoireDuTableau = "",
+  pourAgent = null,
+  onVoirNouveaux,
+}) {
   const [etat, setEtat] = useState(null);
   // Nombre de fiches demandées : 50, 100 ou 150.
   const [nombre, setNombre] = useState(50);
@@ -90,6 +100,15 @@ export default function DemandeLeads({ categories, onMaj, onDemandeEnvoyee, terr
               ? `Fiches libres d'abord, puis NRP d'autres agents remises en Nouveau, puis nouvelles fiches générées s'il en manque (secteur choisi).`
               : `Encore ${etat.nouveauxNonTraites} fiches « Nouveau » à traiter : nouvelle demande possible sous ${etat.seuil}.`}
           </p>
+          {!etat.peutDemander && onVoirNouveaux && (
+            <button
+              type="button"
+              onClick={onVoirNouveaux}
+              className="mt-1 text-xs font-medium text-marine-700 dark:text-marine-300 hover:underline"
+            >
+              👁 Voir {pourAgent ? "ses" : "mes"} {etat.nouveauxNonTraites} fiches « Nouveau » (tous filtres retirés)
+            </button>
+          )}
         </div>
 
         <label className="block text-xs text-slate-500 dark:text-slate-400">

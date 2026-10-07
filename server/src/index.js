@@ -1861,7 +1861,9 @@ app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
 const NOMBRES_DEMANDE_LEADS = [50, 100, 150];
 const TAILLE_DEMANDE_LEADS = NOMBRES_DEMANDE_LEADS[0];
 const MAX_GENERATION_DEMANDE = 50;
-const SEUIL_NOUVEAUX_DEMANDE = 10;
+// Nouvelle demande possible tant qu'il reste moins de 50 fiches « Nouveau »
+// (avant : 10 — trop bloquant avec les NRP remis en Nouveau chaque jour).
+const SEUIL_NOUVEAUX_DEMANDE = 50;
 // Fiches NRP sans nouvelle tentative depuis ce délai : recyclées avant
 // toute génération de nouvelles fiches (voir traiterDemandeLeads). NRP 2
 // (l'accueil a décroché, les RH non) : 48 h ; NRP 1 : 24 h.

@@ -441,7 +441,18 @@ export default function Dashboard() {
     setFiltreLot("");
     setPrioritairesUniquement(false);
     setTerritoire("tous");
+    setFiltreTaille("");
     if (estAdmin && !commeAgentId) setPerimetre("tous");
+  }
+
+  // Toutes les fiches « Nouveau » de la personne (ou de l'agent consulté),
+  // sans aucun filtre caché — voir DemandeLeads.
+  function voirNouveaux() {
+    retirerFiltres();
+    if (estAdmin && !commeAgentId) setPerimetre("moi");
+    setFiltreStatut("nouveau");
+    setRecherche("");
+    setTimeout(() => document.getElementById("liste-entreprises")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
 
   // « Afficher dans la liste » depuis la recherche du haut : la fiche apparaît
@@ -579,6 +590,7 @@ export default function Dashboard() {
         onDemandeEnvoyee={estAdmin && !commeAgentId ? () => setPerimetre("moi") : undefined}
         territoire={territoire === "tous" ? "" : territoire}
         pourAgent={commeAgentId ? agentSupervise : null}
+        onVoirNouveaux={voirNouveaux}
       />
 
       {/* Symétrique de la demande ci-dessus : un agent indisponible rend ses
