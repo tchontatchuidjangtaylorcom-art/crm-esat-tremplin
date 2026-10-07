@@ -89,6 +89,70 @@ function resume(entreprise, effectif = entreprise.effectif, rqth = entreprise.ef
   };
 }
 
+// Date d'échéance de la fiche ("AAAA-MM-JJTHH:MM", heure de Paris) en clair.
+function quandEnClair(valeur) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(valeur || ""));
+  if (!m) return null;
+  const jour = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return `${jour} à ${m[4]}h${m[5]}`;
+}
+
+// Récapitulatif d'une fiche confirmée par le client, au format demandé par
+// l'équipe (8 points) : envoyé à l'agent et au pôle à la confirmation et à la
+// prise de rendez-vous, prêt à être transféré tel quel à un superviseur.
+export function recapFicheClient(entreprise, trouverUtilisateurParId) {
+  const c = entreprise.confirmationClient || {};
+  const contact = entreprise.contact || {};
+  const effectif = entreprise.effectif ?? null;
+  const rqth = entreprise.effectifBeneficiaire ?? 0;
+  const calcul = resume(entreprise, effectif, rqth, c.depuisZero || null);
+  const avant = (actuel, ancien) => (ancien != null && ancien !== actuel ? ` (avant : ${ancien})` : "");
+  const valide = (v) => (v && v !== "-" ? v : null);
+
+  const rh = valide(c.nom)
+    ? `${c.nom}${c.fonction ? ` — ${c.fonction}` : ""} (a confirmé la fiche)`
+    : valide(contact.nom)
+      ? `${contact.nom}${valide(contact.fonction) ? ` — ${contact.fonction}` : ""}`
+      : "à identifier";
+  const manque =
+    calcul.assujetti === false
+      ? "non assujettie (moins de 20 salariés ou période de neutralisation)"
+      : `${calcul.unitesManquantes} unité(s) manquante(s)` +
+        (calcul.montantEstime != null
+          ? ` — contribution estimée ${calcul.montantEstime.toLocaleString("fr-FR")} €/an${calcul.surcontribution ? " (surcontribution)" : ""}`
+          : " — secteur public (FIPHFP) : montant à présenter par le conseiller");
+  const rdv = entreprise.statut === "rdv" ? quandEnClair(entreprise.dateRdv) : null;
+  const rappel = quandEnClair(entreprise.dateRappel);
+  const aRappeler = rdv
+    ? `${rdv} (heure de Paris) — rendez-vous choisi par le client`
+    : rappel
+      ? `${rappel} (heure de Paris)`
+      : "à convenir — le client n'a pas encore choisi de créneau";
+  const agent = entreprise.assigneA ? trouverUtilisateurParId(entreprise.assigneA) : null;
+
+  return [
+    `1. Nom de la structure : ${entreprise.nom || "-"}`,
+    `2. SIRET : ${entreprise.siret || "-"}`,
+    `3. RH : ${rh}`,
+    `4. Numéro direct : ${c.telephone || contact.telephone || "-"}`,
+    `5. Effectif : ${effectif ?? "-"}${avant(effectif, c.avant?.effectif)}`,
+    `6. RQTH : ${rqth}${avant(rqth, c.avant?.rqth)}${c.depuisZero && rqth === 0 ? ` — aucun bénéficiaire : ${(DEPUIS_ZERO[c.depuisZero] || "").toLowerCase()}` : ""}`,
+    `7. Manque : ${manque}`,
+    `8. À rappeler : ${aRappeler}`,
+    c.commentaire ? `\nMessage du client : ${c.commentaire}` : "",
+    `\nAgent : ${agent ? agent.prenom || agent.email : "non assigné"}`,
+    `Fiche : ${SITE_URL}/entreprise/${entreprise.id}`,
+  ]
+    .filter((l) => l !== "")
+    .join("\n");
+}
+
 const entier = (v) => {
   const n = Number(String(v ?? "").replace(/\s/g, ""));
   return Number.isInteger(n) && n >= 0 && n <= 1_000_000 ? n : null;
@@ -257,7 +321,8 @@ export function enregistrerRoutesFicheClient(
     entreprise.commentaires.unshift({ id: nanoid(), date: maintenant, auteur: "Client", texte: ligne });
     await db.write();
 
-    // E-mail à l'agent qui suit la fiche et à la boîte du pôle (administrateurs).
+    // E-mail à l'agent qui suit la fiche et à la boîte du pôle (administrateurs) :
+    // récapitulatif en 8 points, prêt à transférer à un superviseur.
     const agent = entreprise.assigneA ? trouverUtilisateurParId(entreprise.assigneA) : null;
     const destinataires = [...new Set([agent?.email, adresseMailPole()].filter(Boolean))];
     for (const to of destinataires) {
@@ -265,7 +330,7 @@ export function enregistrerRoutesFicheClient(
         await envoyerMail({
           to,
           subject: `✅ Fiche confirmée par le client — ${entreprise.nom}`,
-          text: `${ligne}\n\nAgent : ${nomDe(entreprise.assigneA) || "non assigné"}\nFiche : ${SITE_URL}/entreprise/${entreprise.id}`,
+          text: `✅ Fiche confirmée par le client.\n\n${recapFicheClient(entreprise, trouverUtilisateurParId)}`,
           fromName: "CRM — Fiche client",
         });
       } catch (e) {

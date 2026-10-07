@@ -8,7 +8,7 @@ import { envoyerMail, estEnvoiConfigure, adresseMailPole, telephonePole } from "
 import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
 import { estJourOuvre as estJourOuvreHorsFeries } from "./presence.js";
 import { SITE_URL } from "./seo.js";
-import { lienFicheClient } from "./ficheClient.js";
+import { lienFicheClient, recapFicheClient } from "./ficheClient.js";
 
 // Date/heure de Paris → ISO UTC (gère l'heure d'été / d'hiver).
 function isoDepuisParis(date, heure) {
@@ -307,7 +307,9 @@ export function enregistrerRoutesVitrineRdv(app) {
         `Le client ${entreprise.nom} ${modification ? "a modifié sa" : "vient de confirmer une"} demande de rendez-vous ` +
         `depuis le lien de votre e-mail.\n\nQuand : ${quand}, ${RDV_CLIENT.pasMinutes} min\n` +
         `Contact : ${coordonnees || "-"}\nMessage : ${message || "(aucun)"}\n\n` +
-        `La fiche est passée en « RDV » à cette date : ${SITE_URL}/entreprise/${entreprise.id}`;
+        `La fiche est passée en « RDV » à cette date.\n\n` +
+        // Récapitulatif en 8 points (voir ficheClient.js), prêt à transférer à un superviseur.
+        recapFicheClient(entreprise, (id) => db.data.utilisateurs.find((u) => u.id === id));
       // L'agent qui suit la fiche ET la boîte du pôle (administrateurs).
       for (const to of [...new Set([agent?.email, adresseMailPole()].filter(Boolean))]) {
         try {
