@@ -34,6 +34,32 @@ async function copierPressePapier(texte) {
 // contente d'afficher l'erreur renvoyée le cas échéant.
 export default function AdminUtilisateurs() {
   const { utilisateur: moi } = useAuth();
+
+  // Clic sur l'e-mail ou le nom d'un compte validé : ouvre son CRM en Mode
+  // Manager (même mécanisme que « Voir le compte de… », mémorisé pour la
+  // session — voir SupervisionContext.jsx). Son propre compte : le CRM normal.
+  function ouvrirCompte(u) {
+    try {
+      if (u.id === moi?.id) window.sessionStorage.removeItem("supervision:agent");
+      else window.sessionStorage.setItem("supervision:agent", JSON.stringify({ id: u.id, prenom: u.prenom, email: u.email }));
+    } catch {
+      // stockage indisponible : on ouvre simplement le tableau de bord
+    }
+    window.location.assign("/");
+  }
+  const lienCompte = (u, contenu, classe) =>
+    u.statut === "valide" ? (
+      <button
+        type="button"
+        onClick={() => ouvrirCompte(u)}
+        title={u.id === moi?.id ? "Ouvrir mon CRM" : `Ouvrir le CRM de ${u.prenom || u.email} (Mode Manager)`}
+        className={`text-left hover:underline hover:text-marine-700 dark:hover:text-marine-300 ${classe}`}
+      >
+        {contenu}
+      </button>
+    ) : (
+      contenu
+    );
   const [utilisateurs, setUtilisateurs] = useState(null);
   // Recherche instantanée dans la liste (e-mail, prénom, nom, téléphone).
   const [recherche, setRecherche] = useState("");
@@ -397,9 +423,9 @@ export default function AdminUtilisateurs() {
               {utilisateursFiltres.map((u) => (
                 <Fragment key={u.id}>
                   <tr>
-                    <td className="px-4 py-3 text-slate-800 dark:text-slate-100">{u.email}</td>
+                    <td className="px-4 py-3 text-slate-800 dark:text-slate-100">{lienCompte(u, u.email, "")}</td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                      {[u.prenom, u.nom].filter(Boolean).join(" ") || "-"}
+                      {lienCompte(u, [u.prenom, u.nom].filter(Boolean).join(" ") || "-", "font-medium")}
                       {(u.telephone || u.siret) && (
                         <span className="block text-[11px] text-slate-400 dark:text-slate-500">
                           {[u.telephone, u.siret ? `SIRET ${u.siret}` : null].filter(Boolean).join(" · ")}
