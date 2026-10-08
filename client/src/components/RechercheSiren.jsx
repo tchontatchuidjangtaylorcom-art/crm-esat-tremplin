@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
 import { STATUTS } from "../constants.js";
+import BadgeCollecteur from "./BadgeCollecteur.jsx";
 
 // Recherche d'entreprise sur tout le CRM (fiches actives et archivées, quels
 // que soient les filtres du tableau) : par nom, même approximatif (fautes de
@@ -278,6 +279,7 @@ export default function RechercheSiren({
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">{e.nom}</span>
                       <span className="flex shrink-0 items-center gap-1">
+                        <BadgeCollecteur entreprise={e} />
                         {entree.archivee && (
                           <span className="rounded-full bg-slate-200 dark:bg-slate-600 px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-slate-200">
                             archivée

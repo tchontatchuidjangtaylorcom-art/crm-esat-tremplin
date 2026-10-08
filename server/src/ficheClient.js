@@ -409,7 +409,7 @@ export function enregistrerRoutesFicheClient(
         .filter((e) => {
           const c = e.confirmationClient;
           if (!c || new Date(c.date).getTime() < limite || (c.vuPar || []).includes(utilisateur.id)) return false;
-          return estAdmin(utilisateur) || e.assigneA === utilisateur.id || e.superviseurId === utilisateur.id;
+          return estAdmin(utilisateur) || e.assigneA === utilisateur.id || e.superviseurId === utilisateur.id || e.binomeId === utilisateur.id;
         })
         .map((e) => ({ id: e.id, nom: e.nom, date: e.confirmationClient.date, par: e.confirmationClient.nom }))
         .sort((a, b) => new Date(b.date) - new Date(a.date));

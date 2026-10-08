@@ -144,6 +144,8 @@ const ISSUES_APPEL = {
   a_rappeler: "À rappeler",
   rdv: "RDV",
   mail: "Mail",
+  // Décline pour l'instant : la fiche reste active (≠ Refus, dossier clos).
+  pas_interesse: "Pas intéressé",
   autre: "Autre",
 };
 
@@ -214,6 +216,7 @@ function enrichir(entreprise) {
     ligneBareme: trouverLigneBareme(entreprise.effectif),
     assigneANom: assigne ? assigne.prenom || assigne.email : null,
     superviseurNom: nomUtilisateur(entreprise.superviseurId),
+    binomeNom: nomUtilisateur(entreprise.binomeId),
   };
 }
 
@@ -236,6 +239,8 @@ function estVisiblePar(entreprise, utilisateur) {
     estAdmin(utilisateur) ||
     entreprise.assigneA === utilisateur.id ||
     entreprise.superviseurId === utilisateur.id ||
+    // Binôme : collègue à qui l'agent a confié aussi la fiche.
+    entreprise.binomeId === utilisateur.id ||
     // File des Clients Potentiels à prendre : visible de tous les superviseurs.
     (estSuperviseur(utilisateur) && entreprise.statut === "fiche" && !entreprise.superviseurId)
   );
@@ -1056,7 +1061,7 @@ app.post("/api/vitrine/contact", async (req, res) => {
 app.get("/api/entreprises", exigerAuth, (req, res) => {
   const cible = resoudreCibleSupervision(req);
   const visibles = cible
-    ? db.data.entreprises.filter((e) => e.assigneA === cible.id)
+    ? db.data.entreprises.filter((e) => e.assigneA === cible.id || e.binomeId === cible.id)
     : db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur));
   res.json(visibles.map(enrichir));
 });
@@ -1066,6 +1071,10 @@ app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (r
   // l'alerte "nouveau lead assigné" du centre de notifications.
   if (req.entreprise.assigneA === req.utilisateur.id && req.entreprise.assignationVue === false) {
     req.entreprise.assignationVue = true;
+    await db.write();
+  }
+  if (req.entreprise.binomeId === req.utilisateur.id && req.entreprise.binomeVue === false) {
+    req.entreprise.binomeVue = true;
     await db.write();
   }
   // Demande reçue du site web : éteinte dès qu'un administrateur ou l'agent
@@ -2155,6 +2164,7 @@ const STATUTS_RENDABLES = [
   "anglais",
   "rdv",
   "mail",
+  "pas_interesse",
   "autre",
 ];
 
@@ -2476,6 +2486,48 @@ app.post("/api/entreprises/:id/superviseur", exigerAuth, chargerEntrepriseAutori
     });
     entreprise.superviseurId = cible;
     entreprise.dateSupervision = cible ? new Date().toISOString() : null;
+    await db.write();
+  }
+  res.json(enrichir(entreprise));
+});
+
+// Binôme d'une fiche : l'agent assigné (ou un administrateur) confie AUSSI
+// la fiche à un collègue (agent, superviseur ou admin) — agent occupé ou
+// indisponible, lead à faire suivre. La fiche reste aux deux : l'agent la
+// garde, le binôme la voit, appelle et reçoit les alertes. Le binôme peut se
+// retirer lui-même. Noté dans les commentaires de la fiche.
+app.post("/api/entreprises/:id/binome", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  const entreprise = req.entreprise;
+  const u = req.utilisateur;
+  const cible = req.body.utilisateurId || null;
+  if (!estAdmin(u) && entreprise.assigneA !== u.id) {
+    if (!(entreprise.binomeId === u.id && !cible)) {
+      return res.status(403).json({ error: "Seul l'agent assigné à la fiche (ou un administrateur) peut choisir le binôme." });
+    }
+  }
+  if (cible) {
+    const b = trouverUtilisateurParId(cible);
+    if (!b || b.statut !== "valide") return res.status(400).json({ error: "Collègue introuvable ou compte non validé." });
+    if (cible === entreprise.assigneA) return res.status(400).json({ error: "Cette personne est déjà l'agent assigné à la fiche." });
+  }
+  if ((entreprise.binomeId || null) !== cible) {
+    const avant = nomUtilisateur(entreprise.binomeId);
+    const agent = nomUtilisateur(entreprise.assigneA);
+    entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+    entreprise.commentaires.unshift({
+      id: nanoid(),
+      date: new Date().toISOString(),
+      auteur: "Système",
+      texte: cible
+        ? `👥 Fiche confiée aussi à ${nomUtilisateur(cible)} (binôme${agent ? ` de ${agent}` : ""})${
+            avant ? ` — remplace ${avant}` : ""
+          }, par ${u.prenom || u.email}.`
+        : `👥 ${avant || "Le binôme"} ne seconde plus cette fiche (${u.prenom || u.email}).`,
+    });
+    entreprise.binomeId = cible;
+    entreprise.dateBinome = cible ? new Date().toISOString() : null;
+    // Le binôme est prévenu comme pour une nouvelle fiche assignée.
+    if (cible && cible !== u.id) entreprise.binomeVue = false;
     await db.write();
   }
   res.json(enrichir(entreprise));
@@ -3455,8 +3507,13 @@ function calculerNotifications(utilisateur) {
       : db.data.entreprises.filter((e) => estVisiblePar(e, utilisateur));
 
   const nouveauxLeads = mesEntreprises
-    .filter((e) => e.assigneA === utilisateur.id && e.assignationVue === false)
-    .map((e) => ({ id: e.id, nom: e.nom, dateAssignation: e.dateAssignation }));
+    .filter(
+      (e) =>
+        (e.assigneA === utilisateur.id && e.assignationVue === false) ||
+        // Fiche confiée en binôme par un collègue.
+        (e.binomeId === utilisateur.id && e.binomeVue === false)
+    )
+    .map((e) => ({ id: e.id, nom: e.nom, dateAssignation: e.binomeId === utilisateur.id ? e.dateBinome : e.dateAssignation }));
 
   const maintenant = Date.now();
   const limite = maintenant + FENETRE_RDV_HEURES * 3600 * 1000;
@@ -3505,7 +3562,7 @@ function calculerNotifications(utilisateur) {
     .filter((e) => {
       if (!e.rdvClient?.nonVu || (e.rdvClient.vuPar || []).includes(utilisateur.id)) return false;
       const destinataire = destinataireAlerteRdvClient(e);
-      return estAdmin(utilisateur) || destinataire === utilisateur.id || e.superviseurId === utilisateur.id;
+      return estAdmin(utilisateur) || destinataire === utilisateur.id || e.superviseurId === utilisateur.id || e.binomeId === utilisateur.id;
     })
     .map((e) => {
       const r = e.rdvClient.reservations?.[0] || {};
@@ -3556,10 +3613,12 @@ app.get("/api/echeances", exigerAuth, (req, res) => {
     // la personne qui a programmé le RDV / rappel. Jamais chez toute l'équipe
     // (avant, tous les administrateurs la recevaient pour les fiches non
     // assignées et les Clients Potentiels).
-    // Lead partagé : l'alerte sonne aussi chez le superviseur qui le suit.
+    // Lead partagé : l'alerte sonne aussi chez le superviseur qui le suit
+    // et chez le binôme.
     const concernee =
       (e.assigneA ? e.assigneA === utilisateur.id : e.echeanceProgrammeePar === utilisateur.id) ||
-      e.superviseurId === utilisateur.id;
+      e.superviseurId === utilisateur.id ||
+      e.binomeId === utilisateur.id;
     if (!concernee) continue;
     // "Me rappelle" (et Mail + "doit aussi me rappeler") n'a pas de date :
     // l'entreprise rappelle quand elle veut, donc pas d'alerte — une date

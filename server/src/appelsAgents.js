@@ -109,6 +109,7 @@ const RESULTATS_APPEL = new Set([
   "a_rappeler",
   "rdv",
   "mail",
+  "pas_interesse",
   "autre",
   "fiche",
   "fiche_one_shot",

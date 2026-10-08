@@ -160,6 +160,14 @@ export const api = {
   listArchives: (commeAgentId) =>
     fetch(`${BASE}/archives${commeAgentId ? `?commeAgentId=${commeAgentId}` : ""}`).then(handle),
 
+  // Binôme : collègue qui seconde l'agent sur la fiche (elle reste aux deux).
+  definirBinome: (id, utilisateurId) =>
+    fetch(`${BASE}/entreprises/${id}/binome`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ utilisateurId: utilisateurId || null }),
+    }).then(handle),
+
   definirSuperviseur: (id, utilisateurId) =>
     fetch(`${BASE}/entreprises/${id}/superviseur`, {
       method: "POST",

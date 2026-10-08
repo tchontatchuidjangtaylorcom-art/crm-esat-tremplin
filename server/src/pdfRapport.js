@@ -29,6 +29,7 @@ const LIBELLES_STATUT = {
   a_rappeler: "À rappeler",
   rdv: "Rendez-vous",
   mail: "Relance par mail",
+  pas_interesse: "Pas intéressé pour le moment",
   autre: "Autre",
   numero_invalide: "Numéro invalide",
   pdn: "PDN — pas de numéro, prospection par mail",

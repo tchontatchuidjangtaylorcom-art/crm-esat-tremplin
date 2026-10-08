@@ -83,6 +83,15 @@ const ACTIONS = [
     classe: "border-green-300 text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800",
   },
   {
+    cle: "pas_interesse",
+    label: "🙅 Pas intéressé",
+    titre: "L'interlocuteur n'est pas intéressé pour l'instant : statut Pas intéressé (la fiche reste active) + commentaire",
+    type: "direct",
+    issue: "pas_interesse",
+    commentaire: "Pas intéressé — l'interlocuteur décline pour le moment.",
+    classe: "border-stone-300 text-stone-700 bg-stone-50 hover:bg-stone-100 dark:bg-stone-900/40 dark:text-stone-300 dark:border-stone-700",
+  },
+  {
     cle: "refus",
     label: "✋ Refus",
     titre: "Refus : dossier clos et retiré du pipeline",

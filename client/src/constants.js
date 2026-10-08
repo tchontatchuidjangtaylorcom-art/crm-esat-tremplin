@@ -25,6 +25,10 @@ export const STATUTS = {
   rdv: { label: "RDV", badge: "bg-green-100 text-green-700 border border-green-300" },
   mail: { label: "Mail", badge: "bg-cyan-100 text-cyan-700 border border-cyan-300" },
   autre: { label: "Autre", badge: "bg-gray-100 text-gray-700 border border-gray-300" },
+  // Pas intéressé : l'interlocuteur décline pour l'instant. Contrairement au
+  // Refus (dossier clos, archivé), la fiche reste active et pourra être
+  // rappelée plus tard (nouvel exercice, changement de RH…).
+  pas_interesse: { label: "Pas intéressé", badge: "bg-stone-100 text-stone-700 border border-stone-300" },
   fiche: { label: "Client Potentiel (CP)", badge: "bg-amber-100 text-amber-800 border border-amber-400 font-bold" },
   fiche_one_shot: { label: "Fiche one-shot", badge: "bg-indigo-100 text-indigo-700 border border-indigo-300" },
   conforme: { label: "Conforme", badge: "bg-emerald-100 text-emerald-700 border border-emerald-300" },
@@ -58,6 +62,7 @@ export const ORDRE_STATUTS = [
   "rdv",
   "mail",
   "autre",
+  "pas_interesse",
   "fiche",
   "fiche_one_shot",
 ];
@@ -77,6 +82,7 @@ export const ISSUES_APPEL = [
   { value: "a_rappeler", label: "À rappeler", needsDate: true },
   { value: "rdv", label: "RDV", needsDate: true },
   { value: "mail", label: "Mail", needsDate: false },
+  { value: "pas_interesse", label: "Pas intéressé", needsDate: false },
   { value: "autre", label: "Autre", needsDate: false },
 ];
 

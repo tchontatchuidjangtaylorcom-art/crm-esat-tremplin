@@ -23,6 +23,8 @@ import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
 import BadgeEcheance from "../components/BadgeEcheance.jsx";
 import ChoixAgentFiche from "../components/ChoixAgentFiche.jsx";
 import ChoixSuperviseurFiche from "../components/ChoixSuperviseurFiche.jsx";
+import ChoixBinomeFiche from "../components/ChoixBinomeFiche.jsx";
+import BadgeCollecteur from "../components/BadgeCollecteur.jsx";
 import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
@@ -482,6 +484,7 @@ export default function EntrepriseDetail() {
           <div className="flex items-center gap-2">
             <BoutonPrononcer texte={entreprise.nom} />
             <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{entreprise.nom}</h1>
+            <BadgeCollecteur entreprise={entreprise} className="!text-xs !px-2.5 !py-1" />
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
@@ -501,6 +504,9 @@ export default function EntrepriseDetail() {
             {/* Administrateur : liste déroulante pour réattribuer la fiche. */}
             <ChoixAgentFiche entreprise={entreprise} onMaj={setEntreprise} />
             <ChoixSuperviseurFiche entreprise={entreprise} onMaj={setEntreprise} />
+            {/* Binôme : l'agent confie aussi la fiche à un collègue (absence,
+                indisponibilité, lead à faire suivre) ; elle reste aux deux. */}
+            <ChoixBinomeFiche entreprise={entreprise} onMaj={setEntreprise} />
             {/* Cliquable : déplacer le RDV / rappel (voir BadgeEcheance). */}
             <BadgeEcheance entreprise={entreprise} onMaj={setEntreprise} />
           </div>

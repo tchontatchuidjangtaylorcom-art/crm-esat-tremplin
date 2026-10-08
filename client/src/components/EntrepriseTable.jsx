@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import StatusSelect from "./StatusSelect.jsx";
+import BadgeCollecteur from "./BadgeCollecteur.jsx";
 import CommentaireRapideModal from "./CommentaireRapideModal.jsx";
 import GenererEmailModal from "./GenererEmailModal.jsx";
 import { formatMontant, formatDateHeure } from "../constants.js";
@@ -215,6 +216,15 @@ export default function EntrepriseTable({
                   >
                     {e.nom}
                   </a>
+                  <BadgeCollecteur entreprise={e} className="ml-2" />
+                  {e.binomeId && (
+                    <span
+                      title={`Fiche en binôme : ${e.assigneANom || "non assignée"} + ${e.binomeNom}`}
+                      className="ml-1 inline-block rounded-full bg-teal-100 text-teal-800 border border-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800 px-2 py-0.5 text-[10px] font-semibold align-middle whitespace-nowrap"
+                    >
+                      👥 {e.assigneANom ? `${e.assigneANom} + ${e.binomeNom}` : e.binomeNom}
+                    </span>
+                  )}
                   {e.origine === "site_web" && (
                     <span
                       title={e.demandesSite?.[0]?.libelle ? `Dernière demande : ${e.demandesSite[0].libelle}` : "Demande reçue du site web"}
