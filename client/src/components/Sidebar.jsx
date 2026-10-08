@@ -37,12 +37,62 @@ export default function Sidebar({
     });
   }
 
+  // Barre repliée par défaut pour laisser toute la largeur au tableau :
+  // flèche → pour l'ouvrir, flèche ← pour la refermer (choix mémorisé).
+  const [deplie, setDeplie] = useState(() => {
+    try {
+      return localStorage.getItem("crm:barreSecteursDepliee") === "1";
+    } catch {
+      return false;
+    }
+  });
+  function changerDeplie(v) {
+    setDeplie(v);
+    try {
+      localStorage.setItem("crm:barreSecteursDepliee", v ? "1" : "0");
+    } catch {
+      // stockage indisponible : le choix vaut pour cette page seulement
+    }
+  }
+  const filtreActif = Boolean(filtreCategorie || filtreLot);
+
+  if (!deplie) {
+    return (
+      <aside className="shrink-0 lg:sticky lg:top-6 lg:self-start">
+        <button
+          type="button"
+          onClick={() => changerDeplie(true)}
+          title="Afficher les secteurs et les vagues de prospection"
+          aria-label="Afficher les secteurs et les vagues de prospection"
+          className="relative flex lg:flex-col items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-2 lg:py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+          <span className="text-xs font-semibold uppercase tracking-wide lg:[writing-mode:vertical-rl]">Secteurs · Vagues</span>
+          {filtreActif && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-marine-600" title="Un filtre est actif" />}
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="w-64 shrink-0 space-y-6 lg:sticky lg:top-6 lg:self-start">
       <div>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-2 px-1">
-          Secteurs
-        </h2>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Secteurs</h2>
+          <button
+            type="button"
+            onClick={() => changerDeplie(false)}
+            title="Masquer les secteurs et les vagues"
+            aria-label="Masquer les secteurs et les vagues"
+            className="rounded-md p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+        </div>
         <nav className="space-y-0.5">
           <button onClick={() => onFiltreCategorie("")} className={itemClasse(filtreCategorie === "")}>
             <span>Tous les secteurs</span>

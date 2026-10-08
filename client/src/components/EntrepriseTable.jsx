@@ -31,13 +31,15 @@ function OethCell({ oeth }) {
   if (oeth.conforme) {
     return <span className="text-xs font-medium text-green-700">Conforme (0 UB manquante)</span>;
   }
+  // Version courte pour gagner de la hauteur : le détail (UB requises,
+  // surcontribution) reste dans l'infobulle et sur la fiche.
   return (
-    <div>
-      <span className={`text-xs font-semibold ${oeth.surcontribution ? "text-red-700" : "text-orange-700"}`}>
-        {oeth.deficit} UB manquante{oeth.deficit > 1 ? "s" : ""} / {oeth.unitesRequises}
-      </span>
-      {oeth.surcontribution && <span className="block text-[11px] text-red-500">Surcontribution (0 recruté)</span>}
-    </div>
+    <span
+      title={`${oeth.deficit} UB manquante${oeth.deficit > 1 ? "s" : ""} sur ${oeth.unitesRequises}${oeth.surcontribution ? " — surcontribution (0 recruté)" : ""}`}
+      className={`text-xs font-semibold whitespace-nowrap ${oeth.surcontribution ? "text-red-700" : "text-orange-700"}`}
+    >
+      −{oeth.deficit} UB
+    </span>
   );
 }
 
@@ -206,17 +208,18 @@ export default function EntrepriseTable({
                     aria-label={`Sélectionner ${e.nom}`}
                   />
                 </td>
-                <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
+                {/* Nom sur une seule ligne (coupé, complet au survol) : plus de
+                    fiches visibles à l'écran sans faire défiler. */}
+                <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 max-w-[15rem]">
                   <a
                     href={`/entreprise/${e.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline hover:text-marine-700 dark:hover:text-marine-300"
-                    title="Ouvrir la fiche dans un nouvel onglet"
+                    className="block truncate hover:underline hover:text-marine-700 dark:hover:text-marine-300"
+                    title={`${e.nom} — ouvrir la fiche dans un nouvel onglet`}
                   >
                     {e.nom}
                   </a>
-                  <BadgeCollecteur entreprise={e} className="ml-2" />
                   {e.binomeId && (
                     <span
                       title={`Fiche en binôme : ${e.assigneANom || "non assignée"} + ${e.binomeNom}`}
@@ -245,9 +248,12 @@ export default function EntrepriseTable({
                       ✅ Confirmée client
                     </span>
                   )}
-                  <span className="block text-[11px] text-slate-400 dark:text-slate-500">
-                    {e.effectif ?? "?"} sal. · {e.categorie?.label}
-                    {e.lot ? ` · ${e.lot}` : ""}
+                  <span className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400 dark:text-slate-500 min-w-0">
+                    <BadgeCollecteur entreprise={e} className="shrink-0" />
+                    <span className="truncate">
+                      {e.effectif ?? "?"} sal. · {e.categorie?.label}
+                      {e.lot ? ` · ${e.lot}` : ""}
+                    </span>
                   </span>
                   {e.superviseurNom ? (
                     <span className="block text-[11px] font-medium text-violet-700 dark:text-violet-300">
@@ -273,7 +279,11 @@ export default function EntrepriseTable({
                 <td className="px-3 py-2">
                   <EcheanceCell entreprise={e} />
                 </td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{e.secteurActivite}</td>
+                <td className="px-3 py-2 text-slate-600 dark:text-slate-300 max-w-[11rem]">
+                  <span className="line-clamp-2 text-xs" title={e.secteurActivite}>
+                    {e.secteurActivite}
+                  </span>
+                </td>
                 <td className="px-3 py-2">
                   <OethCell oeth={e.oeth} />
                 </td>

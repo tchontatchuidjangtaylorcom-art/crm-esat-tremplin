@@ -531,8 +531,64 @@ export default function Dashboard() {
     setSelection(new Set());
   }
 
+  // Pagination : en haut, le choix « Afficher 10 / 25 / 50 par page » et
+  // les pages ; en bas, seulement Précédent / Suivant, centrés pour ne pas
+  // passer sous la bulle de chat (en bas à droite) ni sous Assist (à gauche).
+  const pagination = (enHaut) => (
+    <div
+      className={`flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400 ${
+        enHaut ? "justify-between mb-2" : "justify-center mt-3 px-24"
+      }`}
+    >
+      {enHaut && (
+        <label className="flex items-center gap-2">
+          Afficher
+          <select
+            value={tailleParPage}
+            onChange={(e) => setTailleParPage(Number(e.target.value))}
+            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1"
+          >
+            {TAILLES_PAGE.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          par page — {entreprisesFiltrees.length} au total
+        </label>
+      )}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => {
+            setPage((p) => Math.max(1, p - 1));
+            if (!enHaut) window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          disabled={pageCourante <= 1}
+          className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-40"
+        >
+          Précédent
+        </button>
+        <span>
+          Page {pageCourante} / {nbPages}
+        </span>
+        <button
+          onClick={() => {
+            setPage((p) => Math.min(nbPages, p + 1));
+            if (!enHaut) window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          disabled={pageCourante >= nbPages}
+          className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-40"
+        >
+          Suivant
+        </button>
+      </div>
+    </div>
+  );
+
+  // Pas de marge à droite sur grand écran : le tableau va jusqu'au bord
+  // (plus de bande grise avant la barre de défilement).
   return (
-    <div className="min-h-screen p-4 sm:p-6 max-w-[1600px] mx-auto">
+    <div className="min-h-screen p-4 sm:p-6 lg:pr-2">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-3">
         <Header />
         <UserMenu theme={theme} onBasculerTheme={basculer} />
@@ -830,6 +886,8 @@ export default function Dashboard() {
                 onViderSelection={viderSelection}
               />
 
+              {pagination(true)}
+
               <EntrepriseTable
                 entreprises={entreprisesPage}
                 estAdmin={estAdmin}
@@ -843,43 +901,7 @@ export default function Dashboard() {
                 onTrier={basculerTri}
               />
 
-              <div className="flex flex-wrap items-center justify-between gap-3 mt-3 text-sm text-slate-500 dark:text-slate-400">
-                <label className="flex items-center gap-2">
-                  Afficher
-                  <select
-                    value={tailleParPage}
-                    onChange={(e) => setTailleParPage(Number(e.target.value))}
-                    className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1"
-                  >
-                    {TAILLES_PAGE.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                  par page — {entreprisesFiltrees.length} au total
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={pageCourante <= 1}
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-40"
-                  >
-                    Précédent
-                  </button>
-                  <span>
-                    Page {pageCourante} / {nbPages}
-                  </span>
-                  <button
-                    onClick={() => setPage((p) => Math.min(nbPages, p + 1))}
-                    disabled={pageCourante >= nbPages}
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-40"
-                  >
-                    Suivant
-                  </button>
-                </div>
-              </div>
+              {pagination(false)}
             </>
           )}
         </div>
