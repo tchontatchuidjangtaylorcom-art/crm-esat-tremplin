@@ -31,6 +31,8 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   // Rédaction par l'IA (payante) réservée aux administrateurs.
   const { utilisateur } = useAuth();
   const iaAutorisee = estAdmin(utilisateur);
+  // « M'envoyer un test » : visible du super-administrateur uniquement.
+  const testAutorise = utilisateur?.role === "super_admin";
   // Repliée par défaut (une seule ligne) : remontée en haut de la fiche (voir
   // EntrepriseDetail.jsx), elle ne doit pas occuper une pleine section tant
   // qu'aucun mail n'est en cours de rédaction — un clic déplie le fil complet
@@ -604,15 +606,17 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             </p>
           )}
           {erreur && <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>}
-          <button
-            type="button"
-            onClick={envoyerTest}
-            disabled={!objet.trim() || !corps.trim() || testEnCours || envoiEnCours || statutMail?.configuree === false}
-            className="mr-2 rounded-lg border border-marine-300 dark:border-marine-700 text-marine-800 dark:text-marine-200 text-sm px-3 py-2 hover:bg-marine-50 dark:hover:bg-marine-950/40 disabled:opacity-40"
-            title="Envoie cet e-mail à votre propre adresse, pour vérifier le rendu"
-          >
-            {testEnCours ? "Envoi du test…" : "M'envoyer un test"}
-          </button>
+          {testAutorise && (
+            <button
+              type="button"
+              onClick={envoyerTest}
+              disabled={!objet.trim() || !corps.trim() || testEnCours || envoiEnCours || statutMail?.configuree === false}
+              className="mr-2 rounded-lg border border-marine-300 dark:border-marine-700 text-marine-800 dark:text-marine-200 text-sm px-3 py-2 hover:bg-marine-50 dark:hover:bg-marine-950/40 disabled:opacity-40"
+              title="Envoie cet e-mail à votre propre adresse, pour vérifier le rendu"
+            >
+              {testEnCours ? "Envoi du test…" : "M'envoyer un test"}
+            </button>
+          )}
           <button
             type="submit"
             disabled={!objet.trim() || !corps.trim() || !destinataireEffectif || envoiEnCours || statutMail?.configuree === false}

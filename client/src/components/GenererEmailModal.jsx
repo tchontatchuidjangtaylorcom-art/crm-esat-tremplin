@@ -29,6 +29,8 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
   // la fenêtre sert à écrire et envoyer le mail lui-même (ex. "Résumé").
   const { utilisateur } = useAuth();
   const iaAutorisee = estAdmin(utilisateur);
+  // « M'envoyer un test » : visible du super-administrateur uniquement.
+  const testAutorise = utilisateur?.role === "super_admin";
   const autoGenerer = autoGenererDemande && iaAutorisee;
   const [destinataire, setDestinataire] = useState(
     entreprise.contact?.email || entreprise.contact?.emailsAlternatifs?.[0]?.email || ""
@@ -286,15 +288,17 @@ export default function GenererEmailModal({ entreprise, onFermer, autoGenerer: a
             )}
 
             <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={envoyerTest}
-                disabled={!objet.trim() || !corps.trim() || testEnCours || envoiEnCours}
-                className="mr-auto rounded-lg border border-marine-300 dark:border-marine-700 text-marine-800 dark:text-marine-200 text-sm px-3 py-1.5 hover:bg-marine-50 dark:hover:bg-marine-950/40 disabled:opacity-40"
-                title="Envoie cet e-mail à votre propre adresse, pour vérifier le rendu"
-              >
-                {testEnCours ? "Envoi du test…" : "M'envoyer un test"}
-              </button>
+              {testAutorise && (
+                <button
+                  type="button"
+                  onClick={envoyerTest}
+                  disabled={!objet.trim() || !corps.trim() || testEnCours || envoiEnCours}
+                  className="mr-auto rounded-lg border border-marine-300 dark:border-marine-700 text-marine-800 dark:text-marine-200 text-sm px-3 py-1.5 hover:bg-marine-50 dark:hover:bg-marine-950/40 disabled:opacity-40"
+                  title="Envoie cet e-mail à votre propre adresse, pour vérifier le rendu"
+                >
+                  {testEnCours ? "Envoi du test…" : "M'envoyer un test"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onFermer}

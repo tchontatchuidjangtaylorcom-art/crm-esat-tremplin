@@ -3175,6 +3175,11 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
+  // « M'envoyer un test » : réservé au super-administrateur (les agents et
+  // administrateurs cliquaient dessus par erreur au lieu d'Envoyer).
+  if (testVersMoi && req.utilisateur.role !== "super_admin") {
+    return res.status(403).json({ error: "L'envoi de test est réservé au super-administrateur." });
+  }
 
   // Le destinataire choisi côté agent (voir le sélecteur dans MessagerieMail.jsx)
   // doit être une adresse réellement connue pour cette entreprise — principale
