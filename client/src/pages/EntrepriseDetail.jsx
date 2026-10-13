@@ -25,6 +25,7 @@ import ChoixAgentFiche from "../components/ChoixAgentFiche.jsx";
 import ChoixSuperviseurFiche from "../components/ChoixSuperviseurFiche.jsx";
 import ChoixBinomeFiche from "../components/ChoixBinomeFiche.jsx";
 import BadgeCollecteur from "../components/BadgeCollecteur.jsx";
+import TexteFormate from "../components/TexteFormate.jsx";
 import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
@@ -958,20 +959,34 @@ export default function EntrepriseDetail() {
 
             <ActionsRapidesStatut entreprise={entreprise} onMaj={setEntreprise} prenomAgent={prenomAgent} />
 
-            <form onSubmit={soumettreCommentaire} className="flex gap-2 mb-4">
-              <input
-                type="text"
+            {/* Zone multi-lignes : Entrée passe à la ligne (récapitulatif en
+                plusieurs points, comme sur WhatsApp), Ctrl+Entrée enregistre.
+                *gras*, _italique_ et ~barré~ sont mis en forme à l'affichage. */}
+            <form onSubmit={soumettreCommentaire} className="flex items-end gap-2 mb-4">
+              <textarea
                 value={nouveauCommentaire}
-                onChange={(e) => setNouveauCommentaire(e.target.value)}
-                placeholder="Ajouter un commentaire…"
-                className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                onChange={(e) => {
+                  setNouveauCommentaire(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 420)}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    soumettreCommentaire(e);
+                  }
+                }}
+                rows={2}
+                style={nouveauCommentaire ? undefined : { height: "auto" }}
+                placeholder="Ajouter un commentaire… (Entrée = nouvelle ligne, Ctrl+Entrée = enregistrer, *gras*)"
+                className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm resize-y min-h-[2.75rem]"
               />
               <button
                 type="submit"
                 disabled={!nouveauCommentaire.trim() || enregistrement}
-                className="rounded-lg bg-slate-900 text-white text-sm font-medium px-4 disabled:opacity-40"
+                className="rounded-lg bg-slate-900 text-white text-sm font-medium px-4 py-2.5 disabled:opacity-40"
               >
-                Envoyer
+                {enregistrement ? "Enregistrement…" : "Enregistrer"}
               </button>
             </form>
 
@@ -999,7 +1014,7 @@ export default function EntrepriseDetail() {
                       )}
                     </p>
                   ) : (
-                    <p className="text-slate-600 dark:text-slate-300">{item.texte}</p>
+                    <TexteFormate texte={item.texte} className="text-slate-600 dark:text-slate-300 leading-relaxed" />
                   )}
                 </li>
               ))}
