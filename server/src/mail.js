@@ -91,9 +91,11 @@ function texteVersHtml(texte) {
 // Le lien mailto fonctionne toujours ; l'URL HTTPS en un clic (List-
 // Unsubscribe-Post, RFC 8058) n'est ajoutée que si MAIL_LIST_UNSUBSCRIBE_URL
 // est configurée (ce CRM n'héberge pas de page de désinscription par défaut).
-function entetesDesinscription(adresseExpediteur) {
+// `urlPropre` : lien de désinscription en un clic propre au destinataire
+// (campagnes, voir campagnes.js) — prioritaire sur MAIL_LIST_UNSUBSCRIBE_URL.
+function entetesDesinscription(adresseExpediteur, urlPropre) {
   const adresseMailto = `mailto:${adresseExpediteur}?subject=${encodeURIComponent("Désinscription")}`;
-  const urlUnClic = process.env.MAIL_LIST_UNSUBSCRIBE_URL;
+  const urlUnClic = urlPropre || process.env.MAIL_LIST_UNSUBSCRIBE_URL;
   const valeurs = urlUnClic ? [`<${urlUnClic}>`, `<${adresseMailto}>`] : [`<${adresseMailto}>`];
   const entetes = { "List-Unsubscribe": valeurs.join(", ") };
   if (urlUnClic) entetes["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
@@ -323,13 +325,14 @@ export async function envoyerMail({
   replyTo,
   attachments,
   listeDiffusion = false,
+  urlDesinscription,
 }) {
   const c = config();
   const sujetPropre = nettoyerEntete(subject);
   const nomExpediteurPropre = fromName ? nettoyerEntete(fromName) : undefined;
   const adresseReponse = nettoyerEntete(replyTo) || process.env.MAIL_REPLY_TO || c.from;
   const contenuHtml = html || texteVersHtml(text);
-  const entetesSupplementaires = listeDiffusion ? entetesDesinscription(c.from) : {};
+  const entetesSupplementaires = listeDiffusion ? entetesDesinscription(c.from, urlDesinscription) : {};
 
   if (estResendConfigure()) {
     console.log(`[mail] Tentative d'envoi (API Resend) à ${to} (expéditeur ${config().from})…`);

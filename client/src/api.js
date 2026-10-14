@@ -276,6 +276,33 @@ export const api = {
   reinitialiserScriptVente: () => fetch(`${BASE}/script-vente/reinitialiser`, { method: "POST" }).then(handle),
 
   getModelesMails: () => fetch(`${BASE}/modeles-mails`).then(handle),
+  // Campagnes d'e-mails (super-administrateur, voir server/src/campagnes.js).
+  listCampagnes: () => fetch(`${BASE}/campagnes`).then(handle),
+  apercuCampagne: (donnees) =>
+    fetch(`${BASE}/campagnes/apercu`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  testCampagne: (donnees) =>
+    fetch(`${BASE}/campagnes/test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  creerCampagne: (donnees) =>
+    fetch(`${BASE}/campagnes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  actionCampagne: (id, action) => fetch(`${BASE}/campagnes/${id}/${action}`, { method: "POST" }).then(handle),
+  reglagesCampagnes: (donnees) =>
+    fetch(`${BASE}/campagnes-reglages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
 
   modifierModelesMails: (modeles) =>
     fetch(`${BASE}/modeles-mails`, {

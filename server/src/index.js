@@ -52,6 +52,7 @@ import { tailleEffectif, dansTaille } from "./taillesEffectif.js";
 import { demarrerRecyclageNrp } from "./recyclageNrp.js";
 import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesMonCompte } from "./monCompte.js";
+import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit } from "./campagnes.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi, compterAppelStatut } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -934,6 +935,10 @@ enregistrerRoutesVitrineRdv(app);
 enregistrerRoutesStockEquipe(app, { exigerAdmin, creerLeadDepuisSiren, CATEGORIES, sirenDe });
 // « Mon compte » : nom, e-mail de connexion et mot de passe de chacun.
 enregistrerRoutesMonCompte(app, { exigerAuth });
+// Campagnes d'e-mails en nombre (super-administrateur), envoyées au rythme
+// d'une montée en charge progressive, avec désinscription en un clic.
+enregistrerRoutesCampagnes(app, { exigerSuperAdmin });
+demarrerCampagnes();
 // NRP 1 / NRP 2 remis en « Nouveau » chez le même agent 24 h après le dernier essai.
 demarrerRecyclageNrp();
 // « Confirmer ma fiche » : lien envoyé au client pendant l'appel (voir ficheClient.js).
@@ -3206,6 +3211,11 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       : nouvelleAdresse || (EMAIL_VALIDE.test(entreprise.contact?.email || "") ? entreprise.contact.email : null);
   if (!destinataireFinal) {
     return res.status(400).json({ error: "Aucune adresse mail connue pour ce contact." });
+  }
+  // Adresse désinscrite (lien « Se désinscrire » d'une campagne) : on ne lui
+  // écrit plus, même à la main.
+  if (!testVersMoi && estDesinscrit(destinataireFinal)) {
+    return res.status(400).json({ error: `${destinataireFinal} s'est désinscrit de nos e-mails : contactez-le par téléphone.` });
   }
 
   // Copie (CC) : autres adresses de la fiche, ou adresses données par

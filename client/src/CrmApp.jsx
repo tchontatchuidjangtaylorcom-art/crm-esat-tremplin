@@ -21,6 +21,7 @@ import { PresenceProvider } from "./PresenceContext.jsx";
 import MesKpis from "./pages/MesKpis.jsx";
 import KpisEquipe from "./pages/KpisEquipe.jsx";
 import Supervision from "./pages/Supervision.jsx";
+import Campagnes from "./pages/Campagnes.jsx";
 
 // CRM interne (connexion, tableau de bord, fiches, chat, KPIs), chargé
 // séparément du site public (voir App.jsx et VitrineApp.jsx).
@@ -70,6 +71,14 @@ export default function CrmApp() {
                             element={
                               <RequireAuth adminSeulement>
                                 <Supervision />
+                              </RequireAuth>
+                            }
+                          />
+                          <Route
+                            path="/campagnes"
+                            element={
+                              <RequireAuth adminSeulement>
+                                <Campagnes />
                               </RequireAuth>
                             }
                           />

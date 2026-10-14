@@ -69,7 +69,16 @@ function bouton(href, texte, plein) {
 // la fiche (à défaut, le bouton ouvre un e-mail au pôle) ; `avecPdf` : la
 // synthèse PDF est jointe (optionnelle, cochée par l'agent).
 // `lienDossier` : page « Confirmer ma fiche » du client (voir ficheClient.js).
-export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRendezVous = null, avecPdf = false, lienDossier = null }) {
+// `lienDesinscription` : lien « ne plus recevoir nos e-mails » (campagnes).
+export function genererEmailOfficielHtml({
+  entreprise,
+  corps,
+  poleInfo,
+  lienRendezVous = null,
+  avecPdf = false,
+  lienDossier = null,
+  lienDesinscription = null,
+}) {
   const nom = echapper(entreprise.nom || "votre entreprise");
   const publicFiphfp = determinerCollecteur(entreprise) === "FIPHFP";
   const nomPole = publicFiphfp ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
@@ -163,6 +172,11 @@ export function genererEmailOfficielHtml({ entreprise, corps, poleInfo, lienRend
       }
       Si vous avez reçu ce message par erreur, merci de nous en informer à ${echapper(poleInfo.email)}.
     </p>
+    ${
+      lienDesinscription
+        ? `<p style="margin:6px 0 0;font-size:11px;color:${GRIS_CLAIR};">Vous ne souhaitez plus recevoir nos e-mails ? <a href="${echapper(lienDesinscription)}" style="color:${GRIS_CLAIR};text-decoration:underline;">Se désinscrire</a></p>`
+        : ""
+    }
     <p style="margin:6px 0 0;font-size:10px;color:#94a3b8;">Réf. ${reference}</p>
   </td></tr>
 
