@@ -26,6 +26,7 @@ import ChoixSuperviseurFiche from "../components/ChoixSuperviseurFiche.jsx";
 import ChoixBinomeFiche from "../components/ChoixBinomeFiche.jsx";
 import BadgeCollecteur from "../components/BadgeCollecteur.jsx";
 import TexteFormate from "../components/TexteFormate.jsx";
+import { definirFicheCourante } from "../ficheCourante.js";
 import { BoutonPrononcer, BoutonCopier } from "../components/IconesFiche.jsx";
 import GenererEmailModal from "../components/GenererEmailModal.jsx";
 import { publierFicheOuverte } from "../ficheOuverte.js";
@@ -73,6 +74,11 @@ export default function EntrepriseDetail() {
   const { utilisateur } = useAuth();
   const admin = estAdmin(utilisateur);
   const [entreprise, setEntreprise] = useState(null);
+  // Fiche ouverte : l'argumentaire et le script s'adaptent (public / privé).
+  useEffect(() => {
+    definirFicheCourante(entreprise);
+  }, [entreprise?.id, entreprise?.nom, entreprise?.collecteur]);
+  useEffect(() => () => definirFicheCourante(null), []);
   const [erreur, setErreur] = useState(null);
   const [enregistrementTelephone, setEnregistrementTelephone] = useState(false);
   const [nouveauTelephone, setNouveauTelephone] = useState("");

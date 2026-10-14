@@ -10,10 +10,26 @@
 // valider par l'équipe avant usage large. Le pôle ne se présente jamais comme
 // le FIPHFP lui-même.
 export const MODELES_PUBLIC = [
+  // Équivalent public du mail « Régularisation DOETH » du privé : même
+  // démarche, mais contribution au FIPHFP (ni AGEFIPH, ni URSSAF, ni DSN).
+  {
+    cle: "public_regularisation",
+    secteur: "public",
+    titre: "1. Public — Régularisation obligation d'emploi (FIPHFP)",
+    objet: "Régularisation de votre obligation d'emploi {{ANNEE}} — FIPHFP",
+    corps:
+      "Bonjour,\n\n" +
+      "Nous faisons suite à l'absence de régularisation de votre obligation d'emploi des travailleurs handicapés (OETH). Pour rappel, tout employeur public d'au moins 20 agents est tenu d'employer au moins 6 % de bénéficiaires de l'obligation d'emploi ; à défaut, une contribution est due au FIPHFP (Fonds pour l'insertion des personnes handicapées dans la fonction publique), lors de la déclaration annuelle.\n\n" +
+      "Afin de mieux comprendre les éventuelles difficultés rencontrées en interne et d'identifier les solutions pouvant être mises en place (recensement des agents bénéficiaires, maintien dans l'emploi, achats auprès d'ESAT ou d'entreprises adaptées), il serait pertinent que nous puissions échanger.\n\n" +
+      "L'objectif est de faire le point sur la situation de votre structure et de vous accompagner dans sa régularisation avant votre prochaine déclaration.\n\n" +
+      "Je reste à votre disposition afin de convenir d'un créneau d'échange.\n\n" +
+      "Bien cordialement,\n\n" +
+      "{{SIGNATURE}}",
+  },
   {
     cle: "public_premier_contact",
     secteur: "public",
-    titre: "1. Public — Obligation d'emploi (FIPHFP)",
+    titre: "2. Public — Obligation d'emploi (FIPHFP)",
     objet: "Obligation d'emploi des travailleurs handicapés — point sur votre situation",
     corps:
       "Bonjour,\n\n" +
@@ -29,7 +45,7 @@ export const MODELES_PUBLIC = [
   {
     cle: "public_relance_nrp",
     secteur: "public",
-    titre: "2. Public — Relance NRP (FIPHFP)",
+    titre: "3. Public — Relance NRP (FIPHFP)",
     objet: "Obligation d'emploi des travailleurs handicapés — nous n'avons pas pu vous joindre",
     corps:
       "Bonjour,\n\n" +
@@ -41,7 +57,7 @@ export const MODELES_PUBLIC = [
   {
     cle: "public_confirmation_rdv",
     secteur: "public",
-    titre: "3. Public — Confirmation de rendez-vous",
+    titre: "4. Public — Confirmation de rendez-vous",
     objet: "Confirmation de notre rendez-vous — obligation d'emploi",
     corps:
       "Bonjour,\n\n" +
