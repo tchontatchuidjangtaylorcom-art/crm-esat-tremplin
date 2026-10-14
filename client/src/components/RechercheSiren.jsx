@@ -102,6 +102,10 @@ function scorer(entree, requete) {
   if (estNumerique) {
     let score = 0;
     if (entree.siret.startsWith(chiffres)) score = 100;
+    // SIRET d'un AUTRE établissement de la même entreprise (ex. un EHPAD
+    // alors que la fiche porte le SIRET du siège) : même SIREN (9 premiers
+    // chiffres) → c'est la même fiche, comme pour l'import.
+    else if (chiffres.length === 14 && entree.siret.slice(0, 9) === chiffres.slice(0, 9)) score = 98;
     else if (chiffres.length >= 6 && entree.siret.includes(chiffres)) score = 80;
     const tel = chiffresTelephone(chiffres);
     if (tel.length >= 4 && entree.telephones.some((t) => t.includes(tel))) score = Math.max(score, 95);

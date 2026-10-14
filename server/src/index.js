@@ -1317,7 +1317,16 @@ app.post("/api/leads/siren/lot", exigerAdmin, async (req, res) => {
     if (!siren) continue;
     try {
       const { existant, archive, entreprise } = await creerLeadDepuisSiren(siren, { lot, assigneA, utilisateur: req.utilisateur });
-      resultats.push({ siren, statut: existant ? "existant" : archive ? "radiee" : "cree", nom: entreprise?.nom || "(déjà assigné à un autre agent)" });
+      resultats.push({
+        siren,
+        statut: existant ? "existant" : archive ? "radiee" : "cree",
+        nom: entreprise?.nom || "(déjà assigné à un autre agent)",
+        // Fiche déjà connue : laquelle (et si elle est aux archives), pour
+        // l'afficher avec un lien sous le résultat de l'import.
+        id: entreprise?.id || null,
+        archivee: Boolean(existant && archive),
+        agent: existant && entreprise ? nomUtilisateur(entreprise.assigneA) : null,
+      });
     } catch (e) {
       resultats.push({ siren, statut: "erreur", erreur: e.message });
     }
@@ -1915,7 +1924,16 @@ app.post("/api/leads/secteur/importer", exigerAdmin, async (req, res) => {
         assigneA,
         utilisateur: req.utilisateur,
       });
-      resultats.push({ siren, statut: existant ? "existant" : archive ? "radiee" : "cree", nom: entreprise?.nom || "(déjà assigné à un autre agent)" });
+      resultats.push({
+        siren,
+        statut: existant ? "existant" : archive ? "radiee" : "cree",
+        nom: entreprise?.nom || "(déjà assigné à un autre agent)",
+        // Fiche déjà connue : laquelle (et si elle est aux archives), pour
+        // l'afficher avec un lien sous le résultat de l'import.
+        id: entreprise?.id || null,
+        archivee: Boolean(existant && archive),
+        agent: existant && entreprise ? nomUtilisateur(entreprise.assigneA) : null,
+      });
       if (!existant && !archive && entreprise) creeesPourIa.push(entreprise);
     } catch (e) {
       resultats.push({ siren, statut: "erreur", erreur: e.message });

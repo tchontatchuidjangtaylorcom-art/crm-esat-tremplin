@@ -305,6 +305,28 @@ export default function ImportLot({ categories, agents, moiId, lots = [], lotsPa
                     {(compteurs.introuvable || 0) > 1 ? "s" : ""}
                     {compteurs.erreur ? ` · ${compteurs.erreur} erreur${compteurs.erreur > 1 ? "s" : ""}` : ""}
                   </p>
+                  {resultat.some((r) => r.statut === "existant") && (
+                    <details className="text-xs" open={resultat.filter((r) => r.statut === "existant").length <= 5}>
+                      <summary className="cursor-pointer">Déjà dans le CRM : quelles fiches ?</summary>
+                      <ul className="mt-1 ml-4 list-disc text-slate-500 dark:text-slate-400">
+                        {resultat
+                          .filter((r) => r.statut === "existant")
+                          .map((r, i) => (
+                            <li key={i}>
+                              {r.id ? (
+                                <a href={`/entreprise/${r.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                  {r.nom}
+                                </a>
+                              ) : (
+                                r.nom
+                              )}{" "}
+                              (SIREN {r.siren}){r.archivee ? " — dans les archives : tapez le SIRET dans la recherche pour la remettre et vous l'attribuer" : ""}
+                              {r.agent ? ` — suivie par ${r.agent}` : ""}
+                            </li>
+                          ))}
+                      </ul>
+                    </details>
+                  )}
                   {iaLancee && (
                     <p className="text-xs text-marine-700 dark:text-marine-300">
                       🔎 Recherche des numéros et du contact RH lancée en arrière-plan pour les fiches créées.
