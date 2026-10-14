@@ -125,10 +125,18 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   const { data: modeles } = useContenuAide("modeles-mails", api.getModelesMails);
 
   useEffect(() => {
-    api
-      .getStatutMail()
-      .then(setStatutMail)
-      .catch(() => setStatutMail({ configuree: false }));
+    // Un échec passager (réseau mobile) ne doit plus bloquer le bouton
+    // Envoyer jusqu'au rechargement de la page : on réessaie, et sans
+    // réponse le bouton reste utilisable (le serveur refusera s'il le faut).
+    let essais = 0;
+    const lireStatut = () =>
+      api
+        .getStatutMail()
+        .then(setStatutMail)
+        .catch(() => {
+          if (++essais < 4) setTimeout(lireStatut, 3000 * essais);
+        });
+    lireStatut();
     api
       .getStatutIA()
       .then((r) => setIaConfiguree(r.configuree))
@@ -616,6 +624,26 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             >
               {testEnCours ? "Envoi du test…" : "M'envoyer un test"}
             </button>
+          )}
+          {/* Fiche sans adresse : champ répété juste au-dessus du bouton (sur
+              téléphone, celui du haut du formulaire est hors de l'écran). */}
+          {destinataires.length === 0 && (
+            <input
+              type="email"
+              value={autreAdresse}
+              onChange={(e) => setAutreAdresse(e.target.value)}
+              placeholder="✉️ Adresse du destinataire (obligatoire)"
+              className="w-full mb-2 rounded-lg border-2 border-marine-300 dark:border-marine-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+            />
+          )}
+          {!envoiEnCours && (!objet.trim() || !corps.trim() || !destinataireEffectif) && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">
+              {!destinataireEffectif
+                ? "Pour envoyer : indiquez l'adresse du destinataire."
+                : !objet.trim()
+                  ? "Pour envoyer : ajoutez un objet."
+                  : "Pour envoyer : écrivez le texte du mail."}
+            </p>
           )}
           <button
             type="submit"
