@@ -135,6 +135,15 @@ export default function Campagnes() {
           <Tuile titre="Désinscrits" valeur={etat.nbDesinscriptions} detail="jamais recontactés par e-mail" />
         </div>
       )}
+      {etat && (
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+          Expéditeur des campagnes : <strong>{etat.expediteur}</strong>
+          {etat.sousDomaine
+            ? " (sous-domaine dédié : la réputation de l'adresse des agents est protégée)."
+            : " — conseillé : un sous-domaine dédié (variable CAMPAGNES_FROM sur Render). Les réponses arrivent toujours dans la boîte du pôle."}{" "}
+          Les adresses dont le domaine ne reçoit pas de courrier sont écartées automatiquement.
+        </p>
+      )}
       {etat && !etat.envoiConfigure && (
         <p className="mb-4 rounded-lg bg-amber-50 text-amber-800 text-sm px-3 py-2">
           L'envoi d'e-mails n'est pas configuré (clé Resend manquante) : aucune campagne ne partira.

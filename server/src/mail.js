@@ -249,7 +249,7 @@ export async function verifierConnexionSMTP() {
 // le rejet de la promesse "course" et garde la requête réseau ouverte.
 // Le nom d'expéditeur affiché se pose dans `from` lui-même côté Resend
 // (pas de champ `sender.name` séparé comme chez Brevo) : "Nom <adresse>".
-async function envoyerViaResend({ to, cc, subject, text, html, fromName, replyTo, attachments, entetes }) {
+async function envoyerViaResend({ to, cc, subject, text, html, fromName, fromAdresse, replyTo, attachments, entetes }) {
   const c = config();
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
@@ -263,7 +263,7 @@ async function envoyerViaResend({ to, cc, subject, text, html, fromName, replyTo
         Accept: "application/json",
       },
       body: JSON.stringify({
-        from: `"${(fromName || signatureMail()).replace(/"/g, "'")}" <${c.from}>`,
+        from: `"${(fromName || signatureMail()).replace(/"/g, "'")}" <${fromAdresse || c.from}>`,
         to: [to],
         ...(cc?.length ? { cc } : {}),
         reply_to: replyTo || c.from,
@@ -326,6 +326,10 @@ export async function envoyerMail({
   attachments,
   listeDiffusion = false,
   urlDesinscription,
+  // Adresse d'expédition différente de MAIL_FROM (campagnes envoyées depuis
+  // un sous-domaine dédié, voir campagnes.js) — Resend uniquement ; les
+  // réponses arrivent toujours dans la boîte du pôle (Reply-To).
+  fromAdresse,
 }) {
   const c = config();
   const sujetPropre = nettoyerEntete(subject);
@@ -342,6 +346,7 @@ export async function envoyerMail({
           to,
           cc,
           subject: sujetPropre,
+          fromAdresse: nettoyerEntete(fromAdresse) || undefined,
           text,
           html: contenuHtml,
           fromName: nomExpediteurPropre,

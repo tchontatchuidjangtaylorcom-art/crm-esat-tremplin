@@ -16,6 +16,7 @@
 //    pour que l'agent voie que l'entreprise a reçu le mail ; le statut de
 //    la fiche ne change pas (elle reste à appeler).
 import crypto from "crypto";
+import dns from "dns/promises";
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, adresseMailPole, telephonePole, estEnvoiConfigure } from "./mail.js";
@@ -40,7 +41,34 @@ const PALIERS = [
   { jusquAuJour: 21, plafond: 1000 },
   { jusquAuJour: 28, plafond: 2000 },
 ];
-export const PLAFOND_MAX_DEFAUT = 3000;
+// 2 000/jour × ~22 jours ouvrés ≈ 44 000/mois : tient dans le forfait Resend
+// Pro (50 000 e-mails/mois) avec la marge des mails envoyés à la main.
+export const PLAFOND_MAX_DEFAUT = 2000;
+
+// Sous-domaine d'envoi dédié aux campagnes (ex. CAMPAGNES_FROM=
+// contact@info.oeth-fiph.fr, domaine vérifié dans Resend) : si les
+// campagnes abîment la réputation d'envoi, celle de oeth-fiph.fr (mails
+// des agents) reste intacte. À défaut, MAIL_FROM.
+const EXPEDITEUR_CAMPAGNES = (process.env.CAMPAGNES_FROM || "").trim() || undefined;
+
+// Domaine capable de recevoir du courrier (enregistrement MX) : une adresse
+// sur un domaine sans MX revient en erreur (« bounce »), et trop d'erreurs
+// font classer l'expéditeur en spam. Vérification DNS gratuite, mise en cache.
+const cacheMx = new Map();
+async function domaineRecoitMail(email) {
+  const domaine = normaliser(email).split("@")[1];
+  if (!domaine) return false;
+  if (cacheMx.has(domaine)) return cacheMx.get(domaine);
+  let ok;
+  try {
+    ok = (await dns.resolveMx(domaine)).some((m) => m.exchange);
+  } catch (e) {
+    // Domaine inexistant / sans MX : refusé ; panne DNS passagère : accepté.
+    ok = !["ENOTFOUND", "ENODATA", "NXDOMAIN"].includes(e.code);
+  }
+  cacheMx.set(domaine, ok);
+  return ok;
+}
 
 // Fiches visées par défaut : celles que personne n'a encore réussi à
 // joindre. Jamais les Clients Potentiels / RDV (déjà en relation avec un
@@ -168,6 +196,8 @@ export function etatEnvoi(maintenant = new Date()) {
     paliers: PALIERS,
     nbDesinscriptions: donnees().desinscriptions.length,
     envoiConfigure: estEnvoiConfigure(),
+    expediteur: EXPEDITEUR_CAMPAGNES || adresseMailPole(),
+    sousDomaine: Boolean(EXPEDITEUR_CAMPAGNES),
   };
 }
 
@@ -268,6 +298,7 @@ async function envoyerA(campagne, entreprise, destinataire) {
     fromName: determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH",
     listeDiffusion: true,
     urlDesinscription: desinscription,
+    fromAdresse: EXPEDITEUR_CAMPAGNES,
   });
   const date = new Date().toISOString();
   entreprise.emails = entreprise.emails || [];
@@ -311,6 +342,10 @@ export async function passageCampagnes(maintenant = new Date()) {
       // Revérifié au moment d'envoyer : la fiche a pu changer depuis le lancement.
       if (!entreprise || !EMAIL_VALIDE.test(destinataire) || estDesinscrit(destinataire) || ["fiche", "fiche_one_shot", "rdv"].includes(entreprise.statut)) {
         campagne.envois.push({ ...base, statut: "ignore", erreur: !entreprise ? "Fiche archivée ou supprimée" : estDesinscrit(destinataire) ? "Désinscrit" : !EMAIL_VALIDE.test(destinataire) ? "Plus d'e-mail" : "Déjà en relation (CP / RDV)" });
+        continue;
+      }
+      if (!(await domaineRecoitMail(destinataire))) {
+        campagne.envois.push({ ...base, statut: "ignore", erreur: "Domaine sans serveur de messagerie (adresse invalide)" });
         continue;
       }
       try {
