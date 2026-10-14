@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { formatDateHeure } from "../constants.js";
 import { TAILLES_EFFECTIF } from "../taillesEffectif.js";
+import RechercheEmailsEnLot from "../components/RechercheEmailsEnLot.jsx";
 
 // Campagnes d'e-mails (super-administrateur, voir server/src/campagnes.js) :
 // un modèle envoyé à toutes les fiches d'une cible, au rythme d'une montée en
@@ -238,6 +239,7 @@ export default function Campagnes() {
               </span>
             </div>
           )}
+          <RechercheEmailsEnLot filtres={filtres} onFin={() => setFiltres((f) => ({ ...f }))} />
         </section>
 
         {/* 2. Message */}

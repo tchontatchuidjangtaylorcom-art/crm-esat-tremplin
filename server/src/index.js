@@ -53,6 +53,7 @@ import { demarrerRecyclageNrp } from "./recyclageNrp.js";
 import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesMonCompte } from "./monCompte.js";
 import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit } from "./campagnes.js";
+import { enregistrerRoutesEmailsEnLot } from "./emailsEnLot.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi, compterAppelStatut } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -939,6 +940,9 @@ enregistrerRoutesMonCompte(app, { exigerAuth });
 // d'une montée en charge progressive, avec désinscription en un clic.
 enregistrerRoutesCampagnes(app, { exigerSuperAdmin });
 demarrerCampagnes();
+// Recherche sur le web des e-mails publiés des fiches d'une cible (payante,
+// lancée à la main par le super-administrateur, nombre de fiches plafonné).
+enregistrerRoutesEmailsEnLot(app, { exigerSuperAdmin, ajouterEmailFiche, appliquerContactRhIa });
 // NRP 1 / NRP 2 remis en « Nouveau » chez le même agent 24 h après le dernier essai.
 demarrerRecyclageNrp();
 // « Confirmer ma fiche » : lien envoyé au client pendant l'appel (voir ficheClient.js).

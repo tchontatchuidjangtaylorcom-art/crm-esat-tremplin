@@ -55,7 +55,7 @@ const EXPEDITEUR_CAMPAGNES = (process.env.CAMPAGNES_FROM || "").trim() || undefi
 // sur un domaine sans MX revient en erreur (« bounce »), et trop d'erreurs
 // font classer l'expéditeur en spam. Vérification DNS gratuite, mise en cache.
 const cacheMx = new Map();
-async function domaineRecoitMail(email) {
+export async function domaineRecoitMail(email) {
   const domaine = normaliser(email).split("@")[1];
   if (!domaine) return false;
   if (cacheMx.has(domaine)) return cacheMx.get(domaine);
@@ -203,9 +203,25 @@ export function etatEnvoi(maintenant = new Date()) {
 
 // ---- Ciblage ----
 
-function ciblesPour(filtres = {}) {
+// Fiches qui correspondent aux critères (statut, secteur, vague, privé /
+// public, taille), avec ou sans e-mail — aussi utilisé par la recherche
+// d'e-mails en lot (emailsEnLot.js).
+export function fichesSelon(filtres = {}) {
   const statuts = Array.isArray(filtres.statuts) && filtres.statuts.length ? filtres.statuts : STATUTS_PAR_DEFAUT;
   const taille = tailleEffectif(filtres.taille);
+  return db.data.entreprises.filter((e) => {
+    if (!statuts.includes(e.statut)) return false;
+    if (filtres.categorie) {
+      const cle = classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle;
+      if (cle !== filtres.categorie) return false;
+    }
+    if (filtres.lot && e.lot !== filtres.lot) return false;
+    if (filtres.collecteur && determinerCollecteur(e) !== filtres.collecteur) return false;
+    return !taille || dansTaille(e, taille);
+  });
+}
+
+function ciblesPour(filtres = {}) {
   const exclusions = { sansEmail: 0, desinscrits: 0, dejaRecu: 0 };
   const recuParCampagne = new Set();
   // Une fiche ne reçoit pas deux fois la même campagne, ni une campagne si
@@ -219,15 +235,7 @@ function ciblesPour(filtres = {}) {
     if (c.statut === "en_cours" || c.statut === "en_pause") for (const id of c.file || []) recuParCampagne.add(id);
   }
   const cibles = [];
-  for (const e of db.data.entreprises) {
-    if (!statuts.includes(e.statut)) continue;
-    if (filtres.categorie) {
-      const cle = classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle;
-      if (cle !== filtres.categorie) continue;
-    }
-    if (filtres.lot && e.lot !== filtres.lot) continue;
-    if (filtres.collecteur && determinerCollecteur(e) !== filtres.collecteur) continue;
-    if (taille && !dansTaille(e, taille)) continue;
+  for (const e of fichesSelon(filtres)) {
     const email = String(e.contact?.email || "").trim();
     if (!EMAIL_VALIDE.test(email)) {
       exclusions.sansEmail++;

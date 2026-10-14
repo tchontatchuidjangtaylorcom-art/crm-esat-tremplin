@@ -402,7 +402,8 @@ function extraireResultatQuestion(corpsReponse) {
   const nettoie = (v) => (v && v !== "null" ? v : null);
   const c = resultat.contact;
   const contact =
-    c && (nettoie(c.nom) || nettoie(c.role))
+    // Une adresse e-mail seule (ex. rh@…, sans nom de personne) compte aussi.
+    c && (nettoie(c.nom) || nettoie(c.role) || nettoie(c.email))
       ? { nom: nettoie(c.nom), role: nettoie(c.role), telephone: nettoie(c.telephone), email: nettoie(c.email) }
       : null;
 

@@ -278,6 +278,21 @@ export const api = {
   getModelesMails: () => fetch(`${BASE}/modeles-mails`).then(handle),
   // Campagnes d'e-mails (super-administrateur, voir server/src/campagnes.js).
   listCampagnes: () => fetch(`${BASE}/campagnes`).then(handle),
+  // Recherche des e-mails publiés en lot (payante, voir server/src/emailsEnLot.js).
+  statutEmailsEnLot: () => fetch(`${BASE}/campagnes-emails/statut`).then(handle),
+  apercuEmailsEnLot: (donnees) =>
+    fetch(`${BASE}/campagnes-emails/apercu`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  lancerEmailsEnLot: (donnees) =>
+    fetch(`${BASE}/campagnes-emails/lancer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  arreterEmailsEnLot: () => fetch(`${BASE}/campagnes-emails/arreter`, { method: "POST" }).then(handle),
   apercuCampagne: (donnees) =>
     fetch(`${BASE}/campagnes/apercu`, {
       method: "POST",
