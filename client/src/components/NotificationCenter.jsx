@@ -68,8 +68,10 @@ export default function NotificationCenter() {
     <div className="relative">
       {/* Nouvelles demandes du site public : fenêtre + son, administrateurs. */}
       <AlerteDemandeSite demandes={demandesSite} />
+      {/* RDV pris par les clients : barre verte + liste (plus de fenêtre). */}
       <AlerteRdvClient
         rdvClients={rdvClients}
+        rdvClientsAVenir={data.rdvClientsAVenir || []}
         onVu={(id) => setData((d) => ({ ...d, rdvClients: (d.rdvClients || []).filter((x) => x.id !== id) }))}
       />
       <button

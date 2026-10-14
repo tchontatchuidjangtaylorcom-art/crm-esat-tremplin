@@ -3592,8 +3592,36 @@ function calculerNotifications(utilisateur) {
     })
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
+  // Tous les rendez-vous à venir pris par des clients depuis le lien de
+  // l'e-mail (vus ou non) : liste de la barre verte « RDV clients »
+  // (AlerteRdvClient.jsx) — les nouveaux y sont signalés, sans fenêtre.
+  const debutJour = new Date();
+  debutJour.setHours(0, 0, 0, 0);
+  const rdvClientsAVenir = db.data.entreprises
+    .filter((e) => {
+      if (!e.rdvClient?.reservations?.length || e.statut !== "rdv" || !e.dateRdv) return false;
+      if (new Date(e.dateRdv) < debutJour) return false;
+      const destinataire = destinataireAlerteRdvClient(e);
+      return estAdmin(utilisateur) || destinataire === utilisateur.id || e.superviseurId === utilisateur.id || e.binomeId === utilisateur.id;
+    })
+    .map((e) => {
+      const r = e.rdvClient.reservations[0] || {};
+      return {
+        id: e.id,
+        nom: e.nom,
+        dateRdv: e.dateRdv,
+        contact: r.nom || "",
+        telephone: r.telephone || "",
+        date: r.dateCreation || null,
+        nouveau: Boolean(e.rdvClient.nonVu) && !(e.rdvClient.vuPar || []).includes(utilisateur.id),
+        agent: nomUtilisateur(e.assigneA),
+      };
+    })
+    .sort((a, b) => new Date(a.dateRdv) - new Date(b.dateRdv));
+
   const confirmationsClient = ficheClient.confirmationsPour(utilisateur);
   return {
+    rdvClientsAVenir,
     messagesNonLus,
     nouveauxLeads,
     rdvAVenir,
