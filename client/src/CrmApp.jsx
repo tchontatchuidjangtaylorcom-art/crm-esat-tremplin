@@ -22,6 +22,7 @@ import MesKpis from "./pages/MesKpis.jsx";
 import KpisEquipe from "./pages/KpisEquipe.jsx";
 import Supervision from "./pages/Supervision.jsx";
 import Campagnes from "./pages/Campagnes.jsx";
+import BoiteMail from "./pages/BoiteMail.jsx";
 
 // CRM interne (connexion, tableau de bord, fiches, chat, KPIs), chargé
 // séparément du site public (voir App.jsx et VitrineApp.jsx).
@@ -79,6 +80,14 @@ export default function CrmApp() {
                             element={
                               <RequireAuth adminSeulement>
                                 <Campagnes />
+                              </RequireAuth>
+                            }
+                          />
+                          <Route
+                            path="/boite-mail"
+                            element={
+                              <RequireAuth>
+                                <BoiteMail />
                               </RequireAuth>
                             }
                           />

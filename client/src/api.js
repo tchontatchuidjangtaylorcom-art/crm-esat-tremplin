@@ -434,6 +434,22 @@ export const api = {
   getStatutMail: () => fetch(`${BASE}/emails/statut`).then(handle),
 
   getEmailsNonLus: () => fetch(`${BASE}/emails/non-lus`).then(handle),
+  // Boîte mail du CRM (voir server/src/boiteMail.js).
+  listBoiteMail: ({ dossier, q, page }) =>
+    fetch(`${BASE}/boite-mail?${new URLSearchParams({ dossier, q: q || "", page: String(page || 1) })}`).then(handle),
+  marquerMailLu: (entrepriseId, mailId) =>
+    fetch(`${BASE}/boite-mail/lu`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entrepriseId, mailId }),
+    }).then(handle),
+  rattacherMail: (mailId, entrepriseId) =>
+    fetch(`${BASE}/boite-mail/a-rattacher/${mailId}/rattacher`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entrepriseId }),
+    }).then(handle),
+  supprimerMailARattacher: (mailId) => fetch(`${BASE}/boite-mail/a-rattacher/${mailId}`, { method: "DELETE" }).then(handle),
 
   marquerEmailsLus: (id) => fetch(`${BASE}/entreprises/${id}/emails/lu`, { method: "POST" }).then(handle),
 

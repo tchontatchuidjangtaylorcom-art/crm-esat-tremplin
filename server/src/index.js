@@ -54,6 +54,7 @@ import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesMonCompte } from "./monCompte.js";
 import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit } from "./campagnes.js";
 import { enregistrerRoutesEmailsEnLot } from "./emailsEnLot.js";
+import { enregistrerRoutesBoiteMail, rangerMailRecu } from "./boiteMail.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi, compterAppelStatut } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -943,6 +944,8 @@ demarrerCampagnes();
 // Recherche sur le web des e-mails publiés des fiches d'une cible (payante,
 // lancée à la main par le super-administrateur, nombre de fiches plafonné).
 enregistrerRoutesEmailsEnLot(app, { exigerSuperAdmin, ajouterEmailFiche, appliquerContactRhIa });
+// Boîte mail du CRM : envoyés + reçus (relève IMAP) au même endroit.
+enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAdmin, estVisiblePar, ajouterEmailFiche });
 // NRP 1 / NRP 2 remis en « Nouveau » chez le même agent 24 h après le dernier essai.
 demarrerRecyclageNrp();
 // « Confirmer ma fiche » : lien envoyé au client pendant l'appel (voir ficheClient.js).
@@ -3737,23 +3740,11 @@ async function relevePeriodiqueBoiteMail() {
   if (releveEnCours) return;
   releveEnCours = true;
   try {
+    // Rangé sur la fiche de l'expéditeur, sinon gardé « à rattacher » dans
+    // la Boîte mail du CRM (voir boiteMail.js) — plus jamais ignoré.
     await relaverBoiteMail(async (mail) => {
-      const entreprise = trouverEntrepriseParEmail(mail.de);
-      if (!entreprise) {
-        console.log(`Mail reçu de ${mail.de} — aucune entreprise correspondante dans le CRM, ignoré.`);
-        return;
-      }
-      entreprise.emails = entreprise.emails || [];
-      entreprise.emails.unshift({
-        id: nanoid(),
-        direction: "recu",
-        de: mail.de,
-        objet: mail.objet,
-        corps: mail.texte,
-        date: mail.date,
-        lu: false,
-        messageId: mail.messageId,
-      });
+      const entreprise = rangerMailRecu(mail);
+      if (!entreprise) console.log(`Mail reçu de ${mail.de} — aucune fiche correspondante : gardé « à rattacher ».`);
       await db.write();
     });
   } catch (e) {

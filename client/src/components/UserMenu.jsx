@@ -109,6 +109,14 @@ export default function UserMenu({ theme, onBasculerTheme }) {
       )}
 
       <Link
+        to="/boite-mail"
+        title="Tous les e-mails envoyés et reçus, sans quitter le CRM"
+        className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+      >
+        📬 Boîte mail
+      </Link>
+
+      <Link
         to="/mes-kpis"
         title="Mon temps de travail et mon taux de présence"
         className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"

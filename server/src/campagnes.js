@@ -145,6 +145,13 @@ function desinscrire(email, source) {
   return true;
 }
 
+// Désinscription demandée autrement que par le lien (réponse « Désinscription »
+// au mailto de l'en-tête List-Unsubscribe, voir boiteMail.js).
+export function estDesinscritOuDesinscrire(email, source) {
+  desinscrire(email, source);
+  return estDesinscrit(email);
+}
+
 // ---- Rythme d'envoi ----
 
 function heureParis(maintenant = new Date()) {
