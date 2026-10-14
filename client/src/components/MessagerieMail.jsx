@@ -340,7 +340,17 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             </span>
           )}
         </h2>
-        <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ouvert ? "▲ Réduire" : "▼ Écrire un mail"}</span>
+        {/* Fil replié : on indique clairement qu'il contient les mails reçus et
+            envoyés (pas seulement « écrire »), avec les non lus en rouge. */}
+        <span className="shrink-0 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          {!ouvert && emails.some((m) => m.direction === "recu" && !m.lu) && (
+            <span className="rounded-full bg-red-500 text-white font-bold px-2 py-0.5">
+              {emails.filter((m) => m.direction === "recu" && !m.lu).length} non lu
+              {emails.filter((m) => m.direction === "recu" && !m.lu).length > 1 ? "s" : ""}
+            </span>
+          )}
+          {ouvert ? "▲ Réduire" : emails.length > 0 ? "▼ Voir les mails reçus / envoyés et écrire" : "▼ Écrire un mail"}
+        </span>
       </button>
 
       {ouvert && estProspectionMail && (
