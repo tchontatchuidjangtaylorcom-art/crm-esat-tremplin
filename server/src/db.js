@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Low } from "lowdb";
-import { JSONFile } from "lowdb/node";
+import { DataFile } from "lowdb/node";
 import { buildSeedData } from "./seed.js";
 import { MODELES_PAR_DEFAUT, CLE_ANCIEN_PREMIER_MODELE } from "./modelesMails.js";
 
@@ -37,8 +37,38 @@ console.log(
     : `[db] DATA_DIR non configurée — stockage local ${file} (⚠ non persistant si hébergé sur un disque éphémère type Render sans Disk attaché).`
 );
 
-const adapter = new JSONFile(file);
+// JSON compact (sans indentation) : fichier ~30 % plus léger, et surtout
+// moins de mémoire à chaque écriture — toute la base est sérialisée d'un
+// coup (Render : redémarrages pour dépassement de mémoire, octobre 2026).
+const adapter = new DataFile(file, { parse: JSON.parse, stringify: (data) => JSON.stringify(data) });
 const db = new Low(adapter, { entreprises: [], archives: [], utilisateurs: [], canaux: [], messages: [], presence: [] });
+
+// Écritures regroupées : chaque db.write() sérialise TOUTE la base. Quand
+// plusieurs écritures arrivent pendant qu'une autre est en cours (campagne,
+// recherche en lot, agents qui enregistrent en même temps), une seule
+// écriture supplémentaire les couvre toutes au lieu d'une par appel.
+// Aucune donnée n'est perdue : l'écriture suivante part de l'état en mémoire.
+{
+  const ecrireVraiment = db.write.bind(db);
+  let enCours = null;
+  let enAttente = null;
+  db.write = function () {
+    if (enAttente) return enAttente;
+    if (!enCours) {
+      enCours = ecrireVraiment().finally(() => {
+        enCours = null;
+      });
+      return enCours;
+    }
+    enAttente = enCours
+      .catch(() => {})
+      .then(() => {
+        enAttente = null;
+        return db.write();
+      });
+    return enAttente;
+  };
+}
 
 export const CANAL_GENERAL_ID = "general";
 

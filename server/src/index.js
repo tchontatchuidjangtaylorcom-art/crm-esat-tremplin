@@ -223,6 +223,29 @@ function enrichir(entreprise) {
   };
 }
 
+// Version allégée pour les LISTES (tableau de bord, archives) : seulement ce
+// que la liste affiche — dernier commentaire, sorties de dossier (objectif du
+// mois), dernière demande du site. Le texte des mails, tout l'historique et
+// tous les commentaires restent chargés à l'ouverture de la fiche
+// (GET /api/entreprises/:id). Avant, chaque chargement du tableau de bord
+// envoyait toutes les fiches complètes, pour chaque personne connectée :
+// la mémoire du serveur Render débordait.
+function enrichirPourListe(entreprise) {
+  const e = enrichir(entreprise);
+  return {
+    ...e,
+    commentaires: (e.commentaires || []).slice(0, 1),
+    historiqueAppels: (e.historiqueAppels || []).filter((h) => h.type === "sortie"),
+    emails: [],
+    nbEmails: (entreprise.emails || []).length,
+    demandesSite: (e.demandesSite || []).slice(0, 1),
+    // Barème complet (identique pour toutes les fiches) et argumentaire du
+    // secteur : seulement sur la fiche.
+    oeth: e.oeth ? { ...e.oeth, bareme: undefined } : e.oeth,
+    categorie: e.categorie ? { cle: e.categorie.cle, label: e.categorie.label } : e.categorie,
+  };
+}
+
 function nomUtilisateur(id) {
   const u = id ? trouverUtilisateurParId(id) : null;
   return u ? u.prenom || u.email : null;
@@ -1075,7 +1098,7 @@ app.get("/api/entreprises", exigerAuth, (req, res) => {
   const visibles = cible
     ? db.data.entreprises.filter((e) => e.assigneA === cible.id || e.binomeId === cible.id)
     : db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur));
-  res.json(visibles.map(enrichir));
+  res.json(visibles.map(enrichirPourListe));
 });
 
 app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
@@ -1112,7 +1135,7 @@ app.get("/api/archives", exigerAuth, (req, res) => {
   const visibles = cible
     ? db.data.archives.filter((e) => e.assigneA === cible.id)
     : db.data.archives.filter((e) => estVisiblePar(e, req.utilisateur));
-  res.json(visibles.map(enrichir));
+  res.json(visibles.map(enrichirPourListe));
 });
 
 // Vagues de prospection (lots) déjà utilisées, pour alimenter le filtre du

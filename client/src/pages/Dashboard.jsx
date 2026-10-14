@@ -270,14 +270,23 @@ export default function Dashboard() {
   // Retour sur l'onglet du tableau de bord (après avoir traité des fiches dans
   // d'autres onglets) : rechargement silencieux, filtres conservés — rattrape
   // aussi les changements faits par un collègue ou un administrateur.
+  // Au plus un rechargement toutes les 2 minutes : les agents passent sans
+  // cesse d'un onglet à l'autre (recherche Google d'un numéro…) et chaque
+  // rechargement renvoie toute la liste — la mémoire du serveur débordait.
+  // Les changements faits dans les autres onglets du CRM arrivent, eux,
+  // tout de suite (diffusion entre onglets).
   useEffect(() => {
     let cache = 0;
+    let dernierChargement = Date.now();
     function auRetour() {
       if (document.visibilityState !== "visible") {
         cache = Date.now();
         return;
       }
-      if (cache && Date.now() - cache > 3000) charger();
+      if (cache && Date.now() - cache > 3000 && Date.now() - dernierChargement > 120000) {
+        dernierChargement = Date.now();
+        charger();
+      }
     }
     document.addEventListener("visibilitychange", auRetour);
     return () => document.removeEventListener("visibilitychange", auRetour);
