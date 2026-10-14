@@ -327,8 +327,8 @@ export async function rechercherEntreprisesParSecteur(
     if (departement) params.set("departement", departement);
     // `tranches` (voir taillesEffectif.js) : taille d'entreprise ciblée.
     if (tranches?.length) params.set("tranche_effectif_salarie", tranches.join(","));
-    // Jamais 1 000 salariés et plus (tranches 42 à 53) : hors cible.
-    else if (effectifMin20) params.set("tranche_effectif_salarie", "12,21,22,31,32,41");
+    // 20 salariés et plus (toutes tailles, grandes entreprises comprises).
+    else if (effectifMin20) params.set("tranche_effectif_salarie", "12,21,22,31,32,41,42,51,52,53");
 
     const reponse = await fetchAvecRetry(`${BASE_URL}?${params.toString()}`);
     if (!reponse.ok) {

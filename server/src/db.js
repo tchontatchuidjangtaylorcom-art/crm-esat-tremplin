@@ -192,6 +192,29 @@ export async function initDb() {
     console.log(`[db] Entreprises de 1 000 salariés et plus : ${aRetirer.length} archivée(s), ${gardees} gardée(s) (RDV / CP en cours).`);
     aEcrire = true;
   }
+  // Octobre 2026 (suite) : les grandes entreprises reviennent dans le CRM.
+  // Une seule fois : celles retirées par le bloc ci-dessus ressortent des
+  // archives, avec leur statut d'avant.
+  if (!db.data.retourPlus1000) {
+    const maintenant = new Date().toISOString();
+    const aRemettre = db.data.archives.filter((e) => e.retireeGrandeEntreprise);
+    for (const e of aRemettre) {
+      delete e.retireeGrandeEntreprise;
+      e.commentaires = Array.isArray(e.commentaires) ? e.commentaires : [];
+      e.commentaires.unshift({
+        id: `retour1000-${e.id}`,
+        date: maintenant,
+        auteur: "Système",
+        texte: "Remise dans le CRM : les entreprises de 1 000 salariés et plus sont de nouveau prospectées.",
+      });
+      db.data.entreprises.push(e);
+    }
+    const ids = new Set(aRemettre.map((e) => e.id));
+    db.data.archives = db.data.archives.filter((e) => !ids.has(e.id));
+    db.data.retourPlus1000 = { date: maintenant, remises: aRemettre.length };
+    console.log(`[db] Entreprises de 1 000 salariés et plus : ${aRemettre.length} remise(s) dans le CRM.`);
+    aEcrire = true;
+  }
   if (aEcrire) await db.write();
   return db;
 }

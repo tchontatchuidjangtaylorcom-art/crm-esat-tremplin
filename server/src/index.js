@@ -1233,14 +1233,63 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null,
 // enrichissement + qualification automatique via le répertoire Sirene (INSEE).
 // Recherche ponctuelle et personnelle (l'agent est en train de qualifier ce
 // prospect) : assignée directement à qui la déclenche, admin ou agent.
+//
+// Import manuel = demande explicite (ex. l'entreprise a demandé à recevoir
+// le mail) : aucune limite de taille, et
+//  - fiche déjà dans les ARCHIVES (retirée, refus, mort…) : ressortie dans
+//    le pipeline, en « Nouveau », attribuée à qui la demande ;
+//  - fiche déjà suivie par un AUTRE agent : la personne qui la demande est
+//    ajoutée en binôme (la fiche reste à l'agent, visible des deux).
 app.post("/api/leads/siren", exigerAuth, async (req, res) => {
-  const siren = String(req.body.siren || "").replace(/\s/g, "");
+  // Espaces, points, espaces insécables… ignorés (SIRET copié d'un site).
+  const siren = String(req.body.siren || "").replace(/\D/g, "");
   try {
     const resultat = await creerLeadDepuisSiren(siren, {
       lot: req.body.lot || null,
       assigneA: req.utilisateur.id,
       utilisateur: req.utilisateur,
     });
+    const u = req.utilisateur;
+    const nomU = u.prenom || u.email;
+    const existante = resultat.existant ? estDejaConnu(normaliserSiren(siren)) : null;
+    if (existante && !db.data.entreprises.includes(existante)) {
+      const i = db.data.archives.indexOf(existante);
+      if (i !== -1) db.data.archives.splice(i, 1);
+      existante.statut = "nouveau";
+      existante.assigneA = u.id;
+      existante.assignationVue = true;
+      existante.dateAssignation = new Date().toISOString();
+      delete existante.retireeGrandeEntreprise;
+      existante.commentaires = Array.isArray(existante.commentaires) ? existante.commentaires : [];
+      existante.commentaires.unshift({
+        id: nanoid(),
+        date: new Date().toISOString(),
+        auteur: "Système",
+        texte: `📥 Ressortie des archives par ${nomU} (import manuel par SIRET) et remise en « Nouveau ».`,
+      });
+      db.data.entreprises.push(existante);
+      await db.write();
+      return res.json({ existant: true, restauree: true, archive: false, entreprise: enrichir(existante) });
+    }
+    if (existante && !estVisiblePar(existante, u)) {
+      const agent = nomUtilisateur(existante.assigneA);
+      if (!existante.binomeId) {
+        existante.binomeId = u.id;
+        existante.dateBinome = new Date().toISOString();
+        existante.commentaires = Array.isArray(existante.commentaires) ? existante.commentaires : [];
+        existante.commentaires.unshift({
+          id: nanoid(),
+          date: new Date().toISOString(),
+          auteur: "Système",
+          texte: `👥 ${nomU} a importé cette entreprise par SIRET alors qu'elle était déjà suivie${agent ? ` par ${agent}` : ""} : ajouté(e) en binôme.`,
+        });
+        await db.write();
+        return res.json({ existant: true, binome: true, agent, archive: false, entreprise: enrichir(existante) });
+      }
+      return res.status(409).json({
+        error: `Cette entreprise est déjà suivie par ${agent || "un autre agent"} (avec un binôme) : demandez-lui ou à un administrateur.`,
+      });
+    }
     res.status(resultat.existant ? 200 : 201).json(resultat);
   } catch (e) {
     const statutHttp = e.code === "SIREN_INVALIDE" ? 400 : e.code === "SIREN_INTROUVABLE" ? 404 : 502;

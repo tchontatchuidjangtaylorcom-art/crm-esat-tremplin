@@ -156,7 +156,14 @@ export default function RechercheSiren({
 
   const chiffresSaisis = saisie.replace(/\D/g, "");
   const sirenSaisi = chiffresSaisis.length === 14 ? chiffresSaisis.slice(0, 9) : chiffresSaisis.length === 9 ? chiffresSaisis : null;
-  const proposerCreation = Boolean(sirenSaisi) && /^[\d\s.-]+$/.test(saisie.trim()) && !resultats.some((r) => r.entree.siret.startsWith(sirenSaisi));
+  // SIRET/SIREN collé avec espaces (même insécables), points, tirets ou
+  // précédé de « SIRET : » : reconnu quand même. Import proposé tant que
+  // l'entreprise n'est pas déjà ACTIVE dans le CRM — une fiche archivée est
+  // ressortie des archives (import manuel = demande explicite, sans limite).
+  const proposerCreation =
+    Boolean(sirenSaisi) &&
+    /^(sire[nt]\s*:?\s*)?[\d\s.-]+$/i.test(saisie.trim()) &&
+    !resultats.some((r) => r.entree.siret.startsWith(sirenSaisi) && !r.entree.archivee);
 
   function ouvrirFiche(id) {
     window.open(`/entreprise/${id}`, "_blank", "noopener,noreferrer");
@@ -169,10 +176,16 @@ export default function RechercheSiren({
     setOuvert(false);
     try {
       const resultat = await api.rechercherSiren(sirenSaisi);
-      onEntreprise?.(resultat.entreprise, resultat.existant, resultat.archive);
+      // Ressortie des archives ou ajout en binôme : la fiche rejoint la liste.
+      const nouvelleDansListe = resultat.restauree || resultat.binome;
+      onEntreprise?.(resultat.entreprise, resultat.existant && !nouvelleDansListe, resultat.archive);
       setMessage({
         type: "success",
-        texte: resultat.existant
+        texte: resultat.restauree
+          ? `${resultat.entreprise.nom} était dans les archives : remise dans le CRM, en « Nouveau », et attribuée à vous.`
+          : resultat.binome
+          ? `${resultat.entreprise.nom} était déjà suivie par ${resultat.agent || "un autre agent"} : vous êtes ajouté(e) en binôme, la fiche est visible de vous deux.`
+          : resultat.existant
           ? `Fiche déjà existante pour ${resultat.entreprise.nom} — ouverture dans un nouvel onglet.`
           : resultat.archive
           ? `${resultat.entreprise.nom} est radiée d'après le Sirene : dossier archivé automatiquement, aucune action requise.`
@@ -363,7 +376,9 @@ export default function RechercheSiren({
                   onClick={creerDepuisSirene}
                   className="w-full text-left px-3 py-2 text-sm text-marine-700 dark:text-marine-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                 >
-                  ➕ Pas dans le CRM : créer le lead depuis le répertoire INSEE (SIREN {sirenSaisi})
+                  {resultats.some((x) => x.entree.siret.startsWith(sirenSaisi) && x.entree.archivee)
+                    ? `📥 Dans les archives : la remettre dans le CRM et me l'attribuer (SIREN ${sirenSaisi})`
+                    : `➕ Pas dans le CRM : créer le lead depuis le répertoire INSEE (SIREN ${sirenSaisi})`}
                 </button>
               </li>
             )}
