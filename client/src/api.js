@@ -449,6 +449,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ entrepriseId }),
     }).then(handle),
+  releverBoiteMail: () => fetch(`${BASE}/boite-mail/relever`, { method: "POST" }).then(handle),
   supprimerMailARattacher: (mailId) => fetch(`${BASE}/boite-mail/a-rattacher/${mailId}`, { method: "DELETE" }).then(handle),
 
   marquerEmailsLus: (id) => fetch(`${BASE}/entreprises/${id}/emails/lu`, { method: "POST" }).then(handle),

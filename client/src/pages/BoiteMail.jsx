@@ -74,6 +74,7 @@ export default function BoiteMail() {
       </Link>
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-3 mb-4">📬 Boîte mail</h1>
       {erreur && <p className="mb-3 text-sm text-red-600">{erreur}</p>}
+      {donnees?.releve && <EtatReleve releve={donnees.releve} onRelevee={charger} />}
 
       <div className="grid lg:grid-cols-[13rem_minmax(0,24rem)_minmax(0,1fr)] gap-4">
         {/* Dossiers */}
@@ -176,6 +177,58 @@ export default function BoiteMail() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Administrateurs : état de la relève de la boîte du pôle (IMAP OVH), pour
+// voir tout de suite si les mails reçus arrivent bien dans le CRM.
+function EtatReleve({ releve, onRelevee }) {
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const heure = (d) => (d ? new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "jamais");
+  async function relever() {
+    setEnCours(true);
+    setErreur(null);
+    try {
+      await api.releverBoiteMail();
+      await onRelevee();
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnCours(false);
+    }
+  }
+  if (!releve.configuree) {
+    return (
+      <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-sm px-4 py-3">
+        ⚠️ <strong>La réception des mails n'est pas branchée</strong> : les réponses arrivent dans la boîte OVH (contact@oeth-fiph.fr) mais
+        pas dans le CRM. Sur Render → Environment, ajoutez <code>MAIL_IMAP_HOST</code>, <code>MAIL_USER</code> et <code>MAIL_PASSWORD</code>{" "}
+        (serveur IMAP indiqué par OVH pour votre boîte), puis redéployez.
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`mb-4 rounded-lg border text-sm px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 ${
+        releve.derniereErreur
+          ? "border-red-300 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200"
+          : "border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200"
+      }`}
+    >
+      <span>
+        {releve.derniereErreur ? (
+          <>
+            ❌ <strong>La relève de la boîte mail échoue</strong> : {releve.derniereErreur}
+          </>
+        ) : (
+          <>✅ Relève de la boîte mail active (toutes les minutes) — dernière réussie à {heure(releve.derniereReussite)}</>
+        )}
+        {erreur && <span className="block text-xs text-red-700">{erreur}</span>}
+      </span>
+      <button type="button" onClick={relever} disabled={enCours} className="rounded-lg border border-current px-3 py-1 text-xs font-medium disabled:opacity-50">
+        {enCours ? "Relève…" : "↻ Relever maintenant"}
+      </button>
     </div>
   );
 }

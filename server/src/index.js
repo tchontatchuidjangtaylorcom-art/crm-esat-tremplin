@@ -54,7 +54,7 @@ import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesMonCompte } from "./monCompte.js";
 import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit } from "./campagnes.js";
 import { enregistrerRoutesEmailsEnLot } from "./emailsEnLot.js";
-import { enregistrerRoutesBoiteMail, rangerMailRecu } from "./boiteMail.js";
+import { enregistrerRoutesBoiteMail, rangerMailRecu, etatReleve } from "./boiteMail.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi, compterAppelStatut } from "./appelsAgents.js";
 import { servirFrontend } from "./seo.js";
 import compression from "compression";
@@ -968,7 +968,14 @@ demarrerCampagnes();
 // lancée à la main par le super-administrateur, nombre de fiches plafonné).
 enregistrerRoutesEmailsEnLot(app, { exigerSuperAdmin, ajouterEmailFiche, appliquerContactRhIa });
 // Boîte mail du CRM : envoyés + reçus (relève IMAP) au même endroit.
-enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAdmin, estVisiblePar, ajouterEmailFiche });
+enregistrerRoutesBoiteMail(app, {
+  exigerAuth,
+  exigerAdmin,
+  estAdmin,
+  estVisiblePar,
+  ajouterEmailFiche,
+  releverMaintenant: () => relevePeriodiqueBoiteMail(),
+});
 // NRP 1 / NRP 2 remis en « Nouveau » chez le même agent 24 h après le dernier essai.
 demarrerRecyclageNrp();
 // « Confirmer ma fiche » : lien envoyé au client pendant l'appel (voir ficheClient.js).
@@ -3857,6 +3864,7 @@ let releveEnCours = false;
 async function relevePeriodiqueBoiteMail() {
   if (releveEnCours) return;
   releveEnCours = true;
+  etatReleve.derniereTentative = new Date().toISOString();
   try {
     // Rangé sur la fiche de l'expéditeur, sinon gardé « à rattacher » dans
     // la Boîte mail du CRM (voir boiteMail.js) — plus jamais ignoré.
@@ -3865,7 +3873,10 @@ async function relevePeriodiqueBoiteMail() {
       if (!entreprise) console.log(`Mail reçu de ${mail.de} — aucune fiche correspondante : gardé « à rattacher ».`);
       await db.write();
     });
+    etatReleve.derniereReussite = new Date().toISOString();
+    etatReleve.derniereErreur = null;
   } catch (e) {
+    etatReleve.derniereErreur = [e.message, e.responseText].filter(Boolean).join(" — ");
     console.error("Erreur lors de la relève de la boîte mail :", e.message);
   } finally {
     releveEnCours = false;

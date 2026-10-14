@@ -13,6 +13,11 @@
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { estDesinscritOuDesinscrire } from "./campagnes.js";
+import { estImapConfigure, adresseMailPole } from "./mail.js";
+
+// État de la relève IMAP (affiché aux administrateurs dans la Boîte mail) :
+// sans ça, une relève non branchée ou en échec ne se voyait nulle part.
+export const etatReleve = { derniereTentative: null, derniereReussite: null, derniereErreur: null, recusDepuisDemarrage: 0 };
 
 const PAR_PAGE = 50;
 const norm = (a) => String(a || "").trim().toLowerCase();
@@ -35,6 +40,11 @@ export function trouverFicheExpediteur(adresse) {
 
 // Appelé par la relève pour chaque mail reçu.
 export function rangerMailRecu(mail) {
+  etatReleve.recusDepuisDemarrage++;
+  // Notifications envoyées par le CRM lui-même à la boîte du pôle (« CRM —
+  // Fiche client », « CRM — Rendez-vous client »…) : déjà visibles dans le
+  // CRM, on ne les range pas.
+  if (norm(mail.de) === norm(adresseMailPole())) return "interne";
   const entree = {
     id: nanoid(),
     direction: "recu",
@@ -71,7 +81,13 @@ function extrait(texte) {
     .slice(0, 160);
 }
 
-export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAdmin, estVisiblePar, ajouterEmailFiche }) {
+export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAdmin, estVisiblePar, ajouterEmailFiche, releverMaintenant }) {
+  app.post("/api/boite-mail/relever", exigerAdmin, async (req, res) => {
+    if (!estImapConfigure()) return res.status(400).json({ error: "Relève non configurée sur le serveur (MAIL_IMAP_HOST, MAIL_USER, MAIL_PASSWORD)." });
+    await releverMaintenant?.();
+    res.json({ configuree: true, ...etatReleve });
+  });
+
   // Liste : dossier = tous | recus | envoyes | non_lus | a_rattacher.
   app.get("/api/boite-mail", exigerAuth, (req, res) => {
     const u = req.utilisateur;
@@ -116,6 +132,7 @@ export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAd
     compteurs.nonLus += compteurs.aRattacher;
 
     res.json({
+      releve: admin ? { configuree: estImapConfigure(), ...etatReleve } : undefined,
       total: items.length,
       page,
       parPage: PAR_PAGE,
