@@ -9,6 +9,7 @@ import { enregistrerDemandeSiteSansEchec } from "./leadsSite.js";
 import { estJourOuvre as estJourOuvreHorsFeries } from "./presence.js";
 import { SITE_URL } from "./seo.js";
 import { lienFicheClient, recapFicheClient } from "./ficheClient.js";
+import { preparerControleEchange, phraseAnnonceSuivi } from "./controleRdv.js";
 
 // Date/heure de Paris → ISO UTC (gère l'heure d'été / d'hiver).
 function isoDepuisParis(date, heure) {
@@ -297,6 +298,9 @@ export function enregistrerRoutesVitrineRdv(app) {
       },
       ...(entreprise.commentaires || []),
     ];
+    // Mission de contrôle et de suivi : prépare le suivi de ce rendez-vous
+    // (le jour J, le client sera invité à confirmer que l'échange a eu lieu).
+    preparerControleEchange(entreprise);
     await db.write();
 
     let confirmationEnvoyee = false;
@@ -328,7 +332,7 @@ export function enregistrerRoutesVitrineRdv(app) {
               `Un conseiller du Pôle OETH / AGEFIPH vous appellera à cette date${telephone ? ` au ${telephone}` : ""}.\n\n` +
               `Pour modifier ce créneau, utilisez à nouveau le lien reçu par e-mail ou répondez simplement à ce message.\n\n` +
               `Pour préparer l'échange, vous pouvez vérifier et confirmer dès maintenant votre effectif et votre nombre de ` +
-              `salariés bénéficiaires : ${lienFicheClient(entreprise).url}\n\n${signature()}`,
+              `salariés bénéficiaires : ${lienFicheClient(entreprise).url}\n\n${phraseAnnonceSuivi()}\n\n${signature()}`,
             fromName: "Pôle OETH / AGEFIPH",
           });
           confirmationEnvoyee = true;

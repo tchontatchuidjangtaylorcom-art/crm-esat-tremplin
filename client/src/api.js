@@ -386,6 +386,18 @@ export const api = {
     }).then(handle),
   marquerRdvClientVu: (id) => fetch(`${BASE}/entreprises/${id}/rdv-client/vu`, { method: "POST" }).then(handle),
 
+  // Mission de contrôle et de suivi (voir ConfirmerEchangeClient.jsx et
+  // server/src/controleRdv.js) : le client confirme, le jour du RDV, que
+  // l'échange a bien eu lieu avec le conseiller.
+  getControleEchange: (jeton) => fetch(`${BASE}/vitrine/confirmer-echange/${encodeURIComponent(jeton)}`).then(handle),
+  confirmerControleEchange: (jeton, donnees) =>
+    fetch(`${BASE}/vitrine/confirmer-echange/${encodeURIComponent(jeton)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  marquerControleEchangeVu: (id) => fetch(`${BASE}/entreprises/${id}/controle-echange/vu`, { method: "POST" }).then(handle),
+
   signalerSollicitation: (donnees) =>
     fetch(`${BASE}/vitrine/vigilance`, {
       method: "POST",

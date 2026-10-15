@@ -46,9 +46,11 @@ export default function NotificationCenter() {
   const demandesSite = data.demandesSite || [];
   const rdvClients = data.rdvClients || [];
   const confirmationsClient = data.confirmationsClient || [];
+  const controlesEchange = data.controlesEchange || [];
   const total =
     rdvClients.length +
     confirmationsClient.length +
+    controlesEchange.length +
     demandesSite.length +
     data.messagesNonLus +
     data.nouveauxLeads.length +
@@ -138,6 +140,34 @@ export default function NotificationCenter() {
                   <span className="text-emerald-800 dark:text-emerald-300 truncate">
                     Fiche confirmée par le client : <strong>{c.nom}</strong>
                     {c.par ? ` (${c.par})` : ""}
+                  </span>
+                </button>
+              ))}
+
+              {/* Mission de contrôle et de suivi : réponse du client (ou
+                  absence de réponse) au jour du rendez-vous — n'arrive qu'à
+                  l'agent principal, jamais au superviseur (voir controleRdv.js). */}
+              {controlesEchange.map((c) => (
+                <button
+                  key={`controle-${c.id}`}
+                  onClick={() => {
+                    setOuvert(false);
+                    navigate(`/entreprise/${c.id}`);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 flex items-center gap-2 ${
+                    c.statut === "confirme"
+                      ? "bg-emerald-50/70 dark:bg-emerald-950/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300"
+                      : "bg-red-50/70 dark:bg-red-950/30 hover:bg-red-50 dark:hover:bg-red-950/50 text-red-700 dark:text-red-300"
+                  }`}
+                >
+                  <span aria-hidden>{c.statut === "confirme" ? "✅" : c.statut === "non_contacte" ? "⚠️" : "🔁"}</span>
+                  <span className="truncate">
+                    {c.statut === "confirme"
+                      ? "Échange confirmé par le client : "
+                      : c.statut === "non_contacte"
+                        ? "Le client indique n'avoir PAS été contacté : "
+                        : "Pas de réponse du client après relances : "}
+                    <strong>{c.nom}</strong>
                   </span>
                 </button>
               ))}

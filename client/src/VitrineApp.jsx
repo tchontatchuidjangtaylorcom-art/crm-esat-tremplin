@@ -15,6 +15,7 @@ const Actualites = lazy(() => import("./pages/Actualites.jsx"));
 const Faq = lazy(() => import("./pages/Faq.jsx"));
 const RendezVousClient = lazy(() => import("./pages/RendezVousClient.jsx"));
 const MaFicheClient = lazy(() => import("./pages/MaFicheClient.jsx"));
+const ConfirmerEchangeClient = lazy(() => import("./pages/ConfirmerEchangeClient.jsx"));
 const MonLienDossier = lazy(() => import("./pages/MonLienDossier.jsx"));
 
 // Titre et description mis à jour lors de la navigation interne (le serveur
@@ -41,7 +42,11 @@ export default function VitrineApp() {
   const { pathname } = useLocation();
   // Page de prise de rendez-vous ouverte depuis un e-mail : sans les boutons
   // flottants, pour que le client se concentre sur le choix du créneau.
-  const pageRendezVous = pathname.startsWith("/vitrine/rendez-vous/") || pathname.startsWith("/vitrine/ma-fiche/") || pathname === "/vitrine/mon-dossier";
+  const pageRendezVous =
+    pathname.startsWith("/vitrine/rendez-vous/") ||
+    pathname.startsWith("/vitrine/ma-fiche/") ||
+    pathname.startsWith("/vitrine/confirmer-echange/") ||
+    pathname === "/vitrine/mon-dossier";
   return (
     <>
       <SeoNavigation />
@@ -58,6 +63,9 @@ export default function VitrineApp() {
             {/* Prise de rendez-vous depuis un e-mail (lien propre à une fiche). */}
             <Route path="/vitrine/rendez-vous/:jeton" element={<RendezVousClient />} />
             <Route path="/vitrine/ma-fiche/:jeton" element={<MaFicheClient />} />
+            {/* Mission de contrôle et de suivi : le client confirme, le jour du
+                RDV, que l'échange a bien eu lieu (voir controleRdv.js). */}
+            <Route path="/vitrine/confirmer-echange/:jeton" element={<ConfirmerEchangeClient />} />
             <Route path="/vitrine/mon-dossier" element={<MonLienDossier />} />
             <Route path="/vitrine/*" element={<SiteVitrine />} />
           </Route>

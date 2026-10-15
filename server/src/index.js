@@ -50,6 +50,14 @@ import { enregistrerRoutesFicheClient, lienFicheClient } from "./ficheClient.js"
 import { avecModelesPublic } from "./modelesMailsPublic.js";
 import { tailleEffectif, dansTaille } from "./taillesEffectif.js";
 import { demarrerRecyclageNrp } from "./recyclageNrp.js";
+import {
+  enregistrerRoutesControleRdv,
+  preparerControleEchange,
+  envoyerConfirmationRdv,
+  demarrerControleRdv,
+  controlesEchangePour,
+  marquerControleEchangeVu,
+} from "./controleRdv.js";
 import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesMonCompte } from "./monCompte.js";
 import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit } from "./campagnes.js";
@@ -956,6 +964,10 @@ app.post("/api/vitrine/synthese-email", async (req, res) => {
 // qualifie ensuite manuellement, comme n'importe quelle demande entrante).
 // Page "Pilotage handicap" : rendez-vous expert et demandes de démo.
 enregistrerRoutesVitrineRdv(app);
+// Mission de contrôle et de suivi : confirmation client de l'échange le jour
+// du RDV, relances automatiques, alerte à l'agent principal (voir controleRdv.js).
+enregistrerRoutesControleRdv(app);
+demarrerControleRdv();
 // Remplissage du stock de fiches de l'équipe (admin, sans recherche Claude).
 enregistrerRoutesStockEquipe(app, { exigerAdmin, creerLeadDepuisSiren, CATEGORIES, sirenDe });
 // « Mon compte » : nom, e-mail de connexion et mot de passe de chacun.
@@ -2698,7 +2710,14 @@ app.post("/api/entreprises/:id/appels", exigerAuth, chargerEntrepriseAutorisee, 
   // le simple report d'un RDV / rappel déjà prévu (`report`).
   if (!req.body.report) compterAppelStatut(req.utilisateur.id, entreprise, issue);
 
+  // Mission de contrôle et de suivi : prépare le suivi du RDV posé par
+  // l'agent (le jour J, le client sera invité à confirmer l'échange).
+  const controle = issue === "rdv" ? preparerControleEchange(entreprise) : null;
+
   await db.write();
+  if (controle?.nouveau) {
+    envoyerConfirmationRdv(entreprise).catch((e) => console.error("[controle-rdv] Confirmation RDV impossible :", e.message));
+  }
   res.json(enrichir(entreprise));
 });
 
@@ -3717,6 +3736,9 @@ function calculerNotifications(utilisateur) {
     .sort((a, b) => new Date(a.dateRdv) - new Date(b.dateRdv));
 
   const confirmationsClient = ficheClient.confirmationsPour(utilisateur);
+  // Mission de contrôle et de suivi : UNIQUEMENT l'agent principal et les
+  // administrateurs, jamais le superviseur (voir controleRdv.js).
+  const controlesEchange = controlesEchangePour(utilisateur, estAdmin);
   return {
     rdvClientsAVenir,
     messagesNonLus,
@@ -3728,6 +3750,7 @@ function calculerNotifications(utilisateur) {
     demandesSite,
     rdvClients,
     confirmationsClient,
+    controlesEchange,
   };
 }
 
@@ -3737,6 +3760,12 @@ app.post("/api/entreprises/:id/rdv-client/vu", exigerAuth, chargerEntrepriseAuto
     req.entreprise.rdvClient.vuPar = [...(req.entreprise.rdvClient.vuPar || []), req.utilisateur.id];
     await db.write();
   }
+  res.json({ ok: true });
+});
+
+// L'agent principal a vu la réponse du client à la mission de contrôle et de suivi.
+app.post("/api/entreprises/:id/controle-echange/vu", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
+  if (marquerControleEchangeVu(req.entreprise, req.utilisateur)) await db.write();
   res.json({ ok: true });
 });
 
