@@ -1,7 +1,9 @@
 import { useIdentiteActuelle } from "../identite.js";
+import { useEspaces } from "../espace.js";
 
 export default function Header() {
   const { prenom } = useIdentiteActuelle();
+  const { espace } = useEspaces();
   const heure = new Date().getHours();
   const salutation = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
 
@@ -11,7 +13,7 @@ export default function Header() {
         {salutation} {prenom}
       </h1>
       <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-        Voici l'état de vos dossiers OETH / AGEFIPH aujourd'hui.
+        Voici l'état de vos dossiers {espace?.nom || "OETH / AGEFIPH"} aujourd'hui.
       </p>
     </header>
   );

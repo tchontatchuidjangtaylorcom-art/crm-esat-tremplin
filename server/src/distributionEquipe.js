@@ -14,6 +14,7 @@
 // une fiche n'est jamais redonnée à l'agent qui l'avait déjà.
 import { nanoid } from "nanoid";
 import db from "./db.js";
+import { espaceDe, espaceCourant, aAccesEspace } from "./espaces.js";
 
 const MAX_PAR_PERSONNE = 200;
 
@@ -26,9 +27,11 @@ export const STATUTS_DISTRIBUABLES = {
   autre: "Autre",
 };
 
+// Fiches de l'espace affiché seulement (OETH, CEE… voir espaces.js).
 function fichesSource(statut) {
-  return db.data.entreprises.filter((e) =>
-    statut === "nouveau" ? !e.assigneA && e.statut === "nouveau" : e.statut === statut
+  const espace = espaceCourant();
+  return db.data.entreprises.filter(
+    (e) => espaceDe(e) === espace && (statut === "nouveau" ? !e.assigneA && e.statut === "nouveau" : e.statut === statut)
   );
 }
 
@@ -47,7 +50,11 @@ export function enregistrerRoutesDistributionEquipe(app, { exigerAdmin, estAdmin
     const choisis = Array.isArray(req.body.membres) && req.body.membres.length ? new Set(req.body.membres) : null;
 
     const equipe = db.data.utilisateurs.filter(
-      (u) => u.statut === "valide" && (choisis ? choisis.has(u.id) : inclureAdmins || !estAdmin(u))
+      (u) =>
+        u.statut === "valide" &&
+        // Seulement les personnes qui ont accès à cet espace.
+        aAccesEspace(u, espaceCourant()) &&
+        (choisis ? choisis.has(u.id) : inclureAdmins || !estAdmin(u))
     );
     if (equipe.length === 0) return res.status(400).json({ error: "Aucune personne choisie (ou compte non validé)." });
 

@@ -19,6 +19,7 @@ import { useIdentiteActuelle } from "../identite.js";
 import { jouerSonConfirmation } from "../sonConfirmation.js";
 import { erreurNumero, estNumeroAffichable, numeroInternational } from "../telephone.js";
 import CalculObligationFiche from "../components/CalculObligationFiche.jsx";
+import { useEspaces } from "../espace.js";
 import BoutonRechercheNumeros from "../components/BoutonRechercheNumeros.jsx";
 import BadgeEcheance from "../components/BadgeEcheance.jsx";
 import ChoixAgentFiche from "../components/ChoixAgentFiche.jsx";
@@ -66,6 +67,8 @@ function libelleNeutralisation(neutralisation) {
 }
 
 export default function EntrepriseDetail() {
+  // Calcul OETH / AGEFIPH : seulement dans l'espace OETH (voir espace.js).
+  const { estOeth } = useEspaces();
   const { id } = useParams();
   const navigate = useNavigate();
   const { prenom: prenomAgent } = useIdentiteActuelle();
@@ -589,13 +592,15 @@ export default function EntrepriseDetail() {
               </a>
             ))}
         </div>
-        <div className="hidden sm:block h-6 w-px bg-slate-300 dark:bg-slate-600" />
-        <CalculObligationFiche
-          entreprise={entreprise}
-          enregistrement={enregistrementEffectifs}
-          onEnregistrer={mettreAJourEffectifs}
-          onResume={setResumeEmail}
-        />
+        {estOeth && <div className="hidden sm:block h-6 w-px bg-slate-300 dark:bg-slate-600" />}
+        {estOeth && (
+          <CalculObligationFiche
+            entreprise={entreprise}
+            enregistrement={enregistrementEffectifs}
+            onEnregistrer={mettreAJourEffectifs}
+            onResume={setResumeEmail}
+          />
+        )}
       </div>
 
       {resumeEmail && (
@@ -1044,6 +1049,7 @@ export default function EntrepriseDetail() {
           {/* Obligation OETH — dans la colonne de droite, juste sous
               Messagerie & historique : occupe l'espace libre à côté de la
               colonne Informations structure au lieu d'une bande en bas de page. */}
+          {estOeth && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-marine-200/70 dark:border-marine-900/40 shadow-sm p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100">Obligation OETH</h2>
@@ -1228,6 +1234,7 @@ export default function EntrepriseDetail() {
               </div>
             )}
           </div>
+          )}
 
           {/* Vitrine publique — déplacé hors de la colonne "Informations
               structure" (données utiles à la prospection) : le site web et

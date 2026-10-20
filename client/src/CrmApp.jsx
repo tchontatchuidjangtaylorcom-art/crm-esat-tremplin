@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+import { installerEnteteEspace } from "./espace.js";
 import Dashboard from "./pages/Dashboard.jsx";
 import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
 import Connexion from "./pages/Connexion.jsx";
@@ -23,6 +24,9 @@ import KpisEquipe from "./pages/KpisEquipe.jsx";
 import Supervision from "./pages/Supervision.jsx";
 import Campagnes from "./pages/Campagnes.jsx";
 import BoiteMail from "./pages/BoiteMail.jsx";
+
+// Espace de travail affiché (OETH, CEE…) envoyé au serveur avec chaque requête /api.
+installerEnteteEspace();
 
 // CRM interne (connexion, tableau de bord, fiches, chat, KPIs), chargé
 // séparément du site public (voir App.jsx et VitrineApp.jsx).

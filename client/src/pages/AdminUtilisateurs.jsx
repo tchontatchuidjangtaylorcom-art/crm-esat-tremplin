@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { formatDate } from "../constants.js";
 import { useAuth } from "../AuthContext.jsx";
+import EspacesCompte from "../components/EspacesCompte.jsx";
 
 const LIBELLES_STATUT = {
   en_attente: { label: "En attente", classe: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -97,6 +98,15 @@ export default function AdminUtilisateurs() {
       .then(setUtilisateurs)
       .catch((e) => setErreur(e.message));
   }
+
+  // Espaces de travail (OETH, CEE…) ouverts à chaque compte.
+  const [espaces, setEspaces] = useState([]);
+  useEffect(() => {
+    fetch("/api/espaces/tous")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setEspaces)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     charger();
@@ -442,7 +452,16 @@ export default function AdminUtilisateurs() {
                         </a>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{u.role}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {u.role}
+                      {u.statut === "valide" && (
+                        <EspacesCompte
+                          utilisateur={u}
+                          espaces={espaces}
+                          onMaj={(maj) => setUtilisateurs((l) => l.map((x) => (x.id === maj.id ? { ...x, espaces: maj.espaces } : x)))}
+                        />
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${

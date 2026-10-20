@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "../useTheme.js";
 import { api } from "../api.js";
+import SelecteurEspace from "./SelecteurEspace.jsx";
+import { useEspaces } from "../espace.js";
 
 // Charte de couleurs exacte demandée : Argumentaire (vert), Script de vente
 // (marron), Modèles de mails (orange) — conservée comme repère de couleur
@@ -89,12 +91,17 @@ export default function BarreOutilsVente({ outilActif, onSelect }) {
   // clair/sombre est appliqué et qu'on peut le changer, où qu'on soit.
   const { theme, basculer } = useTheme();
   const sombre = theme === "sombre";
+  // Argumentaire AGEFIPH, script, modèles de mails et ESAT : contenus OETH,
+  // affichés seulement dans l'espace OETH.
+  const { estOeth } = useEspaces();
+  const outils = estOeth ? OUTILS : [];
 
   return (
     <div className="sticky top-0 z-30">
     <div className="flex flex-nowrap items-center justify-between gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
       <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2 min-w-0">
-        {OUTILS.map((o) => {
+        <SelecteurEspace />
+        {outils.map((o) => {
           const actif = outilActif === o.cle;
           return (
             <button

@@ -101,6 +101,7 @@ import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
 import { reparerChampsContact, estNumeroTelephone } from "./telephone.js";
 import { territoireDe, territoireValide, nomTerritoire } from "./territoires.js";
+import { installerEspaces, espaceDe, aAccesEspace, espaceCourant, espaceDeRequete } from "./espaces.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -119,6 +120,8 @@ app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
+// Espaces de travail (OETH, CEE…) : voir espaces.js.
+installerEspaces(app, { exigerAuth, exigerAdmin });
 // Journal d'activité (voir journalAudit.js) : avant toutes les routes /api,
 // pour voir chaque écriture réussie et l'état de la fiche avant / après.
 installerJournal(app, {
@@ -192,11 +195,12 @@ function sirenDe(entreprise) {
   return entreprise.siren || (entreprise.siret ? entreprise.siret.slice(0, 9) : null);
 }
 
+// Par espace : une même entreprise peut être prospectée pour OETH et pour
+// les CEE (une fiche dans chaque espace).
 function estDejaConnu(siren) {
-  return (
-    db.data.entreprises.find((e) => e.siret && e.siret.slice(0, 9) === siren) ||
-    db.data.archives.find((e) => e.siret && e.siret.slice(0, 9) === siren)
-  );
+  const espace = espaceCourant();
+  const meme = (e) => espaceDe(e) === espace && e.siret && e.siret.slice(0, 9) === siren;
+  return db.data.entreprises.find(meme) || db.data.archives.find(meme);
 }
 
 // Purge automatique du pipeline actif : dès qu'un dossier passe "mort", il
@@ -269,6 +273,8 @@ function estSuperviseur(utilisateur) {
 // Un agent ne voit/traite que les dossiers qui lui sont assignés ;
 // l'administrateur garde une vue et un accès globaux sur tout le pipeline.
 function estVisiblePar(entreprise, utilisateur) {
+  // Jamais une fiche d'un espace auquel le compte n'a pas accès (voir espaces.js).
+  if (!aAccesEspace(utilisateur, espaceDe(entreprise))) return false;
   return (
     estAdmin(utilisateur) ||
     entreprise.assigneA === utilisateur.id ||
@@ -1114,9 +1120,12 @@ app.post("/api/vitrine/contact", async (req, res) => {
 // l'administrateur reçoit tout le pipeline (voir estVisiblePar ci-dessus).
 app.get("/api/entreprises", exigerAuth, (req, res) => {
   const cible = resoudreCibleSupervision(req);
-  const visibles = cible
+  // Seulement l'espace affiché (OETH, CEE…).
+  const espace = espaceDeRequete(req);
+  const visibles = (cible
     ? db.data.entreprises.filter((e) => e.assigneA === cible.id || e.binomeId === cible.id)
-    : db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur));
+    : db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur))
+  ).filter((e) => espaceDe(e) === espace);
   res.json(visibles.map(enrichirPourListe));
 });
 
@@ -1151,16 +1160,19 @@ app.get("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async (r
 // Dossiers "mort" archivés automatiquement (consultation seule, hors pipeline actif).
 app.get("/api/archives", exigerAuth, (req, res) => {
   const cible = resoudreCibleSupervision(req);
-  const visibles = cible
+  const espace = espaceDeRequete(req);
+  const visibles = (cible
     ? db.data.archives.filter((e) => e.assigneA === cible.id)
-    : db.data.archives.filter((e) => estVisiblePar(e, req.utilisateur));
+    : db.data.archives.filter((e) => estVisiblePar(e, req.utilisateur))
+  ).filter((e) => espaceDe(e) === espace);
   res.json(visibles.map(enrichirPourListe));
 });
 
 // Vagues de prospection (lots) déjà utilisées, pour alimenter le filtre du
 // tableau de bord — limité aux dossiers visibles par l'utilisateur connecté.
 app.get("/api/lots", exigerAuth, (req, res) => {
-  const visibles = db.data.entreprises.filter((e) => estVisiblePar(e, req.utilisateur));
+  const espace = espaceDeRequete(req);
+  const visibles = db.data.entreprises.filter((e) => espaceDe(e) === espace && estVisiblePar(e, req.utilisateur));
   const lots = new Set(visibles.map((e) => e.lot).filter(Boolean));
   res.json([...lots].sort());
 });
@@ -1195,6 +1207,7 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null,
 
   const nouvelle = {
     id: nanoid(),
+    espace: espaceCourant(),
     nom: donnees.nom,
     siret: donnees.siret,
     formeJuridique: donnees.formeJuridique,
@@ -2101,6 +2114,7 @@ async function traiterDemandeLeads(req, res) {
     .filter(
       (e) =>
         !e.assigneA &&
+        espaceDe(e) === espaceDeRequete(req) &&
         e.statut === "nouveau" &&
         correspondDepartement(e, departement) &&
         dansTerritoire(e) &&
@@ -2146,6 +2160,8 @@ async function traiterDemandeLeads(req, res) {
     .filter(
       (e) =>
         (e.statut === "nrp" || e.statut === "nrp2") &&
+        espaceDe(e) === espaceDeRequete(req) &&
+        aAccesEspace(utilisateur, espaceDe(e)) &&
         e.assigneA !== utilisateur.id &&
         estNumeroTelephone(String(e.contact?.telephone || "").trim()) &&
         assezAncienne(e) &&

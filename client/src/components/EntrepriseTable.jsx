@@ -8,6 +8,7 @@ import BoutonAppel from "../telephony/BoutonAppel.jsx";
 import { diffuserEntrepriseArchivee } from "../telephony/CallContext.jsx";
 import { api } from "../api.js";
 import SelecteurPersonne from "./SelecteurPersonne.jsx";
+import { useEspaces } from "../espace.js";
 
 // Aucune adresse mail connue pour cette fiche (ni principale, ni alternative)
 // — la seule situation où le bouton "Générer un e-mail" a un sens dans le
@@ -159,7 +160,9 @@ export default function EntrepriseTable({
   tri,
   onTrier,
 }) {
-  const nbColonnes = (estAdmin ? 11 : 10) + 1;
+  // Colonnes OETH (obligation, montant) : seulement dans l'espace OETH.
+  const { estOeth } = useEspaces();
+  const nbColonnes = (estAdmin ? 11 : 10) + 1 - (estOeth ? 0 : 2);
   const nbCochees = entreprises.filter((e) => selection.has(e.id)).length;
   const etatToutCoche = entreprises.length > 0 && nbCochees === entreprises.length ? "tout" : nbCochees > 0 ? "partiel" : "aucun";
   const [commentaireOuvertPour, setCommentaireOuvertPour] = useState(null);
@@ -177,8 +180,8 @@ export default function EntrepriseTable({
             <th className="px-3 py-2 text-left">Statut</th>
             <th className="px-3 py-2 text-left">Échéance</th>
             <th className="px-3 py-2 text-left">Secteur</th>
-            <th className="px-3 py-2 text-left">Obligation OETH</th>
-            <th className="px-3 py-2 text-left">Montant estimé</th>
+            {estOeth && <th className="px-3 py-2 text-left">Obligation OETH</th>}
+            {estOeth && <th className="px-3 py-2 text-left">Montant estimé</th>}
             <th className="px-3 py-2 text-left">
               <EnTeteTriable colonne="contact" label="Contact" tri={tri} onTrier={onTrier} />
             </th>
@@ -284,12 +287,16 @@ export default function EntrepriseTable({
                     {e.secteurActivite}
                   </span>
                 </td>
-                <td className="px-3 py-2">
-                  <OethCell oeth={e.oeth} />
-                </td>
-                <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-                  {e.oeth?.assujetti ? formatMontant(e.oeth.montantEstime) : "-"}
-                </td>
+                {estOeth && (
+                  <td className="px-3 py-2">
+                    <OethCell oeth={e.oeth} />
+                  </td>
+                )}
+                {estOeth && (
+                  <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                    {e.oeth?.assujetti ? formatMontant(e.oeth.montantEstime) : "-"}
+                  </td>
+                )}
                 <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
                   {e.contact?.nom && e.contact.nom !== "-" && <span className="block">{e.contact.nom}</span>}
                   {/* Numéro et e-mail sont deux actions dissociées : l'un ne

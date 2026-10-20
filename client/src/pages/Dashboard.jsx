@@ -2,6 +2,7 @@ import { TAILLES_EFFECTIF, dansTaille } from "../taillesEffectif.js";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import Header from "../components/Header.jsx";
+import BandeauEspace from "../components/BandeauEspace.jsx";
 import StatCard from "../components/StatCard.jsx";
 import EntrepriseTable from "../components/EntrepriseTable.jsx";
 import BarreActionsGroupees from "../components/BarreActionsGroupees.jsx";
@@ -604,6 +605,8 @@ export default function Dashboard() {
       </div>
 
       <BanniereSupervision />
+
+      <BandeauEspace nbFiches={toutesEntreprises.length} />
 
       <KpiObjectifMensuel
         valeur={nbQualifieesCeMois}
