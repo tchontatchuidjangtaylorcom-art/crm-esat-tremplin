@@ -617,7 +617,7 @@ app.get("/api/argumentaire-agefiph", (req, res) => {
 // Script de vente et modèles de mails : même principe que l'argumentaire
 // AGEFIPH ci-dessus.
 app.get("/api/script-vente", (req, res) => {
-  res.json(getScriptVente(db.data.contenusEditables?.scriptVente));
+  res.json(getScriptVente(db.data.contenusEditables?.scriptVente, espaceDeRequete(req)));
 });
 
 app.get("/api/modeles-mails", (req, res) => {

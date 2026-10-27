@@ -126,10 +126,101 @@ export const SECTIONS_PAR_DEFAUT = [
       },
 ];
 
+// Script CEE (agriculteurs sous serre) : même structure instruction/texte.
+// Contenu initial — voir le document "Pitch CEE — Agriculteurs sous serre"
+// partagé avec l'équipe le 2026-10-26. Les montants/taux précis restent à
+// confirmer avec le partenaire (voir section 5) : l'agent ne doit jamais en
+// citer tant que ce n'est pas validé.
+export const SECTIONS_CEE = [
+  {
+    titre: "1. Ouverture",
+    lignes: [
+      { type: "instruction", texte: "Souriez en décrochant — le ton compte autant que les mots." },
+      {
+        type: "texte",
+        texte: `« Bonjour, je suis ${AGENT}, on accompagne les exploitations agricoles sous serre dans la réduction de leurs charges d'énergie, dans le cadre d'un dispositif national. Vous avez deux minutes ? »`,
+      },
+    ],
+  },
+  {
+    titre: "2. Qualification",
+    lignes: [
+      {
+        type: "instruction",
+        texte: "Objectif : confirmer qu'il s'agit bien d'une serre chauffée et identifier la douleur (facture énergie).",
+      },
+      {
+        type: "texte",
+        texte:
+          "« Vous exploitez bien une ou plusieurs serres chauffées ? Et aujourd'hui, comment est géré le chauffage — vous avez une idée de ce que ça représente sur votre facture d'énergie ? »",
+      },
+    ],
+  },
+  {
+    titre: "3. Présentation du dispositif",
+    lignes: [
+      {
+        type: "instruction",
+        texte: "Rester factuel, ne jamais annoncer de montant ou taux précis tant que non confirmé (voir section 5 ci-dessous).",
+      },
+      {
+        type: "texte",
+        texte:
+          "« Ce que je vous propose, c'est de faire intervenir gratuitement un technicien pour étudier comment réduire votre consommation de chauffage — écran thermique, régulation, isolation selon votre installation. Les travaux sont financés par les fournisseurs d'énergie dans le cadre d'une obligation légale, les CEE : ça ne vous coûte rien, ce n'est ni une subvention de l'État ni un crédit. »",
+      },
+    ],
+  },
+  {
+    titre: "4. Transition et clôture",
+    lignes: [
+      {
+        type: "texte",
+        texte:
+          "« Je vous propose qu'un technicien vous contacte pour faire un point sur votre installation, sans engagement de votre part. Vous êtes disponible plutôt en début ou fin de semaine ? »",
+      },
+      {
+        type: "instruction",
+        texte: "Confirmer les coordonnées, poser le rendez-vous, rassurer sur la suite administrative (signature électronique, pas de paperasse).",
+      },
+      {
+        type: "texte",
+        texte:
+          "« Parfait, je note. Si vous êtes d'accord sur le principe à l'issue de l'étude, tout se fait ensuite par signature électronique : vous recevrez le dossier directement par e-mail, rien à imprimer ni à envoyer par courrier. Merci de votre temps, à bientôt ! »",
+      },
+    ],
+  },
+  {
+    titre: "5. Objections fréquentes",
+    lignes: [
+      {
+        type: "instruction",
+        texte:
+          "« C'est une arnaque ? » → Dispositif encadré par l'État (CEE, loi de 2005), financé par les fournisseurs d'énergie eux-mêmes, aucun paiement n'est jamais demandé.",
+      },
+      {
+        type: "instruction",
+        texte: "« Ça coûte combien ? » → 0 € de principe. Ne jamais citer de montant de reste à charge sans confirmation du partenaire.",
+      },
+      {
+        type: "instruction",
+        texte: "« Pas le temps » → proposer un simple appel/passage technicien de 15-20 min, à l'horaire choisi par l'exploitant.",
+      },
+      {
+        type: "instruction",
+        texte: "« Déjà démarché » → demander si les travaux ont déjà été réalisés ; sinon confirmer que l'offre reste valable.",
+      },
+    ],
+  },
+];
+
 // `sections` : contenu personnalisé par un super-administrateur (voir
 // PUT /api/script-vente dans index.js), persisté dans
-// db.data.contenusEditables.scriptVente — absent/null tant que personne n'a
-// rien modifié, auquel cas SECTIONS_PAR_DEFAUT s'applique.
-export function getScriptVente(sections = null) {
+// db.data.contenusEditables.scriptVente — seulement pour l'espace OETH pour
+// l'instant (absent/null tant que personne n'a rien modifié, auquel cas
+// SECTIONS_PAR_DEFAUT s'applique). L'espace CEE a son propre contenu fixe
+// (SECTIONS_CEE) ; l'édition par un super-admin pourra être ajoutée plus tard
+// de la même façon si besoin.
+export function getScriptVente(sections = null, espace = "oeth") {
+  if (espace === "cee") return { sections: SECTIONS_CEE };
   return { sections: sections || SECTIONS_PAR_DEFAUT };
 }

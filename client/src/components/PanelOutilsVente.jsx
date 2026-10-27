@@ -11,6 +11,7 @@ import EditeurModelesMails from "./EditeurModelesMails.jsx";
 import PanelEsatTremplin from "./PanelEsatTremplin.jsx";
 import { ArgumentairePublic, ScriptPublic } from "./PitchPublic.jsx";
 import { useFicheCourante } from "../ficheCourante.js";
+import { useEspaces } from "../espace.js";
 
 const TITRES = {
   argumentaire: "Argumentaire AGEFIPH",
@@ -62,8 +63,12 @@ function PanelModelesMails({ modeEdition, onEnregistre, onAnnuler }) {
 // chaque appel.
 export default function PanelOutilsVente({ outil, onFermer }) {
   const { utilisateur } = useAuth();
+  const { estOeth } = useEspaces();
   const [modeEdition, setModeEdition] = useState(false);
-  const estSuperAdmin = utilisateur?.role === "super_admin";
+  // Contenu CEE pas encore éditable (SECTIONS_CEE fixe côté serveur, voir
+  // scriptVente.js) : cacher "Modifier" hors de l'espace OETH évite d'y
+  // écraser silencieusement le contenu OETH personnalisé (même stockage).
+  const estSuperAdmin = utilisateur?.role === "super_admin" && estOeth;
   // Fiche publique ouverte (FIPHFP) : argumentaire et script du secteur
   // public par défaut, avec un bouton pour revenir à ceux du privé.
   const fiche = useFicheCourante();

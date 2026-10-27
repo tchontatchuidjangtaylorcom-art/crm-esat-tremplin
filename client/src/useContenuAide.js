@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
+import { espaceChoisi } from "./espace.js";
 
 const caches = new Map();
 const enCours = new Map();
 const PREFIXE_STOCKAGE = "aide:";
+
+// Le contenu (script de vente, argumentaire…) diffère par espace de travail
+// (OETH, CEE…) : la clé de cache inclut l'espace courant pour ne jamais
+// montrer le script d'un espace pendant qu'on consulte l'autre.
+function cleEspace(cle) {
+  return `${cle}:${espaceChoisi()}`;
+}
 
 function lireStocke(cle) {
   try {
@@ -36,7 +44,7 @@ function charger(cle, fetcher) {
 // Télécharge les contenus d'aide en tâche de fond dès l'ouverture du CRM,
 // pour qu'ils s'affichent sans attente au premier clic.
 export function prechargerContenusAide(liste) {
-  for (const [cle, fetcher] of liste) charger(cle, fetcher).catch(() => {});
+  for (const [cle, fetcher] of liste) charger(cleEspace(cle), fetcher).catch(() => {});
 }
 
 // Met à jour le cache (mémoire + appareil) après une édition réussie côté
@@ -44,6 +52,7 @@ export function prechargerContenusAide(liste) {
 // dans PanelOutilsVente.jsx) — pour que le panneau en lecture affiche
 // immédiatement la nouvelle version sans recharger la page.
 export function definirContenuAide(cle, data) {
+  cle = cleEspace(cle);
   caches.set(cle, data);
   try {
     localStorage.setItem(PREFIXE_STOCKAGE + cle, JSON.stringify(data));
@@ -58,6 +67,7 @@ export function definirContenuAide(cle, data) {
 // s'affiche immédiatement (même après rechargement de la page ou sur un
 // réseau mobile lent), puis est remplacée par la version à jour du serveur.
 export function useContenuAide(cle, fetcher) {
+  cle = cleEspace(cle);
   const [data, setData] = useState(() => caches.get(cle) ?? lireStocke(cle));
   const [erreur, setErreur] = useState(null);
 

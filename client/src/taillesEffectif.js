@@ -9,6 +9,9 @@ export const TAILLES_EFFECTIF = [
   { cle: "250-999", label: "250 à 999 salariés", min: 250, max: 999 },
   { cle: "1000+", label: "1 000 salariés et plus", min: 1000, max: 1000000 },
   { cle: "20+", label: "Toutes (20 salariés et plus)", min: 20, max: 1000000 },
+  // Espace CEE (voir espaces.js) : petites exploitations agricoles, souvent
+  // sous le seuil OETH de 20 salariés.
+  { cle: "0-19", label: "Moins de 20 salariés (petites structures)", min: 0, max: 19 },
 ];
 
 // Filtre de la liste du tableau de bord : la fiche entre-t-elle dans la taille

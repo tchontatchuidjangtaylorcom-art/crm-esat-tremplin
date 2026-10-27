@@ -128,6 +128,23 @@ export const CATEGORIES = {
     argumentaire:
       "Les postes de terrain (agent de sécurité, rondier) exigent souvent des certifications physiques (SSIAP, carte professionnelle) limitant l'embauche directe pour certains handicaps ; les postes de télésurveillance/PC sécurité ou le recours à un ESAT pour des prestations annexes (accueil, contrôle d'accès) sont à privilégier.",
   },
+  // Espace CEE (voir espaces.js) : exploitations agricoles sous serre,
+  // ciblées pour le dispositif Certificats d'Économies d'Énergie (chauffage,
+  // écran thermique, régulation — voir le script d'appel CEE dans
+  // scriptVente.js). 01.13Z = maraîchage (le plus souvent sous serre
+  // chauffée), 01.19Z = autres cultures non permanentes (horticulture),
+  // 01.30Z = reproduction de plantes (pépinières sous serre). Sans filtre de
+  // taille d'effectif pertinent ici (contrairement à l'OETH, 20+ seulement) :
+  // beaucoup d'exploitations ciblées sont de petites structures familiales —
+  // choisir une tranche d'effectif large (ou "Toutes tailles" si disponible)
+  // lors de la recherche par secteur.
+  agriculture_serre: {
+    label: "Agriculture — serres chauffées",
+    motsCles: ["maraîch", "maraich", "horticulture", "serriste", "sous serre", "pépinière", "pepiniere"],
+    nafCodes: ["01.13Z", "01.19Z", "01.30Z"],
+    argumentaire:
+      "Exploitation potentiellement éligible au dispositif CEE pour sa serre chauffée (financement par les fournisseurs d'énergie obligés) : qualifier via le script d'appel CEE avant tout engagement chiffré.",
+  },
 };
 
 const CATEGORIE_PAR_DEFAUT = {

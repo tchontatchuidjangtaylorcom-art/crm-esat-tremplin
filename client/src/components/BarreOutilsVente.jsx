@@ -40,6 +40,19 @@ const OUTILS = [
   },
 ];
 
+// Espace CEE : contenu propre (voir scriptVente.js, SECTIONS_CEE), pas
+// encore d'argumentaire/mails/ESAT dédiés — juste le script d'appel pour
+// l'instant.
+const OUTILS_CEE = [
+  {
+    cle: "script",
+    label: "Script de vente",
+    court: "Script",
+    pastille: "bg-emerald-600",
+    actif: "border-emerald-600 text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40",
+  },
+];
+
 // Coordonnées du pôle, toujours visibles en haut du CRM : l'agent au téléphone
 // les dicte ou les copie en un clic quand le client demande où écrire.
 // `className` : sur grand écran, au milieu de la barre ; sur téléphone et
@@ -91,10 +104,11 @@ export default function BarreOutilsVente({ outilActif, onSelect }) {
   // clair/sombre est appliqué et qu'on peut le changer, où qu'on soit.
   const { theme, basculer } = useTheme();
   const sombre = theme === "sombre";
-  // Argumentaire AGEFIPH, script, modèles de mails et ESAT : contenus OETH,
-  // affichés seulement dans l'espace OETH.
-  const { estOeth } = useEspaces();
-  const outils = estOeth ? OUTILS : [];
+  // Argumentaire AGEFIPH, modèles de mails et ESAT : contenus OETH, affichés
+  // seulement dans l'espace OETH. Le script de vente a son propre contenu
+  // dans l'espace CEE (voir OUTILS_CEE / scriptVente.js).
+  const { estOeth, espace } = useEspaces();
+  const outils = estOeth ? OUTILS : espace?.id === "cee" ? OUTILS_CEE : [];
 
   return (
     <div className="sticky top-0 z-30">

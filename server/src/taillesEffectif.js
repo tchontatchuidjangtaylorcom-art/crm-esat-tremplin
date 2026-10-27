@@ -22,6 +22,16 @@ export const TAILLES_EFFECTIF = {
     max: 1000000,
     tranches: ["12", "21", "22", "31", "32", "41", "42", "51", "52", "53"],
   },
+  // En dessous de 20 salariés : sans intérêt pour l'OETH (non assujetti),
+  // mais indispensable pour l'espace CEE (voir espaces.js/secteurs.js) — la
+  // plupart des exploitations agricoles ciblées sont de petites structures
+  // familiales, parfois sans aucun salarié déclaré.
+  "0-19": {
+    label: "Moins de 20 salariés (petites structures)",
+    min: 0,
+    max: 19,
+    tranches: ["00", "01", "02", "03", "11"],
+  },
 };
 
 export function tailleEffectif(cle) {
