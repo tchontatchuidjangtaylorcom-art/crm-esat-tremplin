@@ -132,10 +132,10 @@ export const SECTIONS_PAR_DEFAUT = [
 // autorité sur le pitch maison du 2026-10-26, plus complet (données CRM
 // déjà en main, produit chiffré, déroulé de signature Yousign détaillé,
 // garde-fous de conformité explicites en section 8).
-// Trois champs à vérifier avant diffusion aux agents :
+// Société à annoncer en ouverture : Eco Smart France (confirmé 2026-10-27).
+// Un champ reste à vérifier avant diffusion aux agents :
 //  - "mandataire CEE" (section 1) : à dire seulement si la société en
 //    dispose réellement du mandat — confirmer avec le partenaire.
-//  - [Société] : nom à annoncer en ouverture, pas encore confirmé.
 //  - Les chiffres produit (puissance, COP) sont ceux du partenaire ; ne pas
 //    les modifier sans source.
 export const SECTIONS_CEE = [
@@ -144,7 +144,7 @@ export const SECTIONS_CEE = [
     lignes: [
       {
         type: "texte",
-        texte: `« Bonjour Monsieur / Madame [Nom], c'est ${AGENT} de [Société], mandataire CEE, les Certificats d'Économies d'Énergie. Je vous appelle pour vos serres agricoles. En ce moment, nous proposons une pompe à chaleur pour chauffer les serres, avec une offre à zéro euro pour les dossiers qui remplissent les conditions. On va reprendre ensemble deux ou trois infos sur votre exploitation. Vous avez bien [nombre] serres ? »`,
+        texte: `« Bonjour Monsieur / Madame [Nom], c'est ${AGENT} d'Eco Smart France, mandataire CEE, les Certificats d'Économies d'Énergie. Je vous appelle pour vos serres agricoles. En ce moment, nous proposons une pompe à chaleur pour chauffer les serres, avec une offre à zéro euro pour les dossiers qui remplissent les conditions. On va reprendre ensemble deux ou trois infos sur votre exploitation. Vous avez bien [nombre] serres ? »`,
       },
       {
         type: "instruction",
