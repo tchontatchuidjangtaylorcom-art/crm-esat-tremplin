@@ -11,6 +11,7 @@ import AssistantContactIA from "../components/AssistantContactIA.jsx";
 import DicteeCommentaire from "../components/DicteeCommentaire.jsx";
 import ActionsRapidesStatut from "../components/ActionsRapidesStatut.jsx";
 import AlerteDoublons from "../components/AlerteDoublons.jsx";
+import InfosSerreCee from "../components/InfosSerreCee.jsx";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
 import ChampDateHeure from "../components/ChampDateHeure.jsx";
@@ -658,7 +659,7 @@ export default function EntrepriseDetail() {
               <h2 className="font-semibold text-slate-800 dark:text-slate-100">Informations structure</h2>
               <span className="text-xs text-slate-400 dark:text-slate-500">{infosOuvertes ? "▲ Replier" : "▼ SIRET, forme, secteur…"}</span>
             </button>
-            {infosOuvertes && (
+            {infosOuvertes && estOeth && (
             <dl className="space-y-3 text-sm">
               <Info label="SIRET" value={entreprise.siret} />
               <Info label="Forme juridique" value={entreprise.formeJuridique} />
@@ -671,6 +672,22 @@ export default function EntrepriseDetail() {
                 value={`${formatDate(entreprise.partDebutOp)} → ${formatDate(entreprise.partFinOp)}`}
               />
             </dl>
+            )}
+            {infosOuvertes && !estOeth && (
+            <dl className="space-y-3 text-sm">
+              <Info label="SIRET" value={entreprise.siret} />
+              <Info label="Forme juridique" value={entreprise.formeJuridique} />
+              <Info label="Secteur d'activité" value={entreprise.secteurActivite} />
+            </dl>
+            )}
+
+            {!estOeth && (
+              <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
+                  Informations serre (CEE)
+                </p>
+                <InfosSerreCee entreprise={entreprise} onMaj={setEntreprise} />
+              </div>
             )}
 
             <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">

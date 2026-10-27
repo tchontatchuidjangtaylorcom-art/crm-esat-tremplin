@@ -2530,6 +2530,14 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
     // qui l'interlocuteur transmet les coordonnées) : comptée aussi dans
     // "Me rappelle" (sans date ni alerte). Sans effet hors statut mail.
     "aussiMeRappelle",
+    // Espace CEE (voir espaces.js) : informations serre, référencées en
+    // direct pendant l'appel (voir le script de vente CEE, section
+    // "Informations à confirmer dans le CRM"). Sans effet hors CEE.
+    "nombreSerres",
+    "surfaceSerres",
+    "cultures",
+    "serreChauffee",
+    "energieChauffage",
   ];
   const ancienStatut = entreprise.statut;
   for (const champ of champsAutorises) {
