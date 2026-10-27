@@ -1789,8 +1789,13 @@ function etatEnrichissement(utilisateurId) {
 // Périmètre de recherche : tout le pipeline pour un admin, ses propres
 // fiches pour un agent.
 function fichesSansTelephone(utilisateur) {
+  // Scopé à l'espace affiché (voir espaceCourant/espaces.js) : sans ce
+  // filtre, un admin lançait l'enrichissement téléphone (appels IA facturés,
+  // voir estRechercheIaConfiguree) sur TOUTES les fiches de TOUS les
+  // espaces, même en consultant l'espace CEE.
+  const espace = espaceCourant();
   return db.data.entreprises.filter(
-    (e) => !e.contact?.telephone && (estAdmin(utilisateur) || e.assigneA === utilisateur.id)
+    (e) => espaceDe(e) === espace && !e.contact?.telephone && (estAdmin(utilisateur) || e.assigneA === utilisateur.id)
   );
 }
 
