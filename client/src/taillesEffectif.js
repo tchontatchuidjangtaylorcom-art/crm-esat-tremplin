@@ -10,8 +10,12 @@ export const TAILLES_EFFECTIF = [
   { cle: "1000+", label: "1 000 salariés et plus", min: 1000, max: 1000000 },
   { cle: "20+", label: "Toutes (20 salariés et plus)", min: 20, max: 1000000 },
   // Espace CEE (voir espaces.js) : petites exploitations agricoles, souvent
-  // sous le seuil OETH de 20 salariés.
+  // sous le seuil OETH de 20 salariés — pas de seuil légal équivalent au 20
+  // salariés de l'OETH, donc une seule tranche large plutôt que le découpage
+  // fin ci-dessus (pensé pour l'OETH). "0-199" est la tranche conseillée par
+  // défaut hors espace OETH (voir estOeth dans les sélecteurs).
   { cle: "0-19", label: "Moins de 20 salariés (petites structures)", min: 0, max: 19 },
+  { cle: "0-199", label: "0 à 199 salariés (conseillé CEE)", min: 0, max: 199 },
 ];
 
 // Filtre de la liste du tableau de bord : la fiche entre-t-elle dans la taille

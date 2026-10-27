@@ -5,6 +5,7 @@ import { TERRITOIRES } from "../territoires.js";
 import { TAILLES_EFFECTIF } from "../taillesEffectif.js";
 import SelecteurPersonne from "./SelecteurPersonne.jsx";
 import { extraireDepuisFichier, extraireDepuisTexte } from "../extractionEntreprises.js";
+import { useEspaces } from "../espace.js";
 
 // Import par fichier / liste : petits appels (le serveur interroge Sirene
 // pour chaque entrée), 300 entreprises maximum par import.
@@ -451,6 +452,7 @@ function prochainNomVague(label, dejaDansSecteur, tousLesLots) {
 }
 
 function GenererVagueSecteur({ categories, agents, moiId, lots = [], lotsParSecteur = {}, onImporte }) {
+  const { estOeth } = useEspaces();
   const [categorie, setCategorie] = useState("");
 
   function nomPropose(cle, enPlus = []) {
@@ -472,8 +474,9 @@ function GenererVagueSecteur({ categories, agents, moiId, lots = [], lotsParSect
   const [territoire, setTerritoire] = useState("");
   const territoireOutreMer = territoire && territoire !== "metropole";
   const [quantite, setQuantite] = useState(100);
-  // Taille ciblée : 20 à 249 salariés par défaut (voir taillesEffectif.js).
-  const [taille, setTaille] = useState("20-249");
+  // Taille ciblée : 20 à 249 par défaut pour l'OETH (seuil légal d'assujettissement) ;
+  // 0 à 199 hors OETH (espace CEE, pas de seuil équivalent — voir taillesEffectif.js).
+  const [taille, setTaille] = useState(() => (estOeth ? "20-249" : "0-199"));
   const [lot, setLot] = useState("");
   const [assigneA, setAssigneA] = useState("");
   const [rechercheTelephoneIA, setRechercheTelephoneIA] = useState(true);

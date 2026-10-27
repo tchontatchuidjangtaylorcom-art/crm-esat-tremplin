@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { TAILLES_EFFECTIF } from "../taillesEffectif.js";
+import { useEspaces } from "../espace.js";
 
 const champ =
   "mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm";
@@ -16,8 +17,12 @@ async function appel(url, options) {
 // taille choisie, sans recherche Claude (les agents cherchent les numéros).
 // Ensuite : « Distribuer des fiches » pour en donner à chacun.
 export default function RemplirStockEquipe({ onImporte }) {
+  const { estOeth } = useEspaces();
   const [total, setTotal] = useState(1000);
-  const [taille, setTaille] = useState("20-249");
+  // Pas de seuil légal à 20 salariés hors OETH (voir espace CEE) : la tranche
+  // conseillée par défaut suit l'espace actif plutôt que d'imposer le seuil
+  // OETH partout.
+  const [taille, setTaille] = useState(() => (estOeth ? "20-249" : "0-199"));
   const [territoire, setTerritoire] = useState("metropole");
   const [avecPublic, setAvecPublic] = useState(true);
   const [etat, setEtat] = useState(null);

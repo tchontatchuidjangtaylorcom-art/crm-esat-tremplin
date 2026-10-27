@@ -32,6 +32,17 @@ export const TAILLES_EFFECTIF = {
     max: 19,
     tranches: ["00", "01", "02", "03", "11"],
   },
+  // Tranche conseillée par défaut pour l'espace CEE (pas de seuil légal
+  // équivalent au 20 salariés OETH) : couvre 0 à 199 salariés en une seule
+  // recherche plutôt que de devoir combiner "0-19" et "20-249". Vérifié sur
+  // l'API Sirene publique le 2026-10-27 : ~6 900 exploitations en NAF
+  // 01.13Z/01.19Z/01.30Z sur cette tranche, contre ~300 seulement en 20-249.
+  "0-199": {
+    label: "0 à 199 salariés (conseillé CEE)",
+    min: 0,
+    max: 199,
+    tranches: ["00", "01", "02", "03", "11", "12", "21", "22"],
+  },
 };
 
 export function tailleEffectif(cle) {
