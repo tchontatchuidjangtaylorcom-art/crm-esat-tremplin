@@ -2024,7 +2024,11 @@ const DELAI_RECYCLAGE_NRP_HEURES = { nrp: 24, nrp2: 48 };
 const demandesLeads = new Map();
 
 function nouveauxNonTraites(utilisateurId) {
-  return db.data.entreprises.filter((e) => e.assigneA === utilisateurId && e.statut === "nouveau").length;
+  // Scopé à l'espace affiché : sinon un agent avec des fiches "nouveau" dans
+  // un autre espace pouvait se voir bloquer (ou autoriser à tort) une
+  // demande de fiches CEE à cause de son compteur OETH.
+  const espace = espaceCourant();
+  return db.data.entreprises.filter((e) => espaceDe(e) === espace && e.assigneA === utilisateurId && e.statut === "nouveau").length;
 }
 
 function etatDemandeLeads(utilisateurId) {
@@ -2329,10 +2333,11 @@ function libelleStatutRendu(s) {
 app.get("/api/leads/rendre", exigerAuth, (req, res) => {
   const cible = cibleDemandeLeads(req);
   if (!cible) return res.status(404).json({ error: "Agent introuvable." });
+  const espace = espaceCourant();
   const parStatut = STATUTS_RENDABLES.map((statut) => ({
     statut,
     label: libelleStatutRendu(statut),
-    total: db.data.entreprises.filter((e) => e.assigneA === cible.id && e.statut === statut).length,
+    total: db.data.entreprises.filter((e) => espaceDe(e) === espace && e.assigneA === cible.id && e.statut === statut).length,
   })).filter((s) => s.total > 0);
   res.json({ parStatut });
 });
@@ -2349,7 +2354,8 @@ app.post("/api/leads/rendre", exigerAuth, async (req, res) => {
   const nomAgent = cible.prenom || cible.email;
   const pourAutrui = cible.id !== req.utilisateur.id;
   const maintenant = new Date().toISOString();
-  const fiches = db.data.entreprises.filter((e) => e.assigneA === cible.id && e.statut === statut);
+  const espace = espaceCourant();
+  const fiches = db.data.entreprises.filter((e) => espaceDe(e) === espace && e.assigneA === cible.id && e.statut === statut);
   const libelle = libelleStatutRendu(statut);
 
   for (const e of fiches) {
