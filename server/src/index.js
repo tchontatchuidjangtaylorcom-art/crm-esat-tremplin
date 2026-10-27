@@ -615,8 +615,12 @@ app.get("/api/argumentaire-agefiph", (req, res) => {
 });
 
 // Script de vente et modèles de mails : même principe que l'argumentaire
-// AGEFIPH ci-dessus.
-app.get("/api/script-vente", (req, res) => {
+// AGEFIPH ci-dessus. `exigerAuth` nécessaire ici (contrairement à
+// l'argumentaire ci-dessus) : req.utilisateur n'est posé que par ce
+// middleware, or espaceDeRequete() en a besoin pour savoir quel espace
+// (OETH/CEE) l'agent a choisi — sans lui, l'espace retombait toujours sur
+// "oeth" par défaut, même connecté et sur l'espace CEE.
+app.get("/api/script-vente", exigerAuth, (req, res) => {
   res.json(getScriptVente(db.data.contenusEditables?.scriptVente, espaceDeRequete(req)));
 });
 
