@@ -276,6 +276,14 @@ export default function ImportLot({ categories, agents, moiId, lots = [], lotsPa
                   {entrees.filter((e) => e.siren).length} numéro(s) SIREN / SIRET · {entrees.filter((e) => e.nom).length} nom(s)
                   d'entreprise (retrouvés dans Sirene). Écartées automatiquement : moins de 20 salariés, entreprises fermées,
                   créées il y a moins de 5 ans, déjà dans le CRM.
+                  {(entrees.some((e) => e.email) || entrees.some((e) => e.telephone)) && (
+                    <>
+                      {" "}
+                      Colonnes de contact détectées dans le fichier : {entrees.filter((e) => e.email).length} e-mail(s),{" "}
+                      {entrees.filter((e) => e.telephone).length} téléphone(s) — repris directement sur chaque fiche créée,
+                      sans recherche IA pour celles-ci.
+                    </>
+                  )}
                 </p>
               )}
 

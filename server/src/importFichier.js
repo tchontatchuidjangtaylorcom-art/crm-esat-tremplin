@@ -9,8 +9,16 @@
 //  - créée il y a moins de 5 ans (période d'exonération des nouvelles
 //    entreprises — voir calculerNeutralisation dans oeth.js) ;
 //  - déjà présente dans le CRM.
-// Les fiches créées peuvent partir en recherche IA des numéros et du contact
-// RH (même file d'attente que les autres imports).
+//
+// `entree.email`/`telephone`/`contactNom`/`contactFonction` : repris tels
+// quels sur la fiche quand le fichier source les fournit déjà (export type
+// Kompass/Societeinfo — voir extractionEntreprises.js). Sirene ne donne ni
+// téléphone ni contact : sans cette reprise directe, CHAQUE fiche partirait
+// en recherche IA pour retrouver une info déjà présente dans le fichier —
+// un coût inutile à l'échelle d'un import de plusieurs centaines/milliers de
+// lignes (voir l'incident de coût passé sur la recherche IA automatique).
+// Seules les fiches encore sans téléphone après cette reprise partent en
+// file de recherche IA.
 import db from "./db.js";
 import { normaliserSiren, rechercherEntrepriseParSiren, rechercherEntreprises } from "./insee.js";
 
@@ -46,6 +54,8 @@ function meilleureCorrespondance(nomSaisi, resultats) {
     }) || null
   );
 }
+
+const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function creeeIlYaMoinsDe5Ans(dateCreation) {
   if (!dateCreation) return false;
@@ -106,14 +116,34 @@ export function enregistrerRoutesImportFichier(
           resultats.push({ ...ligne, statut: "ecartee", motif: `créée il y a moins de 5 ans (${donnees.dateCreation})` });
         } else {
           // 3. Création de la fiche.
-          const { existant, entreprise } = await creerLeadDepuisSiren(donnees.siren, { lot, assigneA, utilisateur: req.utilisateur });
+          const { existant, liquidation, entreprise } = await creerLeadDepuisSiren(donnees.siren, { lot, assigneA, utilisateur: req.utilisateur });
           if (existant || !entreprise) {
             resultats.push({ ...ligne, statut: "existant", motif: "déjà dans le CRM" });
+          } else if (liquidation) {
+            resultats.push({ ...ligne, statut: "ecartee", motif: "liquidation judiciaire (BODACC) — fiche archivée" });
           } else {
             const fiche = findEntreprise(entreprise.id);
             if (fiche && donnees.dateCreation) fiche.dateCreation = donnees.dateCreation;
-            if (fiche) creees.push(fiche);
-            resultats.push({ ...ligne, statut: "cree", effectif: donnees.trancheEffectifLabel });
+            // Reprise directe des colonnes de contact du fichier (voir note en
+            // tête de fichier) — sur une fiche neuve, `contact` est le gabarit
+            // vide par défaut (voir creerLeadDepuisSiren), donc écraser
+            // email/telephone/nom/fonction ici ne perd jamais une donnée déjà
+            // vérifiée par un agent.
+            const emailValide = entree.email && EMAIL_VALIDE.test(entree.email) ? entree.email : null;
+            if (fiche) {
+              if (emailValide) fiche.contact.email = emailValide;
+              if (entree.telephone) fiche.contact.telephone = String(entree.telephone).trim();
+              if (entree.contactNom) fiche.contact.nom = String(entree.contactNom).trim();
+              if (entree.contactFonction) fiche.contact.fonction = String(entree.contactFonction).trim();
+              creees.push(fiche);
+            }
+            resultats.push({
+              ...ligne,
+              statut: "cree",
+              effectif: donnees.trancheEffectifLabel,
+              email: Boolean(emailValide),
+              telephone: Boolean(entree.telephone),
+            });
           }
         }
       } catch (e) {
@@ -127,7 +157,11 @@ export function enregistrerRoutesImportFichier(
     }
 
     if (creees.length) await db.write();
-    const avecIA = rechercheIA && creees.length > 0 && mettreEnFileRechercheIA(creees);
-    res.status(201).json({ lot, resultats, rechercheIA: Boolean(avecIA) });
+    // Seules les fiches encore sans téléphone partent en recherche IA — celles
+    // dont le fichier donnait déjà un téléphone n'ont rien à y gagner (voir
+    // note en tête de fichier sur le coût d'une recherche IA inutile).
+    const aEnrichir = creees.filter((f) => !f.contact.telephone);
+    const avecIA = rechercheIA && aEnrichir.length > 0 && mettreEnFileRechercheIA(aEnrichir);
+    res.status(201).json({ lot, resultats, rechercheIA: Boolean(avecIA), nbAvecIA: aEnrichir.length });
   });
 }
