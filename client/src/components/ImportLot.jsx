@@ -27,31 +27,48 @@ export default function ImportLot({ categories, agents, moiId, lots = [], lotsPa
   const [enCours, setEnCours] = useState(false);
   const [resultat, setResultat] = useState(null);
   const [erreur, setErreur] = useState(null);
-  // Entreprises lues dans un fichier (Excel, CSV, Word…) : { siren } ou { nom }.
-  const [depuisFichier, setDepuisFichier] = useState(null);
-  const [nomFichier, setNomFichier] = useState("");
+  // Fichiers lus (Excel, CSV, Word…) : [{ nom, entrees }], un élément par
+  // fichier sélectionné — gardés séparés (plutôt qu'une seule grande liste)
+  // pour pouvoir importer plusieurs fichiers d'un coup (sélection multiple)
+  // sans dépasser MAX_ENTREES_FICHIER sur un seul d'entre eux : chacun est
+  // soumis l'un après l'autre dans `soumettre`, comme s'ils avaient été
+  // déposés un par un.
+  const [fichiers, setFichiers] = useState([]);
   const [lectureFichier, setLectureFichier] = useState(false);
   const [rechercheIA, setRechercheIA] = useState(true);
   const [progression, setProgression] = useState(null);
   const [iaLancee, setIaLancee] = useState(false);
 
-  // Entrées à importer : fichier chargé, sinon texte collé (SIREN, SIRET ou
-  // nom d'entreprise, un par ligne).
-  const entrees = depuisFichier || extraireDepuisTexte(sirensTexte);
+  // Entrées à importer : fichier(s) chargé(s), sinon texte collé (SIREN,
+  // SIRET ou nom d'entreprise, un par ligne) — juste pour l'aperçu/compteurs,
+  // la soumission traite chaque fichier séparément (voir soumettre).
+  const entrees = fichiers.length ? fichiers.flatMap((f) => f.entrees) : extraireDepuisTexte(sirensTexte);
 
-  async function lireFichier(ev) {
-    const fichier = ev.target.files?.[0];
+  async function lireFichiers(ev) {
+    const liste = Array.from(ev.target.files || []);
     ev.target.value = "";
-    if (!fichier) return;
+    if (!liste.length) return;
     setLectureFichier(true);
     setErreur(null);
     setResultat(null);
     try {
-      const lues = await extraireDepuisFichier(fichier);
-      if (lues.length === 0) throw new Error("Aucun SIREN, SIRET ni nom d'entreprise trouvé dans ce fichier.");
-      setDepuisFichier(lues);
-      setNomFichier(fichier.name);
-      if (!lot.trim()) setLot(fichier.name.replace(/\.[^.]+$/, ""));
+      const lus = [];
+      for (const fichier of liste) {
+        const lues = await extraireDepuisFichier(fichier);
+        if (lues.length > MAX_ENTREES_FICHIER) {
+          throw new Error(
+            `${fichier.name} : ${lues.length} entreprises détectées, ${MAX_ENTREES_FICHIER} maximum par fichier — découpez-le.`
+          );
+        }
+        lus.push({ nom: fichier.name, entrees: lues });
+      }
+      if (!lus.some((f) => f.entrees.length)) {
+        throw new Error("Aucun SIREN, SIRET ni nom d'entreprise trouvé dans ce(s) fichier(s).");
+      }
+      setFichiers(lus);
+      if (!lot.trim()) {
+        setLot(lus.length === 1 ? lus[0].nom.replace(/\.[^.]+$/, "") : `Import ${new Date().toLocaleDateString("fr-FR")}`);
+      }
     } catch (e) {
       setErreur(e.message);
     } finally {
@@ -65,12 +82,17 @@ export default function ImportLot({ categories, agents, moiId, lots = [], lotsPa
       setErreur("Merci de nommer ce lot (ex : « Lot 3 »).");
       return;
     }
-    if (entrees.length === 0) {
-      setErreur("Ajoutez un fichier, ou collez des SIREN / noms d'entreprise (un par ligne).");
+    // Un fichier = un lot d'appels (≤ MAX_ENTREES_FICHIER, déjà vérifié à la
+    // lecture) ; sans fichier, le texte collé compte comme un lot unique, à
+    // plafonner ici puisqu'il n'est pas passé par lireFichiers.
+    const lots = fichiers.length ? fichiers : [{ nom: null, entrees: extraireDepuisTexte(sirensTexte) }];
+    const totalGlobal = lots.reduce((s, f) => s + f.entrees.length, 0);
+    if (totalGlobal === 0) {
+      setErreur("Ajoutez un ou plusieurs fichiers, ou collez des SIREN / noms d'entreprise (un par ligne).");
       return;
     }
-    if (entrees.length > MAX_ENTREES_FICHIER) {
-      setErreur(`${entrees.length} entreprises détectées : ${MAX_ENTREES_FICHIER} maximum par import, découpez le fichier.`);
+    if (!fichiers.length && totalGlobal > MAX_ENTREES_FICHIER) {
+      setErreur(`${totalGlobal} entreprises détectées : ${MAX_ENTREES_FICHIER} maximum par import, découpez la liste.`);
       return;
     }
 
@@ -80,35 +102,41 @@ export default function ImportLot({ categories, agents, moiId, lots = [], lotsPa
     setIaLancee(false);
     const tous = [];
     try {
-      for (let i = 0; i < entrees.length; i += TAILLE_APPEL_FICHIER) {
-        setProgression(`${i} / ${entrees.length}`);
-        const morceau = entrees.slice(i, i + TAILLE_APPEL_FICHIER);
-        let reponse = null;
-        for (let essai = 0; essai <= DELAIS_REESSAI_MS.length && !reponse; essai++) {
-          try {
-            const res = await fetch("/api/leads/import-fichier", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ entrees: morceau, lot: lot.trim(), assigneA: assigneA || null, rechercheIA }),
-            });
-            const donnees = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(donnees.error || `Erreur HTTP ${res.status}`);
-            reponse = donnees;
-          } catch (e) {
-            if (essai === DELAIS_REESSAI_MS.length) throw e;
-            await new Promise((r) => setTimeout(r, DELAIS_REESSAI_MS[essai]));
+      for (let fi = 0; fi < lots.length; fi++) {
+        const { nom, entrees: entreesDuFichier } = lots[fi];
+        for (let i = 0; i < entreesDuFichier.length; i += TAILLE_APPEL_FICHIER) {
+          setProgression(
+            lots.length > 1
+              ? `fichier ${fi + 1}/${lots.length}${nom ? ` (${nom})` : ""} — ${i}/${entreesDuFichier.length} — ${tous.length}/${totalGlobal} au total`
+              : `${i} / ${entreesDuFichier.length}`
+          );
+          const morceau = entreesDuFichier.slice(i, i + TAILLE_APPEL_FICHIER);
+          let reponse = null;
+          for (let essai = 0; essai <= DELAIS_REESSAI_MS.length && !reponse; essai++) {
+            try {
+              const res = await fetch("/api/leads/import-fichier", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ entrees: morceau, lot: lot.trim(), assigneA: assigneA || null, rechercheIA }),
+              });
+              const donnees = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(donnees.error || `Erreur HTTP ${res.status}`);
+              reponse = donnees;
+            } catch (e) {
+              if (essai === DELAIS_REESSAI_MS.length) throw e;
+              await new Promise((r) => setTimeout(r, DELAIS_REESSAI_MS[essai]));
+            }
           }
+          tous.push(...reponse.resultats);
+          if (reponse.rechercheIA) setIaLancee(true);
+          setResultat([...tous]);
         }
-        tous.push(...reponse.resultats);
-        if (reponse.rechercheIA) setIaLancee(true);
-        setResultat([...tous]);
       }
-      setDepuisFichier(null);
-      setNomFichier("");
+      setFichiers([]);
       setSirensTexte("");
     } catch (e) {
       setErreur(
-        `Import interrompu après ${tous.length} / ${entrees.length} (${e.message}). Relancez : les entreprises déjà importées seront simplement ignorées.`
+        `Import interrompu après ${tous.length} / ${totalGlobal} (${e.message}). Relancez : les entreprises déjà importées seront simplement ignorées.`
       );
     } finally {
       setProgression(null);
@@ -226,39 +254,37 @@ export default function ImportLot({ categories, agents, moiId, lots = [], lotsPa
                 )}
               </div>
 
-              {/* Fichier : Excel, OpenDocument, CSV, texte ou Word. */}
+              {/* Fichier(s) : Excel, OpenDocument, CSV, texte ou Word — sélection
+                  multiple possible (tous les morceaux d'un même export en un
+                  coup), chacun importé l'un après l'autre automatiquement. */}
               <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 px-3 py-2.5">
                 <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-marine-700 hover:bg-marine-800 text-white text-sm font-medium px-3 py-1.5">
-                  📄 Choisir un fichier
+                  📄 Choisir un ou plusieurs fichiers
                   <input
                     type="file"
+                    multiple
                     accept=".xlsx,.xlsm,.xls,.ods,.csv,.txt,.tsv,.docx"
-                    onChange={lireFichier}
+                    onChange={lireFichiers}
                     className="hidden"
                   />
                 </label>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   {lectureFichier
-                    ? "Lecture du fichier…"
-                    : depuisFichier
-                      ? `${nomFichier} : ${depuisFichier.length} entreprise${depuisFichier.length > 1 ? "s" : ""} détectée${depuisFichier.length > 1 ? "s" : ""}`
-                      : "Excel, CSV, Word ou texte — SIREN, SIRET ou simplement le nom des entreprises."}
+                    ? "Lecture du/des fichier(s)…"
+                    : fichiers.length
+                      ? fichiers.length === 1
+                        ? `${fichiers[0].nom} : ${fichiers[0].entrees.length} entreprise${fichiers[0].entrees.length > 1 ? "s" : ""} détectée${fichiers[0].entrees.length > 1 ? "s" : ""}`
+                        : `${fichiers.length} fichiers sélectionnés : ${entrees.length} entreprises au total (importés l'un après l'autre)`
+                      : "Excel, CSV, Word ou texte — SIREN, SIRET ou simplement le nom des entreprises. Sélection multiple possible."}
                 </span>
-                {depuisFichier && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDepuisFichier(null);
-                      setNomFichier("");
-                    }}
-                    className="text-xs text-slate-500 hover:text-red-600"
-                  >
-                    Retirer le fichier
+                {fichiers.length > 0 && (
+                  <button type="button" onClick={() => setFichiers([])} className="text-xs text-slate-500 hover:text-red-600">
+                    {fichiers.length === 1 ? "Retirer le fichier" : "Retirer les fichiers"}
                   </button>
                 )}
               </div>
 
-              {!depuisFichier && (
+              {fichiers.length === 0 && (
                 <label className="block text-xs text-slate-500 dark:text-slate-400">
                   … ou collez une liste : SIREN, SIRET ou nom d'entreprise (un par ligne)
                   <textarea
