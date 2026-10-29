@@ -7,6 +7,7 @@ import BoutonCorrection from "./BoutonCorrection.jsx";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
 import { ecouterPointeurAssistant, pointerElement } from "../assistantActions.js";
+import { useEspaces } from "../espace.js";
 
 // Fil de messagerie mail réel avec le contact de l'entreprise (boîte IMAP/SMTP
 // du pôle — voir server/src/mail.js). Reste utilisable même sans boîte
@@ -31,6 +32,10 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   // Rédaction par l'IA (payante) réservée aux administrateurs.
   const { utilisateur } = useAuth();
   const iaAutorisee = estAdmin(utilisateur);
+  // Modèles, génération IA, synthèse PDF et mise en page officielle : tous
+  // bâtis autour des données/textes OETH — masqués hors de cet espace, le
+  // temps que des équivalents CEE existent (voir espaces.js).
+  const { estOeth } = useEspaces();
   // « M'envoyer un test » : visible du super-administrateur uniquement.
   const testAutorise = utilisateur?.role === "super_admin";
   // Repliée par défaut (une seule ligne) : remontée en haut de la fiche (voir
@@ -195,7 +200,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     setErreur(null);
     setTestEnvoye(null);
     try {
-      const r = await appelEnvoi({ objet, corps, joindrePdf, formatOfficiel, testVersMoi: true });
+      const r = await appelEnvoi({ objet, corps, joindrePdf: joindrePdf && estOeth, formatOfficiel: formatOfficiel && estOeth, testVersMoi: true });
       setTestEnvoye(r.destinataire);
     } catch (e) {
       setErreur(e.message);
@@ -215,9 +220,9 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       const updated = await appelEnvoi({
         objet,
         corps,
-        joindrePdf,
+        joindrePdf: joindrePdf && estOeth,
         destinataire: destinataireEffectif,
-        formatOfficiel,
+        formatOfficiel: formatOfficiel && estOeth,
         cc: copies,
       });
       onMaj(updated);
@@ -333,7 +338,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         className="w-full flex items-center justify-between gap-2 text-left"
       >
         <h2 className="font-semibold text-slate-800 dark:text-slate-100">
-          ✉️ Boîte mail — {entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH/AGEFIPH"}
+          ✉️ Boîte mail{estOeth ? ` — ${entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH/AGEFIPH"}` : ""}
           {emails.length > 0 && (
             <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
               {emails.length} échange{emails.length > 1 ? "s" : ""}
@@ -554,7 +559,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
               enregistrée sur la fiche à l'envoi.
             </p>
           )}
-          {modeles?.modeles?.length > 0 && (
+          {estOeth && modeles?.modeles?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1">
               {/* Fiche publique (FIPHFP) : modèles du public uniquement ;
                   sinon, ceux du privé (AGEFIPH / URSSAF). */}
@@ -576,7 +581,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             </div>
           )}
 
-          {iaAutorisee && iaConfiguree !== false && (
+          {estOeth && iaAutorisee && iaConfiguree !== false && (
             <div className="mb-1">
               <button
                 type="button"
@@ -610,14 +615,18 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
           />
           <BoutonCorrection texte={corps} onCorrige={setCorps} />
-          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <input type="checkbox" checked={joindrePdf} onChange={(e) => setJoindrePdf(e.target.checked)} />
-            Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée) — facultatif
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <input type="checkbox" checked={formatOfficiel} onChange={(e) => setFormatOfficiel(e.target.checked)} />
-            Mise en page officielle (bandeau du pôle + bouton « Calculer ma contribution » : le client met à jour son dossier puis choisit un créneau, vous êtes prévenu)
-          </label>
+          {estOeth && (
+            <>
+              <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <input type="checkbox" checked={joindrePdf} onChange={(e) => setJoindrePdf(e.target.checked)} />
+                Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée) — facultatif
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <input type="checkbox" checked={formatOfficiel} onChange={(e) => setFormatOfficiel(e.target.checked)} />
+                Mise en page officielle (bandeau du pôle + bouton « Calculer ma contribution » : le client met à jour son dossier puis choisit un créneau, vous êtes prévenu)
+              </label>
+            </>
+          )}
           {testEnvoye && (
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
               ✓ Test envoyé à {testEnvoye} (objet précédé de [TEST]) — rien n'a été enregistré sur la fiche.
@@ -660,7 +669,11 @@ export default function MessagerieMail({ entreprise, onMaj }) {
             disabled={!objet.trim() || !corps.trim() || !destinataireEffectif || envoiEnCours || statutMail?.configuree === false}
             className="rounded-lg bg-marine-600 hover:bg-marine-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-40"
           >
-            {envoiEnCours ? "Envoi…" : `Envoyer (signé ${entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH"})`}
+            {envoiEnCours
+              ? "Envoi…"
+              : estOeth
+                ? `Envoyer (signé ${entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH"})`
+                : "Envoyer"}
           </button>
       </form>
       </div>

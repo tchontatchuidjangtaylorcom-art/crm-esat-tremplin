@@ -3237,6 +3237,14 @@ app.post("/api/entreprises/:id/dictee-ia", exigerAdmin, chargerEntrepriseAutoris
 app.post("/api/entreprises/:id/generer-email", exigerAdmin, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = enrichir(req.entreprise);
 
+  // Le prompt (construirePromptEmail) est bâti sur les données et le ton
+  // OETH : hors de cet espace, il produirait un texte hors sujet tout en
+  // consommant du crédit IA pour rien (voir le même garde-fou sur
+  // fichesSansTelephone).
+  if (espaceDe(entreprise) !== "oeth") {
+    return res.status(400).json({ error: "Génération d'e-mail par IA non disponible pour cet espace." });
+  }
+
   if (!estRechercheIaConfiguree()) {
     return res.status(503).json({ error: "Recherche IA non configurée (renseignez ANTHROPIC_API_KEY)." });
   }
@@ -3336,9 +3344,24 @@ app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorise
 // l'historique du dossier, et bascule son statut sur "Mail".
 app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
+  // La mise en page officielle (bandeau + mentions légales OETH/AGEFIPH) et
+  // la synthèse PDF de contribution n'ont de sens que dans l'espace OETH :
+  // imposé ici indépendamment de ce qu'envoie le client, pour qu'aucun envoi
+  // vers un contact CEE ne puisse porter ces mentions par erreur.
+  const espaceEntreprise = espaceDe(entreprise);
 
   // Synthèse PDF : optionnelle, jointe seulement si l'agent coche la case.
-  const { objet, corps, joindrePdf = false, destinataire, formatOfficiel = false, testVersMoi = false, cc = [] } = req.body;
+  const {
+    objet,
+    corps,
+    joindrePdf: joindrePdfDemande = false,
+    destinataire,
+    formatOfficiel: formatOfficielDemande = false,
+    testVersMoi = false,
+    cc = [],
+  } = req.body;
+  const joindrePdf = joindrePdfDemande && espaceEntreprise === "oeth";
+  const formatOfficiel = formatOfficielDemande && espaceEntreprise === "oeth";
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
@@ -3399,7 +3422,15 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   // l'identité générale du pôle, jamais le nom de l'agent (voir mailSignature.js
   // côté client pour le même bloc dans le corps du mail) — l'adresse d'envoi
   // reste de toute façon la boîte unique du pôle (contact@oeth-fiph.fr).
-  const nomExpediteur = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+  // Hors OETH (espace CEE) : nom confirmé par le partenaire le 2026-10-27
+  // (voir scriptVente.js, SECTIONS_CEE), celui utilisé par les agents au
+  // téléphone sur ce dossier.
+  const nomExpediteur =
+    espaceEntreprise === "oeth"
+      ? determinerCollecteur(entreprise) === "FIPHFP"
+        ? "Pôle FIPHFP"
+        : "Pôle OETH / AGEFIPH"
+      : "Eco Smart France";
 
   // PDF de synthèse OETH (voir pdfSynthese.js), joint seulement quand l'agent
   // coche la case : les montants sont d'abord présentés au téléphone.

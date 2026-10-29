@@ -495,7 +495,7 @@ export default function EntrepriseDetail() {
           <div className="flex items-center gap-2">
             <BoutonPrononcer texte={entreprise.nom} />
             <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{entreprise.nom}</h1>
-            <BadgeCollecteur entreprise={entreprise} className="!text-xs !px-2.5 !py-1" />
+            {estOeth && <BadgeCollecteur entreprise={entreprise} className="!text-xs !px-2.5 !py-1" />}
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             {entreprise.adresse}, {entreprise.codePostal} {entreprise.ville}
