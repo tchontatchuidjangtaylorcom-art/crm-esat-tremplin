@@ -1261,6 +1261,63 @@ app.post("/api/vitrine/contact", async (req, res) => {
   }
 });
 
+// Demande de personnalisation depuis l'espace démo du CRM (voir
+// client/src/pages/EspaceDemo.jsx) : un visiteur sans lien d'invitation qui
+// arrive sur le CRM voit un espace vierge, sans aucune donnée réelle, avec un
+// bouton "personnaliser pour mon entreprise". Même principe que
+// /api/vitrine/contact (fiche "Demandes site web", jamais perdue même si
+// l'e-mail n'est pas configuré) mais sans branding OETH figé dans le texte,
+// puisque l'intérêt peut porter sur CEE, OETH, ou les deux.
+app.post("/api/espace-demo/contact", async (req, res) => {
+  const nom = String(req.body.nom || "").trim();
+  const email = String(req.body.email || "").trim();
+  const telephone = String(req.body.telephone || "").trim();
+  const entreprise = String(req.body.entreprise || "").trim();
+  const message = String(req.body.message || "").trim();
+  const idsConnus = listeEspaces().map((e) => e.id);
+  const espacesSouhaites = (Array.isArray(req.body.espaces) ? req.body.espaces : []).filter((id) => idsConnus.includes(id));
+
+  if (!nom || !email || !email.includes("@")) {
+    return res.status(400).json({ error: "Nom et adresse mail valide requis." });
+  }
+
+  const libellesEspaces = listeEspaces()
+    .filter((e) => espacesSouhaites.includes(e.id))
+    .map((e) => e.nom);
+
+  await enregistrerDemandeSiteSansEchec({
+    type: "demo",
+    nom,
+    email,
+    telephone,
+    entreprise,
+    message,
+    details: [`Espace(s) souhaité(s) : ${libellesEspaces.length ? libellesEspaces.join(", ") : "non précisé"}`],
+  });
+
+  if (!estEnvoiConfigure()) return res.json({ ok: true });
+
+  try {
+    await envoyerMail({
+      to: adresseMailPole(),
+      subject: `Demande de personnalisation CRM — démo (${entreprise || nom})`,
+      text:
+        `Un visiteur a demandé à personnaliser le CRM depuis l'espace démo (sans lien d'invitation).\n\n` +
+        `Nom : ${nom}\n` +
+        `Entreprise : ${entreprise || "-"}\n` +
+        `E-mail : ${email}\n` +
+        `Téléphone : ${telephone || "-"}\n` +
+        `Espace(s) souhaité(s) : ${libellesEspaces.length ? libellesEspaces.join(", ") : "non précisé"}\n\n` +
+        `Message :\n${message || "(aucun message)"}`,
+      replyTo: email,
+      fromName: "CRM — espace démo",
+    });
+  } catch (e) {
+    console.error("[espace-demo] Notification e-mail du pôle impossible :", e.message);
+  }
+  res.json({ ok: true });
+});
+
 // Vue filtrée par rôle : un agent ne reçoit que ses dossiers assignés,
 // l'administrateur reçoit tout le pipeline (voir estVisiblePar ci-dessus).
 app.get("/api/entreprises", exigerAuth, (req, res) => {

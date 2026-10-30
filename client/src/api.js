@@ -443,6 +443,15 @@ export const api = {
       body: JSON.stringify({ nom, email, telephone, entreprise, message }),
     }).then(handle),
 
+  // Espace démo du CRM (voir client/src/pages/EspaceDemo.jsx) : visiteur sans
+  // lien d'invitation qui demande une version personnalisée.
+  demanderPersonnalisationDemo: ({ nom, email, telephone, entreprise, message, espaces }) =>
+    fetch(`${BASE}/espace-demo/contact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nom, email, telephone, entreprise, message, espaces }),
+    }).then(handle),
+
   getStatutMail: () => fetch(`${BASE}/emails/statut`).then(handle),
 
   getEmailsNonLus: () => fetch(`${BASE}/emails/non-lus`).then(handle),

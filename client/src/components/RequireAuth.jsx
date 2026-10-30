@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
+import EspaceDemo from "../pages/EspaceDemo.jsx";
 
 // Sur le nom de domaine public (oeth-fiph.fr, www.oeth-fiph.fr), un visiteur
 // non connecté qui arrive sur la racine voit la vitrine (simulateur), pas la
@@ -25,6 +26,12 @@ export default function RequireAuth({ children, adminSeulement = false }) {
   if (!utilisateur) {
     if (pathname === "/" && DOMAINE_PUBLIC.test(window.location.hostname)) {
       return <Navigate to="/vitrine" replace />;
+    }
+    // Racine du CRM sans session et sans lien d'invitation (sinon on serait
+    // sur /invitation/:jeton, route séparée, pas sous RequireAuth) : espace
+    // démo public plutôt qu'un mur de connexion — voir EspaceDemo.jsx.
+    if (pathname === "/") {
+      return <EspaceDemo />;
     }
     return <Navigate to="/connexion" replace />;
   }
