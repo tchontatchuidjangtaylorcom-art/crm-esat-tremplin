@@ -96,9 +96,17 @@ export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" }
 // s'il correspond à une entreprise déjà suivie dans le CRM, est résolu côté
 // index.js en `entrepriseLieeId` avant d'arriver ici — cette fonction se
 // contente de les persister telles quelles, sans logique de recherche).
+// `espaces` : espaces de travail (OETH/CEE…) accordés dès la création —
+// déjà validés par l'appelant (voir listeEspaces() dans espaces.js, utilisé
+// côté index.js par la route POST /api/utilisateurs ci-dessous ET par la
+// consommation d'un lien d'invitation, voir invitations.js). Volontairement
+// pas importé ici : espaces.js importe déjà estAdmin depuis ce fichier, un
+// import dans l'autre sens créerait un cycle. Laissé vide/omis, le compte
+// retombe sur le même comportement qu'avant cet ajout (espace par défaut,
+// voir le repli dans espacesAutorises()).
 export async function creerUtilisateurParAdmin(
   email,
-  { prenom = "", nom = "", role = "agent", appUrl, motDePasse, telephone = "", siret = "", entrepriseLieeId = null } = {}
+  { prenom = "", nom = "", role = "agent", appUrl, motDePasse, telephone = "", siret = "", entrepriseLieeId = null, espaces = [] } = {}
 ) {
   const propre = normaliserEmail(email);
   if (!propre || !propre.includes("@")) {
@@ -147,6 +155,11 @@ export async function creerUtilisateurParAdmin(
     role: ["admin", "super_admin", "superviseur"].includes(role) ? role : "agent",
     statut: "valide",
     motDePasseHash,
+    // Absent/vide : pas de régression, même repli qu'avant sur l'espace par
+    // défaut (voir espacesAutorises() dans espaces.js). JSON ne sérialise pas
+    // les clés `undefined`, donc un compte sans espace choisi explicitement
+    // reste identique à un compte créé avant cet ajout.
+    espaces: Array.isArray(espaces) && espaces.length ? [...new Set(espaces)] : undefined,
     dateCreation: new Date().toISOString(),
     dateValidation: new Date().toISOString(),
   };

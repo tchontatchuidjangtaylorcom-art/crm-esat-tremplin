@@ -125,6 +125,13 @@ export async function initDb() {
     db.data.signalementsVigilance = [];
     aEcrire = true;
   }
+  // Liens d'invitation à un ou plusieurs espaces (voir invitations.js) :
+  // alternative au double geste manuel admin (créer le compte, puis cocher
+  // les espaces dans "Gestion des accès").
+  if (!db.data.liensInvitation) {
+    db.data.liensInvitation = [];
+    aEcrire = true;
+  }
   if (!db.data.presenceDebutSuivi) {
     db.data.presenceDebutSuivi = new Date().toISOString();
     aEcrire = true;

@@ -83,6 +83,7 @@ import {
 import {
   trouverOuCreerUtilisateur,
   trouverUtilisateurParId,
+  trouverUtilisateurParEmail,
   creerUtilisateurParAdmin,
   definirMotDePasse,
   verifierMotDePasse,
@@ -101,7 +102,15 @@ import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
 import { reparerChampsContact, estNumeroTelephone } from "./telephone.js";
 import { territoireDe, territoireValide, nomTerritoire } from "./territoires.js";
-import { installerEspaces, espaceDe, aAccesEspace, espaceCourant, espaceDeRequete } from "./espaces.js";
+import { installerEspaces, espaceDe, aAccesEspace, espaceCourant, espaceDeRequete, espacesAutorises, listeEspaces } from "./espaces.js";
+import {
+  creerLienInvitation,
+  listerLiensInvitation,
+  trouverLienParJeton,
+  lienValide,
+  enregistrerUsageLien,
+  desactiverLienInvitation,
+} from "./invitations.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -589,6 +598,133 @@ app.delete("/api/utilisateurs/:id", exigerAdmin, async (req, res) => {
   }
   await db.write();
   res.json({ ok: true });
+});
+
+// ---- Liens d'invitation à un espace (voir invitations.js) ----
+//
+// Alternative au double geste manuel ci-dessus (créer le compte, puis cocher
+// les espaces dans "Gestion des accès") : un admin génère un lien pour un ou
+// plusieurs espaces, et quiconque l'ouvre reçoit directement ces espaces, à
+// la création de son compte ou en les ajoutant à un compte existant.
+
+// Génère un nouveau lien — réutilisable, valable 30 jours (voir
+// DUREE_INVITATION_JOURS dans invitations.js pour le détail des choix v1).
+app.post("/api/invitations", exigerAdmin, async (req, res) => {
+  const idsValides = listeEspaces().map((e) => e.id);
+  const espaces = [...new Set((Array.isArray(req.body.espaces) ? req.body.espaces : []).filter((id) => idsValides.includes(id)))];
+  if (espaces.length === 0) return res.status(400).json({ error: "Choisissez au moins un espace." });
+  const lien = creerLienInvitation(espaces, req.utilisateur.id);
+  await db.write();
+  res.status(201).json({
+    id: lien.id,
+    url: `${APP_URL}/invitation/${lien.jeton}`,
+    espaces: lien.espaces,
+    expiration: lien.expiration,
+    actif: lien.actif,
+  });
+});
+
+// Liste des liens déjà générés (visibilité admin — pour éviter de régénérer
+// un lien existant sans s'en rendre compte, et désactiver au besoin).
+app.get("/api/invitations", exigerAdmin, (req, res) => {
+  res.json(
+    listerLiensInvitation().map((l) => ({
+      id: l.id,
+      url: `${APP_URL}/invitation/${l.jeton}`,
+      espaces: l.espaces,
+      dateCreation: l.dateCreation,
+      expiration: l.expiration,
+      actif: l.actif,
+      usages: l.usages,
+      derniereUtilisation: l.derniereUtilisation,
+      creePar: trouverUtilisateurParId(l.creeParId)?.email || null,
+    }))
+  );
+});
+
+app.post("/api/invitations/:id/desactiver", exigerAdmin, async (req, res) => {
+  const lien = desactiverLienInvitation(req.params.id);
+  if (!lien) return res.status(404).json({ error: "Lien introuvable." });
+  await db.write();
+  res.json({ ok: true });
+});
+
+// Aperçu public (page /invitation/:jeton côté client, avant que le visiteur
+// ne décide de créer un compte ou de se connecter) : juste le nom des
+// espaces proposés, rien d'autre (pas de liste de comptes, pas d'autre
+// jeton) — pas d'authentification requise, le visiteur n'a par définition
+// pas encore de compte à ce stade.
+app.get("/api/invitations/:jeton", (req, res) => {
+  const lien = trouverLienParJeton(req.params.jeton);
+  if (!lien || !lienValide(lien)) {
+    return res.status(410).json({ error: "Ce lien d'invitation n'est plus valide. Contactez votre administrateur." });
+  }
+  const espaces = listeEspaces().filter((e) => lien.espaces.includes(e.id));
+  res.json({ espaces: espaces.map((e) => ({ id: e.id, nom: e.nom, court: e.court, description: e.description, couleur: e.couleur })) });
+});
+
+// Consommation du lien par un visiteur SANS compte : création directe, déjà
+// validée (même logique que creerUtilisateurParAdmin, utilisée par
+// POST /api/utilisateurs ci-dessus), avec les espaces du lien, puis connexion
+// immédiate — pas de mail d'invitation ici (le texte de ce mail, codé en dur,
+// parle du CRM OETH/AGEFIPH, pas forcément pertinent pour un lien CEE ; et la
+// personne est de toute façon connectée dans la foulée).
+app.post("/api/invitations/:jeton/creer-compte", async (req, res) => {
+  const lien = trouverLienParJeton(req.params.jeton);
+  if (!lien || !lienValide(lien)) {
+    return res.status(410).json({ error: "Ce lien d'invitation n'est plus valide. Contactez votre administrateur." });
+  }
+  const emailPropre = String(req.body.email || "").trim().toLowerCase();
+  if (emailPropre && trouverUtilisateurParEmail(emailPropre)) {
+    return res.status(409).json({
+      error: "Un compte existe déjà pour cette adresse. Connectez-vous, puis ouvrez à nouveau ce lien pour recevoir l'accès.",
+      code: "COMPTE_EXISTANT",
+    });
+  }
+  try {
+    const { utilisateur } = await creerUtilisateurParAdmin(emailPropre, {
+      prenom: String(req.body.prenom || "").trim(),
+      nom: String(req.body.nom || "").trim(),
+      espaces: lien.espaces,
+    });
+    enregistrerUsageLien(lien);
+    await db.write();
+    creerCookieSession(res, utilisateur);
+    res.status(201).json({
+      utilisateur: { email: utilisateur.email, prenom: utilisateur.prenom, nom: utilisateur.nom, role: utilisateur.role },
+    });
+  } catch (e) {
+    const statutHttp =
+      e.code === "EMAIL_INVALIDE" || e.code === "PRENOM_REQUIS" || e.code === "NOM_REQUIS"
+        ? 400
+        : e.code === "COMPTE_EXISTANT"
+        ? 409
+        : 500;
+    res.status(statutHttp).json({ error: e.message, code: e.code });
+  }
+});
+
+// Consommation du lien par un visiteur déjà connecté (compte existant) :
+// ajoute les espaces du lien à ceux qu'il a déjà — union, jamais un retrait.
+// exigerAuth est volontairement indispensable ici (voir le commentaire en
+// tête d'invitations.js) : sans session valide, n'importe qui pourrait
+// élargir l'accès d'un compte qui n'est pas le sien simplement en connaissant
+// son adresse mail.
+// IMPORTANT : "ceux qu'il a déjà" doit passer par espacesAutorises(), pas par
+// une lecture directe de utilisateur.espaces — un compte créé sans ce champ
+// (le cas courant) retombe implicitement sur ["oeth"] (voir le repli dans
+// espaces.js), un simple `utilisateur.espaces || []` écraserait donc cet
+// accès implicite au lieu de l'étendre (bug constaté en test manuel).
+app.post("/api/invitations/:jeton/ajouter", exigerAuth, async (req, res) => {
+  const lien = trouverLienParJeton(req.params.jeton);
+  if (!lien || !lienValide(lien)) {
+    return res.status(410).json({ error: "Ce lien d'invitation n'est plus valide. Contactez votre administrateur." });
+  }
+  const actuels = espacesAutorises(req.utilisateur);
+  req.utilisateur.espaces = [...new Set([...actuels, ...lien.espaces])];
+  enregistrerUsageLien(lien);
+  await db.write();
+  res.json({ espaces: req.utilisateur.espaces });
 });
 
 // ---- Routes ----
