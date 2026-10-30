@@ -58,9 +58,9 @@ function commenceParSalutation(corps) {
   return /^\s*(bonjour|bonsoir|madame|monsieur|cher|chère)/i.test(String(corps || ""));
 }
 
-function bouton(href, texte, plein) {
+function bouton(href, texte, plein, couleur = BLEU) {
   return `<a href="${echapper(href)}" style="display:inline-block;margin:6px 6px 0 0;padding:12px 22px;border-radius:6px;font-size:14px;font-weight:700;text-decoration:none;${
-    plein ? `background:${BLEU};color:#ffffff;border:1px solid ${BLEU};` : `background:#ffffff;color:${BLEU};border:1px solid ${BLEU};`
+    plein ? `background:${couleur};color:#ffffff;border:1px solid ${couleur};` : `background:#ffffff;color:${couleur};border:1px solid ${couleur};`
   }">${texte}</a>`;
 }
 
@@ -171,6 +171,98 @@ export function genererEmailOfficielHtml({
           : "ni une notification officielle de l'URSSAF, ni un avis de recouvrement, ni un document émanant de l'AGEFIPH ; seule l'URSSAF est compétente pour notifier et recouvrer la contribution OETH."
       }
       Si vous avez reçu ce message par erreur, merci de nous en informer à ${echapper(poleInfo.email)}.
+    </p>
+    ${
+      lienDesinscription
+        ? `<p style="margin:6px 0 0;font-size:11px;color:${GRIS_CLAIR};">Vous ne souhaitez plus recevoir nos e-mails ? <a href="${echapper(lienDesinscription)}" style="color:${GRIS_CLAIR};text-decoration:underline;">Se désinscrire</a></p>`
+        : ""
+    }
+    <p style="margin:6px 0 0;font-size:10px;color:#94a3b8;">Réf. ${reference}</p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+const VERT = "#15803d";
+
+// Même mise en page « officielle » que ci-dessus, pour l'espace CEE (voir
+// espaces.js) : bandeau Eco Smart France au lieu du pôle OETH/AGEFIPH, pas de
+// bouton de calcul de contribution (pas de simulateur CEE dans le CRM pour
+// l'instant — seulement la prise de rendez-vous), pas de synthèse PDF, et des
+// mentions propres au dispositif CEE. Ne JAMAIS écrire « mandataire CEE » ici
+// tant que ce statut n'est pas confirmé pour Eco Smart France (voir
+// scriptVente.js, SECTIONS_CEE).
+export function genererEmailOfficielHtmlCee({ entreprise, corps, poleInfo, lienRendezVous = null, lienDesinscription = null }) {
+  const nom = echapper(entreprise.nom || "votre exploitation");
+  const maintenant = new Date();
+  const reference = `CEE-${maintenant.getTime().toString(36).toUpperCase()}`;
+  const dateEnvoi = maintenant.toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+  const lienConseiller =
+    lienRendezVous || `mailto:${poleInfo.email}?subject=${encodeURIComponent(`Rendez-vous CEE — ${entreprise.nom || ""}`)}`;
+
+  return `<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Eco Smart France</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="680" cellpadding="0" cellspacing="0" style="width:680px;max-width:100%;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+
+  <tr><td style="padding:0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td height="6" style="height:6px;background:${VERT};font-size:0;line-height:0;">&nbsp;</td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td align="center" style="padding:22px 24px 16px;">
+    <div style="font-size:22px;font-weight:700;color:${VERT};">Eco Smart France</div>
+    <div style="font-size:12px;color:${GRIS_CLAIR};margin-top:4px;">Certificats d'Économies d'Énergie (CEE)</div>
+  </td></tr>
+
+  <tr><td align="center" style="background:${VERT};padding:20px 24px;">
+    <div style="font-size:19px;font-weight:700;color:#ffffff;line-height:1.35;">Votre dossier CEE</div>
+    <div style="font-size:14px;color:#dcfce7;margin-top:4px;">${nom}</div>
+    <div style="font-size:11px;color:#86efac;margin-top:8px;">Réf. ${reference} · envoyé le ${dateEnvoi}</div>
+  </td></tr>
+
+  <tr><td style="padding:28px 32px 8px;">
+    ${commenceParSalutation(corps) ? "" : `<p style="margin:0 0 16px;font-size:14px;font-weight:700;color:${VERT};">Madame, Monsieur,</p>`}
+    ${paragraphes(corps)}
+
+    <div style="margin:24px 0 8px;text-align:center;">
+      ${bouton(lienConseiller, "Parler à un conseiller", true, VERT)}
+    </div>
+    <p style="margin:6px 0 22px;text-align:center;font-size:12px;color:${GRIS_CLAIR};">
+      ${lienRendezVous ? "Choisissez votre créneau, du lundi au vendredi de 9 h à 17 h 30.<br>" : ""}${echapper(poleInfo.email)} · ${echapper(poleInfo.telephone)}
+    </p>
+  </td></tr>
+
+  <tr><td style="padding:0 32px 24px;">
+    <div style="padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+      <div style="font-size:13px;font-weight:700;color:#b91c1c;margin-bottom:6px;">Informations importantes</div>
+      <p style="margin:0 0 6px;font-size:12px;line-height:1.55;color:${GRIS};">
+        ▸ Les Certificats d'Économies d'Énergie (CEE) sont financés par les fournisseurs d'énergie soumis à une obligation d'économies d'énergie — pas par un organisme public.
+      </p>
+      <p style="margin:0 0 6px;font-size:12px;line-height:1.55;color:${GRIS};">
+        ▸ Eco Smart France ne vous demandera <strong>jamais</strong> de paiement, ni vos codes d'accès ou coordonnées bancaires.
+      </p>
+      <p style="margin:0;font-size:12px;line-height:1.55;color:${GRIS};">
+        ▸ Ce message n'est ni un document officiel d'un organisme public, ni une obligation d'accepter une offre.
+      </p>
+    </div>
+  </td></tr>
+
+  <tr><td style="padding:16px 32px 24px;background:#f1f5f9;">
+    <p style="margin:0;font-size:11px;line-height:1.5;color:${GRIS_CLAIR};">
+      Ce message est une information d'Eco Smart France. Il ne constitue ni une notification officielle, ni un document émanant d'un organisme public. Si vous avez reçu ce message par erreur, merci de nous en informer à ${echapper(poleInfo.email)}.
     </p>
     ${
       lienDesinscription

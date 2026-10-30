@@ -32,10 +32,14 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   // Rédaction par l'IA (payante) réservée aux administrateurs.
   const { utilisateur } = useAuth();
   const iaAutorisee = estAdmin(utilisateur);
-  // Modèles, génération IA, synthèse PDF et mise en page officielle : tous
-  // bâtis autour des données/textes OETH — masqués hors de cet espace, le
-  // temps que des équivalents CEE existent (voir espaces.js).
-  const { estOeth } = useEspaces();
+  // Génération IA et synthèse PDF : bâties autour des données/textes OETH —
+  // masquées hors de cet espace (voir espaces.js). Modèles et mise en page
+  // officielle ont désormais un équivalent CEE (voir modelesMails.js et
+  // emailOfficiel.js) : plus besoin de les masquer.
+  const { estOeth, espace } = useEspaces();
+  // Mise en page officielle disponible pour OETH et CEE (voir
+  // server/src/emailOfficiel.js) — à étendre ici quand un nouvel espace en a une.
+  const formatOfficielDisponible = estOeth || espace?.id === "cee";
   // « M'envoyer un test » : visible du super-administrateur uniquement.
   const testAutorise = utilisateur?.role === "super_admin";
   // Repliée par défaut (une seule ligne) : remontée en haut de la fiche (voir
@@ -93,7 +97,8 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   // sans être bloqué par le navigateur.
   const [lienPageClient, setLienPageClient] = useState(null);
   useEffect(() => {
-    if (!ouvert || lienPageClient) return;
+    // Fiche client (effectif + bénéficiaires RQTH) : propre à OETH.
+    if (!ouvert || lienPageClient || !estOeth) return;
     api
       .lienFicheClient(entreprise.id)
       .then(({ url }) => setLienPageClient(new URL(url).pathname))
@@ -159,8 +164,8 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   }, [entreprise.id]);
 
   function inserer(modele) {
-    setObjet(remplirJetons(modele.objet, { statutMail, collecteur: entreprise.collecteur }));
-    setCorps(remplirJetons(modele.corps, { statutMail, collecteur: entreprise.collecteur }));
+    setObjet(remplirJetons(modele.objet, { statutMail, collecteur: entreprise.collecteur, espace: espace?.id }));
+    setCorps(remplirJetons(modele.corps, { statutMail, collecteur: entreprise.collecteur, espace: espace?.id }));
   }
 
   // Génération sur demande (jamais automatique) : l'agent déclenche
@@ -200,7 +205,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     setErreur(null);
     setTestEnvoye(null);
     try {
-      const r = await appelEnvoi({ objet, corps, joindrePdf: joindrePdf && estOeth, formatOfficiel: formatOfficiel && estOeth, testVersMoi: true });
+      const r = await appelEnvoi({ objet, corps, joindrePdf: joindrePdf && estOeth, formatOfficiel: formatOfficiel && formatOfficielDisponible, testVersMoi: true });
       setTestEnvoye(r.destinataire);
     } catch (e) {
       setErreur(e.message);
@@ -222,7 +227,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         corps,
         joindrePdf: joindrePdf && estOeth,
         destinataire: destinataireEffectif,
-        formatOfficiel: formatOfficiel && estOeth,
+        formatOfficiel: formatOfficiel && formatOfficielDisponible,
         cc: copies,
       });
       onMaj(updated);
@@ -338,7 +343,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         className="w-full flex items-center justify-between gap-2 text-left"
       >
         <h2 className="font-semibold text-slate-800 dark:text-slate-100">
-          ✉️ Boîte mail{estOeth ? ` — ${entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH/AGEFIPH"}` : ""}
+          ✉️ Boîte mail — {estOeth ? (entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH/AGEFIPH") : "Eco Smart France"}
           {emails.length > 0 && (
             <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
               {emails.length} échange{emails.length > 1 ? "s" : ""}
@@ -454,7 +459,9 @@ export default function MessagerieMail({ entreprise, onMaj }) {
       )}
 
       {/* Pendant l'appel : le client donne son e-mail, un clic lui envoie sa
-          fiche à confirmer (effectif, bénéficiaires, estimation). */}
+          fiche à confirmer (effectif, bénéficiaires, estimation) — propre à
+          OETH, pas de notion équivalente côté CEE pour l'instant. */}
+      {estOeth && (
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50/70 dark:bg-emerald-950/30 px-3 py-2 text-xs">
         <button
           type="button"
@@ -507,11 +514,12 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         {ficheClientInfo?.ok && <span className="w-full text-emerald-700 dark:text-emerald-400">✓ {ficheClientInfo.ok}</span>}
         {ficheClientInfo?.erreur && <span className="w-full text-red-600 dark:text-red-400">{ficheClientInfo.erreur}</span>}
       </div>
+      )}
 
       {statutMail && !statutMail.configuree && (
         <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-lg p-2 mb-4">
-          Boîte mail non connectée pour l'instant — utilisez les modèles à copier-coller depuis le panneau "Modèles
-          de mails" en haut de l'écran.
+          Boîte mail non connectée pour l'instant
+          {estOeth ? ` — utilisez les modèles à copier-coller depuis le panneau "Modèles de mails" en haut de l'écran.` : "."}
         </p>
       )}
 
@@ -559,15 +567,17 @@ export default function MessagerieMail({ entreprise, onMaj }) {
               enregistrée sur la fiche à l'envoi.
             </p>
           )}
-          {estOeth && modeles?.modeles?.length > 0 && (
+          {modeles?.modeles?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1">
               {/* Fiche publique (FIPHFP) : modèles du public uniquement ;
-                  sinon, ceux du privé (AGEFIPH / URSSAF). */}
-              {entreprise.collecteur === "FIPHFP" && (
+                  sinon, ceux du privé (AGEFIPH / URSSAF) — sans objet côté CEE
+                  (pas de distinction public/privé), le filtre laisse alors
+                  passer tous les modèles CEE. */}
+              {estOeth && entreprise.collecteur === "FIPHFP" && (
                 <span className="self-center text-[11px] font-semibold text-violet-700 dark:text-violet-300">🏛 Secteur public (FIPHFP) :</span>
               )}
               {modeles.modeles
-                .filter((m) => (entreprise.collecteur === "FIPHFP" ? m.secteur === "public" : m.secteur !== "public"))
+                .filter((m) => (estOeth && entreprise.collecteur === "FIPHFP" ? m.secteur === "public" : m.secteur !== "public"))
                 .map((m) => (
                 <button
                   key={m.cle}
@@ -616,16 +626,18 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           />
           <BoutonCorrection texte={corps} onCorrige={setCorps} />
           {estOeth && (
-            <>
-              <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                <input type="checkbox" checked={joindrePdf} onChange={(e) => setJoindrePdf(e.target.checked)} />
-                Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée) — facultatif
-              </label>
-              <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                <input type="checkbox" checked={formatOfficiel} onChange={(e) => setFormatOfficiel(e.target.checked)} />
-                Mise en page officielle (bandeau du pôle + bouton « Calculer ma contribution » : le client met à jour son dossier puis choisit un créneau, vous êtes prévenu)
-              </label>
-            </>
+            <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <input type="checkbox" checked={joindrePdf} onChange={(e) => setJoindrePdf(e.target.checked)} />
+              Joindre la synthèse OETH en PDF (effectif, déficit, contribution estimée) — facultatif
+            </label>
+          )}
+          {formatOfficielDisponible && (
+            <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <input type="checkbox" checked={formatOfficiel} onChange={(e) => setFormatOfficiel(e.target.checked)} />
+              {estOeth
+                ? "Mise en page officielle (bandeau du pôle + bouton « Calculer ma contribution » : le client met à jour son dossier puis choisit un créneau, vous êtes prévenu)"
+                : "Mise en page professionnelle (bandeau Eco Smart France + bouton « Parler à un conseiller » : le client choisit un créneau, vous êtes prévenu)"}
+            </label>
           )}
           {testEnvoye && (
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
@@ -671,9 +683,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           >
             {envoiEnCours
               ? "Envoi…"
-              : estOeth
-                ? `Envoyer (signé ${entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH"})`
-                : "Envoyer"}
+              : `Envoyer (signé ${estOeth ? (entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH") : "Eco Smart France"})`}
           </button>
       </form>
       </div>

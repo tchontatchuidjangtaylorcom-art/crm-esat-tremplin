@@ -20,14 +20,17 @@ export function remplirAnnees(texte) {
     .replaceAll("{{ANNEE_SUIVANTE}}", String(annee + 1))
     .replaceAll("{{ANNEE}}", String(annee));
 }
-export function remplirJetons(corps, { statutMail, collecteur } = {}) {
-  return remplirAnnees(corps).replaceAll("{{SIGNATURE}}", construireSignature({ statutMail, collecteur }));
+export function remplirJetons(corps, { statutMail, collecteur, espace } = {}) {
+  return remplirAnnees(corps).replaceAll("{{SIGNATURE}}", construireSignature({ statutMail, collecteur, espace }));
 }
 
 // `collecteur` : "FIPHFP" pour une fiche publique (signature « Pôle FIPHFP »).
-export function construireSignature({ statutMail, collecteur } = {}) {
+// `espace` : id de l'espace courant (voir server/src/espaces.js) — hors OETH
+// (CEE…), signature Eco Smart France (voir scriptVente.js, SECTIONS_CEE).
+export function construireSignature({ statutMail, collecteur, espace } = {}) {
   const ligneEmail = statutMail?.adresse ? `\n✉️ ${statutMail.adresse}` : "";
   const ligneTelephone = statutMail?.telephone ? `\n📞 ${statutMail.telephone}` : "";
   // Pas d'adresse postale : les bureaux changent, un conseiller la communique.
-  return `— ${collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH"}${ligneEmail}${ligneTelephone}`;
+  const nom = espace && espace !== "oeth" ? "Eco Smart France" : collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+  return `— ${nom}${ligneEmail}${ligneTelephone}`;
 }

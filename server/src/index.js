@@ -39,7 +39,7 @@ import {
   verifierConnexionSMTP,
 } from "./mail.js";
 import { genererSynthesePdf, genererSimulationPdf } from "./pdfSynthese.js";
-import { genererEmailOfficielHtml } from "./emailOfficiel.js";
+import { genererEmailOfficielHtml, genererEmailOfficielHtmlCee } from "./emailOfficiel.js";
 import { enregistrerRoutesVitrineRdv, lienRendezVousClient, destinataireAlerteRdvClient } from "./vitrineRdv.js";
 import { enregistrerRoutesRechercheNumeros } from "./rechercheNumerosFiche.js";
 import { enregistrerRoutesImportFichier } from "./importFichier.js";
@@ -624,9 +624,14 @@ app.get("/api/script-vente", exigerAuth, (req, res) => {
   res.json(getScriptVente(db.data.contenusEditables?.scriptVente, espaceDeRequete(req)));
 });
 
-app.get("/api/modeles-mails", (req, res) => {
-  // + modèles du secteur public (FIPHFP), proposés pour les fiches publiques.
-  res.json(avecModelesPublic(getModelesMails(db.data.contenusEditables?.modelesMails)));
+// `exigerAuth` nécessaire pour que espaceDeRequete() connaisse l'espace
+// affiché (OETH/CEE) — même raison que /api/script-vente ci-dessus.
+app.get("/api/modeles-mails", exigerAuth, (req, res) => {
+  const espace = espaceDeRequete(req);
+  const resultat = getModelesMails(espace, db.data.contenusEditables?.modelesMails);
+  // + modèles du secteur public (FIPHFP), proposés pour les fiches publiques
+  // OETH uniquement — sans rapport avec l'espace CEE.
+  res.json(espace === "oeth" ? avecModelesPublic(resultat) : resultat);
 });
 
 // Édition des 3 contenus ci-dessus — réservée aux super-administrateurs (voir
@@ -675,13 +680,13 @@ app.put("/api/modeles-mails", exigerSuperAdmin, async (req, res) => {
   const avecCles = modeles.map((m, i) => ({ cle: m.cle || `modele_${i}_${nanoid(6)}`, titre: m.titre, objet: m.objet, corps: m.corps }));
   db.data.contenusEditables.modelesMails = avecCles;
   await db.write();
-  res.json(getModelesMails(db.data.contenusEditables.modelesMails));
+  res.json(getModelesMails("oeth", db.data.contenusEditables.modelesMails));
 });
 
 app.post("/api/modeles-mails/reinitialiser", exigerSuperAdmin, async (req, res) => {
   db.data.contenusEditables.modelesMails = null;
   await db.write();
-  res.json(getModelesMails(null));
+  res.json(getModelesMails("oeth", null));
 });
 
 // Résout le filtre d'agent effectif pour une requête : normalement
@@ -3344,11 +3349,13 @@ app.post("/api/entreprises/:id/emails/lu", exigerAuth, chargerEntrepriseAutorise
 // l'historique du dossier, et bascule son statut sur "Mail".
 app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
   const entreprise = req.entreprise;
-  // La mise en page officielle (bandeau + mentions légales OETH/AGEFIPH) et
-  // la synthèse PDF de contribution n'ont de sens que dans l'espace OETH :
+  // La synthèse PDF de contribution n'a de sens que dans l'espace OETH. La
+  // mise en page officielle existe aussi pour CEE (voir emailOfficiel.js,
+  // genererEmailOfficielHtmlCee) mais avec un bandeau/mentions différents :
   // imposé ici indépendamment de ce qu'envoie le client, pour qu'aucun envoi
-  // vers un contact CEE ne puisse porter ces mentions par erreur.
+  // ne puisse porter les mentions d'un autre espace par erreur.
   const espaceEntreprise = espaceDe(entreprise);
+  const ESPACES_AVEC_FORMAT_OFFICIEL = new Set(["oeth", "cee"]);
 
   // Synthèse PDF : optionnelle, jointe seulement si l'agent coche la case.
   const {
@@ -3361,7 +3368,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     cc = [],
   } = req.body;
   const joindrePdf = joindrePdfDemande && espaceEntreprise === "oeth";
-  const formatOfficiel = formatOfficielDemande && espaceEntreprise === "oeth";
+  const formatOfficiel = formatOfficielDemande && ESPACES_AVEC_FORMAT_OFFICIEL.has(espaceEntreprise);
   if (!objet?.trim() || !corps?.trim()) {
     return res.status(400).json({ error: "Objet et corps du mail requis." });
   }
@@ -3453,17 +3460,26 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   // créneau et l'agent est prévenu. Le texte brut reste envoyé en version
   // alternative, avec le même lien.
   const rendezVous = formatOfficiel ? lienRendezVousClient(entreprise) : null;
-  const dossier = formatOfficiel ? lienFicheClient(entreprise) : null;
-  const html = formatOfficiel
-    ? genererEmailOfficielHtml({
-        entreprise,
-        corps,
-        poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
-        lienRendezVous: rendezVous.url,
-        lienDossier: dossier.url,
-        avecPdf: Boolean(joindrePdf),
-      })
-    : undefined;
+  // Le dossier (calcul de contribution + mise à jour) n'existe que pour OETH :
+  // pas de simulateur CEE dans le CRM pour l'instant.
+  const dossier = formatOfficiel && espaceEntreprise === "oeth" ? lienFicheClient(entreprise) : null;
+  const html = !formatOfficiel
+    ? undefined
+    : espaceEntreprise === "oeth"
+      ? genererEmailOfficielHtml({
+          entreprise,
+          corps,
+          poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+          lienRendezVous: rendezVous.url,
+          lienDossier: dossier.url,
+          avecPdf: Boolean(joindrePdf),
+        })
+      : genererEmailOfficielHtmlCee({
+          entreprise,
+          corps,
+          poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+          lienRendezVous: rendezVous.url,
+        });
 
   try {
     await envoyerMail({
@@ -3471,8 +3487,10 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       cc: copiesEnvoi,
       subject: testVersMoi ? `[TEST] ${objet}` : objet,
       text: rendezVous
-        ? `${corps}\n\nCalculer ma contribution et mettre à jour mon dossier OETH : ${dossier.url}` +
-          `\nVous préférez en parler de vive voix ? Choisir un créneau avec un conseiller : ${rendezVous.url}`
+        ? dossier
+          ? `${corps}\n\nCalculer ma contribution et mettre à jour mon dossier OETH : ${dossier.url}` +
+            `\nVous préférez en parler de vive voix ? Choisir un créneau avec un conseiller : ${rendezVous.url}`
+          : `${corps}\n\nVous préférez en parler de vive voix ? Choisir un créneau avec un conseiller : ${rendezVous.url}`
         : corps,
       html,
       fromName: nomExpediteur,

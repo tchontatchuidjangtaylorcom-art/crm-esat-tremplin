@@ -76,6 +76,12 @@ export const MODELES_PAR_DEFAUT = [
 // remplacerAncienPremierModele dans db.js pour les listes personnalisées).
 export const CLE_ANCIEN_PREMIER_MODELE = "urgence_ecrit_accueil";
 
-export function getModelesMails(modeles = null) {
+// CEE (voir espaces.js) : vide pour l'instant, le temps de reprendre les
+// modèles du partenaire (ton déjà validé dans scriptVente.js, SECTIONS_CEE) —
+// volontairement pas de contenu inventé ici.
+export const MODELES_PAR_DEFAUT_CEE = [];
+
+export function getModelesMails(espace = "oeth", modeles = null) {
+  if (espace !== "oeth") return { modeles: MODELES_PAR_DEFAUT_CEE };
   return { modeles: modeles || MODELES_PAR_DEFAUT };
 }
