@@ -544,6 +544,30 @@ export const api = {
 
   supprimerUtilisateur: (id) => fetch(`${BASE}/utilisateurs/${id}`, { method: "DELETE" }).then(handle),
 
+  // Liens d'invitation à un espace (voir server/src/invitations.js et
+  // LienInvitation.jsx / Invitation.jsx côté client).
+  listInvitations: () => fetch(`${BASE}/invitations`).then(handle),
+
+  creerInvitation: (espaces) =>
+    fetch(`${BASE}/invitations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ espaces }),
+    }).then(handle),
+
+  desactiverInvitation: (id) => fetch(`${BASE}/invitations/${id}/desactiver`, { method: "POST" }).then(handle),
+
+  apercuInvitation: (jeton) => fetch(`${BASE}/invitations/${jeton}`).then(handle),
+
+  creerCompteInvitation: (jeton, { prenom, nom, email }) =>
+    fetch(`${BASE}/invitations/${jeton}/creer-compte`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prenom, nom, email }),
+    }).then(handle),
+
+  ajouterEspacesInvitation: (jeton) => fetch(`${BASE}/invitations/${jeton}/ajouter`, { method: "POST" }).then(handle),
+
   listCollegues: () => fetch(`${BASE}/utilisateurs/collegues`).then(handle),
 
   listCanauxChat: () => fetch(`${BASE}/chat/canaux`).then(handle),

@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { formatDate } from "../constants.js";
 import { useAuth } from "../AuthContext.jsx";
 import EspacesCompte from "../components/EspacesCompte.jsx";
+import LienInvitation from "../components/LienInvitation.jsx";
 
 const LIBELLES_STATUT = {
   en_attente: { label: "En attente", classe: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -270,6 +271,8 @@ export default function AdminUtilisateurs() {
           {erreur}
         </div>
       )}
+
+      <LienInvitation espaces={espaces} />
 
       <form
         onSubmit={creerAcces}

@@ -3,6 +3,7 @@ import { installerEnteteEspace } from "./espace.js";
 import Dashboard from "./pages/Dashboard.jsx";
 import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
 import Connexion from "./pages/Connexion.jsx";
+import Invitation from "./pages/Invitation.jsx";
 import AdminUtilisateurs from "./pages/AdminUtilisateurs.jsx";
 import Chat from "./pages/Chat.jsx";
 import { CallProvider } from "./telephony/CallContext.jsx";
@@ -42,6 +43,7 @@ export default function CrmApp() {
           <Routes>
             {/* Hors du habillage CRM (pas de barre d'outils vente) */}
             <Route path="/connexion" element={<Connexion />} />
+            <Route path="/invitation/:jeton" element={<Invitation />} />
             <Route
               path="/admin/utilisateurs"
               element={
