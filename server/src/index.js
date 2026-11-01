@@ -85,6 +85,7 @@ import {
   trouverUtilisateurParId,
   creerUtilisateurParAdmin,
   definirMotDePasse,
+  changerMotDePasseObligatoire,
   verifierMotDePasse,
   envoyerLienMagique,
   envoyerConfirmationAcces,
@@ -413,13 +414,28 @@ app.post("/api/auth/google", async (req, res) => {
 });
 
 app.get("/api/auth/moi", exigerAuth, (req, res) => {
-  const { id, email, prenom, nom, role } = req.utilisateur;
-  res.json({ id, email, prenom, nom, role });
+  const { id, email, prenom, nom, role, doitChangerMotDePasse } = req.utilisateur;
+  res.json({ id, email, prenom, nom, role, doitChangerMotDePasse: Boolean(doitChangerMotDePasse) });
 });
 
 app.post("/api/auth/deconnexion", (req, res) => {
   res.clearCookie(NOM_COOKIE, optionsCookie());
   res.json({ ok: true });
+});
+
+// Remplace le mot de passe provisoire reçu à la création du compte (voir
+// creerUtilisateurParAdmin dans auth.js) — bloquant tant que ce n'est pas
+// fait (voir ChangerMotDePasseOblige.jsx côté client, qui masque le reste du
+// CRM). Contrairement à /api/utilisateurs/:id/mot-de-passe (admin uniquement),
+// ici l'utilisateur change son propre mot de passe.
+app.post("/api/auth/changer-mot-de-passe", exigerAuth, async (req, res) => {
+  try {
+    await changerMotDePasseObligatoire(req.utilisateur.id, String(req.body.motDePasse || ""));
+    res.json({ ok: true });
+  } catch (e) {
+    const statutHttp = e.code === "MOT_DE_PASSE_TROP_COURT" ? 400 : e.code === "UTILISATEUR_INTROUVABLE" ? 404 : 500;
+    res.status(statutHttp).json({ error: e.message });
+  }
 });
 
 // Ne renvoie jamais motDePasseHash au frontend — seul son existence (booléen)
@@ -455,16 +471,16 @@ function trouverEntrepriseParSiret(siretBrut) {
 // dans auth.js) : contrairement à /valider ci-dessous qui traite une demande
 // déjà déposée par l'agent, ici il n'y a pas encore de demande — l'admin
 // crée le compte à l'avance, déjà validé, à partir des champs du formulaire
-// "Gestion des accès" (nom/prénom/email obligatoires, téléphone/SIRET
-// optionnels). Un mot de passe optionnel peut être défini dès la création
-// (motDePasse) — sinon le compte reste accessible uniquement par lien
-// magique, comme avant.
+// "Gestion des accès" (nom/e-mail obligatoires, téléphone/SIRET optionnels).
+// Un mot de passe provisoire est toujours défini (celui saisi par l'admin,
+// sinon généré automatiquement) : le compte devra le changer à sa première
+// connexion (doitChangerMotDePasse, voir creerUtilisateurParAdmin).
 app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
   try {
     const siretSaisi = String(req.body.siret || "").trim();
     const entrepriseLiee = siretSaisi ? trouverEntrepriseParSiret(siretSaisi) : null;
 
-    const { utilisateur, mailEnvoye } = await creerUtilisateurParAdmin(req.body.email, {
+    const { utilisateur, mailEnvoye, motDePasseProvisoire } = await creerUtilisateurParAdmin(req.body.email, {
       prenom: String(req.body.prenom || "").trim(),
       nom: String(req.body.nom || "").trim(),
       telephone: String(req.body.telephone || "").trim(),
@@ -477,6 +493,7 @@ app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
     res.status(201).json({
       utilisateur: sansMotDePasse(utilisateur),
       mailEnvoye,
+      motDePasseProvisoire,
       entrepriseLieeNom: entrepriseLiee?.nom || null,
       siretSansCorrespondance: Boolean(siretSaisi && !entrepriseLiee),
     });

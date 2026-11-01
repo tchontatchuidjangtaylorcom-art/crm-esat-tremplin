@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
+import ChangerMotDePasseOblige from "./ChangerMotDePasseOblige.jsx";
 
 // Sur le nom de domaine public (oeth-fiph.fr, www.oeth-fiph.fr), un visiteur
 // non connecté qui arrive sur la racine voit la vitrine (simulateur), pas la
@@ -27,6 +28,13 @@ export default function RequireAuth({ children, adminSeulement = false }) {
       return <Navigate to="/vitrine" replace />;
     }
     return <Navigate to="/connexion" replace />;
+  }
+  // Mot de passe provisoire (compte créé par un admin, voir
+  // creerUtilisateurParAdmin côté serveur) : bloque tout le reste du CRM
+  // jusqu'à ce qu'il soit remplacé — avant même la vérification adminSeulement,
+  // qui ne doit pas laisser passer un admin provisoire non plus.
+  if (utilisateur.doitChangerMotDePasse) {
+    return <ChangerMotDePasseOblige />;
   }
   if (adminSeulement && !estAdmin(utilisateur)) {
     return <Navigate to="/" replace />;

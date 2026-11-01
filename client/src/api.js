@@ -507,6 +507,15 @@ export const api = {
 
   deconnexion: () => fetch(`${BASE}/auth/deconnexion`, { method: "POST" }).then(handle),
 
+  // Remplace le mot de passe provisoire reçu à la création du compte (voir
+  // ChangerMotDePasseOblige.jsx).
+  changerMonMotDePasse: (motDePasse) =>
+    fetch(`${BASE}/auth/changer-mot-de-passe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motDePasse }),
+    }).then(handle),
+
   listUtilisateurs: () => fetch(`${BASE}/utilisateurs`).then(handle),
 
   creerUtilisateur: ({ email, prenom, nom, telephone, siret, role, motDePasse }) =>

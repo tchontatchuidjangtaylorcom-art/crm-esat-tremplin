@@ -67,7 +67,8 @@ export default function AdminUtilisateurs() {
   const [erreur, setErreur] = useState(null);
 
   const [email, setEmail] = useState("");
-  const [prenom, setPrenom] = useState("");
+  // Un seul champ nom (plus de prénom séparé) — envoyé dans `prenom` côté API,
+  // seul champ utilisé comme nom d'affichage partout ailleurs dans le CRM.
   const [nom, setNom] = useState("");
   const [telephone, setTelephone] = useState("");
   const [siret, setSiret] = useState("");
@@ -114,15 +115,15 @@ export default function AdminUtilisateurs() {
 
   async function creerAcces(ev) {
     ev.preventDefault();
-    if (!email.trim() || !prenom.trim() || !nom.trim()) return;
+    if (!email.trim() || !nom.trim()) return;
     setCreation(true);
     setErreurCreation(null);
     setConfirmationCreation(null);
     try {
-      const { utilisateur, mailEnvoye, entrepriseLieeNom, siretSansCorrespondance } = await api.creerUtilisateur({
+      const { utilisateur, mailEnvoye, motDePasseProvisoire, entrepriseLieeNom, siretSansCorrespondance } = await api.creerUtilisateur({
         email: email.trim(),
-        prenom: prenom.trim(),
-        nom: nom.trim(),
+        prenom: nom.trim(),
+        nom: "",
         telephone: telephone.trim(),
         siret: siret.trim(),
         role,
@@ -130,14 +131,18 @@ export default function AdminUtilisateurs() {
       });
       const morceaux = [
         mailEnvoye
-          ? `Accès créé pour ${utilisateur.email} — un mail avec les instructions de connexion lui a été envoyé.`
-          : `Accès créé pour ${utilisateur.email}. Envoi automatique du mail indisponible : communiquez-lui l'adresse du CRM pour qu'il se connecte.`,
+          ? `Accès créé pour ${utilisateur.email} — un mail avec le lien de connexion et le mot de passe provisoire lui a été envoyé.`
+          : `Accès créé pour ${utilisateur.email}. Envoi automatique du mail indisponible : communiquez-lui l'adresse du CRM et le mot de passe provisoire ci-dessous.`,
       ];
       if (entrepriseLieeNom) morceaux.push(`Lié à l'entreprise « ${entrepriseLieeNom} » (SIRET reconnu).`);
       else if (siretSansCorrespondance) morceaux.push("SIRET enregistré, mais aucune entreprise correspondante trouvée dans le CRM.");
       setConfirmationCreation(morceaux.join(" "));
+      // Même bloc que pour "Changer" un mot de passe existant : affiché une
+      // seule fois, le temps que l'admin le communique si besoin (voir
+      // motDePasseConfirme plus bas) — l'utilisateur devra de toute façon le
+      // remplacer à sa première connexion (doitChangerMotDePasse).
+      setMotDePasseConfirme({ id: utilisateur.id, valeur: motDePasseProvisoire, copie: false });
       setEmail("");
-      setPrenom("");
       setNom("");
       setTelephone("");
       setSiret("");
@@ -277,31 +282,20 @@ export default function AdminUtilisateurs() {
       >
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">+ Ajouter un client / Créer un profil</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Le compte est créé directement validé — la personne pourra se connecter avec cette adresse, par lien de
-          connexion par mail (indispensable, voir l'e-mail obligatoire ci-dessous), ou directement par mot de passe si
-          vous en définissez un. Limité aux dossiers qui lui seront assignés.
+          Le compte est créé directement validé — la personne reçoit un mail avec un lien de connexion et un mot de
+          passe provisoire qu'elle devra remplacer à sa première connexion. Limité aux dossiers qui lui seront
+          assignés.
         </p>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="block text-xs text-slate-500 dark:text-slate-400">
-            Prénom
-            <input
-              type="text"
-              required
-              placeholder="Jean"
-              value={prenom}
-              onChange={(e) => setPrenom(e.target.value)}
-              className="mt-1 w-36 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
-            />
-          </label>
           <label className="block text-xs text-slate-500 dark:text-slate-400">
             Nom
             <input
               type="text"
               required
-              placeholder="Dupont"
+              placeholder="Jean Dupont"
               value={nom}
               onChange={(e) => setNom(e.target.value)}
-              className="mt-1 w-36 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+              className="mt-1 w-44 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
             />
           </label>
           <label className="block text-xs text-slate-500 dark:text-slate-400">
@@ -350,11 +344,11 @@ export default function AdminUtilisateurs() {
             </select>
           </label>
           <label className="block text-xs text-slate-500 dark:text-slate-400">
-            Mot de passe (optionnel)
+            Mot de passe provisoire (optionnel)
             <input
               type="password"
               autoComplete="new-password"
-              placeholder="Laisser vide → lien magique seul"
+              placeholder="Laisser vide → généré automatiquement"
               value={motDePasse}
               onChange={(e) => setMotDePasse(e.target.value)}
               className="mt-1 w-56 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
@@ -365,7 +359,6 @@ export default function AdminUtilisateurs() {
             disabled={
               creation ||
               !email.trim() ||
-              !prenom.trim() ||
               !nom.trim() ||
               (motDePasse.trim().length > 0 && motDePasse.trim().length < 8)
             }

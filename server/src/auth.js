@@ -16,6 +16,7 @@
 //     administrateur (bootstrap) — sinon personne ne pourrait jamais valider
 //     le premier administrateur.
 // Tous les autres comptes restent "en_attente" jusqu'à validation manuelle.
+import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
@@ -24,6 +25,15 @@ import { envoyerMail, estEnvoiConfigure } from "./mail.js";
 
 const TOURS_BCRYPT = 10;
 const LONGUEUR_MIN_MOT_DE_PASSE = 8;
+
+// Sans caractères ambigus à l'oral/à l'écran (pas de 0/O, 1/l/I) — ce mot de
+// passe provisoire peut être lu ou dicté au téléphone à un agent.
+const ALPHABET_MOT_DE_PASSE_PROVISOIRE = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function genererMotDePasseProvisoire(longueur = 12) {
+  const octets = crypto.randomBytes(longueur);
+  return Array.from(octets, (v) => ALPHABET_MOT_DE_PASSE_PROVISOIRE[v % ALPHABET_MOT_DE_PASSE_PROVISOIRE.length]).join("");
+}
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-non-securise-a-changer-en-production";
 const DUREE_LIEN_MINUTES = 15;
@@ -96,6 +106,10 @@ export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" }
 // s'il correspond à une entreprise déjà suivie dans le CRM, est résolu côté
 // index.js en `entrepriseLieeId` avant d'arriver ici — cette fonction se
 // contente de les persister telles quelles, sans logique de recherche).
+// Le formulaire "Gestion des accès" n'a plus qu'un seul champ nom (voir
+// AdminUtilisateurs.jsx) : il est envoyé dans `prenom`, seul champ utilisé
+// comme nom d'affichage partout ailleurs dans le code (`u.prenom || u.email`)
+// — `nom` reste accepté pour les autres appelants mais n'est plus requis.
 export async function creerUtilisateurParAdmin(
   email,
   { prenom = "", nom = "", role = "agent", appUrl, motDePasse, telephone = "", siret = "", entrepriseLieeId = null } = {}
@@ -106,12 +120,7 @@ export async function creerUtilisateurParAdmin(
     erreur.code = "EMAIL_INVALIDE";
     throw erreur;
   }
-  if (!prenom.trim()) {
-    const erreur = new Error("Le prénom est requis.");
-    erreur.code = "PRENOM_REQUIS";
-    throw erreur;
-  }
-  if (!nom.trim()) {
+  if (!prenom.trim() && !nom.trim()) {
     const erreur = new Error("Le nom est requis.");
     erreur.code = "NOM_REQUIS";
     throw erreur;
@@ -124,17 +133,19 @@ export async function creerUtilisateurParAdmin(
     throw erreur;
   }
 
-  // Optionnel : mot de passe défini dès la création, en plus du lien
-  // magique (voir definirMotDePasse — même validation de longueur).
-  let motDePasseHash = null;
-  if (motDePasse) {
-    if (motDePasse.length < LONGUEUR_MIN_MOT_DE_PASSE) {
-      const erreur = new Error(`Le mot de passe doit contenir au moins ${LONGUEUR_MIN_MOT_DE_PASSE} caractères.`);
-      erreur.code = "MOT_DE_PASSE_TROP_COURT";
-      throw erreur;
-    }
-    motDePasseHash = await bcrypt.hash(motDePasse, TOURS_BCRYPT);
+  // Mot de passe provisoire : celui saisi par l'admin, sinon un généré
+  // automatiquement — dans les deux cas le compte doit le changer à sa
+  // première connexion (doitChangerMotDePasse, voir changerMotDePasseObligatoire
+  // ci-dessous et RequireAuth.jsx côté client), donc il est sans risque de
+  // l'inclure en clair dans le mail d'invitation ci-dessous : il ne sert
+  // qu'une fois.
+  const motDePasseClair = motDePasse || genererMotDePasseProvisoire();
+  if (motDePasseClair.length < LONGUEUR_MIN_MOT_DE_PASSE) {
+    const erreur = new Error(`Le mot de passe doit contenir au moins ${LONGUEUR_MIN_MOT_DE_PASSE} caractères.`);
+    erreur.code = "MOT_DE_PASSE_TROP_COURT";
+    throw erreur;
   }
+  const motDePasseHash = await bcrypt.hash(motDePasseClair, TOURS_BCRYPT);
 
   const utilisateur = {
     id: nanoid(),
@@ -147,6 +158,7 @@ export async function creerUtilisateurParAdmin(
     role: ["admin", "super_admin", "superviseur"].includes(role) ? role : "agent",
     statut: "valide",
     motDePasseHash,
+    doitChangerMotDePasse: true,
     dateCreation: new Date().toISOString(),
     dateValidation: new Date().toISOString(),
   };
@@ -160,20 +172,16 @@ export async function creerUtilisateurParAdmin(
   let mailEnvoye = false;
   if (appUrl && estEnvoiConfigure()) {
     try {
-      // Le mot de passe éventuel n'est jamais inclus dans ce mail (canal non
-      // sécurisé) : s'il en a été défini un, c'est à l'administrateur de le
-      // communiquer à l'agent par un moyen séparé (oral, message chiffré...).
       await envoyerMail({
         to: utilisateur.email,
         subject: "Votre accès au CRM OETH/AGEFIPH est prêt",
         text:
           `Bonjour ${utilisateur.prenom},\n\nUn accès au CRM OETH/AGEFIPH vient d'être créé pour vous.\n\n` +
           `Pour vous connecter, rendez-vous sur ${appUrl} et indiquez cette adresse mail : ` +
-          `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.` +
-          (motDePasseHash
-            ? " Si un mot de passe vous a été communiqué par ailleurs, vous pouvez aussi l'utiliser directement."
-            : "") +
-          `\n\nPôle OETH / AGEFIPH`,
+          `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes. Vous pouvez aussi vous connecter ` +
+          `directement avec le mot de passe provisoire suivant : ${motDePasseClair}\n\n` +
+          `À la première connexion, il vous sera demandé de choisir votre propre mot de passe.\n\n` +
+          `Pôle OETH / AGEFIPH`,
         fromName: "Pôle OETH / AGEFIPH",
       });
       mailEnvoye = true;
@@ -182,7 +190,7 @@ export async function creerUtilisateurParAdmin(
     }
   }
 
-  return { utilisateur, mailEnvoye };
+  return { utilisateur, mailEnvoye, motDePasseProvisoire: motDePasseClair };
 }
 
 // Définit, change ou retire (motDePasse vide/null) le mot de passe d'un
@@ -214,6 +222,31 @@ export async function definirMotDePasse(utilisateurId, motDePasse) {
   utilisateur.motDePasseHash = await bcrypt.hash(motDePasse, TOURS_BCRYPT);
   await db.write();
   console.log(`[auth] Mot de passe défini pour ${utilisateur.email}.`);
+  return utilisateur;
+}
+
+// Remplace le mot de passe provisoire par celui que l'utilisateur choisit
+// lui-même, à sa première connexion (doitChangerMotDePasse, voir
+// creerUtilisateurParAdmin ci-dessus et le composant client
+// ChangerMotDePasseOblige.jsx qui bloque le reste du CRM tant que ce n'est
+// pas fait). Contrairement à definirMotDePasse (réservé aux admins), c'est
+// l'utilisateur connecté lui-même qui appelle ceci sur son propre compte.
+export async function changerMotDePasseObligatoire(utilisateurId, motDePasse) {
+  const utilisateur = trouverUtilisateurParId(utilisateurId);
+  if (!utilisateur) {
+    const erreur = new Error("Utilisateur introuvable.");
+    erreur.code = "UTILISATEUR_INTROUVABLE";
+    throw erreur;
+  }
+  if (!motDePasse || motDePasse.length < LONGUEUR_MIN_MOT_DE_PASSE) {
+    const erreur = new Error(`Le mot de passe doit contenir au moins ${LONGUEUR_MIN_MOT_DE_PASSE} caractères.`);
+    erreur.code = "MOT_DE_PASSE_TROP_COURT";
+    throw erreur;
+  }
+  utilisateur.motDePasseHash = await bcrypt.hash(motDePasse, TOURS_BCRYPT);
+  utilisateur.doitChangerMotDePasse = false;
+  await db.write();
+  console.log(`[auth] Mot de passe provisoire remplacé par ${utilisateur.email}.`);
   return utilisateur;
 }
 
