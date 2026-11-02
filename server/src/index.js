@@ -103,6 +103,7 @@ import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsen
 import { reparerChampsContact, estNumeroTelephone } from "./telephone.js";
 import { territoireDe, territoireValide, nomTerritoire } from "./territoires.js";
 import { installerEspaces, espaceDe, aAccesEspace, espaceCourant, espaceDeRequete } from "./espaces.js";
+import { verifierProcedureCollective } from "./bodacc.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Build de production du frontend React (généré par `npm run build` côté
@@ -1230,6 +1231,17 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null,
   }
 
   const donnees = await rechercherEntrepriseParSiren(siren);
+  // Sirene laisse "active" une société en liquidation tant qu'elle n'est pas
+  // radiée : on consulte aussi le BODACC. Meilleur effort — une panne du
+  // BODACC ne bloque pas la création, le balayage périodique repassera.
+  let procedure;
+  if (donnees.actif) {
+    try {
+      procedure = await verifierProcedureCollective(siren);
+    } catch (e) {
+      console.warn(`[bodacc] Vérification impossible pour ${siren} : ${e.message}`);
+    }
+  }
 
   const nouvelle = {
     id: nanoid(),
@@ -1278,14 +1290,153 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null,
     emails: [],
   };
 
-  if (donnees.actif) {
-    db.data.entreprises.push(nouvelle);
-  } else {
+  if (procedure !== undefined) appliquerProcedureCollective(nouvelle, procedure);
+  const archivee = !donnees.actif || nouvelle.statut === "mort";
+  if (archivee) {
     db.data.archives.push(nouvelle);
+  } else {
+    db.data.entreprises.push(nouvelle);
   }
   await db.write();
-  return { existant: false, archive: !donnees.actif, entreprise: enrichir(nouvelle) };
+  return {
+    existant: false,
+    archive: archivee,
+    liquidation: nouvelle.procedureCollective?.type === "liquidation",
+    entreprise: enrichir(nouvelle),
+  };
 }
+
+// ---- Procédures collectives (BODACC) ----
+// Une fiche en CP a déjà un interlocuteur engagé : on la signale sans la
+// sortir du pipeline, c'est à l'agent de décider.
+const STATUTS_PROTEGES_LIQUIDATION = new Set(["fiche", "fiche_one_shot"]);
+// Une fiche n'est revérifiée au BODACC qu'au-delà de ce délai.
+const DELAI_REVERIFICATION_BODACC_MS = 7 * 24 * 3600 * 1000;
+const PAUSE_BODACC_MS = 300;
+
+const LIBELLES_PROCEDURE = {
+  liquidation: "liquidation judiciaire",
+  redressement: "redressement judiciaire",
+  sauvegarde: "procédure de sauvegarde",
+};
+
+// Applique le résultat d'une vérification BODACC à une fiche (sans écrire en
+// base) : mémorise la procédure, ajoute un commentaire système quand elle
+// est nouvelle, et passe la fiche en "mort" si elle est en liquidation — à
+// l'appelant de la déplacer vers les archives (voir archiver()).
+// Renvoie "archivee", "signalee" ou null.
+function appliquerProcedureCollective(entreprise, procedure) {
+  const precedente = entreprise.procedureCollective || null;
+  entreprise.bodaccVerifieLe = new Date().toISOString();
+  entreprise.procedureCollective = procedure;
+  if (!procedure) return null;
+
+  const nouvelle =
+    !precedente || precedente.type !== procedure.type || precedente.dateJugement !== procedure.dateJugement;
+  const liquidation = procedure.type === "liquidation";
+  const aArchiver = liquidation && !STATUTS_PROTEGES_LIQUIDATION.has(entreprise.statut);
+  if (!nouvelle && !aArchiver) return null;
+
+  const quand = procedure.dateJugement ? ` (jugement du ${procedure.dateJugement})` : "";
+  const ou = procedure.tribunal ? ` — ${procedure.tribunal}` : "";
+  let texte = `BODACC : ${procedure.nature}${quand}${ou}.`;
+  if (aArchiver) texte += " Entreprise en liquidation judiciaire — dossier archivé automatiquement, aucune action requise.";
+  else if (liquidation) texte += " Entreprise en liquidation judiciaire : fiche en CP conservée, à vérifier par l'agent.";
+  else texte += ` Entreprise en ${LIBELLES_PROCEDURE[procedure.type]} : toujours en activité, mais prudence sur l'engagement.`;
+
+  entreprise.commentaires = entreprise.commentaires || [];
+  entreprise.commentaires.push({ id: nanoid(), date: new Date().toISOString(), auteur: "Système", texte });
+  if (aArchiver) entreprise.statut = "mort";
+  return aArchiver ? "archivee" : "signalee";
+}
+
+// Balayage des fiches actives au BODACC, en tâche de fond : au démarrage
+// puis toutes les 6 heures (fiches non vérifiées depuis 7 jours), ou à la
+// demande d'un administrateur (toutes les fiches actives).
+const etatBalayageBodacc = {
+  enCours: false,
+  total: 0,
+  traites: 0,
+  archivees: [],
+  signalees: 0,
+  erreurs: 0,
+  derniereErreur: null,
+  demarre: null,
+  termine: null,
+};
+
+async function balayerProceduresCollectives({ toutes = false } = {}) {
+  if (etatBalayageBodacc.enCours) return false;
+  const limite = Date.now() - DELAI_REVERIFICATION_BODACC_MS;
+  const cibles = db.data.entreprises.filter(
+    (e) => sirenDe(e) && (toutes || !e.bodaccVerifieLe || Date.parse(e.bodaccVerifieLe) < limite)
+  );
+  Object.assign(etatBalayageBodacc, {
+    enCours: true,
+    total: cibles.length,
+    traites: 0,
+    archivees: [],
+    signalees: 0,
+    erreurs: 0,
+    derniereErreur: null,
+    demarre: new Date().toISOString(),
+    termine: null,
+  });
+
+  try {
+    for (const entreprise of cibles) {
+      // La fiche a pu être archivée/supprimée entre-temps.
+      if (!db.data.entreprises.includes(entreprise)) continue;
+      try {
+        const procedure = await verifierProcedureCollective(sirenDe(entreprise));
+        const resultat = appliquerProcedureCollective(entreprise, procedure);
+        if (resultat === "archivee") {
+          archiver(entreprise);
+          etatBalayageBodacc.archivees.push({ id: entreprise.id, nom: entreprise.nom, nature: procedure.nature, dateJugement: procedure.dateJugement });
+          console.log(`[bodacc] ${entreprise.nom} (${sirenDe(entreprise)}) en liquidation judiciaire — archivée.`);
+        } else if (resultat === "signalee") {
+          etatBalayageBodacc.signalees += 1;
+        }
+        await db.write();
+      } catch (e) {
+        etatBalayageBodacc.erreurs += 1;
+        etatBalayageBodacc.derniereErreur = e.message;
+        // API saturée : inutile d'insister, le prochain passage reprendra là.
+        if (e.code === "BODACC_SATURE") break;
+      } finally {
+        etatBalayageBodacc.traites += 1;
+      }
+      await new Promise((resolve) => setTimeout(resolve, PAUSE_BODACC_MS));
+    }
+  } finally {
+    etatBalayageBodacc.enCours = false;
+    etatBalayageBodacc.termine = new Date().toISOString();
+    if (etatBalayageBodacc.archivees.length) {
+      console.log(`[bodacc] Balayage terminé : ${etatBalayageBodacc.archivees.length} fiche(s) en liquidation archivée(s).`);
+    }
+  }
+  return true;
+}
+
+// Lance un balayage complet de toutes les fiches actives (bouton admin).
+app.post("/api/leads/verifier-liquidations", exigerAdmin, (req, res) => {
+  if (etatBalayageBodacc.enCours) {
+    return res.status(409).json({ error: "Une vérification BODACC est déjà en cours.", ...etatBalayageBodacc });
+  }
+  balayerProceduresCollectives({ toutes: true }).catch((e) => console.error("[bodacc] Échec du balayage :", e.message));
+  res.status(202).json(etatBalayageBodacc);
+});
+
+app.get("/api/leads/verifier-liquidations/statut", exigerAdmin, (req, res) => {
+  res.json(etatBalayageBodacc);
+});
+
+setTimeout(() => {
+  balayerProceduresCollectives().catch((e) => console.error("[bodacc] Échec du balayage :", e.message));
+  setInterval(() => {
+    balayerProceduresCollectives().catch((e) => console.error("[bodacc] Échec du balayage :", e.message));
+  }, 6 * 3600 * 1000);
+}, 60_000);
 
 // Module d'automatisation des leads par SIREN : déduplication, puis
 // enrichissement + qualification automatique via le répertoire Sirene (INSEE).

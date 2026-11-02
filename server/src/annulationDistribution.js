@@ -17,7 +17,7 @@ import db from "./db.js";
 
 const ENTETE = /^Fiche attribuée à (.+?) \(distribution (?:à toute l'équipe )?par (.+?)\)(.*)$/s;
 const SUFFIXE = ", remise en Nouveau.";
-const STATUTS_POSSIBLES = ["nouveau", "nrp", "nrp2", "a_relancer", "mail", "autre", "me_rappelle", "a_rappeler", "rdv", "numero_invalide"];
+const STATUTS_POSSIBLES = ["nouveau", "nrp", "nrp2", "a_relancer", "mail", "autre", "me_rappelle", "a_rappeler", "rdv", "numero_invalide", "pdn"];
 
 function lireCommentaire(texte, libelleStatut) {
   const m = ENTETE.exec(texte || "");

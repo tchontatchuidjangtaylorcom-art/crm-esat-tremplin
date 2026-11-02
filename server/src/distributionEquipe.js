@@ -25,6 +25,7 @@ export const STATUTS_DISTRIBUABLES = {
   a_relancer: "À relancer",
   mail: "Mail",
   autre: "Autre",
+  pdn: "PDN (pas de numéro — à traiter par mail)",
 };
 
 // Fiches de l'espace affiché seulement (OETH, CEE… voir espaces.js).
