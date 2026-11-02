@@ -187,6 +187,73 @@ export function genererEmailOfficielHtml({
 </html>`;
 }
 
+// Mail de création de compte envoyé par un admin (voir creerUtilisateurParAdmin
+// dans auth.js) : même bandeau/logo que genererEmailOfficielHtml ci-dessus,
+// mais contenu dédié aux identifiants de connexion plutôt qu'au message libre
+// d'un agent à une entreprise.
+export function genererEmailCreationCompteHtml({ utilisateur, appUrl, motDePasseProvisoire, dureeLienMinutes }) {
+  const prenom = echapper(utilisateur.prenom || "");
+  const nomAffiche = echapper([utilisateur.prenom, utilisateur.nom].filter(Boolean).join(" ") || utilisateur.email);
+
+  return `<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pôle OETH / AGEFIPH</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="680" cellpadding="0" cellspacing="0" style="width:680px;max-width:100%;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+
+  <tr><td style="padding:0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td height="6" style="height:6px;background:#0055A4;font-size:0;line-height:0;">&nbsp;</td>
+      <td height="6" style="height:6px;background:#ffffff;font-size:0;line-height:0;border-bottom:1px solid #e2e8f0;">&nbsp;</td>
+      <td height="6" style="height:6px;background:#EF4135;font-size:0;line-height:0;">&nbsp;</td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td align="center" style="padding:22px 24px 16px;">
+    <img src="${SITE_URL}/logo-oeth.png" width="56" height="56" alt="Pôle OETH" style="display:block;border:0;border-radius:50%;margin:0 auto 10px;">
+    <div style="font-size:22px;font-weight:700;color:${BLEU};">Pôle OETH / AGEFIPH</div>
+  </td></tr>
+
+  <tr><td align="center" style="background:${BLEU};padding:20px 24px;">
+    <div style="font-size:19px;font-weight:700;color:#ffffff;line-height:1.35;">Bienvenue${prenom ? ` ${prenom}` : ""} !</div>
+    <div style="font-size:13px;color:#dbeafe;margin-top:4px;">Votre accès au CRM vient d'être créé</div>
+  </td></tr>
+
+  <tr><td style="padding:28px 32px 8px;">
+    <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:${GRIS};">Bonjour ${prenom || nomAffiche},</p>
+    <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:${GRIS};">Un accès au CRM OETH/AGEFIPH vient d'être créé pour vous. Voici vos identifiants de connexion :</p>
+
+    <div style="padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid ${BLEU};border-radius:6px;margin:0 0 18px;">
+      <p style="margin:0 0 8px;font-size:13px;color:${GRIS};"><strong>E-mail :</strong> ${echapper(utilisateur.email)}</p>
+      <p style="margin:0;font-size:13px;color:${GRIS};"><strong>Mot de passe provisoire :</strong> <span style="font-family:'Courier New',monospace;background:#e2e8f0;padding:2px 6px;border-radius:4px;">${echapper(motDePasseProvisoire)}</span></p>
+    </div>
+
+    <div style="padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 22px;">
+      <p style="margin:0;font-size:12px;line-height:1.55;color:#92400e;"><strong>Important :</strong> il vous sera demandé de choisir votre propre mot de passe à la première connexion.</p>
+    </div>
+
+    <div style="text-align:center;margin:0 0 8px;">
+      ${bouton(appUrl, "Se connecter au CRM", true)}
+    </div>
+    <p style="margin:10px 0 22px;text-align:center;font-size:12px;color:${GRIS_CLAIR};">
+      Vous pouvez aussi vous rendre sur ${echapper(appUrl)} et indiquer cette adresse mail pour recevoir un lien de connexion valable ${dureeLienMinutes} minutes.
+    </p>
+  </td></tr>
+
+  <tr><td style="padding:16px 32px 24px;background:#f1f5f9;">
+    <p style="margin:0;font-size:11px;line-height:1.5;color:${GRIS_CLAIR};">Si vous n'attendiez pas ce message, vous pouvez l'ignorer en toute sécurité.</p>
+    <p style="margin:6px 0 0;font-size:11px;color:${GRIS_CLAIR};">Pôle OETH / AGEFIPH</p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 const VERT = "#15803d";
 
 // Même mise en page « officielle » que ci-dessus, pour l'espace CEE (voir

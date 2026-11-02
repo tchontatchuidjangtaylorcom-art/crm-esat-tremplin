@@ -22,6 +22,7 @@ import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, estEnvoiConfigure } from "./mail.js";
+import { genererEmailCreationCompteHtml } from "./emailOfficiel.js";
 
 const TOURS_BCRYPT = 10;
 const LONGUEUR_MIN_MOT_DE_PASSE = 8;
@@ -182,6 +183,12 @@ export async function creerUtilisateurParAdmin(
           `directement avec le mot de passe provisoire suivant : ${motDePasseClair}\n\n` +
           `À la première connexion, il vous sera demandé de choisir votre propre mot de passe.\n\n` +
           `Pôle OETH / AGEFIPH`,
+        html: genererEmailCreationCompteHtml({
+          utilisateur,
+          appUrl,
+          motDePasseProvisoire: motDePasseClair,
+          dureeLienMinutes: DUREE_LIEN_MINUTES,
+        }),
         fromName: "Pôle OETH / AGEFIPH",
       });
       mailEnvoye = true;
