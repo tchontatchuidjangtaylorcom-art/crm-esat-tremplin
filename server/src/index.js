@@ -151,6 +151,21 @@ await initDb();
   }
 }
 
+// Une seule fois : ouvre l'espace CEE à tous les agents déjà existants, qui
+// jusque-là ne l'obtenaient qu'un par un via Gestion des accès (demande de
+// Taylor, 2026-11-05). Un drapeau évite de rouvrir l'accès à un agent à qui
+// un admin l'aurait retiré depuis.
+if (!db.data.migrationCeePourTousLesAgents) {
+  for (const u of db.data.utilisateurs) {
+    if (estAdmin(u)) continue;
+    const actuels = Array.isArray(u.espaces) && u.espaces.length ? u.espaces : ["oeth"];
+    if (!actuels.includes("cee")) u.espaces = [...actuels, "cee"];
+  }
+  db.data.migrationCeePourTousLesAgents = true;
+  await db.write();
+  console.log("[espaces] accès CEE ouvert à tous les agents existants.");
+}
+
 // ---- Libellés des issues d'appel / sorties de dossier (source de vérité) ----
 const ISSUES_APPEL = {
   // NRP 1 : personne ne décroche, même pas l'accueil / le standard.
