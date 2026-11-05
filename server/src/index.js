@@ -151,19 +151,37 @@ await initDb();
   }
 }
 
-// Une seule fois : ouvre l'espace CEE à tous les agents déjà existants, qui
-// jusque-là ne l'obtenaient qu'un par un via Gestion des accès (demande de
-// Taylor, 2026-11-05). Un drapeau évite de rouvrir l'accès à un agent à qui
-// un admin l'aurait retiré depuis.
-if (!db.data.migrationCeePourTousLesAgents) {
+// Liste des agents autorisés sur CEE en plus de l'OETH (demande de Taylor,
+// 2026-11-05) ; tous les autres agents restent limités à l'OETH. Un drapeau
+// permet de ne l'appliquer qu'une fois, pour qu'un ajustement fait ensuite
+// depuis Gestion des accès ne soit pas écrasé à chaque redémarrage.
+const AGENTS_AUTORISES_CEE = new Set(
+  [
+    "gammetrolive@gmail.com",
+    "lovelynewouegan12@gmail.com",
+    "dorinepiam1@gmail.com",
+    "kaindnaomie1@gmail.com",
+    "arnauldkemajou19@gmail.com",
+    "shekmuganza2000@gmail.com",
+    "clairemarieoconnor6@gmail.com",
+    "ekwomjenny2@gmail.com",
+    "fiparyanlionel@gmail.com",
+    "joangiacomini00@gmail.com",
+    "tchoutadassaev@gmail.com",
+    "meaganeelizabeth@gmail.com",
+    "topacarlin@gmail.com",
+    "franckyngandu55@gmail.com",
+    "marvinjunior237@gmail.com",
+  ].map((e) => e.toLowerCase()),
+);
+if (!db.data.migrationCeeListeRestreinte) {
   for (const u of db.data.utilisateurs) {
     if (estAdmin(u)) continue;
-    const actuels = Array.isArray(u.espaces) && u.espaces.length ? u.espaces : ["oeth"];
-    if (!actuels.includes("cee")) u.espaces = [...actuels, "cee"];
+    u.espaces = AGENTS_AUTORISES_CEE.has(String(u.email || "").toLowerCase()) ? ["oeth", "cee"] : ["oeth"];
   }
-  db.data.migrationCeePourTousLesAgents = true;
+  db.data.migrationCeeListeRestreinte = true;
   await db.write();
-  console.log("[espaces] accès CEE ouvert à tous les agents existants.");
+  console.log("[espaces] accès CEE limité à la liste autorisée, le reste des agents repassé sur OETH seul.");
 }
 
 // ---- Libellés des issues d'appel / sorties de dossier (source de vérité) ----
