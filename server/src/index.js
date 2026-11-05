@@ -152,32 +152,21 @@ await initDb();
 }
 
 // Liste des agents autorisés sur CEE en plus de l'OETH (demande de Taylor,
-// 2026-11-05) ; tous les autres agents restent limités à l'OETH. Un drapeau
-// permet de ne l'appliquer qu'une fois, pour qu'un ajustement fait ensuite
+// 2026-11-05) ; tous les autres agents restent limités à l'OETH. La liste
+// elle-même (adresses personnelles) vit dans la variable d'environnement
+// AGENTS_CEE_AUTORISES (adresses séparées par des virgules) plutôt que dans
+// le code, pour ne pas publier ces e-mails dans l'historique Git. Un drapeau
+// n'applique ce réglage qu'une fois, pour qu'un ajustement fait ensuite
 // depuis Gestion des accès ne soit pas écrasé à chaque redémarrage.
-const AGENTS_AUTORISES_CEE = new Set(
-  [
-    "gammetrolive@gmail.com",
-    "lovelynewouegan12@gmail.com",
-    "dorinepiam1@gmail.com",
-    "kaindnaomie1@gmail.com",
-    "arnauldkemajou19@gmail.com",
-    "shekmuganza2000@gmail.com",
-    "clairemarieoconnor6@gmail.com",
-    "ekwomjenny2@gmail.com",
-    "fiparyanlionel@gmail.com",
-    "joangiacomini00@gmail.com",
-    "tchoutadassaev@gmail.com",
-    "meaganeelizabeth@gmail.com",
-    "topacarlin@gmail.com",
-    "franckyngandu55@gmail.com",
-    "marvinjunior237@gmail.com",
-  ].map((e) => e.toLowerCase()),
-);
-if (!db.data.migrationCeeListeRestreinte) {
+const listeAgentsCeeEnv = String(process.env.AGENTS_CEE_AUTORISES || "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+if (listeAgentsCeeEnv.length && !db.data.migrationCeeListeRestreinte) {
+  const agentsAutorisesCee = new Set(listeAgentsCeeEnv);
   for (const u of db.data.utilisateurs) {
     if (estAdmin(u)) continue;
-    u.espaces = AGENTS_AUTORISES_CEE.has(String(u.email || "").toLowerCase()) ? ["oeth", "cee"] : ["oeth"];
+    u.espaces = agentsAutorisesCee.has(String(u.email || "").toLowerCase()) ? ["oeth", "cee"] : ["oeth"];
   }
   db.data.migrationCeeListeRestreinte = true;
   await db.write();
