@@ -3,9 +3,11 @@
 // s'il faut rappeler, si l'entreprise est à jour et qui recontacter quand ce
 // n'est pas la personne qui a répondu. Évite de rappeler deux fois la même
 // personne ; l'agent et les administrateurs voient la même information.
-// Ne change ni le statut de la fiche ni les KPI d'appels (voir /appels).
+// Ne change pas le statut de la fiche ; « J'ai appelé » compte dans les KPI
+// d'appels de l'agent (voir appelsAgents.js).
 import { nanoid } from "nanoid";
 import db from "./db.js";
+import { ISSUE_SUIVI, annulerAppelSuivi, compterAppelStatut } from "./appelsAgents.js";
 
 export const LIBELLES_A_JOUR = { oui: "À jour", non: "Pas à jour", a_verifier: "À vérifier" };
 const MAX_APPELS = 50;
@@ -27,8 +29,9 @@ export function appliquerSuiviAppel(entreprise, corps, utilisateur, maintenant =
   const traces = [];
 
   if (b.action === "appel") {
+    const kpi = compterAppelStatut(utilisateur?.id, entreprise, ISSUE_SUIVI, maintenant);
     suivi.appels = [
-      { id: nanoid(), date: maintenant.toISOString(), parId: utilisateur?.id || null, parNom: auteur },
+      { id: nanoid(), date: maintenant.toISOString(), parId: utilisateur?.id || null, parNom: auteur, ligneKpi: kpi.ligneId || null },
       ...(suivi.appels || []),
     ].slice(0, MAX_APPELS);
     traces.push("appel passé");
@@ -39,6 +42,7 @@ export function appliquerSuiviAppel(entreprise, corps, utilisateur, maintenant =
     }
   } else if (b.action === "annuler_appel") {
     if (!suivi.appels?.length) throw new Error("Aucun appel à annuler.");
+    if (suivi.appels[0].ligneKpi) annulerAppelSuivi(suivi.appels[0].ligneKpi);
     suivi.appels = suivi.appels.slice(1);
     traces.push("dernier appel noté annulé");
   } else if (b.action !== undefined) {

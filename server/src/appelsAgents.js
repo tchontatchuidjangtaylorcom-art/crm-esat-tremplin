@@ -7,7 +7,10 @@
 //    numéro à la main ou trouvé le numéro sur Google. Si un numéro de la
 //    fiche a déjà été cliqué / copié dans l'heure, c'est le même appel : le
 //    résultat le confirme, sans en compter un deuxième. Un même statut
-//    re-confirmé (ex. NRP 1 de nouveau) est une nouvelle tentative.
+//    re-confirmé (ex. NRP 1 de nouveau) est une nouvelle tentative ;
+//  - quand il clique sur « J'ai appelé » dans le suivi d'appel (voir
+//    suiviAppel.js). Avec un clic sur le numéro ou un résultat enregistré
+//    dans l'heure sur la même fiche, c'est le même appel : un seul compté.
 // Deux compteurs :
 //  - appels UNIQUES : un même numéro (ou une même fiche sans numéro) compte
 //    une fois par agent et par jour ;
@@ -99,6 +102,9 @@ export function ajouterAppelsAuxKpi(kpi, utilisateurId) {
   };
 }
 
+// « J'ai appelé » dans le suivi d'appel (ne change pas le statut de la fiche).
+export const ISSUE_SUIVI = "suivi";
+
 // Statuts qui sont le résultat d'un appel (voir ISSUES_APPEL et
 // SORTIES_DOSSIER dans index.js) — pas "Doublon" (rangement de fiche), ni
 // "Nouveau" / "À relancer" (remise en file).
@@ -116,6 +122,7 @@ const RESULTATS_APPEL = new Set([
   "conforme",
   "refus",
   "mort",
+  ISSUE_SUIVI,
 ]);
 
 export function estResultatAppel(statut) {
@@ -147,10 +154,20 @@ export function compterAppelStatut(utilisateurId, entreprise, issue, maintenant 
     dernier.confirmeLe = maintenant.toISOString();
     return { compte: false, confirme: true };
   }
+  // « J'ai appelé » et résultat de l'appel, dans un ordre ou dans l'autre :
+  // c'est le même appel.
+  if (dernier && ecart <= FENETRE_CONFIRMATION_MS) {
+    if (issue === ISSUE_SUIVI) return { compte: false, confirme: true };
+    if (dernier.issue === ISSUE_SUIVI) {
+      dernier.issue = issue;
+      dernier.confirmeLe = maintenant.toISOString();
+      return { compte: false, confirme: true };
+    }
+  }
   // Double clic sur un statut.
   if (dernier && dernier.issue && ecart < INTERVALLE_MIN_MS) return { compte: false };
 
-  journal().push({
+  const ligne = {
     id: nanoid(),
     utilisateurId,
     entrepriseId: entreprise.id,
@@ -160,8 +177,31 @@ export function compterAppelStatut(utilisateurId, entreprise, issue, maintenant 
     moyen: "statut",
     issue,
     unique: duJour.length === 0,
-  });
-  return { compte: true };
+  };
+  journal().push(ligne);
+  return { compte: true, ligneId: ligne.id };
+}
+
+// « J'ai appelé » annulé : retire l'appel qu'il avait compté (rien si ce clic
+// n'avait fait que confirmer un appel, ou si un résultat l'a confirmé depuis).
+export function annulerAppelSuivi(ligneId) {
+  const lignes = journal();
+  const index = lignes.findIndex((a) => a.id === ligneId && a.issue === ISSUE_SUIVI);
+  if (index < 0) return false;
+  const [retiree] = lignes.splice(index, 1);
+  if (estUnique(retiree)) {
+    const memeNumero = chiffres(retiree.numero).length >= 9;
+    const suivante = lignes
+      .filter(
+        (a) =>
+          a.utilisateurId === retiree.utilisateurId &&
+          a.jour === retiree.jour &&
+          (a.entrepriseId === retiree.entrepriseId || (memeNumero && a.numero === retiree.numero))
+      )
+      .sort((a, b) => (a.date < b.date ? -1 : 1))[0];
+    if (suivante) suivante.unique = true;
+  }
+  return true;
 }
 
 // Rattrapage (une seule fois) : les résultats d'appel enregistrés avant que
