@@ -251,6 +251,14 @@ export default function EntrepriseTable({
                       ✅ Confirmée client
                     </span>
                   )}
+                  {e.suiviRetour?.appels?.[0] && (
+                    <span
+                      title={`Dernier appel noté par ${e.suiviRetour.appels[0].parNom}${e.suiviRetour.note ? ` : ${e.suiviRetour.note}` : ""}`}
+                      className="ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold align-middle bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+                    >
+                      📞 Appelé le {new Date(e.suiviRetour.appels[0].date).toLocaleDateString("fr-FR")}
+                    </span>
+                  )}
                   <span className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400 dark:text-slate-500 min-w-0">
                     <BadgeCollecteur entreprise={e} className="shrink-0" />
                     <span className="truncate">

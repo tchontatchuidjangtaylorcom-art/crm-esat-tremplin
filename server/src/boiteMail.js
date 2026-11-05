@@ -107,7 +107,7 @@ export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAd
           if (dossier === "recus" && m.direction !== "recu") continue;
           if (dossier === "envoyes" && m.direction !== "envoye") continue;
           if (dossier === "non_lus" && !(m.direction === "recu" && !m.lu)) continue;
-          items.push({ ...m, entrepriseId: e.id, entrepriseNom: e.nom });
+          items.push({ ...m, entrepriseId: e.id, entrepriseNom: e.nom, dernierAppel: e.suiviRetour?.appels?.[0]?.date || null });
         }
       }
       if (admin && (dossier === "recus" || dossier === "non_lus" || dossier === "tous")) {
@@ -153,6 +153,7 @@ export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAd
         desinscription: Boolean(m.desinscription),
         entrepriseId: m.entrepriseId || null,
         entrepriseNom: m.entrepriseNom || null,
+        dernierAppel: m.dernierAppel || null,
         aRattacher: Boolean(m.aRattacher),
       })),
     });

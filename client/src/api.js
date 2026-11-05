@@ -51,6 +51,14 @@ export const api = {
 
   getEntreprise: (id) => fetch(`${BASE}/entreprises/${id}`).then(handle),
 
+  getSuiviAppel: (id) => fetch(`${BASE}/entreprises/${id}/suivi-appel`).then(handle),
+  enregistrerSuiviAppel: (id, data) =>
+    fetch(`${BASE}/entreprises/${id}/suivi-appel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then(handle),
+
   patchEntreprise: (id, data) =>
     fetch(`${BASE}/entreprises/${id}`, {
       method: "PATCH",

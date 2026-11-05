@@ -28,6 +28,7 @@ const LIBELLES = {
   a_rappeler: "Rappel à faire",
   me_rappelle: "Le contact devait vous rappeler",
   fiche: "Client potentiel à rappeler",
+  suivi: "Rappel à faire",
 };
 
 function cleEcheance(e) {
@@ -270,7 +271,16 @@ export default function RappelsEcheances() {
     try {
       const nouvelle = typeof date === "string" ? date : versChampDate(date);
       // Client Potentiel : le statut reste CP, seule la date de rappel bouge.
-      if (alerte.type === "fiche") {
+      if (alerte.type === "suivi") {
+        // Rappel noté dans le suivi d'appel : le statut de la fiche ne change pas.
+        await api.enregistrerSuiviAppel(alerte.id, { aRappeler: true, dateRappel: nouvelle });
+        if (motifReport.trim()) {
+          await api.ajouterCommentaire(alerte.id, {
+            texte: `Rappel reporté ${formatQuand(nouvelle)} — ${motifReport.trim()}`,
+            auteur: utilisateur?.prenom || utilisateur?.email || "Agent",
+          });
+        }
+      } else if (alerte.type === "fiche") {
         await api.patchEntreprise(alerte.id, { dateRappel: nouvelle });
         await api.ajouterCommentaire(alerte.id, {
           texte: `Rappel du client potentiel reporté ${formatQuand(nouvelle)}${motifReport.trim() ? ` — ${motifReport.trim()}` : ""}.`,

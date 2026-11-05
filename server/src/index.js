@@ -47,6 +47,7 @@ import { enregistrerRoutesDistributionEquipe } from "./distributionEquipe.js";
 import { enregistrerRoutesAnnulationDistribution } from "./annulationDistribution.js";
 import { installerJournal, enregistrerRoutesSupervision } from "./journalAudit.js";
 import { enregistrerRoutesFicheClient, lienFicheClient } from "./ficheClient.js";
+import { enregistrerRoutesSuiviAppel, rappelDuSuivi } from "./suiviAppel.js";
 import { avecModelesPublic } from "./modelesMailsPublic.js";
 import { tailleEffectif, dansTaille } from "./taillesEffectif.js";
 import { demarrerRecyclageNrp } from "./recyclageNrp.js";
@@ -3204,6 +3205,9 @@ app.post("/api/entreprises/:id/commentaires", exigerAuth, chargerEntrepriseAutor
   res.json(enrichir(entreprise));
 });
 
+// Suivi d'appel (appelé, à rappeler, à jour, personne à recontacter).
+enregistrerRoutesSuiviAppel(app, { exigerAuth, chargerEntrepriseAutorisee, enrichir });
+
 // Espace IA (assistant de correction de contact) : un agent signale un
 // numéro non attribué/invalide. Faute d'API de téléphonie payante (Pappers)
 // configurée, l'assistant ne devine pas un numéro : il flague le contact,
@@ -4055,13 +4059,15 @@ app.get("/api/echeances", exigerAuth, (req, res) => {
     // "Me rappelle" (et Mail + "doit aussi me rappeler") n'a pas de date :
     // l'entreprise rappelle quand elle veut, donc pas d'alerte — une date
     // restée d'un ancien "À rappeler" ne doit pas faire sonner l'alarme.
-    const date = e.statut === "rdv" ? e.dateRdv : e.statut === "a_rappeler" || e.statut === "fiche" ? e.dateRappel : null;
+    const dateStatut = e.statut === "rdv" ? e.dateRdv : e.statut === "a_rappeler" || e.statut === "fiche" ? e.dateRappel : null;
+    // Rappel noté dans le suivi d'appel d'une fiche d'un autre statut.
+    const date = dateStatut || rappelDuSuivi(e);
     const instant = date ? new Date(date).getTime() : NaN;
     if (!Number.isFinite(instant) || instant < debut || instant > fin) continue;
     echeances.push({
       id: e.id,
       nom: e.nom,
-      type: e.statut,
+      type: dateStatut ? e.statut : "suivi",
       date,
       telephone: e.contact?.telephone || null,
       contactNom: e.contact?.nom && e.contact.nom !== "-" ? e.contact.nom : null,

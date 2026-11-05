@@ -12,6 +12,7 @@ import DicteeCommentaire from "../components/DicteeCommentaire.jsx";
 import ActionsRapidesStatut from "../components/ActionsRapidesStatut.jsx";
 import AlerteDoublons from "../components/AlerteDoublons.jsx";
 import InfosSerreCee from "../components/InfosSerreCee.jsx";
+import SuiviAppel from "../components/SuiviAppel.jsx";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin } from "../roles.js";
 import ChampDateHeure from "../components/ChampDateHeure.jsx";
@@ -821,6 +822,13 @@ export default function EntrepriseDetail() {
               MessagerieMail.jsx) : c'est l'action la plus fréquente une fois
               un contact obtenu, elle ne doit pas être en bas de colonne après
               tout l'Espace IA et l'historique. */}
+          <SuiviAppel
+            entreprise={entreprise}
+            onMaj={(e) => {
+              setEntreprise(e);
+              setDateRappelSaisie(e.dateRappel || "");
+            }}
+          />
           <MessagerieMail entreprise={entreprise} onMaj={setEntreprise} />
 
           {/* Espace IA : contact alternatif en cas de numéro invalide */}

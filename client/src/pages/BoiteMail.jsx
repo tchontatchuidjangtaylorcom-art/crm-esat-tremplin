@@ -6,6 +6,7 @@ import { estAdmin } from "../roles.js";
 import { formatDateHeure } from "../constants.js";
 import { construireSignature } from "../mailSignature.js";
 import TexteFormate from "../components/TexteFormate.jsx";
+import { SuiviAppelDepuisMail } from "../components/SuiviAppel.jsx";
 
 // Boîte mail du CRM (voir server/src/boiteMail.js) : tous les e-mails
 // envoyés et reçus au même endroit — lire, répondre, relier un mail inconnu
@@ -138,6 +139,7 @@ export default function BoiteMail() {
                     {m.direction === "envoye" ? "📤 " : "📥 "}
                     {m.campagne ? "Campagne · " : ""}
                     {m.aRattacher ? "❓ À rattacher · " : ""}
+                    {m.dernierAppel ? `📞 Appelé le ${new Date(m.dernierAppel).toLocaleDateString("fr-FR")} · ` : ""}
                     {m.desinscription ? "🚫 Désinscription · " : ""}
                     {m.extrait}
                   </div>
@@ -169,6 +171,7 @@ export default function BoiteMail() {
               key={selection.id}
               mail={selection}
               admin={admin}
+              onSuivi={charger}
               onMaj={() => {
                 setSelection(null);
                 charger();
@@ -233,7 +236,7 @@ function EtatReleve({ releve, onRelevee }) {
   );
 }
 
-function Lecture({ mail, admin, onMaj }) {
+function Lecture({ mail, admin, onMaj, onSuivi }) {
   return (
     <div>
       <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{mail.objet}</h2>
@@ -261,6 +264,7 @@ function Lecture({ mail, admin, onMaj }) {
       </div>
       {mail.aRattacher && admin && <Rattacher mail={mail} onMaj={onMaj} />}
       {mail.direction === "recu" && mail.entrepriseId && <Repondre mail={mail} onMaj={onMaj} />}
+      {mail.entrepriseId && <SuiviAppelDepuisMail entrepriseId={mail.entrepriseId} onMaj={onSuivi} />}
     </div>
   );
 }
