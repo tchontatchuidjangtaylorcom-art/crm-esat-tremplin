@@ -14,6 +14,7 @@ import crypto from "crypto";
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, adresseMailPole, telephonePole } from "./mail.js";
+import { mailDeEquipe } from "./equipes.js";
 import { calculerObligationOeth, simulerContributionOeth, smicPourExercice, exerciceParDefaut } from "./oeth.js";
 import { lienRendezVousClient } from "./vitrineRdv.js";
 import { determinerCollecteur } from "./secteurs.js";
@@ -195,7 +196,8 @@ export function enregistrerRoutesFicheClient(
     if (invalide) return res.status(400).json({ error: `Adresse en copie invalide : ${invalide}` });
 
     const { url } = lienFicheClient(entreprise);
-    const pole = { email: adresseMailPole(), telephone: telephonePole() };
+    const mailEquipe = mailDeEquipe(entreprise.equipeId);
+    const pole = { email: adresseMailPole(mailEquipe), telephone: telephonePole() };
     const nomPole = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
     const sujet = `Votre fiche OETH à confirmer — ${entreprise.nom}`;
     const texte =
@@ -213,7 +215,7 @@ export function enregistrerRoutesFicheClient(
       `<p style="font-size:12px;color:#64748b">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur : ${echapper(url)}</p></div>`;
 
     try {
-      await envoyerMail({ to: destinataire, cc: copies, subject: sujet, text: texte, html, fromName: nomPole });
+      await envoyerMail({ to: destinataire, cc: copies, subject: sujet, text: texte, html, fromName: nomPole, mailEquipe });
     } catch (e) {
       return res.status(e.code === "MAIL_NON_CONFIGURE" ? 503 : 502).json({ error: e.message });
     }
@@ -228,7 +230,7 @@ export function enregistrerRoutesFicheClient(
     entreprise.emails.unshift({
       id: nanoid(),
       direction: "envoye",
-      de: adresseMailPole(),
+      de: adresseMailPole(mailEquipe),
       a: destinataire,
       ...(copies.length ? { cc: copies } : {}),
       objet: sujet,
@@ -270,7 +272,7 @@ export function enregistrerRoutesFicheClient(
         label: cle === "avant" ? label.replace(" (ou jamais)", ", ou jamais") : cle === "inconnu" ? "Je ne sais pas" : label,
       })),
       dejaConfirmee: c ? { date: c.date, nom: c.nom, effectif: c.effectif, rqth: c.rqth } : null,
-      pole: { email: adresseMailPole(), telephone: telephonePole() },
+      pole: { email: adresseMailPole(mailDeEquipe(entreprise.equipeId)), telephone: telephonePole() },
     });
   });
 
@@ -382,6 +384,7 @@ export function enregistrerRoutesFicheClient(
     for (const e of fiches) {
       const { url, cree } = lienFicheClient(e);
       aEcrire = aEcrire || cree;
+      const mailEquipe = mailDeEquipe(e.equipeId);
       try {
         await envoyerMail({
           to: email,
@@ -389,8 +392,9 @@ export function enregistrerRoutesFicheClient(
           text:
             `Bonjour,\n\nVoici votre lien personnel pour vérifier et confirmer les informations de ${e.nom} :\n\n${url}\n\n` +
             `Si vous n'êtes pas à l'origine de cette demande, ignorez simplement ce message.\n\n` +
-            `${adresseMailPole()}${telephonePole() ? ` · ${telephonePole()}` : ""}`,
+            `${adresseMailPole(mailEquipe)}${telephonePole() ? ` · ${telephonePole()}` : ""}`,
           fromName: determinerCollecteur(e) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH",
+          mailEquipe,
         });
       } catch (err) {
         console.error("[fiche-client] Envoi du lien impossible :", err.message);

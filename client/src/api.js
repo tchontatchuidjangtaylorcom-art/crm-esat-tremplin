@@ -561,6 +561,38 @@ export const api = {
 
   supprimerUtilisateur: (id) => fetch(`${BASE}/utilisateurs/${id}`, { method: "DELETE" }).then(handle),
 
+  // Équipes (bureaux) : voir server/src/equipes.js.
+  listEquipes: () => fetch(`${BASE}/equipes`).then(handle),
+
+  creerEquipe: ({ nom, espace, managerId }) =>
+    fetch(`${BASE}/equipes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nom, espace, managerId: managerId || null }),
+    }).then(handle),
+
+  modifierEquipe: (id, { nom, espace, managerId, actif }) =>
+    fetch(`${BASE}/equipes/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nom, espace, managerId, actif }),
+    }).then(handle),
+
+  // `mail: null` retire la boîte propre (l'équipe retombe sur la boîte partagée).
+  definirMailEquipe: (id, mail) =>
+    fetch(`${BASE}/equipes/${id}/mail`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mail }),
+    }).then(handle),
+
+  definirEquipeUtilisateur: (utilisateurId, equipeId) =>
+    fetch(`${BASE}/utilisateurs/${utilisateurId}/equipe`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ equipeId: equipeId || null }),
+    }).then(handle),
+
   listCollegues: () => fetch(`${BASE}/utilisateurs/collegues`).then(handle),
 
   listCanauxChat: () => fetch(`${BASE}/chat/canaux`).then(handle),

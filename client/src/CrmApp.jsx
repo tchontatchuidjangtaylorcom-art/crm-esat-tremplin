@@ -4,6 +4,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
 import Connexion from "./pages/Connexion.jsx";
 import AdminUtilisateurs from "./pages/AdminUtilisateurs.jsx";
+import AdminEquipes from "./pages/AdminEquipes.jsx";
 import Chat from "./pages/Chat.jsx";
 import { CallProvider } from "./telephony/CallContext.jsx";
 import { DialerProvider } from "./telephony/DialerContext.jsx";
@@ -47,6 +48,14 @@ export default function CrmApp() {
               element={
                 <RequireAuth adminSeulement>
                   <AdminUtilisateurs />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/equipes"
+              element={
+                <RequireAuth adminSeulement>
+                  <AdminEquipes />
                 </RequireAuth>
               }
             />

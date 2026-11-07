@@ -104,6 +104,7 @@ import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsen
 import { reparerChampsContact, estNumeroTelephone } from "./telephone.js";
 import { territoireDe, territoireValide, nomTerritoire } from "./territoires.js";
 import { installerEspaces, espaceDe, aAccesEspace, espaceCourant, espaceDeRequete } from "./espaces.js";
+import { installerEquipes, estManager, estVisibleParEquipe, equipeDeCreation, listeEquipes, mailDeEquipe, equipeABoitePropre } from "./equipes.js";
 import { verifierProcedureCollective } from "./bodacc.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -125,6 +126,8 @@ app.use(express.json());
 app.use(cookieParser());
 // Espaces de travail (OETH, CEE…) : voir espaces.js.
 installerEspaces(app, { exigerAuth, exigerAdmin });
+// Équipes (bureaux, ex: Cameroun/Paris) : voir equipes.js.
+installerEquipes(app, { exigerAdmin });
 // Journal d'activité (voir journalAudit.js) : avant toutes les routes /api,
 // pour voir chaque écriture réussie et l'état de la fiche avant / après.
 installerJournal(app, {
@@ -307,7 +310,10 @@ function estVisiblePar(entreprise, utilisateur) {
     // Binôme : collègue à qui l'agent a confié aussi la fiche.
     entreprise.binomeId === utilisateur.id ||
     // File des Clients Potentiels à prendre : visible de tous les superviseurs.
-    (estSuperviseur(utilisateur) && entreprise.statut === "fiche" && !entreprise.superviseurId)
+    (estSuperviseur(utilisateur) && entreprise.statut === "fiche" && !entreprise.superviseurId) ||
+    // Manager de bureau (voir equipes.js) : tout le stock de sa propre
+    // équipe, pas seulement ce qui lui est assigné personnellement.
+    estVisibleParEquipe(entreprise, utilisateur)
   );
 }
 
@@ -510,7 +516,8 @@ app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
       telephone: String(req.body.telephone || "").trim(),
       siret: siretSaisi,
       entrepriseLieeId: entrepriseLiee?.id || null,
-      role: ["admin", "super_admin", "superviseur"].includes(req.body.role) ? req.body.role : "agent",
+      role: ["admin", "super_admin", "superviseur", "manager"].includes(req.body.role) ? req.body.role : "agent",
+      equipeId: req.body.equipeId || null,
       appUrl: APP_URL,
       motDePasse: req.body.motDePasse ? String(req.body.motDePasse) : null,
     });
@@ -582,7 +589,8 @@ app.post("/api/utilisateurs/:id/valider", exigerAdmin, async (req, res) => {
   if (!utilisateur) return res.status(404).json({ error: "Utilisateur introuvable." });
   const etaitEnAttente = utilisateur.statut === "en_attente";
   utilisateur.statut = "valide";
-  utilisateur.role = ["admin", "super_admin", "superviseur"].includes(req.body.role) ? req.body.role : "agent";
+  utilisateur.role = ["admin", "super_admin", "superviseur", "manager"].includes(req.body.role) ? req.body.role : "agent";
+  if (req.body.equipeId !== undefined) utilisateur.equipeId = req.body.equipeId || null;
   utilisateur.dateValidation = new Date().toISOString();
   await db.write();
 
@@ -1269,6 +1277,10 @@ async function creerLeadDepuisSiren(siren, { lot = null, categorieForcee = null,
   const nouvelle = {
     id: nanoid(),
     espace: espaceCourant(),
+    // Équipe d'origine (bureau Cameroun/Paris...) — voir equipes.js. `null`
+    // tant qu'aucune équipe n'existe ou que l'agent n'en a pas : la fiche
+    // reste alors visible comme aujourd'hui (assignation directe, admin).
+    equipeId: equipeDeCreation({ assigneA, utilisateur }),
     nom: donnees.nom,
     siret: donnees.siret,
     formeJuridique: donnees.formeJuridique,
@@ -3621,11 +3633,15 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
 
   // Nom d'expéditeur normalisé et uniforme sur tous les envois : uniquement
   // l'identité générale du pôle, jamais le nom de l'agent (voir mailSignature.js
-  // côté client pour le même bloc dans le corps du mail) — l'adresse d'envoi
-  // reste de toute façon la boîte unique du pôle (contact@oeth-fiph.fr).
+  // côté client pour le même bloc dans le corps du mail). L'adresse d'envoi
+  // reste celle de la boîte partagée du pôle, SAUF si l'équipe de cette
+  // fiche a sa propre boîte configurée (voir equipes.js, mailDeEquipe) —
+  // dans ce cas l'envoi et les réponses du client passent par la boîte de
+  // cette équipe, pas celle du pôle.
   // Hors OETH (espace CEE) : nom confirmé par le partenaire le 2026-10-27
   // (voir scriptVente.js, SECTIONS_CEE), celui utilisé par les agents au
   // téléphone sur ce dossier.
+  const mailEquipe = mailDeEquipe(entreprise.equipeId);
   const nomExpediteur =
     espaceEntreprise === "oeth"
       ? determinerCollecteur(entreprise) === "FIPHFP"
@@ -3641,7 +3657,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     const pdf = await genererSynthesePdf({
       entreprise,
       oeth: calculerObligationOeth(entreprise),
-      poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+      poleInfo: { email: adresseMailPole(mailEquipe), telephone: telephonePole() },
     });
     const nomFichier = `synthese-oeth-${(entreprise.nom || "entreprise").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
     piecesJointesEnvoi = [{ filename: nomFichier, content: pdf, contentType: "application/pdf" }];
@@ -3663,7 +3679,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       ? genererEmailOfficielHtml({
           entreprise,
           corps,
-          poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+          poleInfo: { email: adresseMailPole(mailEquipe), telephone: telephonePole() },
           lienRendezVous: rendezVous.url,
           lienDossier: dossier.url,
           avecPdf: Boolean(joindrePdf),
@@ -3671,7 +3687,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       : genererEmailOfficielHtmlCee({
           entreprise,
           corps,
-          poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+          poleInfo: { email: adresseMailPole(mailEquipe), telephone: telephonePole() },
           lienRendezVous: rendezVous.url,
         });
 
@@ -3693,6 +3709,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       // transactionnel de compte) : ajoute l'en-tête List-Unsubscribe
       // attendu par Gmail/Yahoo pour ce type d'envoi (voir mail.js).
       listeDiffusion: true,
+      mailEquipe,
     });
   } catch (e) {
     const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
@@ -3715,7 +3732,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   entreprise.emails.unshift({
     id: nanoid(),
     direction: "envoye",
-    de: adresseMailPole(),
+    de: adresseMailPole(mailEquipe),
     a: destinataireFinal,
     ...(copiesEnvoi.length ? { cc: copiesEnvoi } : {}),
     objet,
@@ -4178,22 +4195,38 @@ async function relevePeriodiqueBoiteMail() {
   if (releveEnCours) return;
   releveEnCours = true;
   etatReleve.derniereTentative = new Date().toISOString();
-  try {
-    // Rangé sur la fiche de l'expéditeur, sinon gardé « à rattacher » dans
-    // la Boîte mail du CRM (voir boiteMail.js) — plus jamais ignoré.
-    await relaverBoiteMail(async (mail) => {
-      const entreprise = rangerMailRecu(mail);
-      if (!entreprise) console.log(`Mail reçu de ${mail.de} — aucune fiche correspondante : gardé « à rattacher ».`);
-      await db.write();
-    });
-    etatReleve.derniereReussite = new Date().toISOString();
-    etatReleve.derniereErreur = null;
-  } catch (e) {
-    etatReleve.derniereErreur = [e.message, e.responseText].filter(Boolean).join(" — ");
-    console.error("Erreur lors de la relève de la boîte mail :", e.message);
-  } finally {
-    releveEnCours = false;
+  // Boîte partagée par défaut, puis une relève séparée pour chaque équipe
+  // ayant sa PROPRE boîte IMAP distincte (voir equipes.js,
+  // equipeABoitePropre) — une équipe qui n'a configuré qu'une adresse
+  // d'expédition personnalisée (façon alias OVH) reste relevée via la boîte
+  // partagée ci-dessus, jamais deux fois la même boîte. L'échec d'une boîte
+  // n'empêche pas de relever les autres.
+  const boites = [
+    { equipeId: null, mailEquipe: undefined, nom: "boîte partagée" },
+    ...listeEquipes()
+      .filter(equipeABoitePropre)
+      .map((e) => ({ equipeId: e.id, mailEquipe: e.mail, nom: `équipe ${e.nom}` })),
+  ];
+  const erreurs = [];
+  let uneReussite = false;
+  for (const boite of boites) {
+    try {
+      // Rangé sur la fiche de l'expéditeur, sinon gardé « à rattacher » dans
+      // la Boîte mail du CRM (voir boiteMail.js) — plus jamais ignoré.
+      await relaverBoiteMail(async (mail) => {
+        const entreprise = rangerMailRecu(mail, { equipeId: boite.equipeId, mailEquipe: boite.mailEquipe });
+        if (!entreprise) console.log(`Mail reçu de ${mail.de} (${boite.nom}) — aucune fiche correspondante : gardé « à rattacher ».`);
+        await db.write();
+      }, boite.mailEquipe);
+      uneReussite = true;
+    } catch (e) {
+      erreurs.push(`${boite.nom} : ${[e.message, e.responseText].filter(Boolean).join(" — ")}`);
+      console.error(`Erreur lors de la relève de la boîte mail (${boite.nom}) :`, e.message);
+    }
   }
+  if (uneReussite) etatReleve.derniereReussite = new Date().toISOString();
+  etatReleve.derniereErreur = erreurs.join(" | ") || null;
+  releveEnCours = false;
 }
 
 // Filet de sécurité : une promesse rejetée sans catch quelque part (tâche de
@@ -4234,10 +4267,10 @@ if (estResendConfigure()) {
   );
 }
 
-if (estImapConfigure()) {
+if (estImapConfigure() || listeEquipes().some(equipeABoitePropre)) {
   relevePeriodiqueBoiteMail();
   setInterval(relevePeriodiqueBoiteMail, 60_000);
-  console.log("[mail] Boîte de réception connectée : relève automatique toutes les 60 secondes.");
+  console.log("[mail] Boîte(s) de réception connectée(s) : relève automatique toutes les 60 secondes.");
 } else {
   console.log("[mail] Réception non configurée (MAIL_IMAP_HOST absent) — pas de relève automatique du courrier entrant.");
 }

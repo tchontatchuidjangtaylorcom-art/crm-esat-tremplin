@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { formatDate } from "../constants.js";
 import { useAuth } from "../AuthContext.jsx";
 import EspacesCompte from "../components/EspacesCompte.jsx";
+import EquipeCompte from "../components/EquipeCompte.jsx";
 
 const LIBELLES_STATUT = {
   en_attente: { label: "En attente", classe: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -107,6 +108,13 @@ export default function AdminUtilisateurs() {
       .then((r) => (r.ok ? r.json() : []))
       .then(setEspaces)
       .catch(() => {});
+  }, []);
+
+  // Équipes (bureaux) — voir server/src/equipes.js et la page /admin/equipes
+  // pour les créer et leur donner une boîte mail propre.
+  const [equipes, setEquipes] = useState([]);
+  useEffect(() => {
+    api.listEquipes().then(setEquipes).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -339,6 +347,7 @@ export default function AdminUtilisateurs() {
             >
               <option value="agent">Agent</option>
               <option value="superviseur">Superviseur</option>
+              <option value="manager">Manager (chef d'équipe/bureau)</option>
               <option value="admin">Administrateur</option>
               <option value="super_admin">Super-administrateur</option>
             </select>
@@ -454,6 +463,13 @@ export default function AdminUtilisateurs() {
                           onMaj={(maj) => setUtilisateurs((l) => l.map((x) => (x.id === maj.id ? { ...x, espaces: maj.espaces } : x)))}
                         />
                       )}
+                      {u.statut === "valide" && (
+                        <EquipeCompte
+                          utilisateur={u}
+                          equipes={equipes}
+                          onMaj={(maj) => setUtilisateurs((l) => l.map((x) => (x.id === maj.id ? { ...x, equipeId: maj.equipeId } : x)))}
+                        />
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -528,6 +544,15 @@ export default function AdminUtilisateurs() {
                               className="text-xs text-violet-700 dark:text-violet-300 hover:underline mr-3"
                             >
                               Passer superviseur
+                            </button>
+                          )}
+                          {u.role === "agent" && (
+                            <button
+                              onClick={() => valider(u.id, "manager")}
+                              title="Voit toutes les fiches de son équipe (bureau) — à lui attribuer une équipe ci-contre"
+                              className="text-xs text-teal-700 dark:text-teal-300 hover:underline mr-3"
+                            >
+                              Passer manager
                             </button>
                           )}
                           {u.role !== "agent" && (

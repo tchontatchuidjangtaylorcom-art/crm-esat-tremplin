@@ -102,8 +102,16 @@ function entetesDesinscription(adresseExpediteur, urlPropre) {
   return entetes;
 }
 
-function config() {
-  return {
+// `mailEquipe` : config propre d'une équipe (bureau) — voir equipes.js,
+// `mailDeEquipe()`. Ce fichier ne connaît pas le concept d'équipe lui-même
+// (pour éviter un import circulaire, auth.js important déjà ce module) : on
+// lui passe juste, au besoin, l'objet `equipe.mail` à utiliser à la place de
+// la boîte partagée. Chaque champ absent de `mailEquipe` retombe sur la
+// config partagée (variables d'environnement) — une équipe peut donc ne
+// personnaliser que `from`/`replyTo` (façon alias OVH, même boîte physique)
+// ou bien toutes les coordonnées (vraie boîte séparée, son propre IMAP).
+function config(mailEquipe) {
+  const partagee = {
     smtpHost: process.env.MAIL_SMTP_HOST || process.env.MAIL_HOST,
     smtpPort: Number(process.env.MAIL_SMTP_PORT || process.env.MAIL_PORT) || 587,
     imapHost: process.env.MAIL_IMAP_HOST,
@@ -111,32 +119,46 @@ function config() {
     user: process.env.MAIL_USER,
     password: process.env.MAIL_PASSWORD,
     from: process.env.MAIL_FROM || process.env.MAIL_USER,
+    replyTo: null,
+  };
+  if (!mailEquipe) return partagee;
+  return {
+    smtpHost: mailEquipe.smtpHost || partagee.smtpHost,
+    smtpPort: mailEquipe.smtpPort || partagee.smtpPort,
+    imapHost: mailEquipe.imapHost || partagee.imapHost,
+    imapPort: mailEquipe.imapPort || partagee.imapPort,
+    user: mailEquipe.user || partagee.user,
+    password: mailEquipe.password || partagee.password,
+    from: mailEquipe.from || mailEquipe.user || partagee.from,
+    replyTo: mailEquipe.replyTo || partagee.replyTo,
   };
 }
 
 // Envoi via l'API HTTP Resend — fonctionne depuis Render (voir note en tête
 // de fichier). Prioritaire sur le SMTP direct dès qu'elle est configurée.
-export function estResendConfigure() {
-  return Boolean(process.env.RESEND_API_KEY && config().from);
+// La clé RESEND_API_KEY reste UNIQUE (un seul compte Resend/domaine vérifié) :
+// seule l'adresse `from` change d'une équipe à l'autre.
+export function estResendConfigure(mailEquipe) {
+  return Boolean(process.env.RESEND_API_KEY && config(mailEquipe).from);
 }
 
 // Envoi via SMTP direct (nodemailer) — repli pour le développement local ;
 // échoue systématiquement depuis Render (port bloqué).
-export function estSmtpConfigure() {
-  const c = config();
+export function estSmtpConfigure(mailEquipe) {
+  const c = config(mailEquipe);
   return Boolean(c.smtpHost && c.user && c.password);
 }
 
 // Vrai dès qu'une des deux méthodes d'envoi est utilisable — c'est ce que
 // l'interface (bandeau de config, page de connexion) doit vérifier, peu
 // importe laquelle des deux est réellement active.
-export function estEnvoiConfigure() {
-  return estResendConfigure() || estSmtpConfigure();
+export function estEnvoiConfigure(mailEquipe) {
+  return estResendConfigure(mailEquipe) || estSmtpConfigure(mailEquipe);
 }
 
 // Nécessaire en plus pour la relève automatique de la boîte de réception.
-export function estImapConfigure() {
-  const c = config();
+export function estImapConfigure(mailEquipe) {
+  const c = config(mailEquipe);
   return Boolean(c.imapHost && c.user && c.password);
 }
 
@@ -150,8 +172,8 @@ export function signatureMail() {
 // identique même en environnement local/de démo où MAIL_USER/MAIL_FROM ne
 // sont pas renseignés — la vraie configuration d'envoi (Resend/SMTP) est
 // vérifiée séparément par estEnvoiConfigure(), pas par cette valeur d'affichage.
-export function adresseMailPole() {
-  return config().from || "contact@oeth-fiph.fr";
+export function adresseMailPole(mailEquipe) {
+  return config(mailEquipe).from || "contact@oeth-fiph.fr";
 }
 
 // Coordonnées du pôle affichées en signature des mails, sur les PDF et sur le
@@ -170,21 +192,28 @@ export function telephonePole() {
 // l'hébergeur, host/port erroné, pare-feu). Ajustable via MAIL_TIMEOUT_MS.
 const TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS) || 8000;
 
-let transporteur = null;
-function getTransporteur() {
-  if (!transporteur) {
-    const c = config();
-    transporteur = nodemailer.createTransport({
-      host: c.smtpHost,
-      port: c.smtpPort,
-      secure: c.smtpPort === 465,
-      auth: { user: c.user, pass: c.password },
-      connectionTimeout: TIMEOUT_MS,
-      greetingTimeout: TIMEOUT_MS,
-      socketTimeout: TIMEOUT_MS,
-    });
+// Un transporteur par boîte réellement distincte (équipes avec leurs propres
+// identifiants SMTP) — mis en cache par host+utilisateur, jamais recréé à
+// chaque envoi.
+const transporteurs = new Map();
+function getTransporteur(mailEquipe) {
+  const c = config(mailEquipe);
+  const cle = `${c.smtpHost}:${c.smtpPort}:${c.user}`;
+  if (!transporteurs.has(cle)) {
+    transporteurs.set(
+      cle,
+      nodemailer.createTransport({
+        host: c.smtpHost,
+        port: c.smtpPort,
+        secure: c.smtpPort === 465,
+        auth: { user: c.user, pass: c.password },
+        connectionTimeout: TIMEOUT_MS,
+        greetingTimeout: TIMEOUT_MS,
+        socketTimeout: TIMEOUT_MS,
+      })
+    );
   }
-  return transporteur;
+  return transporteurs.get(cle);
 }
 
 // Filet de sécurité en plus des timeouts nodemailer ci-dessus : garantit que
@@ -225,12 +254,12 @@ function detailErreur(e) {
 // Vérifie la connexion/authentification SMTP sans envoyer de mail (utile au
 // démarrage du serveur pour savoir immédiatement, dans les logs, si le mot
 // de passe OVH est accepté).
-export async function verifierConnexionSMTP() {
-  if (!estSmtpConfigure()) return { ok: false, raison: "non_configure" };
-  const c = config();
+export async function verifierConnexionSMTP(mailEquipe) {
+  if (!estSmtpConfigure(mailEquipe)) return { ok: false, raison: "non_configure" };
+  const c = config(mailEquipe);
   try {
     await avecTimeout(
-      getTransporteur().verify(),
+      getTransporteur(mailEquipe).verify(),
       TIMEOUT_MS + 2000,
       `Délai de vérification SMTP dépassé (${TIMEOUT_MS + 2000}ms) — ${c.smtpHost}:${c.smtpPort} ne répond pas.`
     );
@@ -249,8 +278,7 @@ export async function verifierConnexionSMTP() {
 // le rejet de la promesse "course" et garde la requête réseau ouverte.
 // Le nom d'expéditeur affiché se pose dans `from` lui-même côté Resend
 // (pas de champ `sender.name` séparé comme chez Brevo) : "Nom <adresse>".
-async function envoyerViaResend({ to, cc, subject, text, html, fromName, fromAdresse, replyTo, attachments, entetes }) {
-  const c = config();
+async function envoyerViaResend({ to, cc, subject, text, html, fromName, fromAdresse, replyTo, attachments, entetes, c }) {
   const controleur = new AbortController();
   const idAbort = setTimeout(() => controleur.abort(), TIMEOUT_MS);
   let reponse;
@@ -330,16 +358,20 @@ export async function envoyerMail({
   // un sous-domaine dédié, voir campagnes.js) — Resend uniquement ; les
   // réponses arrivent toujours dans la boîte du pôle (Reply-To).
   fromAdresse,
+  // Boîte propre d'une équipe (bureau) à utiliser à la place de la boîte
+  // partagée — voir equipes.js, mailDeEquipe(). Absent = boîte partagée,
+  // comportement inchangé.
+  mailEquipe,
 }) {
-  const c = config();
+  const c = config(mailEquipe);
   const sujetPropre = nettoyerEntete(subject);
   const nomExpediteurPropre = fromName ? nettoyerEntete(fromName) : undefined;
-  const adresseReponse = nettoyerEntete(replyTo) || process.env.MAIL_REPLY_TO || c.from;
+  const adresseReponse = nettoyerEntete(replyTo) || process.env.MAIL_REPLY_TO || c.replyTo || c.from;
   const contenuHtml = html || texteVersHtml(text);
   const entetesSupplementaires = listeDiffusion ? entetesDesinscription(c.from, urlDesinscription) : {};
 
-  if (estResendConfigure()) {
-    console.log(`[mail] Tentative d'envoi (API Resend) à ${to} (expéditeur ${config().from})…`);
+  if (estResendConfigure(mailEquipe)) {
+    console.log(`[mail] Tentative d'envoi (API Resend) à ${to} (expéditeur ${c.from})…`);
     try {
       const info = await avecTimeout(
         envoyerViaResend({
@@ -353,6 +385,7 @@ export async function envoyerMail({
           replyTo: adresseReponse,
           attachments,
           entetes: entetesSupplementaires,
+          c,
         }),
         TIMEOUT_MS + 2000,
         `Délai d'envoi via l'API Resend dépassé (${TIMEOUT_MS + 2000}ms).`
@@ -371,7 +404,7 @@ export async function envoyerMail({
     }
   }
 
-  if (!estSmtpConfigure()) {
+  if (!estSmtpConfigure(mailEquipe)) {
     const erreur = new Error(
       "Envoi de mail non configuré (renseignez RESEND_API_KEY, ou à défaut MAIL_SMTP_HOST/MAIL_HOST + MAIL_USER + MAIL_PASSWORD)."
     );
@@ -381,7 +414,7 @@ export async function envoyerMail({
   console.log(`[mail] Tentative d'envoi (SMTP) à ${to} via ${c.smtpHost}:${c.smtpPort} (utilisateur ${c.user})…`);
   try {
     const info = await avecTimeout(
-      getTransporteur().sendMail({
+      getTransporteur(mailEquipe).sendMail({
         from: nomExpediteurPropre ? { name: nomExpediteurPropre, address: c.from } : c.from,
         replyTo: adresseReponse,
         to,
@@ -421,9 +454,9 @@ export async function envoyerMail({
 // retraiter à la prochaine relève). Nécessite MAIL_IMAP_HOST spécifiquement
 // (pas de repli sur MAIL_HOST : IMAP et SMTP utilisent rarement le même
 // port, et souvent le même host ne suffit pas à distinguer les deux).
-export async function relaverBoiteMail(onMessage) {
-  if (!estImapConfigure()) return;
-  const c = config();
+export async function relaverBoiteMail(onMessage, mailEquipe) {
+  if (!estImapConfigure(mailEquipe)) return;
+  const c = config(mailEquipe);
   const client = new ImapFlow({
     host: c.imapHost,
     port: c.imapPort,

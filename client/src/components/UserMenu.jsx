@@ -80,6 +80,14 @@ export default function UserMenu({ theme, onBasculerTheme }) {
           </Link>
 
           <Link
+            to="/admin/equipes"
+            title="Créer les équipes (bureaux), leur manager et leur boîte mail"
+            className="flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            🏢 Équipes
+          </Link>
+
+          <Link
             to="/kpis-equipe"
             title="Présence et temps de travail de toute l'équipe"
             className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"

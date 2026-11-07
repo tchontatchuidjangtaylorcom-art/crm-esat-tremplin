@@ -38,13 +38,16 @@ export function trouverFicheExpediteur(adresse) {
   return db.data.entreprises.find(correspond) || db.data.archives?.find(correspond) || null;
 }
 
-// Appelé par la relève pour chaque mail reçu.
-export function rangerMailRecu(mail) {
+// Appelé par la relève pour chaque mail reçu. `equipeId`/`mailEquipe` :
+// boîte équipe d'où provient ce mail (undefined = boîte partagée par
+// défaut) — voir relevePeriodiqueBoiteMail dans index.js, qui relève
+// séparément chaque boîte distincte (equipes.js, equipeABoitePropre).
+export function rangerMailRecu(mail, { equipeId = null, mailEquipe } = {}) {
   etatReleve.recusDepuisDemarrage++;
   // Notifications envoyées par le CRM lui-même à la boîte du pôle (« CRM —
   // Fiche client », « CRM — Rendez-vous client »…) : déjà visibles dans le
   // CRM, on ne les range pas.
-  if (norm(mail.de) === norm(adresseMailPole())) return "interne";
+  if (norm(mail.de) === norm(adresseMailPole(mailEquipe))) return "interne";
   const entree = {
     id: nanoid(),
     direction: "recu",
@@ -67,6 +70,10 @@ export function rangerMailRecu(mail) {
     fiche.emails.unshift(entree);
     return fiche;
   }
+  // Rattaché à l'équipe de la boîte reçue (pas de fiche connue de
+  // l'expéditeur) — permet, demain, de réserver aux managers de cette
+  // équipe le tri de leurs propres mails « à rattacher ».
+  entree.equipeId = equipeId;
   if (mail.messageId && nonRattaches().some((m) => m.messageId === mail.messageId)) return null;
   nonRattaches().unshift(entree);
   // Garde-fou de taille : les 2 000 plus récents.

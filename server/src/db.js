@@ -110,6 +110,12 @@ export async function initDb() {
     db.data.presence = [];
     aEcrire = true;
   }
+  // Équipes (bureaux) : sous-découpage par manager à l'intérieur d'un espace
+  // (voir equipes.js) — vide tant qu'aucune équipe n'a été créée.
+  if (!db.data.equipes) {
+    db.data.equipes = [];
+    aEcrire = true;
+  }
   // Prises de rendez-vous et demandes de démo depuis la page publique
   // "Pilotage handicap" (voir vitrineRdv.js).
   if (!db.data.rendezVousVitrine) {

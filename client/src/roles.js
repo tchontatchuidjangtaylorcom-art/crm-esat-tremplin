@@ -17,5 +17,6 @@ export function libelleRole(role) {
   if (role === "super_admin") return "Super-administrateur";
   if (role === "admin") return "Administrateur";
   if (role === "superviseur") return "Superviseur";
+  if (role === "manager") return "Manager";
   return "Télépro";
 }

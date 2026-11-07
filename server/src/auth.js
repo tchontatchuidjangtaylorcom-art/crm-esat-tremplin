@@ -113,7 +113,17 @@ export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" }
 // — `nom` reste accepté pour les autres appelants mais n'est plus requis.
 export async function creerUtilisateurParAdmin(
   email,
-  { prenom = "", nom = "", role = "agent", appUrl, motDePasse, telephone = "", siret = "", entrepriseLieeId = null } = {}
+  {
+    prenom = "",
+    nom = "",
+    role = "agent",
+    appUrl,
+    motDePasse,
+    telephone = "",
+    siret = "",
+    entrepriseLieeId = null,
+    equipeId = null,
+  } = {}
 ) {
   const propre = normaliserEmail(email);
   if (!propre || !propre.includes("@")) {
@@ -156,7 +166,8 @@ export async function creerUtilisateurParAdmin(
     telephone: telephone.trim() || null,
     siret: siret.trim() || null,
     entrepriseLieeId: entrepriseLieeId || null,
-    role: ["admin", "super_admin", "superviseur"].includes(role) ? role : "agent",
+    role: ["admin", "super_admin", "superviseur", "manager"].includes(role) ? role : "agent",
+    equipeId: equipeId || null,
     statut: "valide",
     motDePasseHash,
     doitChangerMotDePasse: true,
