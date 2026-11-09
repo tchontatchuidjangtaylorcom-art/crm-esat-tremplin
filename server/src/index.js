@@ -98,6 +98,9 @@ import {
   exigerAdmin,
   exigerSuperAdmin,
   estAdmin,
+  mailPersonnel,
+  utilisateurABoitePropre,
+  definirMailPersonnel,
 } from "./auth.js";
 import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
@@ -445,7 +448,17 @@ app.post("/api/auth/google", async (req, res) => {
 
 app.get("/api/auth/moi", exigerAuth, (req, res) => {
   const { id, email, prenom, nom, role, doitChangerMotDePasse } = req.utilisateur;
-  res.json({ id, email, prenom, nom, role, doitChangerMotDePasse: Boolean(doitChangerMotDePasse) });
+  // `mail` (sans mot de passe) : le sélecteur « Depuis » de MessagerieMail.jsx
+  // s'en sert pour savoir si ce compte a une boîte personnelle utilisable.
+  res.json({
+    id,
+    email,
+    prenom,
+    nom,
+    role,
+    doitChangerMotDePasse: Boolean(doitChangerMotDePasse),
+    mail: sansMotDePasse(req.utilisateur).mail,
+  });
 });
 
 app.post("/api/auth/deconnexion", (req, res) => {
@@ -468,11 +481,29 @@ app.post("/api/auth/changer-mot-de-passe", exigerAuth, async (req, res) => {
   }
 });
 
-// Ne renvoie jamais motDePasseHash au frontend — seul son existence (booléen)
-// est utile côté UI pour savoir si un mot de passe est déjà défini.
+// Ne renvoie jamais motDePasseHash ni le mot de passe de la boîte mail
+// personnelle au frontend — seule l'existence du premier (booléen) est utile
+// côté UI, et le reste des champs de `mail` (non sensibles) permet au
+// formulaire d'administration de les préremplir sans écraser le mot de passe
+// à chaque enregistrement (même logique que equipeSansSecrets dans equipes.js).
 function sansMotDePasse(utilisateur) {
   const { motDePasseHash, ...reste } = utilisateur;
-  return { ...reste, aUnMotDePasse: Boolean(motDePasseHash) };
+  return {
+    ...reste,
+    aUnMotDePasse: Boolean(motDePasseHash),
+    mail: reste.mail
+      ? {
+          configuree: true,
+          user: reste.mail.user || null,
+          from: reste.mail.from || null,
+          replyTo: reste.mail.replyTo || null,
+          smtpHost: reste.mail.smtpHost || null,
+          smtpPort: reste.mail.smtpPort || null,
+          imapHost: reste.mail.imapHost || null,
+          imapPort: reste.mail.imapPort || null,
+        }
+      : null,
+  };
 }
 
 // Administration des accès (réservé aux comptes "admin")
@@ -553,6 +584,19 @@ app.post("/api/utilisateurs/:id/mot-de-passe", exigerAdmin, async (req, res) => 
   } catch (e) {
     const statutHttp =
       e.code === "UTILISATEUR_INTROUVABLE" ? 404 : e.code === "MOT_DE_PASSE_TROP_COURT" ? 400 : 500;
+    res.status(statutHttp).json({ error: e.message });
+  }
+});
+
+// Boîte mail personnelle d'un compte — même esprit que PUT /api/equipes/:id/mail
+// (equipes.js) : champs sensibles, route séparée, réservée à l'admin.
+// `mail: null` dans le corps retire entièrement la boîte propre.
+app.put("/api/utilisateurs/:id/mail", exigerAdmin, async (req, res) => {
+  try {
+    const utilisateur = await definirMailPersonnel(req.params.id, req.body.mail);
+    res.json(sansMotDePasse(utilisateur));
+  } catch (e) {
+    const statutHttp = e.code === "UTILISATEUR_INTROUVABLE" ? 404 : 500;
     res.status(statutHttp).json({ error: e.message });
   }
 });
@@ -3572,6 +3616,14 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     formatOfficiel: formatOfficielDemande = false,
     testVersMoi = false,
     cc = [],
+    // "generale" (par défaut) : boîte de l'équipe de la fiche, ou boîte
+    // partagée du pôle si l'équipe n'en a pas de propre (voir mailDeEquipe).
+    // "personnelle" : boîte mail propre à l'agent connecté (voir mailPersonnel
+    // dans auth.js) — ex. un manager qui reprend un dossier en direct ; à
+    // partir de cet envoi, les réponses du client arrivent dans SA boîte, plus
+    // dans la boîte générale (comportement normal du mail : la réponse suit
+    // l'adresse qui a envoyé le dernier message, pas un réglage à part).
+    depuis = "generale",
   } = req.body;
   const joindrePdf = joindrePdfDemande && espaceEntreprise === "oeth";
   const formatOfficiel = formatOfficielDemande && ESPACES_AVEC_FORMAT_OFFICIEL.has(espaceEntreprise);
@@ -3635,13 +3687,20 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   // l'identité générale du pôle, jamais le nom de l'agent (voir mailSignature.js
   // côté client pour le même bloc dans le corps du mail). L'adresse d'envoi
   // reste celle de la boîte partagée du pôle, SAUF si l'équipe de cette
-  // fiche a sa propre boîte configurée (voir equipes.js, mailDeEquipe) —
-  // dans ce cas l'envoi et les réponses du client passent par la boîte de
-  // cette équipe, pas celle du pôle.
+  // fiche a sa propre boîte configurée (voir equipes.js, mailDeEquipe), ou si
+  // l'agent a choisi d'envoyer depuis sa boîte personnelle (`depuis`
+  // ci-dessus, voir mailPersonnel dans auth.js) — dans ces cas l'envoi et les
+  // réponses du client passent par cette boîte-là, pas celle du pôle.
   // Hors OETH (espace CEE) : nom confirmé par le partenaire le 2026-10-27
   // (voir scriptVente.js, SECTIONS_CEE), celui utilisé par les agents au
   // téléphone sur ce dossier.
-  const mailEquipe = mailDeEquipe(entreprise.equipeId);
+  const mailPerso = depuis === "personnelle" ? mailPersonnel(req.utilisateur) : null;
+  if (depuis === "personnelle" && !mailPerso) {
+    return res.status(400).json({
+      error: "Aucune boîte mail personnelle n'est configurée pour votre compte — demandez à un administrateur de la configurer (page « Gestion des accès »).",
+    });
+  }
+  const mailEnvoi = mailPerso || mailDeEquipe(entreprise.equipeId);
   const nomExpediteur =
     espaceEntreprise === "oeth"
       ? determinerCollecteur(entreprise) === "FIPHFP"
@@ -3657,7 +3716,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
     const pdf = await genererSynthesePdf({
       entreprise,
       oeth: calculerObligationOeth(entreprise),
-      poleInfo: { email: adresseMailPole(mailEquipe), telephone: telephonePole() },
+      poleInfo: { email: adresseMailPole(mailEnvoi), telephone: telephonePole() },
     });
     const nomFichier = `synthese-oeth-${(entreprise.nom || "entreprise").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
     piecesJointesEnvoi = [{ filename: nomFichier, content: pdf, contentType: "application/pdf" }];
@@ -3679,7 +3738,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       ? genererEmailOfficielHtml({
           entreprise,
           corps,
-          poleInfo: { email: adresseMailPole(mailEquipe), telephone: telephonePole() },
+          poleInfo: { email: adresseMailPole(mailEnvoi), telephone: telephonePole() },
           lienRendezVous: rendezVous.url,
           lienDossier: dossier.url,
           avecPdf: Boolean(joindrePdf),
@@ -3687,7 +3746,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       : genererEmailOfficielHtmlCee({
           entreprise,
           corps,
-          poleInfo: { email: adresseMailPole(mailEquipe), telephone: telephonePole() },
+          poleInfo: { email: adresseMailPole(mailEnvoi), telephone: telephonePole() },
           lienRendezVous: rendezVous.url,
         });
 
@@ -3709,7 +3768,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       // transactionnel de compte) : ajoute l'en-tête List-Unsubscribe
       // attendu par Gmail/Yahoo pour ce type d'envoi (voir mail.js).
       listeDiffusion: true,
-      mailEquipe,
+      mailEquipe: mailEnvoi,
     });
   } catch (e) {
     const statutHttp = e.code === "MAIL_NON_CONFIGURE" ? 503 : 502;
@@ -3732,7 +3791,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
   entreprise.emails.unshift({
     id: nanoid(),
     direction: "envoye",
-    de: adresseMailPole(mailEquipe),
+    de: adresseMailPole(mailEnvoi),
     a: destinataireFinal,
     ...(copiesEnvoi.length ? { cc: copiesEnvoi } : {}),
     objet,
@@ -4197,15 +4256,21 @@ async function relevePeriodiqueBoiteMail() {
   etatReleve.derniereTentative = new Date().toISOString();
   // Boîte partagée par défaut, puis une relève séparée pour chaque équipe
   // ayant sa PROPRE boîte IMAP distincte (voir equipes.js,
-  // equipeABoitePropre) — une équipe qui n'a configuré qu'une adresse
-  // d'expédition personnalisée (façon alias OVH) reste relevée via la boîte
-  // partagée ci-dessus, jamais deux fois la même boîte. L'échec d'une boîte
-  // n'empêche pas de relever les autres.
+  // equipeABoitePropre) et pour chaque compte ayant sa propre boîte
+  // personnelle (voir auth.js, utilisateurABoitePropre — ex. un manager qui a
+  // choisi « boîte personnelle » à l'envoi, voir le champ `depuis` plus haut)
+  // — une équipe ou un compte qui n'a configuré qu'une adresse d'expédition
+  // personnalisée (façon alias OVH) reste relevé via la boîte partagée
+  // ci-dessus, jamais deux fois la même boîte. L'échec d'une boîte n'empêche
+  // pas de relever les autres.
   const boites = [
     { equipeId: null, mailEquipe: undefined, nom: "boîte partagée" },
     ...listeEquipes()
       .filter(equipeABoitePropre)
       .map((e) => ({ equipeId: e.id, mailEquipe: e.mail, nom: `équipe ${e.nom}` })),
+    ...db.data.utilisateurs
+      .filter(utilisateurABoitePropre)
+      .map((u) => ({ equipeId: u.equipeId || null, mailEquipe: u.mail, nom: `boîte perso. ${u.prenom || u.email}` })),
   ];
   const erreurs = [];
   let uneReussite = false;
@@ -4267,7 +4332,7 @@ if (estResendConfigure()) {
   );
 }
 
-if (estImapConfigure() || listeEquipes().some(equipeABoitePropre)) {
+if (estImapConfigure() || listeEquipes().some(equipeABoitePropre) || db.data.utilisateurs.some(utilisateurABoitePropre)) {
   relevePeriodiqueBoiteMail();
   setInterval(relevePeriodiqueBoiteMail, 60_000);
   console.log("[mail] Boîte(s) de réception connectée(s) : relève automatique toutes les 60 secondes.");

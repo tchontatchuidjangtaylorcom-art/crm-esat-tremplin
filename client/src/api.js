@@ -593,6 +593,17 @@ export const api = {
       body: JSON.stringify({ equipeId: equipeId || null }),
     }).then(handle),
 
+  // Boîte mail personnelle d'un compte — `mail: null` la retire (le compte
+  // retombe sur la boîte de son équipe, ou la boîte partagée). Voir
+  // server/src/auth.js (mailPersonnel) et le champ `depuis` de
+  // POST .../emails/envoyer pour l'utiliser à l'envoi.
+  definirMailPersonnel: (utilisateurId, mail) =>
+    fetch(`${BASE}/utilisateurs/${utilisateurId}/mail`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mail }),
+    }).then(handle),
+
   listCollegues: () => fetch(`${BASE}/utilisateurs/collegues`).then(handle),
 
   listCanauxChat: () => fetch(`${BASE}/chat/canaux`).then(handle),

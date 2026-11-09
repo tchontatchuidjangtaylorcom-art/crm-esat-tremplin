@@ -6,6 +6,8 @@ import { useAuth } from "../AuthContext.jsx";
 import EspacesCompte from "../components/EspacesCompte.jsx";
 import EquipeCompte from "../components/EquipeCompte.jsx";
 
+const CHAMPS_MAIL_VIDES = { smtpHost: "", smtpPort: "", imapHost: "", imapPort: "", user: "", password: "", from: "", replyTo: "" };
+
 const LIBELLES_STATUT = {
   en_attente: { label: "En attente", classe: "bg-amber-100 text-amber-700 border-amber-300" },
   valide: { label: "Validé", classe: "bg-emerald-100 text-emerald-700 border-emerald-300" },
@@ -213,6 +215,76 @@ export default function AdminUtilisateurs() {
       setErreurMotDePasse(e.message);
     } finally {
       setEnregistrementMotDePasse(false);
+    }
+  }
+
+  // Boîte mail personnelle (voir server/src/auth.js, mailPersonnel) : un
+  // agent/manager peut l'utiliser à la place de la boîte générale au moment
+  // d'envoyer un mail depuis une fiche (sélecteur dans MessagerieMail.jsx).
+  // Même logique de fusion/prefill que la boîte d'équipe (AdminEquipes.jsx) :
+  // { id, champs }.
+  const [mailOuvert, setMailOuvert] = useState(null);
+  const [enregistrementMail, setEnregistrementMail] = useState(false);
+  const [erreurMail, setErreurMail] = useState(null);
+
+  function ouvrirMail(u) {
+    setErreurMail(null);
+    setMailOuvert({
+      id: u.id,
+      champs: {
+        ...CHAMPS_MAIL_VIDES,
+        user: u.mail?.user || "",
+        from: u.mail?.from || "",
+        replyTo: u.mail?.replyTo || "",
+        smtpHost: u.mail?.smtpHost || "",
+        smtpPort: u.mail?.smtpPort ? String(u.mail.smtpPort) : "",
+        imapHost: u.mail?.imapHost || "",
+        imapPort: u.mail?.imapPort ? String(u.mail.imapPort) : "",
+        // Le mot de passe n'est jamais renvoyé par l'API — laissé vide ici,
+        // un champ vide à l'enregistrement garde celui déjà enregistré.
+      },
+    });
+  }
+
+  async function enregistrerMail(id) {
+    const c = mailOuvert.champs;
+    if (!c.from.trim() && !c.user.trim()) {
+      setErreurMail("Indiquez au moins une adresse d'expédition (From) ou un identifiant de boîte.");
+      return;
+    }
+    setEnregistrementMail(true);
+    setErreurMail(null);
+    try {
+      await api.definirMailPersonnel(id, {
+        smtpHost: c.smtpHost.trim(),
+        smtpPort: c.smtpPort.trim() ? Number(c.smtpPort) : null,
+        imapHost: c.imapHost.trim(),
+        imapPort: c.imapPort.trim() ? Number(c.imapPort) : null,
+        user: c.user.trim(),
+        password: c.password,
+        from: c.from.trim(),
+        replyTo: c.replyTo.trim(),
+      });
+      setMailOuvert(null);
+      charger();
+    } catch (e) {
+      setErreurMail(e.message);
+    } finally {
+      setEnregistrementMail(false);
+    }
+  }
+
+  async function retirerMail(id) {
+    if (!window.confirm("Retirer la boîte mail personnelle de ce compte ?")) return;
+    setEnregistrementMail(true);
+    try {
+      await api.definirMailPersonnel(id, null);
+      setMailOuvert(null);
+      charger();
+    } catch (e) {
+      setErreurMail(e.message);
+    } finally {
+      setEnregistrementMail(false);
     }
   }
 
@@ -510,6 +582,17 @@ export default function AdminUtilisateurs() {
                           {renvoiEnCours === u.id ? "Envoi…" : "Renvoyer le lien"}
                         </button>
                       )}
+                      {u.statut === "valide" && (
+                        <button
+                          onClick={() => (mailOuvert?.id === u.id ? setMailOuvert(null) : ouvrirMail(u))}
+                          title="Boîte mail personnelle — utilisable à la place de la boîte générale pour envoyer un mail depuis une fiche"
+                          className={`ml-2 text-xs hover:underline ${
+                            u.mail?.configuree ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"
+                          }`}
+                        >
+                          {mailOuvert?.id === u.id ? "Fermer" : u.mail?.configuree ? "Boîte perso ✓" : "Boîte perso…"}
+                        </button>
+                      )}
                       {renvoiResultat[u.id] && (
                         <p
                           className={`text-[11px] mt-1 ${
@@ -690,6 +773,123 @@ export default function AdminUtilisateurs() {
                         <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-1.5">
                           Il ne sera plus jamais affiché ni récupérable ensuite (seul un hash est conservé) — notez-le ou copiez-le avant de fermer.
                         </p>
+                      </td>
+                    </tr>
+                  )}
+                  {mailOuvert?.id === u.id && (
+                    <tr key={`${u.id}-mail`} className="bg-slate-50 dark:bg-slate-900">
+                      <td colSpan={7} className="px-4 py-4">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                          Boîte mail personnelle de {u.prenom || u.email}, utilisable à la place de la boîte générale au
+                          moment d'envoyer un mail depuis une fiche (sélecteur « Depuis » dans la boîte mail de la
+                          fiche) — par exemple pour qu'un manager reprenne un dossier en direct : à partir de son
+                          premier envoi, les réponses du client arrivent dans CETTE boîte, plus dans la boîte générale.
+                          Mêmes champs qu'une boîte d'équipe : renseignez seulement <b>From</b> pour un simple alias
+                          OVH (réponses toujours dans la boîte générale), ou en plus l'hôte/l'identifiant/le mot de
+                          passe IMAP+SMTP pour une vraie boîte séparée (réponses relevées directement ici).
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            From (adresse affichée)
+                            <input
+                              type="email"
+                              placeholder="pierre.bernard@oeth-fiph.fr"
+                              value={mailOuvert.champs.from}
+                              onChange={(e) => setMailOuvert((m) => ({ ...m, champs: { ...m.champs, from: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Répondre à (optionnel)
+                            <input
+                              type="email"
+                              placeholder="= From si vide"
+                              value={mailOuvert.champs.replyTo}
+                              onChange={(e) => setMailOuvert((m) => ({ ...m, champs: { ...m.champs, replyTo: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Identifiant de boîte (SMTP/IMAP)
+                            <input
+                              type="text"
+                              placeholder="pierre.bernard@oeth-fiph.fr"
+                              value={mailOuvert.champs.user}
+                              onChange={(e) => setMailOuvert((m) => ({ ...m, champs: { ...m.champs, user: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Mot de passe de la boîte
+                            <input
+                              type="password"
+                              autoComplete="new-password"
+                              placeholder={u.mail?.configuree ? "Laisser vide = inchangé" : ""}
+                              value={mailOuvert.champs.password}
+                              onChange={(e) => setMailOuvert((m) => ({ ...m, champs: { ...m.champs, password: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Hôte SMTP (envoi)
+                            <input
+                              type="text"
+                              placeholder="pro1.mail.ovh.net"
+                              value={mailOuvert.champs.smtpHost}
+                              onChange={(e) => setMailOuvert((m) => ({ ...m, champs: { ...m.champs, smtpHost: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Port SMTP
+                            <input
+                              type="number"
+                              placeholder="587"
+                              value={mailOuvert.champs.smtpPort}
+                              onChange={(e) => setMailOuvert((m) => ({ ...m, champs: { ...m.champs, smtpPort: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Hôte IMAP (réception)
+                            <input
+                              type="text"
+                              placeholder="pro1.mail.ovh.net"
+                              value={mailOuvert.champs.imapHost}
+                              onChange={(e) => setMailOuvert((m) => ({ ...m, champs: { ...m.champs, imapHost: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Port IMAP
+                            <input
+                              type="number"
+                              placeholder="993"
+                              value={mailOuvert.champs.imapPort}
+                              onChange={(e) => setMailOuvert((m) => ({ ...m, champs: { ...m.champs, imapPort: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                        </div>
+                        {erreurMail && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erreurMail}</p>}
+                        <div className="flex items-center gap-3 mt-3">
+                          <button
+                            onClick={() => enregistrerMail(u.id)}
+                            disabled={enregistrementMail}
+                            className="rounded-lg bg-marine-800 hover:bg-marine-900 dark:bg-marine-200 dark:hover:bg-marine-300 text-white dark:text-marine-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40"
+                          >
+                            Enregistrer
+                          </button>
+                          {u.mail?.configuree && (
+                            <button
+                              onClick={() => retirerMail(u.id)}
+                              disabled={enregistrementMail}
+                              className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-40"
+                            >
+                              Retirer la boîte personnelle
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )}

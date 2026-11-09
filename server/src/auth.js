@@ -350,6 +350,57 @@ export async function envoyerLienMagique(utilisateur, appUrl) {
   }
 }
 
+// Boîte mail personnelle d'un compte (ex: un manager qui reprend un dossier
+// en direct, voir le champ `depuis` de /api/entreprises/:id/emails/envoyer
+// dans index.js) — indépendante de la boîte de son équipe (equipes.js) :
+// l'agent qui envoie choisit laquelle utiliser. `mail` reste `null` tant que
+// rien n'est configuré. Mêmes champs qu'une boîte d'équipe (smtpHost/
+// smtpPort, imapHost/imapPort, user, password, from, replyTo) — jamais le
+// mot de passe en clair après enregistrement (voir sansMotDePasse dans
+// index.js, même logique que equipeSansSecrets dans equipes.js).
+export function mailPersonnel(utilisateur) {
+  return utilisateur?.mail || undefined;
+}
+
+// Vrai seulement si le compte a sa PROPRE boîte IMAP distincte (hôte ou
+// identifiant renseigné) — comme equipeABoitePropre dans equipes.js, sert à
+// savoir si cette boîte doit être relevée séparément (voir
+// relevePeriodiqueBoiteMail dans index.js).
+export function utilisateurABoitePropre(utilisateur) {
+  return Boolean(utilisateur?.mail?.imapHost || utilisateur?.mail?.user);
+}
+
+// Même logique de fusion que PUT /api/equipes/:id/mail (equipes.js) : un
+// champ non renvoyé (ou vide) garde sa valeur précédente — le mot de passe
+// n'étant jamais renvoyé par l'API, le formulaire d'administration ne peut
+// de toute façon pas le réafficher pour le renvoyer tel quel à chaque
+// enregistrement.
+export async function definirMailPersonnel(utilisateurId, m) {
+  const utilisateur = trouverUtilisateurParId(utilisateurId);
+  if (!utilisateur) {
+    const erreur = new Error("Utilisateur introuvable.");
+    erreur.code = "UTILISATEUR_INTROUVABLE";
+    throw erreur;
+  }
+  if (!m) {
+    utilisateur.mail = null;
+  } else {
+    const avant = utilisateur.mail || {};
+    utilisateur.mail = {
+      smtpHost: String(m.smtpHost || "").trim() || avant.smtpHost || null,
+      smtpPort: Number(m.smtpPort) || avant.smtpPort || null,
+      imapHost: String(m.imapHost || "").trim() || avant.imapHost || null,
+      imapPort: Number(m.imapPort) || avant.imapPort || null,
+      user: String(m.user || "").trim() || avant.user || null,
+      password: String(m.password || "").trim() || avant.password || null,
+      from: String(m.from || "").trim() || avant.from || null,
+      replyTo: String(m.replyTo || "").trim() || avant.replyTo || null,
+    };
+  }
+  await db.write();
+  return utilisateur;
+}
+
 // Confirmation envoyée quand l'admin valide une demande d'accès en attente
 // (voir POST /api/utilisateurs/:id/valider) — distincte du lien magique :
 // il n'y a pas encore de jeton à ce stade, juste l'info que l'accès est

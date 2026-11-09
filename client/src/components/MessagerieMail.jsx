@@ -72,6 +72,14 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   // Mise en page officielle (voir server/src/emailOfficiel.js) et envoi de
   // test à l'adresse du compte connecté, sans rien inscrire sur la fiche.
   const [formatOfficiel, setFormatOfficiel] = useState(true);
+  // Boîte générale (par défaut) ou boîte mail personnelle du compte connecté
+  // (voir server/src/auth.js, mailPersonnel) — réglable seulement si l'admin
+  // en a configuré une pour ce compte (page « Gestion des accès »). Utile
+  // par exemple pour qu'un manager reprenne un dossier en direct : à partir
+  // de ce premier envoi personnel, les réponses du client arrivent dans sa
+  // boîte, plus dans la boîte générale.
+  const boitePersoDisponible = Boolean(utilisateur?.mail?.configuree);
+  const [depuis, setDepuis] = useState("generale");
   const [testEnCours, setTestEnCours] = useState(false);
   const [testEnvoye, setTestEnvoye] = useState(null);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -205,7 +213,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
     setErreur(null);
     setTestEnvoye(null);
     try {
-      const r = await appelEnvoi({ objet, corps, joindrePdf: joindrePdf && estOeth, formatOfficiel: formatOfficiel && formatOfficielDisponible, testVersMoi: true });
+      const r = await appelEnvoi({ objet, corps, joindrePdf: joindrePdf && estOeth, formatOfficiel: formatOfficiel && formatOfficielDisponible, testVersMoi: true, depuis });
       setTestEnvoye(r.destinataire);
     } catch (e) {
       setErreur(e.message);
@@ -229,6 +237,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         destinataire: destinataireEffectif,
         formatOfficiel: formatOfficiel && formatOfficielDisponible,
         cc: copies,
+        depuis,
       });
       onMaj(updated);
       setToastEnvoi(
@@ -414,6 +423,25 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           />
         )}
       </div>
+      {boitePersoDisponible && (
+        <div className="flex flex-wrap items-center gap-2 mb-4 -mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <span>Depuis</span>
+          <select
+            value={depuis}
+            onChange={(e) => setDepuis(e.target.value)}
+            title="Boîte générale : réponses visibles de toute l'équipe. Boîte personnelle : à partir de cet envoi, les réponses du client arrivent uniquement dans votre boîte."
+            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200"
+          >
+            <option value="generale">Boîte générale</option>
+            <option value="personnelle">Ma boîte personnelle{utilisateur?.mail?.from ? ` (${utilisateur.mail.from})` : ""}</option>
+          </select>
+          {depuis === "personnelle" && (
+            <span className="text-amber-700 dark:text-amber-400">
+              À partir de cet envoi, les réponses du client arriveront dans votre boîte, plus dans la boîte générale.
+            </span>
+          )}
+        </div>
+      )}
       {(
         <div className="mb-4 -mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
           <span>Copie (CC)</span>
