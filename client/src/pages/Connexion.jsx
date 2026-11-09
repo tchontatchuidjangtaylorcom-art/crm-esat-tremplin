@@ -245,6 +245,35 @@ export default function Connexion() {
                   ? "Se connecter"
                   : "Recevoir un lien de connexion"}
           </button>
+          {mode === "connexion" && (
+            <button
+              type="button"
+              disabled={envoiEnCours}
+              onClick={async () => {
+                setErreur(null);
+                setMessage(null);
+                if (!email.trim()) {
+                  setErreur("Indiquez d'abord votre adresse mail ci-dessus.");
+                  return;
+                }
+                setEnvoiEnCours(true);
+                try {
+                  await api.demanderLien(email.trim(), {});
+                  setMotDePasse("");
+                  setMessage(
+                    "Un lien de connexion vient de vous être envoyé par mail. Une fois connecté, cliquez sur votre nom en haut à droite, puis « Changer mon mot de passe »."
+                  );
+                } catch (e) {
+                  setErreur(e.message);
+                } finally {
+                  setEnvoiEnCours(false);
+                }
+              }}
+              className="block w-full text-center text-xs text-marine-700 dark:text-marine-300 hover:underline disabled:opacity-40"
+            >
+              Mot de passe oublié ? Recevoir un lien de connexion par mail
+            </button>
+          )}
         </form>
 
         {config?.googleConfigure && (
