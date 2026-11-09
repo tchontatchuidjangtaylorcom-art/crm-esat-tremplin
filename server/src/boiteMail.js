@@ -7,13 +7,26 @@
 //    fiche ; les autres ne sont plus jetés mais gardés « à rattacher »
 //    (visibles des administrateurs, qui les relient à une fiche en un clic).
 //  - Envoyés : mails des agents et des campagnes, lus sur les fiches.
-//  - Un agent ne voit que les mails des fiches qui lui sont visibles.
+//  - Un agent ne voit que les mails des fiches qui lui sont visibles, DANS
+//    l'espace affiché (voir espaces.js) — un compte qui a accès à OETH et à
+//    CEE ne doit jamais voir les deux mélangés selon l'espace choisi en haut
+//    du CRM, y compris les mails « à rattacher » de la boîte partagée.
 //  - Réponse « Désinscription » (lien mailto des campagnes) : l'adresse est
 //    désinscrite automatiquement.
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { estDesinscritOuDesinscrire } from "./campagnes.js";
 import { estImapConfigure, adresseMailPole } from "./mail.js";
+import { espaceDe, espaceDeRequete } from "./espaces.js";
+import { equipeParId } from "./equipes.js";
+
+// Espace d'un mail « à rattacher » : celui de l'équipe propriétaire de la
+// boîte où il a été relevé (équipes avec leur propre boîte IMAP), sinon
+// l'espace OETH — la boîte partagée par défaut (MAIL_USER) est la vraie
+// adresse du pôle OETH, jamais une adresse CEE.
+function espaceDuMailNonRattache(mail) {
+  return (mail.equipeId && equipeParId(mail.equipeId)?.espace) || "oeth";
+}
 
 // État de la relève IMAP (affiché aux administrateurs dans la Boîte mail) :
 // sans ça, une relève non branchée ou en échec ne se voyait nulle part.
@@ -99,6 +112,7 @@ export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAd
   app.get("/api/boite-mail", exigerAuth, (req, res) => {
     const u = req.utilisateur;
     const admin = estAdmin(u);
+    const espace = espaceDeRequete(req);
     const dossier = String(req.query.dossier || "recus");
     const q = norm(req.query.q);
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -106,9 +120,12 @@ export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAd
     let items = [];
     if (dossier === "a_rattacher") {
       if (!admin) return res.status(403).json({ error: "Réservé aux administrateurs." });
-      items = nonRattaches().map((m) => ({ ...m, aRattacher: true }));
+      items = nonRattaches()
+        .filter((m) => espaceDuMailNonRattache(m) === espace)
+        .map((m) => ({ ...m, aRattacher: true }));
     } else {
       for (const e of db.data.entreprises) {
+        if (espaceDe(e) !== espace) continue;
         if (!estVisiblePar(e, u)) continue;
         for (const m of e.emails || []) {
           if (dossier === "recus" && m.direction !== "recu") continue;
@@ -119,6 +136,7 @@ export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAd
       }
       if (admin && (dossier === "recus" || dossier === "non_lus" || dossier === "tous")) {
         for (const m of nonRattaches()) {
+          if (espaceDuMailNonRattache(m) !== espace) continue;
           if (dossier === "non_lus" && m.lu) continue;
           items.push({ ...m, aRattacher: true });
         }
@@ -131,8 +149,12 @@ export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAd
     }
     items.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-    const compteurs = { nonLus: 0, aRattacher: admin ? nonRattaches().filter((m) => !m.lu).length : 0 };
+    const compteurs = {
+      nonLus: 0,
+      aRattacher: admin ? nonRattaches().filter((m) => !m.lu && espaceDuMailNonRattache(m) === espace).length : 0,
+    };
     for (const e of db.data.entreprises) {
+      if (espaceDe(e) !== espace) continue;
       if (!estVisiblePar(e, u)) continue;
       for (const m of e.emails || []) if (m.direction === "recu" && !m.lu) compteurs.nonLus++;
     }
