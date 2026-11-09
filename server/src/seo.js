@@ -207,6 +207,13 @@ export function servirFrontend(app, distClient) {
     })
   );
 
+  // Un fichier du build introuvable (onglet ouvert avant une mise à jour qui
+  // réclame l'ancienne version) doit répondre 404, pas la page HTML : sinon
+  // le navigateur reçoit du HTML à la place du JavaScript → page blanche.
+  app.use("/assets", (req, res) => {
+    res.status(404).type("text/plain").set("Cache-Control", "no-store").send("Fichier introuvable.");
+  });
+
   app.get(/^(?!\/api\/).*/, (req, res) => {
     const chemin = req.path.replace(/\/+$/, "") || "/";
     const requete = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
