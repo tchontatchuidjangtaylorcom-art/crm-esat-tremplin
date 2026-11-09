@@ -61,7 +61,7 @@ import {
 } from "./controleRdv.js";
 import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesMonCompte } from "./monCompte.js";
-import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit } from "./campagnes.js";
+import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit, remplirTexte } from "./campagnes.js";
 import { enregistrerRoutesEmailsEnLot } from "./emailsEnLot.js";
 import { enregistrerRoutesBoiteMail, rangerMailRecu, etatReleve } from "./boiteMail.js";
 import { enregistrerRoutesAppelsAgents, ajouterAppelsAuxKpi, compterAppelStatut } from "./appelsAgents.js";
@@ -1794,12 +1794,76 @@ async function rechercherEmailAuto(entreprise, auteur, statut) {
   }
 }
 
-// Appelée après un changement de statut : passage en PDN/Anglais → recherche e-mail.
+const EMAIL_VALIDE_NRP = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Relance NRP auto-envoyée (modèle OETH "relance_nrp", voir modelesMails.js)
+// dès qu'une fiche passe en NRP 1, UNIQUEMENT si une adresse mail est déjà
+// connue sur la fiche — jamais de recherche d'adresse ici, demande du
+// fondateur (2026-11-09) : ne pas deviner, utiliser ce que l'agent a déjà.
+// Pas encore pour CEE : aucun modèle équivalent (MODELES_PAR_DEFAUT_CEE
+// toujours vide, voir modelesMails.js). Un seul envoi par fiche
+// (`relanceNrpEnvoyee`) pour ne pas la répéter à chaque cycle
+// NRP → recyclage → NRP (voir recyclageNrp.js).
+async function envoyerRelanceNrpAuto(entreprise, utilisateur) {
+  if (espaceDe(entreprise) !== "oeth" || entreprise.relanceNrpEnvoyee) return;
+  const email = String(entreprise.contact?.email || "").trim();
+  if (!EMAIL_VALIDE_NRP.test(email) || estDesinscrit(email)) return;
+  const { modeles } = getModelesMails("oeth", db.data.contenusEditables?.modelesMails);
+  const modele = modeles.find((m) => m.cle === "relance_nrp");
+  if (!modele) return;
+
+  const objet = remplirTexte(modele.objet, entreprise);
+  const corps = remplirTexte(modele.corps, entreprise);
+  const mailEnvoi = mailDeEquipe(entreprise.equipeId);
+  const rendezVous = lienRendezVousClient(entreprise);
+  const dossier = lienFicheClient(entreprise);
+  const html = genererEmailOfficielHtml({
+    entreprise,
+    corps,
+    poleInfo: { email: adresseMailPole(mailEnvoi), telephone: telephonePole() },
+    lienRendezVous: rendezVous.url,
+    lienDossier: dossier.url,
+  });
+  const fromName = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+
+  await envoyerMail({
+    to: email,
+    subject: objet,
+    text:
+      `${corps}\n\nCalculer ma contribution et mettre à jour mon dossier OETH : ${dossier.url}` +
+      `\nVous préférez en parler de vive voix ? Choisir un créneau avec un conseiller : ${rendezVous.url}`,
+    html,
+    fromName,
+    listeDiffusion: true,
+    mailEquipe: mailEnvoi,
+  });
+
+  entreprise.relanceNrpEnvoyee = true;
+  const date = new Date().toISOString();
+  entreprise.emails = entreprise.emails || [];
+  entreprise.emails.unshift({ id: nanoid(), direction: "envoye", de: adresseMailPole(mailEnvoi), a: email, objet, corps, date, lu: true });
+  entreprise.commentaires = Array.isArray(entreprise.commentaires) ? entreprise.commentaires : [];
+  entreprise.commentaires.unshift({
+    id: nanoid(),
+    date,
+    auteur: "Système",
+    texte: `📨 Relance NRP envoyée automatiquement à ${email} (fiche mise en NRP par ${utilisateur.prenom || utilisateur.email}).`,
+  });
+  await db.write();
+}
+
+// Appelée après un changement de statut : passage en PDN/Anglais → recherche
+// e-mail ; passage en NRP 1 (avec mail connu) → relance automatique.
 function apresPassageStatut(entreprise, ancienStatut, utilisateur) {
-  if (!STATUTS_PROSPECTION_MAIL[entreprise.statut] || entreprise.statut === ancienStatut) return;
-  rechercherEmailAuto(entreprise, utilisateur.prenom || utilisateur.email, entreprise.statut).catch((e) =>
-    console.error("[ia] Recherche e-mail automatique :", e.message)
-  );
+  if (entreprise.statut === ancienStatut) return;
+  if (STATUTS_PROSPECTION_MAIL[entreprise.statut]) {
+    rechercherEmailAuto(entreprise, utilisateur.prenom || utilisateur.email, entreprise.statut).catch((e) =>
+      console.error("[ia] Recherche e-mail automatique :", e.message)
+    );
+  }
+  if (entreprise.statut === "nrp") {
+    envoyerRelanceNrpAuto(entreprise, utilisateur).catch((e) => console.error("[nrp] Relance automatique :", e.message));
+  }
 }
 
 // Une fiche est ignorée par le lot si Claude n'a rien trouvé, ou si la
