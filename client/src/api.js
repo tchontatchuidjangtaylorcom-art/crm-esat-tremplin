@@ -586,6 +586,17 @@ export const api = {
       body: JSON.stringify({ mail }),
     }).then(handle),
 
+  // Boîte mail propre à un espace (OETH/CEE — domaine dédié) : voir
+  // server/src/espaces.js. Même esprit que définirMailEquipe ci-dessus ;
+  // `mail: null` retire la boîte propre (l'espace retombe sur la boîte
+  // partagée).
+  definirMailEspace: (id, mail) =>
+    fetch(`${BASE}/espaces/${id}/mail`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mail }),
+    }).then(handle),
+
   definirEquipeUtilisateur: (utilisateurId, equipeId) =>
     fetch(`${BASE}/utilisateurs/${utilisateurId}/equipe`, {
       method: "PUT",

@@ -20,6 +20,13 @@ export default function AdminEquipes() {
   const [espaces, setEspaces] = useState([]);
   const [erreur, setErreur] = useState(null);
 
+  function chargerEspaces() {
+    fetch("/api/espaces/tous")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setEspaces)
+      .catch(() => {});
+  }
+
   function charger() {
     api
       .listEquipes()
@@ -30,10 +37,7 @@ export default function AdminEquipes() {
   useEffect(() => {
     charger();
     api.listUtilisateurs().then(setUtilisateurs).catch(() => {});
-    fetch("/api/espaces/tous")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setEspaces)
-      .catch(() => {});
+    chargerEspaces();
   }, []);
 
   const [nom, setNom] = useState("");
@@ -135,6 +139,74 @@ export default function AdminEquipes() {
     }
   }
 
+  // Boîte mail propre à un ESPACE (OETH/CEE — domaine dédié, ex : Eco Smart
+  // France pour CEE), indépendante de celle d'une équipe : même formulaire,
+  // même esprit (voir ouvrirMail/enregistrerMail ci-dessus et
+  // server/src/espaces.js). Un espace n'a ni manager ni statut actif/inactif
+  // ici — seulement son nom et sa boîte mail.
+  const [mailEspaceOuvert, setMailEspaceOuvert] = useState(null);
+  const [enregistrementMailEspace, setEnregistrementMailEspace] = useState(false);
+  const [erreurMailEspace, setErreurMailEspace] = useState(null);
+
+  function ouvrirMailEspace(esp) {
+    setErreurMailEspace(null);
+    setMailEspaceOuvert({
+      id: esp.id,
+      champs: {
+        ...CHAMPS_MAIL_VIDES,
+        user: esp.mail?.user || "",
+        from: esp.mail?.from || "",
+        replyTo: esp.mail?.replyTo || "",
+        smtpHost: esp.mail?.smtpHost || "",
+        smtpPort: esp.mail?.smtpPort ? String(esp.mail.smtpPort) : "",
+        imapHost: esp.mail?.imapHost || "",
+        imapPort: esp.mail?.imapPort ? String(esp.mail.imapPort) : "",
+      },
+    });
+  }
+
+  async function enregistrerMailEspace(id) {
+    const c = mailEspaceOuvert.champs;
+    if (!c.from.trim() && !c.user.trim()) {
+      setErreurMailEspace("Indiquez au moins une adresse d'expédition (From) ou un identifiant de boîte.");
+      return;
+    }
+    setEnregistrementMailEspace(true);
+    setErreurMailEspace(null);
+    try {
+      await api.definirMailEspace(id, {
+        smtpHost: c.smtpHost.trim(),
+        smtpPort: c.smtpPort.trim() ? Number(c.smtpPort) : null,
+        imapHost: c.imapHost.trim(),
+        imapPort: c.imapPort.trim() ? Number(c.imapPort) : null,
+        user: c.user.trim(),
+        password: c.password,
+        from: c.from.trim(),
+        replyTo: c.replyTo.trim(),
+      });
+      setMailEspaceOuvert(null);
+      chargerEspaces();
+    } catch (e) {
+      setErreurMailEspace(e.message);
+    } finally {
+      setEnregistrementMailEspace(false);
+    }
+  }
+
+  async function retirerMailEspace(id) {
+    if (!window.confirm("Retirer la boîte propre de cet espace ? Il retombera sur la boîte partagée.")) return;
+    setEnregistrementMailEspace(true);
+    try {
+      await api.definirMailEspace(id, null);
+      setMailEspaceOuvert(null);
+      chargerEspaces();
+    } catch (e) {
+      setErreurMailEspace(e.message);
+    } finally {
+      setEnregistrementMailEspace(false);
+    }
+  }
+
   const nomEspace = (id) => espaces.find((e) => e.id === id)?.nom || id;
   const nomUtilisateur = (id) => {
     const u = utilisateurs.find((x) => x.id === id);
@@ -158,6 +230,173 @@ export default function AdminEquipes() {
           Un bureau (Cameroun, Paris…) = une équipe. Son manager voit toutes ses fiches, ses agents n'y voient que les
           leurs. Attribuez l'équipe de chaque compte depuis la page « Gestion des accès ».
         </p>
+
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Boîte mail par espace</h2>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
+          Adresse d'envoi dédiée par ligne d'activité (ex : un domaine propre pour CEE, séparé de la boîte partagée du
+          pôle OETH). Tant qu'aucune boîte n'est configurée ici, tous les espaces envoient depuis la boîte partagée.
+          À renseigner une fois le nom de domaine acheté et vérifié chez le fournisseur d'envoi.
+        </p>
+        <div className="mb-8 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+                <th className="px-4 py-3 text-left">Espace</th>
+                <th className="px-4 py-3 text-left">Boîte mail</th>
+                <th className="px-4 py-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+              {espaces.map((esp) => (
+                <Fragment key={esp.id}>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{esp.nom}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                          esp.mail?.configuree
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                            : "bg-slate-100 text-slate-500 border-slate-300"
+                        }`}
+                      >
+                        {esp.mail?.configuree ? `Propre (${esp.mail.from || esp.mail.user})` : "Boîte partagée"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <button
+                        onClick={() => (mailEspaceOuvert?.id === esp.id ? setMailEspaceOuvert(null) : ouvrirMailEspace(esp))}
+                        className="text-xs text-marine-700 dark:text-marine-300 hover:underline"
+                      >
+                        {mailEspaceOuvert?.id === esp.id ? "Fermer" : "Boîte mail…"}
+                      </button>
+                    </td>
+                  </tr>
+                  {mailEspaceOuvert?.id === esp.id && (
+                    <tr className="bg-slate-50 dark:bg-slate-900">
+                      <td colSpan={3} className="px-4 py-4">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                          Deux usages possibles, aux mêmes champs : renseignez seulement <b>From</b> (et éventuellement
+                          Répondre à) pour un simple alias sur la boîte partagée ; renseignez en plus l'hôte/l'identifiant/le
+                          mot de passe IMAP+SMTP pour une vraie boîte séparée sur le domaine dédié (les réponses du client
+                          arrivent alors directement dans cette boîte-là, relevée séparément).
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            From (adresse affichée)
+                            <input
+                              type="email"
+                              placeholder="contact@ecosmartfrance.fr"
+                              value={mailEspaceOuvert.champs.from}
+                              onChange={(e) => setMailEspaceOuvert((m) => ({ ...m, champs: { ...m.champs, from: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Répondre à (optionnel)
+                            <input
+                              type="email"
+                              placeholder="= From si vide"
+                              value={mailEspaceOuvert.champs.replyTo}
+                              onChange={(e) => setMailEspaceOuvert((m) => ({ ...m, champs: { ...m.champs, replyTo: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Identifiant de boîte (SMTP/IMAP)
+                            <input
+                              type="text"
+                              placeholder="contact@ecosmartfrance.fr"
+                              value={mailEspaceOuvert.champs.user}
+                              onChange={(e) => setMailEspaceOuvert((m) => ({ ...m, champs: { ...m.champs, user: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Mot de passe de la boîte
+                            <input
+                              type="password"
+                              autoComplete="new-password"
+                              placeholder={esp.mail?.configuree ? "Laisser vide = inchangé" : ""}
+                              value={mailEspaceOuvert.champs.password}
+                              onChange={(e) => setMailEspaceOuvert((m) => ({ ...m, champs: { ...m.champs, password: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Hôte SMTP (envoi)
+                            <input
+                              type="text"
+                              placeholder="smtp.resend.com ou pro1.mail.ovh.net"
+                              value={mailEspaceOuvert.champs.smtpHost}
+                              onChange={(e) => setMailEspaceOuvert((m) => ({ ...m, champs: { ...m.champs, smtpHost: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Port SMTP
+                            <input
+                              type="number"
+                              placeholder="587"
+                              value={mailEspaceOuvert.champs.smtpPort}
+                              onChange={(e) => setMailEspaceOuvert((m) => ({ ...m, champs: { ...m.champs, smtpPort: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Hôte IMAP (réception)
+                            <input
+                              type="text"
+                              placeholder="pro1.mail.ovh.net"
+                              value={mailEspaceOuvert.champs.imapHost}
+                              onChange={(e) => setMailEspaceOuvert((m) => ({ ...m, champs: { ...m.champs, imapHost: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
+                            Port IMAP
+                            <input
+                              type="number"
+                              placeholder="993"
+                              value={mailEspaceOuvert.champs.imapPort}
+                              onChange={(e) => setMailEspaceOuvert((m) => ({ ...m, champs: { ...m.champs, imapPort: e.target.value } }))}
+                              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                        </div>
+                        {erreurMailEspace && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erreurMailEspace}</p>}
+                        <div className="flex items-center gap-3 mt-3">
+                          <button
+                            onClick={() => enregistrerMailEspace(esp.id)}
+                            disabled={enregistrementMailEspace}
+                            className="rounded-lg bg-marine-800 hover:bg-marine-900 dark:bg-marine-200 dark:hover:bg-marine-300 text-white dark:text-marine-900 text-xs font-medium px-3 py-1.5 disabled:opacity-40"
+                          >
+                            Enregistrer
+                          </button>
+                          {esp.mail?.configuree && (
+                            <button
+                              onClick={() => retirerMailEspace(esp.id)}
+                              disabled={enregistrementMailEspace}
+                              className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-40"
+                            >
+                              Retirer la boîte propre (revenir au partagé)
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+              {espaces.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500">
+                    Chargement…
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {erreur && (
           <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-3 text-sm">

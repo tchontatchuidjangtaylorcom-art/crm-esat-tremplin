@@ -20,12 +20,14 @@ import { estImapConfigure, adresseMailPole } from "./mail.js";
 import { espaceDe, espaceDeRequete } from "./espaces.js";
 import { equipeParId } from "./equipes.js";
 
-// Espace d'un mail « à rattacher » : celui de l'équipe propriétaire de la
-// boîte où il a été relevé (équipes avec leur propre boîte IMAP), sinon
-// l'espace OETH — la boîte partagée par défaut (MAIL_USER) est la vraie
-// adresse du pôle OETH, jamais une adresse CEE.
+// Espace d'un mail « à rattacher » : le sien directement s'il vient d'une
+// boîte propre à un espace (domaine CEE dédié, voir espaces.js,
+// espaceABoitePropre), sinon celui de l'équipe propriétaire de la boîte où
+// il a été relevé (équipes avec leur propre boîte IMAP), sinon l'espace OETH
+// — la boîte partagée par défaut (MAIL_USER) est la vraie adresse du pôle
+// OETH, jamais une adresse CEE.
 function espaceDuMailNonRattache(mail) {
-  return (mail.equipeId && equipeParId(mail.equipeId)?.espace) || "oeth";
+  return mail.espaceId || (mail.equipeId && equipeParId(mail.equipeId)?.espace) || "oeth";
 }
 
 // État de la relève IMAP (affiché aux administrateurs dans la Boîte mail) :
@@ -51,11 +53,12 @@ export function trouverFicheExpediteur(adresse) {
   return db.data.entreprises.find(correspond) || db.data.archives?.find(correspond) || null;
 }
 
-// Appelé par la relève pour chaque mail reçu. `equipeId`/`mailEquipe` :
-// boîte équipe d'où provient ce mail (undefined = boîte partagée par
-// défaut) — voir relevePeriodiqueBoiteMail dans index.js, qui relève
-// séparément chaque boîte distincte (equipes.js, equipeABoitePropre).
-export function rangerMailRecu(mail, { equipeId = null, mailEquipe } = {}) {
+// Appelé par la relève pour chaque mail reçu. `equipeId`/`espaceId`/
+// `mailEquipe` : boîte (équipe ou espace) d'où provient ce mail (tous
+// `null`/`undefined` = boîte partagée par défaut) — voir
+// relevePeriodiqueBoiteMail dans index.js, qui relève séparément chaque
+// boîte distincte (equipes.js/espaces.js, equipeABoitePropre/espaceABoitePropre).
+export function rangerMailRecu(mail, { equipeId = null, espaceId = null, mailEquipe } = {}) {
   etatReleve.recusDepuisDemarrage++;
   // Notifications envoyées par le CRM lui-même à la boîte du pôle (« CRM —
   // Fiche client », « CRM — Rendez-vous client »…) : déjà visibles dans le
@@ -83,10 +86,13 @@ export function rangerMailRecu(mail, { equipeId = null, mailEquipe } = {}) {
     fiche.emails.unshift(entree);
     return fiche;
   }
-  // Rattaché à l'équipe de la boîte reçue (pas de fiche connue de
-  // l'expéditeur) — permet, demain, de réserver aux managers de cette
-  // équipe le tri de leurs propres mails « à rattacher ».
+  // Rattaché à l'équipe ou à l'espace de la boîte reçue (pas de fiche connue
+  // de l'expéditeur) — permet, demain, de réserver aux managers de cette
+  // équipe le tri de leurs propres mails « à rattacher », et sert dès
+  // aujourd'hui à ranger le mail dans le bon espace (voir
+  // espaceDuMailNonRattache ci-dessus).
   entree.equipeId = equipeId;
+  entree.espaceId = espaceId;
   if (mail.messageId && nonRattaches().some((m) => m.messageId === mail.messageId)) return null;
   nonRattaches().unshift(entree);
   // Garde-fou de taille : les 2 000 plus récents.

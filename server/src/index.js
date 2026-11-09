@@ -106,8 +106,8 @@ import { googleConfigure, verifierIdTokenGoogle } from "./googleAuth.js";
 import { enregistrerBattement, calculerKpiAgent, calculerKpiEquipe, alertesAbsenceEquipe } from "./presence.js";
 import { reparerChampsContact, estNumeroTelephone } from "./telephone.js";
 import { territoireDe, territoireValide, nomTerritoire } from "./territoires.js";
-import { installerEspaces, espaceDe, aAccesEspace, espaceCourant, espaceDeRequete } from "./espaces.js";
-import { installerEquipes, estManager, estVisibleParEquipe, equipeDeCreation, listeEquipes, mailDeEquipe, equipeABoitePropre } from "./equipes.js";
+import { installerEspaces, espaceDe, aAccesEspace, espaceCourant, espaceDeRequete, listeEspaces, mailDeEspace, espaceABoitePropre } from "./espaces.js";
+import { installerEquipes, estManager, estVisibleParEquipe, equipeDeCreation, listeEquipes, equipeABoitePropre, mailDeFiche } from "./equipes.js";
 import { verifierProcedureCollective } from "./bodacc.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1814,7 +1814,7 @@ async function envoyerRelanceNrpAuto(entreprise, utilisateur) {
 
   const objet = remplirTexte(modele.objet, entreprise);
   const corps = remplirTexte(modele.corps, entreprise);
-  const mailEnvoi = mailDeEquipe(entreprise.equipeId);
+  const mailEnvoi = mailDeFiche(entreprise);
   const rendezVous = lienRendezVousClient(entreprise);
   const dossier = lienFicheClient(entreprise);
   const html = genererEmailOfficielHtml({
@@ -3777,7 +3777,7 @@ app.post("/api/entreprises/:id/emails/envoyer", exigerAuth, chargerEntrepriseAut
       error: "Aucune boîte mail personnelle n'est configurée pour votre compte — demandez à un administrateur de la configurer (page « Gestion des accès »).",
     });
   }
-  const mailEnvoi = mailPerso || mailDeEquipe(entreprise.equipeId);
+  const mailEnvoi = mailPerso || mailDeFiche(entreprise);
   const nomExpediteur =
     espaceEntreprise === "oeth"
       ? determinerCollecteur(entreprise) === "FIPHFP"
@@ -4331,23 +4331,27 @@ async function relevePeriodiqueBoiteMail() {
   if (releveEnCours) return;
   releveEnCours = true;
   etatReleve.derniereTentative = new Date().toISOString();
-  // Boîte partagée par défaut, puis une relève séparée pour chaque équipe
-  // ayant sa PROPRE boîte IMAP distincte (voir equipes.js,
-  // equipeABoitePropre) et pour chaque compte ayant sa propre boîte
-  // personnelle (voir auth.js, utilisateurABoitePropre — ex. un manager qui a
-  // choisi « boîte personnelle » à l'envoi, voir le champ `depuis` plus haut)
-  // — une équipe ou un compte qui n'a configuré qu'une adresse d'expédition
-  // personnalisée (façon alias OVH) reste relevé via la boîte partagée
-  // ci-dessus, jamais deux fois la même boîte. L'échec d'une boîte n'empêche
-  // pas de relever les autres.
+  // Boîte partagée par défaut, puis une relève séparée pour chaque espace
+  // ayant sa PROPRE boîte IMAP distincte (voir espaces.js, espaceABoitePropre
+  // — ex : domaine CEE dédié), chaque équipe ayant sa PROPRE boîte IMAP
+  // distincte (voir equipes.js, equipeABoitePropre) et chaque compte ayant sa
+  // propre boîte personnelle (voir auth.js, utilisateurABoitePropre — ex. un
+  // manager qui a choisi « boîte personnelle » à l'envoi, voir le champ
+  // `depuis` plus haut) — un espace, une équipe ou un compte qui n'a
+  // configuré qu'une adresse d'expédition personnalisée (façon alias OVH)
+  // reste relevé via la boîte partagée ci-dessus, jamais deux fois la même
+  // boîte. L'échec d'une boîte n'empêche pas de relever les autres.
   const boites = [
-    { equipeId: null, mailEquipe: undefined, nom: "boîte partagée" },
+    { equipeId: null, espaceId: null, mailEquipe: undefined, nom: "boîte partagée" },
+    ...listeEspaces()
+      .filter(espaceABoitePropre)
+      .map((e) => ({ equipeId: null, espaceId: e.id, mailEquipe: e.mail, nom: `espace ${e.nom}` })),
     ...listeEquipes()
       .filter(equipeABoitePropre)
-      .map((e) => ({ equipeId: e.id, mailEquipe: e.mail, nom: `équipe ${e.nom}` })),
+      .map((e) => ({ equipeId: e.id, espaceId: null, mailEquipe: e.mail, nom: `équipe ${e.nom}` })),
     ...db.data.utilisateurs
       .filter(utilisateurABoitePropre)
-      .map((u) => ({ equipeId: u.equipeId || null, mailEquipe: u.mail, nom: `boîte perso. ${u.prenom || u.email}` })),
+      .map((u) => ({ equipeId: u.equipeId || null, espaceId: null, mailEquipe: u.mail, nom: `boîte perso. ${u.prenom || u.email}` })),
   ];
   const erreurs = [];
   let uneReussite = false;
@@ -4356,7 +4360,7 @@ async function relevePeriodiqueBoiteMail() {
       // Rangé sur la fiche de l'expéditeur, sinon gardé « à rattacher » dans
       // la Boîte mail du CRM (voir boiteMail.js) — plus jamais ignoré.
       await relaverBoiteMail(async (mail) => {
-        const entreprise = rangerMailRecu(mail, { equipeId: boite.equipeId, mailEquipe: boite.mailEquipe });
+        const entreprise = rangerMailRecu(mail, { equipeId: boite.equipeId, espaceId: boite.espaceId, mailEquipe: boite.mailEquipe });
         if (!entreprise) console.log(`Mail reçu de ${mail.de} (${boite.nom}) — aucune fiche correspondante : gardé « à rattacher ».`);
         await db.write();
       }, boite.mailEquipe);
@@ -4409,7 +4413,12 @@ if (estResendConfigure()) {
   );
 }
 
-if (estImapConfigure() || listeEquipes().some(equipeABoitePropre) || db.data.utilisateurs.some(utilisateurABoitePropre)) {
+if (
+  estImapConfigure() ||
+  listeEspaces().some(espaceABoitePropre) ||
+  listeEquipes().some(equipeABoitePropre) ||
+  db.data.utilisateurs.some(utilisateurABoitePropre)
+) {
   relevePeriodiqueBoiteMail();
   setInterval(relevePeriodiqueBoiteMail, 60_000);
   console.log("[mail] Boîte(s) de réception connectée(s) : relève automatique toutes les 60 secondes.");

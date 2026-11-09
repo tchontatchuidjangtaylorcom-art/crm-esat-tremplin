@@ -25,6 +25,7 @@
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { estAdmin } from "./auth.js";
+import { espaceDe, mailDeEspace } from "./espaces.js";
 
 export function listeEquipes() {
   if (!Array.isArray(db.data.equipes)) db.data.equipes = [];
@@ -42,6 +43,14 @@ export function equipeParId(id) {
 // d'équipe pour éviter un import circulaire (auth.js importe déjà mail.js).
 export function mailDeEquipe(equipeId) {
   return equipeParId(equipeId)?.mail || undefined;
+}
+
+// Boîte à utiliser pour l'envoi/la réception des mails d'une fiche donnée :
+// celle de son équipe si elle en a une propre, sinon celle de son espace
+// (OETH/CEE — domaine dédié, voir espaces.js, mailDeEspace), sinon undefined
+// (boîte partagée par défaut, variables d'environnement — voir mail.js).
+export function mailDeFiche(entreprise) {
+  return mailDeEquipe(entreprise.equipeId) || mailDeEspace(espaceDe(entreprise));
 }
 
 // Vrai seulement si l'équipe a sa PROPRE boîte IMAP distincte (hôte ou

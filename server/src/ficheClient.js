@@ -14,7 +14,7 @@ import crypto from "crypto";
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, adresseMailPole, telephonePole } from "./mail.js";
-import { mailDeEquipe } from "./equipes.js";
+import { mailDeFiche } from "./equipes.js";
 import { calculerObligationOeth, simulerContributionOeth, smicPourExercice, exerciceParDefaut } from "./oeth.js";
 import { lienRendezVousClient } from "./vitrineRdv.js";
 import { determinerCollecteur } from "./secteurs.js";
@@ -196,7 +196,7 @@ export function enregistrerRoutesFicheClient(
     if (invalide) return res.status(400).json({ error: `Adresse en copie invalide : ${invalide}` });
 
     const { url } = lienFicheClient(entreprise);
-    const mailEquipe = mailDeEquipe(entreprise.equipeId);
+    const mailEquipe = mailDeFiche(entreprise);
     const pole = { email: adresseMailPole(mailEquipe), telephone: telephonePole() };
     const nomPole = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
     const sujet = `Votre fiche OETH à confirmer — ${entreprise.nom}`;
@@ -272,7 +272,7 @@ export function enregistrerRoutesFicheClient(
         label: cle === "avant" ? label.replace(" (ou jamais)", ", ou jamais") : cle === "inconnu" ? "Je ne sais pas" : label,
       })),
       dejaConfirmee: c ? { date: c.date, nom: c.nom, effectif: c.effectif, rqth: c.rqth } : null,
-      pole: { email: adresseMailPole(mailDeEquipe(entreprise.equipeId)), telephone: telephonePole() },
+      pole: { email: adresseMailPole(mailDeFiche(entreprise)), telephone: telephonePole() },
     });
   });
 
@@ -384,7 +384,7 @@ export function enregistrerRoutesFicheClient(
     for (const e of fiches) {
       const { url, cree } = lienFicheClient(e);
       aEcrire = aEcrire || cree;
-      const mailEquipe = mailDeEquipe(e.equipeId);
+      const mailEquipe = mailDeFiche(e);
       try {
         await envoyerMail({
           to: email,

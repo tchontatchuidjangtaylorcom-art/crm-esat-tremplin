@@ -60,6 +60,44 @@ export function listeEspaces() {
 
 export const espaceDe = (entreprise) => entreprise?.espace || ESPACE_PAR_DEFAUT;
 
+// Boîte mail propre à un espace (ex : domaine dédié "Eco Smart France" pour
+// CEE, séparé de l'adresse partagée du Pôle OETH) — même esprit que `mail`
+// sur une équipe (equipes.js, mailDeEquipe) : reste `undefined` tant que
+// l'espace n'a pas sa propre boîte, et retombe alors sur la boîte partagée
+// par défaut (variables d'environnement, voir mail.js). Priorité à la boîte
+// de l'équipe de la fiche si elle en a une propre : voir mailDeFiche dans
+// equipes.js, qui enchaîne équipe puis espace puis boîte partagée.
+export function mailDeEspace(espaceId) {
+  return listeEspaces().find((e) => e.id === espaceId)?.mail || undefined;
+}
+
+// Vrai seulement si l'espace a sa PROPRE boîte IMAP distincte (comme
+// equipeABoitePropre dans equipes.js) — sinon la relève automatique
+// relèverait deux fois la même boîte partagée.
+export function espaceABoitePropre(espace) {
+  return Boolean(espace?.mail?.imapHost || espace?.mail?.user);
+}
+
+// Jamais le MOT DE PASSE de la boîte mail dans une réponse API (même
+// principe que equipeSansSecrets dans equipes.js).
+export function espaceSansSecrets(espace) {
+  return {
+    ...espace,
+    mail: espace.mail
+      ? {
+          configuree: true,
+          user: espace.mail.user || null,
+          from: espace.mail.from || null,
+          replyTo: espace.mail.replyTo || null,
+          smtpHost: espace.mail.smtpHost || null,
+          smtpPort: espace.mail.smtpPort || null,
+          imapHost: espace.mail.imapHost || null,
+          imapPort: espace.mail.imapPort || null,
+        }
+      : null,
+  };
+}
+
 // Identifiants des espaces ouverts à ce compte.
 export function espacesAutorises(utilisateur) {
   const ids = listeEspaces().map((e) => e.id);
@@ -96,14 +134,43 @@ export function installerEspaces(app, { exigerAuth, exigerAdmin }) {
   app.get("/api/espaces", exigerAuth, (req, res) => {
     const autorises = espacesAutorises(req.utilisateur);
     res.json({
-      espaces: listeEspaces().filter((e) => autorises.includes(e.id)),
+      espaces: listeEspaces().filter((e) => autorises.includes(e.id)).map(espaceSansSecrets),
       courant: espaceDeRequete(req),
     });
   });
 
   // Tous les espaces (administration des accès).
   app.get("/api/espaces/tous", exigerAdmin, (req, res) => {
-    res.json(listeEspaces());
+    res.json(listeEspaces().map(espaceSansSecrets));
+  });
+
+  // Boîte mail propre à un espace (ex : domaine CEE dédié) — même esprit que
+  // PUT /api/equipes/:id/mail dans equipes.js : `mail: null` retire
+  // ENTIÈREMENT la boîte propre (l'espace retombe sur la boîte partagée) ;
+  // sinon un champ non renvoyé GARDE sa valeur précédente (le mot de passe
+  // n'étant jamais renvoyé par l'API, le formulaire d'administration ne peut
+  // de toute façon pas le réafficher pour le renvoyer tel quel).
+  app.put("/api/espaces/:id/mail", exigerAdmin, async (req, res) => {
+    const espace = listeEspaces().find((e) => e.id === req.params.id);
+    if (!espace) return res.status(404).json({ error: "Espace introuvable." });
+    const m = req.body.mail;
+    if (!m) {
+      espace.mail = null;
+    } else {
+      const avant = espace.mail || {};
+      espace.mail = {
+        smtpHost: String(m.smtpHost || "").trim() || avant.smtpHost || null,
+        smtpPort: Number(m.smtpPort) || avant.smtpPort || null,
+        imapHost: String(m.imapHost || "").trim() || avant.imapHost || null,
+        imapPort: Number(m.imapPort) || avant.imapPort || null,
+        user: String(m.user || "").trim() || avant.user || null,
+        password: String(m.password || "").trim() || avant.password || null,
+        from: String(m.from || "").trim() || avant.from || null,
+        replyTo: String(m.replyTo || "").trim() || avant.replyTo || null,
+      };
+    }
+    await db.write();
+    res.json(espaceSansSecrets(espace));
   });
 
   // Espaces d'un compte (Gestion des accès). Les administrateurs ont
