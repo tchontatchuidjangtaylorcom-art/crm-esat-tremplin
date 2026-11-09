@@ -59,18 +59,47 @@ class EchecChargement extends Component {
     return { erreur };
   }
 
-  componentDidCatch(erreur) {
-    console.error("[app] Échec du chargement de l'application :", erreur);
+  componentDidCatch(erreur, info) {
+    console.error("[app] Erreur de l'application :", erreur);
+    // Inscrit l'erreur dans les journaux du serveur (comptes connectés).
+    try {
+      fetch("/api/erreur-client", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          page: window.location.pathname,
+          message: String(erreur?.message || erreur),
+          pile: String(erreur?.stack || ""),
+          composants: String(info?.componentStack || ""),
+        }),
+      }).catch(() => {});
+    } catch {
+      /* sans conséquence */
+    }
   }
 
   render() {
-    if (!this.state.erreur) return this.props.children;
+    const { erreur } = this.state;
+    if (!erreur) return this.props.children;
+    // Fichier de l'application qui n'arrive pas (connexion coupée, ancienne
+    // version) ou bien vrai plantage de l'interface : messages différents.
+    const chargement = /dynamically imported module|Importing a module script failed|error loading dynamically|Failed to fetch|preload/i.test(
+      String(erreur?.message || "")
+    );
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <p className="text-base font-semibold text-slate-800 dark:text-slate-100">La page n'a pas pu se charger.</p>
+          <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
+            {chargement ? "La page n'a pas pu se charger." : "Une erreur s'est produite dans le CRM."}
+          </p>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            La connexion Internet a sans doute été coupée pendant le chargement. Vérifiez votre connexion, puis rechargez la page.
+            {chargement
+              ? "La connexion Internet a sans doute été coupée pendant le chargement. Vérifiez votre connexion, puis rechargez la page."
+              : "L'erreur a été signalée automatiquement. Rechargez la page ; si elle revient, envoyez une capture de ce message à l'administrateur."}
+          </p>
+          <p className="mt-3 break-words rounded bg-slate-100 px-2 py-1 text-left font-mono text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            {String(erreur?.message || erreur).slice(0, 300)}
           </p>
           <button
             type="button"

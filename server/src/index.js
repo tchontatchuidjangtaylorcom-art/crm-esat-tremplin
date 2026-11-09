@@ -998,6 +998,19 @@ app.post("/api/vitrine/synthese-pdf", async (req, res) => {
   }
 });
 
+// Plantage de l'interface du CRM (voir EchecChargement dans client/src/App.jsx) :
+// inscrit l'erreur dans les journaux Render, pour la corriger sans avoir à
+// demander une capture de la console à l'agent. Comptes connectés seulement.
+app.post("/api/erreur-client", exigerAuth, (req, res) => {
+  const b = req.body || {};
+  const court = (v, max) => String(v ?? "").slice(0, max);
+  console.error(
+    `[erreur-client] ${req.utilisateur.email} (${req.utilisateur.role}) sur ${court(b.page, 200)} : ${court(b.message, 500)}\n` +
+      `${court(b.pile, 2500)}\n${court(b.composants, 1500)}\nNavigateur : ${court(req.headers["user-agent"], 200)}`
+  );
+  res.status(204).end();
+});
+
 // Envoi de la synthèse PDF par e-mail au visiteur (étape "résultats" du
 // simulateur). L'adresse ne sert qu'à cet envoi : rien n'est enregistré.
 // Limite simple par IP (5 envois / heure) pour éviter tout usage du
