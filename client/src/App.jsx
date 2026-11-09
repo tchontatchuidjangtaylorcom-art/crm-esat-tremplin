@@ -8,9 +8,10 @@ import { useLocation } from "react-router-dom";
 //
 // Si ce chargement échoue (connexion coupée en cours de route, ou onglet
 // ouvert avant une mise à jour qui réclame un fichier qui n'existe plus),
-// la page restait blanche sans explication. On recharge alors la page une
-// fois automatiquement, puis on affiche un message avec un bouton.
+// la page restait blanche sans explication. On recharge alors la page
+// automatiquement quelques fois, puis on affiche un message avec un bouton.
 const CLE_RELANCE = "crm-rechargement-apres-echec";
+const MAX_RECHARGEMENTS = 4;
 
 function chargerAvecRelance(importer) {
   return lazy(() =>
@@ -24,16 +25,21 @@ function chargerAvecRelance(importer) {
         return module;
       },
       (erreur) => {
-        let dejaRelance = true;
+        // Pendant un déploiement, le serveur Render (avec disque) est arrêté
+        // environ une minute : on recharge plusieurs fois, de plus en plus
+        // espacé (4, 8, 12, 16 s ≈ 40 s), avant d'afficher le message.
+        // Un nouvel import du même fichier ne suffit pas : le navigateur
+        // garde l'échec en mémoire jusqu'au rechargement de la page.
+        let essais = MAX_RECHARGEMENTS;
         try {
-          dejaRelance = sessionStorage.getItem(CLE_RELANCE) === "1";
-          if (!dejaRelance) sessionStorage.setItem(CLE_RELANCE, "1");
+          essais = Number(sessionStorage.getItem(CLE_RELANCE)) || 0;
+          if (essais < MAX_RECHARGEMENTS) sessionStorage.setItem(CLE_RELANCE, String(essais + 1));
         } catch {
           /* sans stockage, pas de rechargement automatique (évite une boucle) */
         }
-        if (!dejaRelance) {
-          window.location.reload();
-          return new Promise(() => {}); // la page se recharge
+        if (essais < MAX_RECHARGEMENTS) {
+          setTimeout(() => window.location.reload(), 4000 * (essais + 1));
+          return new Promise(() => {}); // « Chargement… » jusqu'au rechargement
         }
         throw erreur;
       }
@@ -95,7 +101,7 @@ class EchecChargement extends Component {
           </p>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             {chargement
-              ? "La connexion Internet a sans doute été coupée pendant le chargement. Vérifiez votre connexion, puis rechargez la page."
+              ? "Le serveur est peut-être en cours de mise à jour (environ une minute), ou la connexion Internet a été coupée. Patientez un instant, puis rechargez la page."
               : "L'erreur a été signalée automatiquement. Rechargez la page ; si elle revient, envoyez une capture de ce message à l'administrateur."}
           </p>
           <p className="mt-3 break-words rounded bg-slate-100 px-2 py-1 text-left font-mono text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
