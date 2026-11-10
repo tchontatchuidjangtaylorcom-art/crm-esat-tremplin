@@ -36,10 +36,10 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   // masquées hors de cet espace (voir espaces.js). Modèles et mise en page
   // officielle ont désormais un équivalent CEE (voir modelesMails.js et
   // emailOfficiel.js) : plus besoin de les masquer.
-  const { estOeth, espace } = useEspaces();
+  const { estOeth, estCee, espace } = useEspaces();
   // Mise en page officielle disponible pour OETH et CEE (voir
   // server/src/emailOfficiel.js) — à étendre ici quand un nouvel espace en a une.
-  const formatOfficielDisponible = estOeth || espace?.id === "cee";
+  const formatOfficielDisponible = estOeth || estCee;
   // « M'envoyer un test » : visible du super-administrateur uniquement.
   const testAutorise = utilisateur?.role === "super_admin";
   // Repliée par défaut (une seule ligne) : remontée en haut de la fiche (voir
@@ -172,8 +172,8 @@ export default function MessagerieMail({ entreprise, onMaj }) {
   }, [entreprise.id]);
 
   function inserer(modele) {
-    setObjet(remplirJetons(modele.objet, { statutMail, collecteur: entreprise.collecteur, espace: espace?.id }));
-    setCorps(remplirJetons(modele.corps, { statutMail, collecteur: entreprise.collecteur, espace: espace?.id }));
+    setObjet(remplirJetons(modele.objet, { statutMail, collecteur: entreprise.collecteur, espace: espace?.id, nomEspace: espace?.nom }));
+    setCorps(remplirJetons(modele.corps, { statutMail, collecteur: entreprise.collecteur, espace: espace?.id, nomEspace: espace?.nom }));
   }
 
   // Génération sur demande (jamais automatique) : l'agent déclenche
@@ -352,7 +352,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
         className="w-full flex items-center justify-between gap-2 text-left"
       >
         <h2 className="font-semibold text-slate-800 dark:text-slate-100">
-          ✉️ Boîte mail — {estOeth ? (entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH/AGEFIPH") : "Eco Smart France"}
+          ✉️ Boîte mail — {estOeth ? (entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH/AGEFIPH") : estCee ? "Eco Smart France" : espace?.nom || "cet espace"}
           {emails.length > 0 && (
             <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
               {emails.length} échange{emails.length > 1 ? "s" : ""}
@@ -711,7 +711,7 @@ export default function MessagerieMail({ entreprise, onMaj }) {
           >
             {envoiEnCours
               ? "Envoi…"
-              : `Envoyer (signé ${estOeth ? (entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH") : "Eco Smart France"})`}
+              : `Envoyer (signé ${estOeth ? (entreprise.collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH") : estCee ? "Eco Smart France" : espace?.nom || "cet espace"})`}
           </button>
       </form>
       </div>

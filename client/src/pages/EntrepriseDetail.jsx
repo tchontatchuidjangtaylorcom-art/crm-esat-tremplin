@@ -70,7 +70,10 @@ function libelleNeutralisation(neutralisation) {
 
 export default function EntrepriseDetail() {
   // Calcul OETH / AGEFIPH : seulement dans l'espace OETH (voir espace.js).
-  const { estOeth } = useEspaces();
+  // estCee : les champs "Informations serre" ci-dessous sont propres à CEE,
+  // pas à "tout ce qui n'est pas OETH" (un futur troisième espace ne doit
+  // pas les voir apparaître sur ses fiches).
+  const { estOeth, estCee } = useEspaces();
   const { id } = useParams();
   const navigate = useNavigate();
   const { prenom: prenomAgent } = useIdentiteActuelle();
@@ -682,7 +685,7 @@ export default function EntrepriseDetail() {
             </dl>
             )}
 
-            {!estOeth && (
+            {estCee && (
               <div className="mt-4 pt-4 border-t border-marine-100 dark:border-marine-900/30">
                 <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">
                   Informations serre (CEE)

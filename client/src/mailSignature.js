@@ -20,17 +20,22 @@ export function remplirAnnees(texte) {
     .replaceAll("{{ANNEE_SUIVANTE}}", String(annee + 1))
     .replaceAll("{{ANNEE}}", String(annee));
 }
-export function remplirJetons(corps, { statutMail, collecteur, espace } = {}) {
-  return remplirAnnees(corps).replaceAll("{{SIGNATURE}}", construireSignature({ statutMail, collecteur, espace }));
+export function remplirJetons(corps, { statutMail, collecteur, espace, nomEspace } = {}) {
+  return remplirAnnees(corps).replaceAll("{{SIGNATURE}}", construireSignature({ statutMail, collecteur, espace, nomEspace }));
 }
 
 // `collecteur` : "FIPHFP" pour une fiche publique (signature « Pôle FIPHFP »).
-// `espace` : id de l'espace courant (voir server/src/espaces.js) — hors OETH
-// (CEE…), signature Eco Smart France (voir scriptVente.js, SECTIONS_CEE).
-export function construireSignature({ statutMail, collecteur, espace } = {}) {
+// `espace` : id de l'espace courant (voir server/src/espaces.js) — CEE
+// précisément (pas "hors OETH" en général, sinon un futur troisième espace
+// serait signé "Eco Smart France" par erreur) a sa signature de marque
+// dédiée (voir scriptVente.js, SECTIONS_CEE). `nomEspace` : nom de cet
+// espace, pour qu'un espace autre qu'OETH/CEE ait au moins SON propre nom en
+// signature plutôt qu'une marque qui n'est pas la sienne.
+export function construireSignature({ statutMail, collecteur, espace, nomEspace } = {}) {
   const ligneEmail = statutMail?.adresse ? `\n✉️ ${statutMail.adresse}` : "";
   const ligneTelephone = statutMail?.telephone ? `\n📞 ${statutMail.telephone}` : "";
   // Pas d'adresse postale : les bureaux changent, un conseiller la communique.
-  const nom = espace && espace !== "oeth" ? "Eco Smart France" : collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+  const signatureOeth = collecteur === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
+  const nom = espace === "cee" ? "Eco Smart France" : espace && espace !== "oeth" ? nomEspace || signatureOeth : signatureOeth;
   return `— ${nom}${ligneEmail}${ligneTelephone}`;
 }

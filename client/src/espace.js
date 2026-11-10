@@ -90,5 +90,10 @@ export function useEspaces() {
     // Fonctions propres à OETH (calcul AGEFIPH, argumentaire, ESAT…) :
     // seulement dans l'espace OETH.
     estOeth: donnees.courant === "oeth",
+    // Fonctions propres à CEE (serres agricoles…) : seulement dans l'espace
+    // CEE — à utiliser à la place de `!estOeth` partout où "pas OETH" veut en
+    // réalité dire "CEE précisément", pour qu'un futur troisième espace
+    // n'hérite pas par erreur des champs/libellés propres à CEE.
+    estCee: donnees.courant === "cee",
   };
 }
