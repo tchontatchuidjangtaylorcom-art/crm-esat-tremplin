@@ -119,8 +119,11 @@ export function balisesHead(chemin) {
     return `<title>Confirmer votre échange — Pôle OETH</title>\n    <meta name="robots" content="noindex, nofollow" />`;
   }
   if (!seo) {
-    // Pages CRM / inconnues : titre neutre, jamais indexées.
-    return `<title>CRM OETH — Espace sécurisé</title>\n    <meta name="robots" content="noindex, nofollow" />`;
+    // Pages CRM / inconnues : titre neutre, jamais indexées. Neutre pour de
+    // vrai : ce même titre sert à toutes les pages internes, quel que soit
+    // l'espace affiché (OETH, CEE, ou un futur troisième espace) — jamais
+    // "CRM OETH", qui ne décrirait plus que l'un d'entre eux.
+    return `<title>CRM — Espace sécurisé</title>\n    <meta name="robots" content="noindex, nofollow" />`;
   }
   const url = `${SITE_URL}${chemin}`;
   const image = `${SITE_URL}${IMAGE_PARTAGE}`;
