@@ -47,11 +47,14 @@ const normaliserNom = (s) =>
 
 // Retrouve une fiche existante (active ou archivée) : même e-mail de contact,
 // sinon même raison sociale, pour éviter les doublons quand un client écrit
-// plusieurs fois.
-function trouverFicheExistante({ email, entreprise, siren }) {
+// plusieurs fois. Limité au MÊME espace (voir espaces.js, espaceDe) que la
+// demande entrante : OETH et CEE sont deux activités distinctes, une même
+// adresse mail dans les deux ne doit jamais fusionner une demande CEE dans
+// une fiche OETH (ou l'inverse), même par coïncidence.
+function trouverFicheExistante({ email, entreprise, siren, espace }) {
   const mail = String(email || "").toLowerCase();
   const nom = normaliserNom(entreprise);
-  const toutes = [...db.data.entreprises, ...db.data.archives];
+  const toutes = [...db.data.entreprises, ...db.data.archives].filter((e) => (e.espace || "oeth") === espace);
   return (
     (siren && toutes.find((e) => String(e.siret || "").replace(/\D/g, "").startsWith(siren))) ||
     (mail && toutes.find((e) => (e.contact?.email || "").toLowerCase() === mail)) ||
@@ -108,7 +111,7 @@ export async function enregistrerDemandeSite({
   const commentaire = { id: nanoid(), date: maintenant, auteur: "Site web", texte: texteCommentaire };
   const demande = { type, libelle: libelleType, date: maintenant };
 
-  const existante = trouverFicheExistante({ email, entreprise, siren: sirenValide });
+  const existante = trouverFicheExistante({ email, entreprise, siren: sirenValide, espace });
   if (existante) {
     if (sirenValide && !existante.siret) existante.siret = String(siret).replace(/\D/g, "");
     existante.commentaires = [commentaire, ...(existante.commentaires || [])];
@@ -120,6 +123,20 @@ export async function enregistrerDemandeSite({
     if (!existante.contact.email || existante.contact.email === "-") existante.contact.email = email;
     if (!existante.contact.telephone && telephone) existante.contact.telephone = telephone;
     if ((!existante.contact.nom || existante.contact.nom === "-") && nomContact !== "-") existante.contact.nom = nomContact;
+    // Champs serres (demande CEE) : même principe que le contact ci-dessus —
+    // ne complète que ce qui manque encore sur la fiche, ne remplace jamais
+    // une valeur déjà saisie par un agent. Utile quand le client remplit le
+    // formulaire public après un premier appel où tout n'était pas confirmé.
+    const nvNombreSerres = normaliserNombreOuNull(nombreSerres);
+    if (existante.nombreSerres == null && nvNombreSerres !== null) existante.nombreSerres = nvNombreSerres;
+    const nvSurfaceSerres = normaliserNombreOuNull(surfaceSerres);
+    if (existante.surfaceSerres == null && nvSurfaceSerres !== null) existante.surfaceSerres = nvSurfaceSerres;
+    const nvCultures = normaliserTexteOuNull(cultures);
+    if (!existante.cultures && nvCultures) existante.cultures = nvCultures;
+    const nvSerreChauffee = normaliserBooleenOuNull(serreChauffee);
+    if (existante.serreChauffee == null && nvSerreChauffee !== null) existante.serreChauffee = nvSerreChauffee;
+    const nvEnergieChauffage = normaliserTexteOuNull(energieChauffage);
+    if (!existante.energieChauffage && nvEnergieChauffage) existante.energieChauffage = nvEnergieChauffage;
     // Un dossier archivé qui redemande un contact revient dans le pipeline.
     const idxArchive = db.data.archives.findIndex((e) => e.id === existante.id);
     if (idxArchive !== -1) {

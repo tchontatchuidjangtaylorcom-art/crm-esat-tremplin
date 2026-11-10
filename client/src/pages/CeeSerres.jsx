@@ -100,37 +100,44 @@ export default function CeeSerres() {
         </div>
       </header>
 
-      {/* Hero / accroche */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-12 sm:pt-16 pb-10">
-        <p className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-          Dispositif CEE · Certificats d'Économies d'Énergie
-        </p>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 max-w-2xl">
-          Une pompe à chaleur pour chauffer vos serres agricoles
-        </h1>
-        <p className="text-base text-slate-600 dark:text-slate-300 mt-4 max-w-2xl leading-relaxed">
-          Eco Smart France propose le Démétherme 400 pour chauffer une serre agricole, ou remplacer un chauffage existant,
-          avec une offre à zéro euro <strong>pour les dossiers qui remplissent les conditions</strong> du dispositif CEE. Le
-          financement prévu est porté par les entreprises soumises aux obligations CEE (notamment des fournisseurs
-          d'énergie) — pas par une aide de l'État. Un conseiller vérifie l'éligibilité de votre exploitation avant toute
-          confirmation.
-        </p>
-        <div className="mt-7">
-          <a
-            href="#demande-cee"
-            className="inline-block rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-6 py-3 transition"
-          >
-            Être recontacté par un conseiller
-          </a>
-        </div>
+      {/* Hero / accroche — formulaire visible dès l'arrivée (à côté du pitch
+          sur grand écran, juste en dessous sur mobile), plutôt que relégué
+          en bas de page : c'est ce qu'un visiteur presse vient faire ici. */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-10">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-start">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              Dispositif CEE · Certificats d'Économies d'Énergie
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3">
+              Une pompe à chaleur pour chauffer vos serres agricoles
+            </h1>
+            <p className="text-base text-slate-600 dark:text-slate-300 mt-4 leading-relaxed">
+              Eco Smart France propose le Démétherme 400 pour chauffer une serre agricole, ou remplacer un chauffage
+              existant, avec une offre à zéro euro <strong>pour les dossiers qui remplissent les conditions</strong> du
+              dispositif CEE. Le financement prévu est porté par les entreprises soumises aux obligations CEE (notamment
+              des fournisseurs d'énergie) — pas par une aide de l'État. Un conseiller vérifie l'éligibilité de votre
+              exploitation avant toute confirmation.
+            </p>
 
-        <div className="grid sm:grid-cols-3 gap-4 mt-12">
-          {ATOUTS.map((a) => (
-            <div key={a.titre} className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
-              <p className="font-semibold text-sm">{a.titre}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">{a.texte}</p>
+            <div className="grid sm:grid-cols-3 gap-4 mt-8">
+              {ATOUTS.map((a) => (
+                <div key={a.titre} className="rounded-xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4">
+                  <p className="font-semibold text-sm">{a.titre}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">{a.texte}</p>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+
+          <div className="lg:sticky lg:top-24">
+            <div
+              id="demande-cee"
+              className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white dark:bg-white/[0.03] shadow-sm p-5 sm:p-6 scroll-mt-24"
+            >
+              <FormulaireSerresCee />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -168,19 +175,20 @@ export default function CeeSerres() {
         </div>
       </section>
 
-      {/* FAQ condensée */}
+      {/* FAQ condensée — le formulaire reste accessible plus haut (ancre
+          #demande-cee) pour qui veut y revenir après avoir lu. */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 py-10 border-t border-slate-900/10 dark:border-white/10">
-        <h2 className="text-xl font-bold">Questions fréquentes</h2>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <h2 className="text-xl font-bold">Questions fréquentes</h2>
+          <a href="#demande-cee" className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:underline">
+            Être recontacté par un conseiller →
+          </a>
+        </div>
         <div className="space-y-2.5 mt-6 max-w-2xl">
           {questionsAffichees.map((q) => (
             <Accordeon key={q.id} item={q} />
           ))}
         </div>
-      </section>
-
-      {/* Formulaire de qualification */}
-      <section className="max-w-2xl mx-auto px-4 sm:px-6 py-12 border-t border-slate-900/10 dark:border-white/10">
-        <FormulaireSerresCee id="demande-cee" />
       </section>
 
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-8 border-t border-slate-900/10 dark:border-white/10 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
