@@ -26,6 +26,7 @@ import { lienFicheClient } from "./ficheClient.js";
 import { classifierSecteur, determinerCollecteur } from "./secteurs.js";
 import { tailleEffectif, dansTaille } from "./taillesEffectif.js";
 import { SITE_URL } from "./seo.js";
+import { equipeParId, estManager } from "./equipes.js";
 
 const SECRET = process.env.SESSION_SECRET || "dev-secret-non-securise-a-changer-en-production";
 const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -414,6 +415,10 @@ function resumer(c) {
     objet: c.objet,
     formatOfficiel: c.formatOfficiel,
     filtres: c.filtres,
+    // Équipe concernée (voir /api/mon-equipe/campagnes ci-dessous) — null
+    // pour une campagne visible seulement par l'admin/super-admin, comme
+    // aujourd'hui.
+    equipeId: c.equipeId || null,
     dateCreation: c.dateCreation,
     dateFin: c.dateFin || null,
     total: c.total,
@@ -433,7 +438,7 @@ function pageSimple(titre, message, formulaire = "") {
 </div></body></html>`;
 }
 
-export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin }) {
+export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin, exigerAuth }) {
   // Désinscription (publique) : GET affiche la confirmation, POST désinscrit
   // (aussi utilisé tel quel par le bouton « Se désinscrire » de Gmail, RFC 8058).
   app.get("/api/vitrine/desinscription/:jeton", (req, res) => {
@@ -501,6 +506,10 @@ export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin }) {
     if (!estEnvoiConfigure()) return res.status(503).json({ error: "L'envoi d'e-mails n'est pas configuré (clé Resend)." });
     const { cibles } = ciblesPour(filtres);
     if (!cibles.length) return res.status(400).json({ error: "Aucune fiche ne correspond à ces critères." });
+    // Équipe concernée (optionnelle) — n'importe quelle valeur qui ne
+    // correspond pas à une équipe réelle est ignorée (campagne visible
+    // seulement par l'admin/super-admin, comme aujourd'hui).
+    const equipe = req.body.equipeId ? equipeParId(req.body.equipeId) : null;
     const campagne = {
       id: nanoid(),
       nom: String(nom).trim().slice(0, 120),
@@ -509,6 +518,7 @@ export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin }) {
       corps,
       formatOfficiel: Boolean(formatOfficiel),
       filtres,
+      equipeId: equipe?.id || null,
       creePar: req.utilisateur.id,
       dateCreation: new Date().toISOString(),
       total: cibles.length,
@@ -518,6 +528,25 @@ export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin }) {
     donnees().campagnes.push(campagne);
     await db.write();
     res.json(resumer(campagne));
+  });
+
+  // Lecture seule, pour un manager : les campagnes tagguées à SA PROPRE
+  // équipe (equipeId tiré de req.utilisateur, jamais d'un paramètre client),
+  // sans aucune action (pause/reprendre/annuler/aperçu/test) — demande du
+  // fondateur 2026-11-10, même principe que /api/mon-equipe (equipes.js) et
+  // /api/presence/equipe (index.js).
+  app.get("/api/mon-equipe/campagnes", exigerAuth, (req, res) => {
+    if (!estManager(req.utilisateur) || !req.utilisateur.equipeId) {
+      return res.status(403).json({ error: "Réservé aux managers d'équipe." });
+    }
+    const d = donnees();
+    res.json({
+      campagnes: d.campagnes
+        .filter((c) => c.equipeId === req.utilisateur.equipeId)
+        .slice()
+        .reverse()
+        .map(resumer),
+    });
   });
 
   app.post("/api/campagnes/:id/:action", exigerSuperAdmin, async (req, res) => {

@@ -27,6 +27,7 @@ export default function Campagnes() {
   const [categories, setCategories] = useState([]);
   const [lots, setLots] = useState([]);
   const [modeles, setModeles] = useState([]);
+  const [equipes, setEquipes] = useState([]);
   const [erreur, setErreur] = useState(null);
   const [info, setInfo] = useState(null);
 
@@ -35,6 +36,10 @@ export default function Campagnes() {
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
   const [formatOfficiel, setFormatOfficiel] = useState(true);
+  // Équipe concernée (optionnelle) : voir server/src/campagnes.js — permet à
+  // un manager de voir cette campagne (lecture seule) depuis "Mon équipe",
+  // sans effet sur le ciblage (toujours défini par les filtres ci-dessus).
+  const [equipeId, setEquipeId] = useState("");
   const [apercu, setApercu] = useState(null);
   const [enCours, setEnCours] = useState(null);
   const [plafond, setPlafond] = useState("");
@@ -54,6 +59,7 @@ export default function Campagnes() {
     charger();
     api.listCategories().then(setCategories).catch(() => {});
     api.listLots().then(setLots).catch(() => {});
+    api.listEquipes().then(setEquipes).catch(() => {});
     api
       .getModelesMails()
       .then((r) => setModeles(Array.isArray(r) ? r : r?.modeles || []))
@@ -271,6 +277,20 @@ export default function Campagnes() {
             <input type="checkbox" checked={formatOfficiel} onChange={(e) => setFormatOfficiel(e.target.checked)} className="mt-1" />
             Mise en page officielle (bandeau du pôle + bouton « Calculer ma contribution » et lien pour choisir un créneau)
           </label>
+          <label className="block text-xs text-slate-500">
+            Équipe concernée (optionnel)
+            <select value={equipeId} onChange={(e) => setEquipeId(e.target.value)} className={champ}>
+              <option value="">Aucune (visible admin uniquement)</option>
+              {equipes.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nom}
+                </option>
+              ))}
+            </select>
+            <span className="block text-[11px] text-slate-400 mt-0.5">
+              Permet au manager de cette équipe de voir cette campagne (lecture seule) depuis « Mon équipe » — sans effet sur qui la reçoit.
+            </span>
+          </label>
           <div className="flex flex-wrap gap-2 pt-1">
             <button
               type="button"
@@ -296,9 +316,10 @@ export default function Campagnes() {
                 )
                   return;
                 agir("lancer", async () => {
-                  await api.creerCampagne({ nom, objet, corps, formatOfficiel, filtres });
+                  await api.creerCampagne({ nom, objet, corps, formatOfficiel, filtres, equipeId: equipeId || null });
                   setInfo(`Campagne « ${nom} » lancée.`);
                   setNom("");
+                  setEquipeId("");
                   await charger();
                   setFiltres((f) => ({ ...f }));
                 });

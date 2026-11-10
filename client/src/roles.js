@@ -13,6 +13,13 @@ export function estSuperviseur(utilisateur) {
   return utilisateur?.role === "superviseur";
 }
 
+// Manager : voit (lecture + ajout limité) les membres, KPIs et campagnes de
+// sa propre équipe (bureau) — jamais celles des autres équipes ni les pages
+// admin complètes. Même règle que estManager() côté serveur (equipes.js).
+export function estManager(utilisateur) {
+  return utilisateur?.role === "manager";
+}
+
 export function libelleRole(role) {
   if (role === "super_admin") return "Super-administrateur";
   if (role === "admin") return "Administrateur";

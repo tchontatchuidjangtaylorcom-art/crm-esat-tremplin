@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
-import { estAdmin } from "../roles.js";
+import { estAdmin, estManager } from "../roles.js";
 import { useIdentiteActuelle } from "../identite.js";
 import { useSupervision } from "../SupervisionContext.jsx";
 import { usePresence } from "../PresenceContext.jsx";
@@ -87,14 +87,6 @@ export default function UserMenu({ theme, onBasculerTheme }) {
             🏢 Équipes
           </Link>
 
-          <Link
-            to="/kpis-equipe"
-            title="Présence et temps de travail de toute l'équipe"
-            className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
-          >
-            👥 KPIs équipe
-          </Link>
-
           {utilisateur?.role === "super_admin" && (
             <Link
               to="/supervision"
@@ -114,6 +106,27 @@ export default function UserMenu({ theme, onBasculerTheme }) {
             </Link>
           )}
         </>
+      )}
+
+      {(estAdmin(utilisateur) || estManager(utilisateur)) && (
+        <Link
+          to="/kpis-equipe"
+          title="Présence et temps de travail de toute l'équipe"
+          className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+        >
+          👥 KPIs équipe
+        </Link>
+      )}
+      {/* Admin : déjà "Gestion des accès" (tout le monde) — ce lien court
+          n'est utile qu'à un manager, limité à sa propre équipe. */}
+      {estManager(utilisateur) && !estAdmin(utilisateur) && (
+        <Link
+          to="/mon-equipe"
+          title="Les membres de votre équipe"
+          className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+        >
+          👥 Mon équipe
+        </Link>
       )}
 
       <Link

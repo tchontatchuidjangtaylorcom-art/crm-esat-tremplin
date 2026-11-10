@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
-import { estAdmin } from "../roles.js";
+import { estAdmin, estManager } from "../roles.js";
 import ChangerMotDePasseOblige from "./ChangerMotDePasseOblige.jsx";
 
 // Sur le nom de domaine public (oeth-fiph.fr, www.oeth-fiph.fr), un visiteur
@@ -12,7 +12,7 @@ const DOMAINE_PUBLIC = /(^|\.)oeth-fiph\.fr$/i;
 // Verrouille l'accès : redirige vers /connexion si aucune session valide,
 // ou vers "/" si `adminSeulement` et que l'utilisateur connecté n'est pas
 // administrateur.
-export default function RequireAuth({ children, adminSeulement = false }) {
+export default function RequireAuth({ children, adminSeulement = false, managerOuAdminSeulement = false }) {
   const { utilisateur, chargement } = useAuth();
   const { pathname } = useLocation();
 
@@ -37,6 +37,9 @@ export default function RequireAuth({ children, adminSeulement = false }) {
     return <ChangerMotDePasseOblige />;
   }
   if (adminSeulement && !estAdmin(utilisateur)) {
+    return <Navigate to="/" replace />;
+  }
+  if (managerOuAdminSeulement && !estAdmin(utilisateur) && !estManager(utilisateur)) {
     return <Navigate to="/" replace />;
   }
   return children;

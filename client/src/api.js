@@ -319,6 +319,9 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(donnees),
     }).then(handle),
+  // Lecture seule, pour un manager : campagnes de sa propre équipe (voir
+  // server/src/campagnes.js, GET /api/mon-equipe/campagnes).
+  getCampagnesMonEquipe: () => fetch(`${BASE}/mon-equipe/campagnes`).then(handle),
   actionCampagne: (id, action) => fetch(`${BASE}/campagnes/${id}/${action}`, { method: "POST" }).then(handle),
   reglagesCampagnes: (donnees) =>
     fetch(`${BASE}/campagnes-reglages`, {
@@ -573,6 +576,17 @@ export const api = {
 
   // Équipes (bureaux) : voir server/src/equipes.js.
   listEquipes: () => fetch(`${BASE}/equipes`).then(handle),
+
+  // "Mon équipe" (manager, limité à sa propre équipe) : voir
+  // server/src/equipes.js, GET/POST /api/mon-equipe…
+  getMonEquipe: () => fetch(`${BASE}/mon-equipe`).then(handle),
+
+  creerMembreMonEquipe: ({ prenom, nom, email, telephone }) =>
+    fetch(`${BASE}/mon-equipe/membres`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prenom: prenom || "", nom: nom || "", email, telephone: telephone || "" }),
+    }).then(handle),
 
   creerEquipe: ({ nom, espace, managerId }) =>
     fetch(`${BASE}/equipes`, {

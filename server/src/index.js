@@ -130,7 +130,7 @@ app.use(cookieParser());
 // Espaces de travail (OETH, CEE…) : voir espaces.js.
 installerEspaces(app, { exigerAuth, exigerAdmin });
 // Équipes (bureaux, ex: Cameroun/Paris) : voir equipes.js.
-installerEquipes(app, { exigerAdmin });
+installerEquipes(app, { exigerAdmin, exigerAuth });
 // Journal d'activité (voir journalAudit.js) : avant toutes les routes /api,
 // pour voir chaque écriture réussie et l'état de la fiche avant / après.
 installerJournal(app, {
@@ -1100,7 +1100,7 @@ enregistrerRoutesStockEquipe(app, { exigerAdmin, creerLeadDepuisSiren, CATEGORIE
 enregistrerRoutesMonCompte(app, { exigerAuth });
 // Campagnes d'e-mails en nombre (super-administrateur), envoyées au rythme
 // d'une montée en charge progressive, avec désinscription en un clic.
-enregistrerRoutesCampagnes(app, { exigerSuperAdmin });
+enregistrerRoutesCampagnes(app, { exigerSuperAdmin, exigerAuth });
 demarrerCampagnes();
 // Recherche sur le web des e-mails publiés des fiches d'une cible (payante,
 // lancée à la main par le super-administrateur, nombre de fiches plafonné).
@@ -1258,6 +1258,12 @@ app.post("/api/vitrine/cee-serres", async (req, res) => {
   if (!nom || (!emailValide && !telephone)) {
     return res.status(400).json({ error: "Nom et (e-mail valide ou téléphone) requis pour être recontacté." });
   }
+  // Consentement à être recontacté par téléphone : obligatoire (case à
+  // cocher du formulaire, voir FormulaireSerresCee.jsx) — revalidé ici au cas
+  // où le formulaire serait contourné (appel direct à l'API).
+  if (!b.consentementAppel) {
+    return res.status(400).json({ error: "Le consentement à être recontacté par téléphone est obligatoire." });
+  }
 
   await enregistrerDemandeSiteSansEchec({
     type: "serres",
@@ -1273,6 +1279,8 @@ app.post("/api/vitrine/cee-serres", async (req, res) => {
     cultures: b.cultures,
     serreChauffee: typeof b.serreChauffee === "boolean" ? b.serreChauffee : null,
     energieChauffage: b.energieChauffage,
+    depenseEnergieMensuelle: b.depenseEnergieMensuelle,
+    consentementAppel: Boolean(b.consentementAppel),
   });
 
   res.json({ ok: true });
@@ -2914,6 +2922,9 @@ app.patch("/api/entreprises/:id", exigerAuth, chargerEntrepriseAutorisee, async 
     "cultures",
     "serreChauffee",
     "energieChauffage",
+    "depenseEnergieMensuelle",
+    // consentementAppelCee volontairement absent de cette liste : log factuel
+    // daté (voir leadsSite.js), jamais modifiable depuis le CRM.
   ];
   const ancienStatut = entreprise.statut;
   for (const champ of champsAutorises) {
@@ -4356,8 +4367,17 @@ app.get("/api/presence/moi", exigerAuth, (req, res) => {
   });
 });
 
-app.get("/api/presence/equipe", exigerAdmin, (req, res) => {
-  const utilisateurs = db.data.utilisateurs.filter((u) => u.statut === "valide");
+// Accessible aussi à un manager (en plus d'un admin), mais alors limité aux
+// membres de SA PROPRE équipe (equipeId tiré de req.utilisateur, jamais d'un
+// paramètre client) — demande du fondateur 2026-11-10, même principe que
+// /api/mon-equipe (equipes.js) et /api/mon-equipe/campagnes (campagnes.js).
+app.get("/api/presence/equipe", exigerAuth, (req, res) => {
+  if (!estAdmin(req.utilisateur) && !estManager(req.utilisateur)) {
+    return res.status(403).json({ error: "Réservé aux administrateurs et aux managers d'équipe." });
+  }
+  const utilisateurs = estAdmin(req.utilisateur)
+    ? db.data.utilisateurs.filter((u) => u.statut === "valide")
+    : db.data.utilisateurs.filter((u) => u.statut === "valide" && u.equipeId === req.utilisateur.equipeId);
   const equipe = calculerKpiEquipe(utilisateurs, { decalageSemaines: lireDecalageSemaines(req) });
   // Appels de chaque membre (voir appelsAgents.js).
   equipe.membres = equipe.membres.map((m) => ajouterAppelsAuxKpi(m, m.utilisateur.id));

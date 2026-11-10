@@ -25,6 +25,7 @@ import KpisEquipe from "./pages/KpisEquipe.jsx";
 import Supervision from "./pages/Supervision.jsx";
 import Campagnes from "./pages/Campagnes.jsx";
 import BoiteMail from "./pages/BoiteMail.jsx";
+import MonEquipe from "./pages/MonEquipe.jsx";
 
 // Espace de travail affiché (OETH, CEE…) envoyé au serveur avec chaque requête /api.
 installerEnteteEspace();
@@ -80,8 +81,16 @@ export default function CrmApp() {
                           <Route
                             path="/kpis-equipe"
                             element={
-                              <RequireAuth adminSeulement>
+                              <RequireAuth managerOuAdminSeulement>
                                 <KpisEquipe />
+                              </RequireAuth>
+                            }
+                          />
+                          <Route
+                            path="/mon-equipe"
+                            element={
+                              <RequireAuth managerOuAdminSeulement>
+                                <MonEquipe />
                               </RequireAuth>
                             }
                           />

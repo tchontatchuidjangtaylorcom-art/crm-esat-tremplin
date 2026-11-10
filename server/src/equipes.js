@@ -24,8 +24,14 @@
 // from, replyTo).
 import { nanoid } from "nanoid";
 import db from "./db.js";
-import { estAdmin } from "./auth.js";
+import { estAdmin, creerUtilisateurParAdmin } from "./auth.js";
 import { espaceDe, mailDeEspace } from "./espaces.js";
+
+// URL publique du CRM (même repli que APP_URL dans index.js) : nécessaire ici
+// pour que la création de membre ci-dessous (POST /api/mon-equipe/membres)
+// puisse envoyer le mail d'invitation via creerUtilisateurParAdmin, sans
+// dépendre d'index.js (éviterait un import circulaire).
+const APP_URL = process.env.APP_URL || "http://localhost:5173";
 
 export function listeEquipes() {
   if (!Array.isArray(db.data.equipes)) db.data.equipes = [];
@@ -112,7 +118,76 @@ export function equipeDeCreation({ assigneA, utilisateur } = {}) {
   return agent?.equipeId || null;
 }
 
-export function installerEquipes(app, { exigerAdmin }) {
+// Même logique de rédaction que sansMotDePasse dans index.js (le hash du mot
+// de passe n'est jamais renvoyé par l'API) — dupliquée ici en local plutôt
+// qu'importée depuis index.js pour éviter un import circulaire (index.js
+// importe déjà equipes.js).
+function membreSansMotDePasse(utilisateur) {
+  const { motDePasseHash, ...reste } = utilisateur;
+  return { ...reste, aUnMotDePasse: Boolean(motDePasseHash) };
+}
+
+export function installerEquipes(app, { exigerAdmin, exigerAuth }) {
+  // "Mon équipe" : version restreinte, pour un manager, de l'écran "Gestion
+  // des accès" — seulement les membres de SA PROPRE équipe (equipeId tiré de
+  // req.utilisateur, jamais d'un paramètre client), lecture + ajout d'agent.
+  // Jamais les autres équipes, jamais la promotion/suppression de comptes
+  // (demande du fondateur 2026-11-10 — voir aussi KPIs équipe et Campagnes,
+  // mêmes principes, index.js et campagnes.js).
+  app.get("/api/mon-equipe", exigerAuth, (req, res) => {
+    if (!estManager(req.utilisateur) || !req.utilisateur.equipeId) {
+      return res.status(403).json({ error: "Réservé aux managers d'équipe." });
+    }
+    const equipe = equipeParId(req.utilisateur.equipeId);
+    res.json({
+      equipe: equipe ? equipeSansSecrets(equipe) : null,
+      membres: db.data.utilisateurs
+        .filter((u) => u.equipeId === req.utilisateur.equipeId)
+        .map(membreSansMotDePasse),
+    });
+  });
+
+  app.post("/api/mon-equipe/membres", exigerAuth, async (req, res) => {
+    if (!estManager(req.utilisateur) || !req.utilisateur.equipeId) {
+      return res.status(403).json({ error: "Réservé aux managers d'équipe." });
+    }
+    try {
+      // Seuls ces 4 champs sont pris en compte : rôle et équipe sont toujours
+      // ceux du manager connecté, jamais une valeur envoyée par le client
+      // (tout autre champ du corps de la requête — role, equipeId, siret… —
+      // est simplement ignoré).
+      const { utilisateur, mailEnvoye, motDePasseProvisoire } = await creerUtilisateurParAdmin(req.body.email, {
+        prenom: String(req.body.prenom || "").trim(),
+        nom: String(req.body.nom || "").trim(),
+        telephone: String(req.body.telephone || "").trim(),
+        role: "agent",
+        equipeId: req.utilisateur.equipeId,
+        appUrl: APP_URL,
+      });
+      // Le nouvel agent hérite de l'espace (OETH/CEE) de l'équipe de son
+      // manager, s'il en a un — sinon il reste sans espace, comme un compte
+      // créé sans équipe depuis l'admin.
+      const equipe = equipeParId(req.utilisateur.equipeId);
+      if (equipe?.espace) {
+        utilisateur.espaces = [equipe.espace];
+        await db.write();
+      }
+      res.status(201).json({
+        utilisateur: membreSansMotDePasse(utilisateur),
+        mailEnvoye,
+        motDePasseProvisoire,
+      });
+    } catch (e) {
+      const statutHttp =
+        e.code === "EMAIL_INVALIDE" || e.code === "NOM_REQUIS" || e.code === "MOT_DE_PASSE_TROP_COURT"
+          ? 400
+          : e.code === "COMPTE_EXISTANT"
+          ? 409
+          : 500;
+      res.status(statutHttp).json({ error: e.message });
+    }
+  });
+
   app.get("/api/equipes", exigerAdmin, (req, res) => {
     res.json(listeEquipes().map(equipeSansSecrets));
   });
