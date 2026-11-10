@@ -526,7 +526,7 @@ export const api = {
 
   listUtilisateurs: () => fetch(`${BASE}/utilisateurs`).then(handle),
 
-  creerUtilisateur: ({ email, prenom, nom, telephone, siret, role, motDePasse }) =>
+  creerUtilisateur: ({ email, prenom, nom, telephone, siret, role, motDePasse, equipeId }) =>
     fetch(`${BASE}/utilisateurs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -538,6 +538,7 @@ export const api = {
         siret: siret || "",
         role: role || "agent",
         motDePasse: motDePasse || "",
+        equipeId: equipeId || null,
       }),
     }).then(handle),
 

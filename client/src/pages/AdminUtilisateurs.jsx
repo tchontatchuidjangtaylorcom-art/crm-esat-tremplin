@@ -76,6 +76,7 @@ export default function AdminUtilisateurs() {
   const [telephone, setTelephone] = useState("");
   const [siret, setSiret] = useState("");
   const [role, setRole] = useState("agent");
+  const [equipeCreation, setEquipeCreation] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [creation, setCreation] = useState(false);
   const [erreurCreation, setErreurCreation] = useState(null);
@@ -137,6 +138,7 @@ export default function AdminUtilisateurs() {
         telephone: telephone.trim(),
         siret: siret.trim(),
         role,
+        equipeId: equipeCreation || null,
         motDePasse: motDePasse.trim(),
       });
       const morceaux = [
@@ -157,6 +159,7 @@ export default function AdminUtilisateurs() {
       setTelephone("");
       setSiret("");
       setRole("agent");
+      setEquipeCreation("");
       setMotDePasse("");
       charger();
     } catch (e) {
@@ -446,6 +449,22 @@ export default function AdminUtilisateurs() {
               <option value="manager">Manager (chef d'équipe/bureau)</option>
               <option value="admin">Administrateur</option>
               <option value="super_admin">Super-administrateur</option>
+            </select>
+          </label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            Équipe (optionnel)
+            <select
+              value={equipeCreation}
+              onChange={(e) => setEquipeCreation(e.target.value)}
+              title="Bureau auquel ce compte appartient — modifiable plus tard depuis le tableau ci-dessous"
+              className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+            >
+              <option value="">Aucune pour l'instant</option>
+              {equipes.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nom}
+                </option>
+              ))}
             </select>
           </label>
           <label className="block text-xs text-slate-500 dark:text-slate-400">
