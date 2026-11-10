@@ -16,6 +16,25 @@ export const TYPES_DEMANDE = {
   contact: "Formulaire de contact",
   vigilance: "Vérification d'une sollicitation",
   simulation: "Simulation (synthèse demandée par e-mail)",
+  serres: "Demande serres agricoles (CEE)",
+};
+
+const normaliserNombreOuNull = (v) => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const normaliserTexteOuNull = (v) => {
+  const s = String(v ?? "").trim();
+  return s || null;
+};
+// `oui`/`non` acceptés en plus du booléen direct, au cas où un appelant
+// transmettrait la valeur brute d'un <select> plutôt qu'un booléen déjà
+// converti (voir InfosSerreCee.jsx, qui fait cette conversion côté CRM).
+const normaliserBooleenOuNull = (v) => {
+  if (v === true || v === "oui") return true;
+  if (v === false || v === "non") return false;
+  return null;
 };
 
 const normaliserNom = (s) =>
@@ -42,7 +61,12 @@ function trouverFicheExistante({ email, entreprise, siren }) {
 }
 
 // `type` : clé de TYPES_DEMANDE. `details` : lignes "Libellé : valeur"
-// reprises dans le commentaire de la fiche.
+// reprises dans le commentaire de la fiche. `espace` : espace de la fiche
+// créée (voir espaces.js — "oeth" par défaut pour ne rien changer aux appels
+// existants de la vitrine OETH). `nombreSerres`/`surfaceSerres`/`cultures`/
+// `serreChauffee`/`energieChauffage` : champs propres à une demande CEE
+// (serres agricoles), mêmes forme et types que InfosSerreCee.jsx côté CRM —
+// restent null/absents pour tout appel qui ne les transmet pas (OETH).
 export async function enregistrerDemandeSite({
   type,
   nom = "",
@@ -56,6 +80,12 @@ export async function enregistrerDemandeSite({
   siret = "",
   message = "",
   details = [],
+  espace = "oeth",
+  nombreSerres = null,
+  surfaceSerres = null,
+  cultures = "",
+  serreChauffee = null,
+  energieChauffage = "",
 }) {
   // SIRET (facultatif) saisi par le visiteur : sert à retrouver la fiche et,
   // pour une nouvelle fiche, à la compléter depuis le répertoire INSEE.
@@ -123,11 +153,19 @@ export async function enregistrerDemandeSite({
     statut: "nouveau",
     lot: LOT_DEMANDES_SITE,
     origine: "site_web",
+    espace,
     demandesSite: [demande],
     demandeSiteNonVue: true,
     partManquant: null,
     partDebutOp: null,
     partFinOp: null,
+    // Champs serres agricoles (demande CEE) : null/absents pour une demande
+    // OETH, qui ne les transmet jamais.
+    nombreSerres: normaliserNombreOuNull(nombreSerres),
+    surfaceSerres: normaliserNombreOuNull(surfaceSerres),
+    cultures: normaliserTexteOuNull(cultures),
+    serreChauffee: normaliserBooleenOuNull(serreChauffee),
+    energieChauffage: normaliserTexteOuNull(energieChauffage),
     contact: { nom: nomContact, fonction: fonction || "-", telephone, email, telephoneInvalide: false },
     dateRappel: null,
     dateRdv: null,

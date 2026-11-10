@@ -451,6 +451,15 @@ export const api = {
       body: JSON.stringify({ nom, email, telephone, entreprise, message }),
     }).then(handle),
 
+  // Page publique CEE — serres agricoles (/vitrine/cee-serres) : voir
+  // server/src/index.js, POST /api/vitrine/cee-serres.
+  demanderContactSerresCee: (donnees) =>
+    fetch(`${BASE}/vitrine/cee-serres`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+
   getStatutMail: () => fetch(`${BASE}/emails/statut`).then(handle),
 
   getEmailsNonLus: () => fetch(`${BASE}/emails/non-lus`).then(handle),

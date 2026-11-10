@@ -1236,6 +1236,48 @@ app.post("/api/vitrine/contact", async (req, res) => {
   }
 });
 
+// Demande de contact depuis la page publique CEE — serres agricoles
+// (/vitrine/cee-serres) : mêmes principes que /api/vitrine/contact, mais
+// fiche créée dans l'espace CEE (voir espaces.js) et avec les champs serre
+// repris du formulaire (mêmes forme/types que InfosSerreCee.jsx). Aucun
+// calcul ni chiffre d'économie annoncé ici : un conseiller vérifie
+// l'éligibilité du dossier et rappelle le visiteur (voir server/src/scriptVente.js,
+// SECTIONS_CEE, section 8 — garde-fous de conformité).
+app.post("/api/vitrine/cee-serres", async (req, res) => {
+  const b = req.body || {};
+  if (b.siteWeb) return res.json({ ok: true }); // champ piège anti-robots
+
+  const nom = String(b.nom || "").trim();
+  const entreprise = String(b.entreprise || "").trim();
+  const email = String(b.email || "").trim();
+  const telephone = String(b.telephone || "").trim();
+  const commune = String(b.commune || "").trim();
+  const message = String(b.message || "").trim();
+  const emailValide = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  if (!nom || (!emailValide && !telephone)) {
+    return res.status(400).json({ error: "Nom et (e-mail valide ou téléphone) requis pour être recontacté." });
+  }
+
+  await enregistrerDemandeSiteSansEchec({
+    type: "serres",
+    espace: "cee",
+    nom,
+    email,
+    telephone,
+    entreprise,
+    message,
+    details: commune ? [`Commune / adresse indiquée : ${commune}`] : [],
+    nombreSerres: b.nombreSerres,
+    surfaceSerres: b.surfaceSerres,
+    cultures: b.cultures,
+    serreChauffee: typeof b.serreChauffee === "boolean" ? b.serreChauffee : null,
+    energieChauffage: b.energieChauffage,
+  });
+
+  res.json({ ok: true });
+});
+
 // Vue filtrée par rôle : un agent ne reçoit que ses dossiers assignés,
 // l'administrateur reçoit tout le pipeline (voir estVisiblePar ci-dessus).
 app.get("/api/entreprises", exigerAuth, (req, res) => {

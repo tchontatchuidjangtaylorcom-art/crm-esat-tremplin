@@ -57,6 +57,15 @@ export const PAGES_SEO = {
     priorite: 0.6,
     frequence: "monthly",
   },
+  // Page CEE (serres agricoles), distincte du reste du site OETH ci-dessus —
+  // voir client/src/pages/CeeSerres.jsx.
+  "/vitrine/cee-serres": {
+    titre: "Pompe à chaleur pour serres agricoles — Dispositif CEE",
+    description:
+      "Pompe à chaleur pour serres agricoles financée via les CEE, pour les dossiers éligibles. Un conseiller vérifie votre éligibilité avant tout engagement.",
+    priorite: 0.5,
+    frequence: "monthly",
+  },
 };
 
 export function seoPourChemin(chemin) {

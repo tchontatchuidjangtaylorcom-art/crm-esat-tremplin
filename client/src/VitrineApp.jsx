@@ -17,6 +17,9 @@ const RendezVousClient = lazy(() => import("./pages/RendezVousClient.jsx"));
 const MaFicheClient = lazy(() => import("./pages/MaFicheClient.jsx"));
 const ConfirmerEchangeClient = lazy(() => import("./pages/ConfirmerEchangeClient.jsx"));
 const MonLienDossier = lazy(() => import("./pages/MonLienDossier.jsx"));
+// Page CEE (serres agricoles) : distincte du reste du site OETH ci-dessus,
+// autonome (pitch + formulaire + assistant propre, voir CeeSerres.jsx).
+const CeeSerres = lazy(() => import("./pages/CeeSerres.jsx"));
 
 // Titre et description mis à jour lors de la navigation interne (le serveur
 // les injecte déjà dans le HTML initial, voir server/src/seo.js).
@@ -47,6 +50,9 @@ export default function VitrineApp() {
     pathname.startsWith("/vitrine/ma-fiche/") ||
     pathname.startsWith("/vitrine/confirmer-echange/") ||
     pathname === "/vitrine/mon-dossier";
+  // Page CEE : widgets flottants propres à l'OETH (FAQ, Actualité, Vigilance,
+  // Assistant OETH) masqués — elle a son propre assistant (voir CeeSerres.jsx).
+  const pageCee = pathname.startsWith("/vitrine/cee-serres");
   return (
     <>
       <SeoNavigation />
@@ -67,12 +73,14 @@ export default function VitrineApp() {
                 RDV, que l'échange a bien eu lieu (voir controleRdv.js). */}
             <Route path="/vitrine/confirmer-echange/:jeton" element={<ConfirmerEchangeClient />} />
             <Route path="/vitrine/mon-dossier" element={<MonLienDossier />} />
+            {/* Offre CEE — serres agricoles (pompe à chaleur Démétherme 400). */}
+            <Route path="/vitrine/cee-serres" element={<CeeSerres />} />
             <Route path="/vitrine/*" element={<SiteVitrine />} />
           </Route>
         </Routes>
       </Suspense>
-      {/* Boutons flottants (FAQ, Actualité, Vigilance, Assistance). */}
-      {!pageRendezVous && <WidgetsVitrine />}
+      {/* Boutons flottants (FAQ, Actualité, Vigilance, Assistance) : page CEE exclue (son propre assistant). */}
+      {!pageRendezVous && !pageCee && <WidgetsVitrine />}
     </>
   );
 }
