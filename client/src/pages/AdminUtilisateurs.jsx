@@ -288,6 +288,30 @@ export default function AdminUtilisateurs() {
     }
   }
 
+  // Équipes supplémentaires vues par un manager ("manager principal"), en
+  // plus de sa propre équipe (equipeId) — voir estVisibleParEquipe dans
+  // server/src/equipes.js. L'id du compte dont la liste est dépliée.
+  const [equipesSuperviseesOuvert, setEquipesSuperviseesOuvert] = useState(null);
+  const [enregistrementEquipesSupervisees, setEnregistrementEquipesSupervisees] = useState(false);
+  const [erreurEquipesSupervisees, setErreurEquipesSupervisees] = useState(null);
+
+  async function basculerEquipeSupervisee(u, equipeId) {
+    const actuelles = u.equipesSupervisees || [];
+    const prochaines = actuelles.includes(equipeId)
+      ? actuelles.filter((id) => id !== equipeId)
+      : [...actuelles, equipeId];
+    setEnregistrementEquipesSupervisees(true);
+    setErreurEquipesSupervisees(null);
+    try {
+      await api.definirEquipesSuperviseesUtilisateur(u.id, prochaines);
+      setUtilisateurs((l) => l.map((x) => (x.id === u.id ? { ...x, equipesSupervisees: prochaines } : x)));
+    } catch (e) {
+      setErreurEquipesSupervisees(e.message);
+    } finally {
+      setEnregistrementEquipesSupervisees(false);
+    }
+  }
+
   async function valider(id, role) {
     try {
       await api.validerUtilisateur(id, role);
@@ -542,6 +566,19 @@ export default function AdminUtilisateurs() {
                           onMaj={(maj) => setUtilisateurs((l) => l.map((x) => (x.id === maj.id ? { ...x, equipeId: maj.equipeId } : x)))}
                         />
                       )}
+                      {u.statut === "valide" && u.role === "manager" && (
+                        <button
+                          onClick={() => setEquipesSuperviseesOuvert((id) => (id === u.id ? null : u.id))}
+                          title="Équipes supplémentaires que ce manager voit en plus de la sienne (« manager principal »)"
+                          className="mt-1 block text-[11px] text-teal-700 dark:text-teal-300 hover:underline"
+                        >
+                          {equipesSuperviseesOuvert === u.id
+                            ? "Fermer"
+                            : u.equipesSupervisees?.length
+                              ? `+ ${u.equipesSupervisees.length} équipe${u.equipesSupervisees.length > 1 ? "s" : ""} supervisée${u.equipesSupervisees.length > 1 ? "s" : ""}`
+                              : "Superviser d'autres équipes…"}
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -696,6 +733,40 @@ export default function AdminUtilisateurs() {
                       </button>
                     </td>
                   </tr>
+                  {equipesSuperviseesOuvert === u.id && (
+                    <tr key={`${u.id}-equipes-supervisees`} className="bg-slate-50 dark:bg-slate-900">
+                      <td colSpan={7} className="px-4 py-3">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                          En plus de sa propre équipe ({equipes.find((e) => e.id === u.equipeId)?.nom || "aucune pour l'instant"}),
+                          {" "}{u.prenom || u.email} verra aussi toutes les fiches des équipes cochées ci-dessous — chaque
+                          fiche reste identifiée par son équipe d'origine, rien n'est mélangé.
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                          {equipes
+                            .filter((e) => e.id !== u.equipeId)
+                            .map((e) => (
+                              <label key={e.id} className="inline-flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-200">
+                                <input
+                                  type="checkbox"
+                                  checked={(u.equipesSupervisees || []).includes(e.id)}
+                                  disabled={enregistrementEquipesSupervisees}
+                                  onChange={() => basculerEquipeSupervisee(u, e.id)}
+                                />
+                                {e.nom}
+                              </label>
+                            ))}
+                          {equipes.length <= 1 && (
+                            <span className="text-sm text-slate-400 dark:text-slate-500">
+                              Aucune autre équipe à superviser pour l'instant.
+                            </span>
+                          )}
+                        </div>
+                        {erreurEquipesSupervisees && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erreurEquipesSupervisees}</p>
+                        )}
+                      </td>
+                    </tr>
+                  )}
                   {editionMotDePasse?.id === u.id && (
                     <tr key={`${u.id}-mdp`} className="bg-slate-50 dark:bg-slate-900">
                       <td colSpan={7} className="px-4 py-3">

@@ -604,6 +604,15 @@ export const api = {
       body: JSON.stringify({ equipeId: equipeId || null }),
     }).then(handle),
 
+  // Équipes supplémentaires vues par un manager ("manager principal"), en
+  // plus de sa propre équipe — remplace toute la liste à chaque appel.
+  definirEquipesSuperviseesUtilisateur: (utilisateurId, equipeIds) =>
+    fetch(`${BASE}/utilisateurs/${utilisateurId}/equipes-supervisees`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ equipeIds }),
+    }).then(handle),
+
   // Boîte mail personnelle d'un compte — `mail: null` la retire (le compte
   // retombe sur la boîte de son équipe, ou la boîte partagée). Voir
   // server/src/auth.js (mailPersonnel) et le champ `depuis` de

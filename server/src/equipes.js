@@ -88,12 +88,18 @@ export function equipeSansSecrets(equipe) {
   };
 }
 
-// Une fiche appartenant à l'équipe du manager connecté : visible en plus de
-// ce que l'agent voit déjà (ses propres fiches assignées, etc. — voir
-// estVisiblePar dans index.js, qui appelle cette fonction en plus de ses
-// propres règles).
+// Une fiche appartenant à l'équipe du manager connecté, OU à l'une des
+// équipes qu'il supervise en plus de la sienne (`equipesSupervisees` —
+// demande du fondateur 2026-11-10 : un "manager principal" rattaché à une
+// équipe précise, à qui on ajoute à la main la visibilité d'autres équipes,
+// sans tout mélanger : chaque fiche garde son propre equipeId, donc son
+// équipe d'origine reste toujours identifiable). Visible en plus de ce que
+// l'agent voit déjà (ses propres fiches assignées, etc. — voir estVisiblePar
+// dans index.js, qui appelle cette fonction en plus de ses propres règles).
 export function estVisibleParEquipe(entreprise, utilisateur) {
-  return Boolean(estManager(utilisateur) && utilisateur.equipeId && entreprise.equipeId === utilisateur.equipeId);
+  if (!estManager(utilisateur) || !entreprise.equipeId) return false;
+  if (entreprise.equipeId === utilisateur.equipeId) return true;
+  return Boolean(utilisateur.equipesSupervisees?.includes(entreprise.equipeId));
 }
 
 // Équipe à poser sur une fiche à sa création : celle de l'agent auquel elle
@@ -181,5 +187,21 @@ export function installerEquipes(app, { exigerAdmin }) {
     utilisateur.equipeId = equipeId;
     await db.write();
     res.json({ id: utilisateur.id, equipeId });
+  });
+
+  // Équipes supplémentaires supervisées par un manager ("manager principal"),
+  // en plus de sa propre équipe (equipeId) — voir estVisibleParEquipe
+  // ci-dessus. Remplace entièrement la liste à chaque appel (plus simple
+  // qu'une fusion ici : pas de secret à préserver, contrairement à la boîte
+  // mail).
+  app.put("/api/utilisateurs/:id/equipes-supervisees", exigerAdmin, async (req, res) => {
+    const utilisateur = db.data.utilisateurs.find((u) => u.id === req.params.id);
+    if (!utilisateur) return res.status(404).json({ error: "Compte introuvable." });
+    const equipeIds = Array.isArray(req.body.equipeIds) ? [...new Set(req.body.equipeIds)] : [];
+    const inconnue = equipeIds.find((id) => !equipeParId(id));
+    if (inconnue) return res.status(400).json({ error: "Équipe inconnue." });
+    utilisateur.equipesSupervisees = equipeIds;
+    await db.write();
+    res.json({ id: utilisateur.id, equipesSupervisees: equipeIds });
   });
 }
