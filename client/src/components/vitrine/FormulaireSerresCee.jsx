@@ -15,9 +15,22 @@ const VIDE = {
   cultures: "",
   serreChauffee: "",
   energieChauffage: "",
+  depenseEnergieMensuelle: "",
+  consentementAppel: false,
   message: "",
   siteWeb: "",
 };
+
+// Tranches de dépense énergétique mensuelle (mêmes valeurs côté CRM, voir
+// InfosSerreCee.jsx) : un ordre de grandeur suffit à un conseiller pour une
+// première estimation, pas un montant exact.
+const TRANCHES_DEPENSE = [
+  { value: "moins_500", label: "Moins de 500 €" },
+  { value: "500_1000", label: "500 à 1 000 €" },
+  { value: "1000_2000", label: "1 000 à 2 000 €" },
+  { value: "2000_5000", label: "2 000 à 5 000 €" },
+  { value: "plus_5000", label: "Plus de 5 000 €" },
+];
 
 // Formulaire de qualification de la page publique CEE — serres agricoles
 // (/vitrine/cee-serres). Mêmes champs serre que InfosSerreCee.jsx côté CRM
@@ -41,6 +54,9 @@ export default function FormulaireSerresCee({ id }) {
     if (!emailValide && !form.telephone.trim()) {
       return setErreur("Indiquez un e-mail valide ou un numéro de téléphone, pour qu'un conseiller puisse vous recontacter.");
     }
+    if (!form.consentementAppel) {
+      return setErreur("Merci de confirmer votre accord à être recontacté(e) par téléphone.");
+    }
     setErreur(null);
     setEnvoi(true);
     try {
@@ -55,6 +71,8 @@ export default function FormulaireSerresCee({ id }) {
         cultures: form.cultures.trim(),
         serreChauffee: form.serreChauffee === "" ? null : form.serreChauffee === "oui",
         energieChauffage: form.energieChauffage.trim(),
+        depenseEnergieMensuelle: form.depenseEnergieMensuelle,
+        consentementAppel: form.consentementAppel,
         message: form.message.trim(),
         siteWeb: form.siteWeb,
       });
@@ -140,11 +158,35 @@ export default function FormulaireSerresCee({ id }) {
           Énergie de chauffage actuelle
           <input placeholder="Ex : fioul, gaz, électrique…" className={`mt-1.5 ${CLASSE_INPUT}`} {...champ("energieChauffage")} />
         </label>
+        <label className="text-xs text-slate-500 dark:text-slate-400">
+          Dépense énergétique mensuelle
+          <select className={`mt-1.5 ${CLASSE_INPUT} cursor-pointer`} {...champ("depenseEnergieMensuelle")}>
+            <option className="bg-white dark:bg-slate-900" value="">
+              Non renseigné
+            </option>
+            {TRANCHES_DEPENSE.map((t) => (
+              <option className="bg-white dark:bg-slate-900" key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <label className="block text-xs text-slate-500 dark:text-slate-400 mt-4">
         Votre message (facultatif)
         <textarea rows={3} className={`mt-1.5 ${CLASSE_INPUT} resize-none`} {...champ("message")} />
+      </label>
+
+      <label className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400 mt-4">
+        <input
+          type="checkbox"
+          required
+          checked={form.consentementAppel}
+          onChange={(e) => setForm((f) => ({ ...f, consentementAppel: e.target.checked }))}
+          className="mt-0.5"
+        />
+        <span>J'accepte d'être recontacté(e) par téléphone par un conseiller Eco Smart France au sujet de ma demande.</span>
       </label>
 
       {/* Champ piège anti-robots, invisible pour les humains. */}
@@ -153,7 +195,7 @@ export default function FormulaireSerresCee({ id }) {
       {erreur && <p className="text-sm text-red-600 dark:text-red-400 mt-3">{erreur}</p>}
       <button
         type="submit"
-        disabled={envoi}
+        disabled={envoi || !form.consentementAppel}
         className="mt-5 w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-3.5 transition disabled:opacity-40"
       >
         {envoi ? "Envoi…" : "Être recontacté par un conseiller"}

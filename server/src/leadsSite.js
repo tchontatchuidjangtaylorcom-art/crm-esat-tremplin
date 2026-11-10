@@ -67,9 +67,12 @@ function trouverFicheExistante({ email, entreprise, siren, espace }) {
 // reprises dans le commentaire de la fiche. `espace` : espace de la fiche
 // créée (voir espaces.js — "oeth" par défaut pour ne rien changer aux appels
 // existants de la vitrine OETH). `nombreSerres`/`surfaceSerres`/`cultures`/
-// `serreChauffee`/`energieChauffage` : champs propres à une demande CEE
-// (serres agricoles), mêmes forme et types que InfosSerreCee.jsx côté CRM —
-// restent null/absents pour tout appel qui ne les transmet pas (OETH).
+// `serreChauffee`/`energieChauffage`/`depenseEnergieMensuelle` : champs
+// propres à une demande CEE (serres agricoles), mêmes forme et types que
+// InfosSerreCee.jsx côté CRM — restent null/absents pour tout appel qui ne
+// les transmet pas (OETH). `consentementAppel` : coché par le visiteur sur le
+// formulaire public — posé en `consentementAppelCee` (date), jamais réécrit
+// ensuite, jamais modifiable depuis le CRM.
 export async function enregistrerDemandeSite({
   type,
   nom = "",
@@ -89,6 +92,8 @@ export async function enregistrerDemandeSite({
   cultures = "",
   serreChauffee = null,
   energieChauffage = "",
+  depenseEnergieMensuelle = "",
+  consentementAppel = false,
 }) {
   // SIRET (facultatif) saisi par le visiteur : sert à retrouver la fiche et,
   // pour une nouvelle fiche, à la compléter depuis le répertoire INSEE.
@@ -137,6 +142,13 @@ export async function enregistrerDemandeSite({
     if (existante.serreChauffee == null && nvSerreChauffee !== null) existante.serreChauffee = nvSerreChauffee;
     const nvEnergieChauffage = normaliserTexteOuNull(energieChauffage);
     if (!existante.energieChauffage && nvEnergieChauffage) existante.energieChauffage = nvEnergieChauffage;
+    const nvDepenseEnergieMensuelle = normaliserTexteOuNull(depenseEnergieMensuelle);
+    if (!existante.depenseEnergieMensuelle && nvDepenseEnergieMensuelle) existante.depenseEnergieMensuelle = nvDepenseEnergieMensuelle;
+    // Consentement à être recontacté par téléphone : un log factuel daté, posé
+    // une seule fois (jamais réécrit ensuite, même si le client redépose le
+    // formulaire) — jamais modifiable depuis le CRM (voir InfosSerreCee.jsx,
+    // affiché en lecture seule).
+    if (consentementAppel && !existante.consentementAppelCee) existante.consentementAppelCee = maintenant;
     // Un dossier archivé qui redemande un contact revient dans le pipeline.
     const idxArchive = db.data.archives.findIndex((e) => e.id === existante.id);
     if (idxArchive !== -1) {
@@ -183,6 +195,10 @@ export async function enregistrerDemandeSite({
     cultures: normaliserTexteOuNull(cultures),
     serreChauffee: normaliserBooleenOuNull(serreChauffee),
     energieChauffage: normaliserTexteOuNull(energieChauffage),
+    depenseEnergieMensuelle: normaliserTexteOuNull(depenseEnergieMensuelle),
+    // Log factuel daté (jamais modifiable depuis le CRM) : voir le
+    // commentaire plus haut, sur la branche "fiche déjà existante".
+    consentementAppelCee: consentementAppel ? maintenant : null,
     contact: { nom: nomContact, fonction: fonction || "-", telephone, email, telephoneInvalide: false },
     dateRappel: null,
     dateRdv: null,
