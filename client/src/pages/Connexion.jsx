@@ -2,6 +2,38 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
+import { definirEspaceDesire } from "../espace.js";
+
+// Deux portes d'entrée, un même CRM derrière (voir espaces.js côté serveur) :
+// /connexion (par défaut, OETH) et /cee, habillées différemment, mais qui
+// mènent exactement au même compte et au même formulaire. `espaceCible`
+// mémorise juste l'espace désiré (voir définirEspaceDesire, espace.js) avant
+// la connexion ; une fois connecté, le tableau de bord part sur cet espace-là
+// si le compte y a accès, sinon le serveur retombe sur son propre espace —
+// jamais d'erreur affichée ici, et une page /oeth ou /connexion reste
+// disponible pour l'autre porte, ou pour un compte qui a accès aux deux.
+const BRANDING = {
+  oeth: {
+    bandeau: (
+      <div className="bandeau-tricolore">
+        <span className="bg-marine-800" />
+        <span className="bg-white" />
+        <span className="bg-red-700" />
+      </div>
+    ),
+    pastille: null,
+    surtitreClasse: "text-marine-700 dark:text-marine-300",
+    surtitre: "Portail Opérationnel OETH",
+    titre: "CRM OETH / AGEFIPH",
+  },
+  cee: {
+    bandeau: <div className="h-1.5 bg-emerald-600" />,
+    pastille: <span aria-hidden className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-600 mr-1.5 align-middle" />,
+    surtitreClasse: "text-emerald-700 dark:text-emerald-400",
+    surtitre: "Portail Opérationnel CEE",
+    titre: "CRM CEE — Économies d'énergie",
+  },
+};
 
 // Connexion principalement sans mot de passe : lien magique par mail, ou
 // Google si configuré côté serveur (bouton masqué sinon). Un mot de passe
@@ -11,9 +43,14 @@ import { useAuth } from "../AuthContext.jsx";
 // magique) s'applique — inchangé pour tous les comptes qui n'ont pas de mot
 // de passe défini. Le premier compte jamais créé devient automatiquement
 // administrateur.
-export default function Connexion() {
+export default function Connexion({ espaceCible }) {
   const { utilisateur, chargement } = useAuth();
   const [searchParams] = useSearchParams();
+  const branding = BRANDING[espaceCible] || BRANDING.oeth;
+
+  useEffect(() => {
+    if (espaceCible) definirEspaceDesire(espaceCible);
+  }, [espaceCible]);
   const [mode, setMode] = useState("connexion"); // "connexion" | "creation"
   const [email, setEmail] = useState("");
   const [prenom, setPrenom] = useState("");
@@ -84,7 +121,7 @@ export default function Connexion() {
         window.location.href = "/";
         return;
       }
-      const resultat = await api.demanderLien(email.trim(), { prenom: prenom.trim(), nom: nom.trim() });
+      const resultat = await api.demanderLien(email.trim(), { prenom: prenom.trim(), nom: nom.trim(), espaceSouhaite: espaceCible });
       setMessage(resultat.message);
     } catch (e) {
       setErreur(e.message);
@@ -106,17 +143,16 @@ export default function Connexion() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 p-6">
       <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="bandeau-tricolore">
-          <span className="bg-marine-800" />
-          <span className="bg-white" />
-          <span className="bg-red-700" />
-        </div>
+        {branding.bandeau}
         <div className="p-8 space-y-6">
           <div className="text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-marine-700 dark:text-marine-300 mb-1">
-              Portail Opérationnel OETH
+            <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${branding.surtitreClasse}`}>
+              {branding.surtitre}
             </p>
-            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">CRM OETH / AGEFIPH</h1>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+              {branding.pastille}
+              {branding.titre}
+            </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               {mode === "creation" ? "Demande d'accès à l'équipe" : "Lien de connexion ou mot de passe"}
             </p>

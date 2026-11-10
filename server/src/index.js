@@ -369,7 +369,12 @@ app.post("/api/auth/demander-lien", async (req, res) => {
   // toujours les transmettre même sur une simple reconnexion.
   const prenom = String(req.body.prenom || "").trim();
   const nom = String(req.body.nom || "").trim();
-  const utilisateur = await trouverOuCreerUtilisateur(email, { prenom, nom });
+  // espaceSouhaite : porte d'entrée empruntée (/oeth, /cee — voir
+  // Connexion.jsx), validée ici contre les espaces réels avant d'être
+  // transmise ; comme prenom/nom, sans effet si le compte existe déjà.
+  const espaceDemande = String(req.body.espaceSouhaite || "").trim();
+  const espaceSouhaite = listeEspaces().some((e) => e.id === espaceDemande) ? espaceDemande : "";
+  const utilisateur = await trouverOuCreerUtilisateur(email, { prenom, nom, espaceSouhaite });
 
   if (utilisateur.statut === "refuse") {
     return res.status(403).json({ error: "Accès non autorisé pour cette adresse. Contactez l'administrateur." });

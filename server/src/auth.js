@@ -61,7 +61,7 @@ export function trouverUtilisateurParId(id) {
   return db.data.utilisateurs.find((u) => u.id === id) || null;
 }
 
-export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" } = {}) {
+export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "", espaceSouhaite = "" } = {}) {
   const propre = normaliserEmail(email);
   const estAdminForce = emailsAdminForces().includes(propre);
   const existant = trouverUtilisateurParEmail(propre);
@@ -90,6 +90,13 @@ export async function trouverOuCreerUtilisateur(email, { prenom = "", nom = "" }
     statut: admin ? "valide" : "en_attente",
     dateCreation: new Date().toISOString(),
     dateValidation: admin ? new Date().toISOString() : null,
+    // Espace demandé via une porte d'entrée dédiée (/oeth, /cee — voir
+    // Connexion.jsx) : pré-sélectionné pour ce nouveau compte, pour qu'un
+    // agent recruté via la porte CEE n'atterrisse pas par défaut sur OETH une
+    // fois validé par l'admin. Déjà validé contre la liste des espaces
+    // réels par l'appelant (voir POST /api/auth/demander-lien, index.js) ;
+    // sans effet sur un admin, qui a de toute façon accès à tout.
+    ...(!admin && espaceSouhaite ? { espaces: [espaceSouhaite] } : {}),
   };
   db.data.utilisateurs.push(utilisateur);
   await db.write();

@@ -28,6 +28,17 @@ export function changerEspace(id) {
   window.location.assign("/");
 }
 
+// Mémorise l'espace désiré SANS recharger — utilisé par la porte d'entrée
+// dédiée à un espace (/oeth, /cee, voir Connexion.jsx) : le compte n'est pas
+// encore connecté, il n'y a donc rien à recharger. Une fois connecté
+// (lien magique ou mot de passe), le tableau de bord lit cette valeur comme
+// n'importe quelle visite normale ; si le compte n'a pas accès à cet espace,
+// le serveur retombe sur le premier espace réellement autorisé (voir
+// espaceDeRequete côté serveur) — jamais d'erreur, juste son propre espace.
+export function definirEspaceDesire(id) {
+  memoriser(id);
+}
+
 // Ajoute l'en-tête X-Espace à toutes les requêtes /api du CRM, y compris
 // celles faites directement avec fetch() par les composants.
 export function installerEnteteEspace() {

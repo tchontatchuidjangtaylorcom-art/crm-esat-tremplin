@@ -41,8 +41,13 @@ export default function CrmApp() {
               sur la vitrine publique ni la page de connexion. */}
           <PresenceProvider>
           <Routes>
-            {/* Hors du habillage CRM (pas de barre d'outils vente) */}
+            {/* Hors du habillage CRM (pas de barre d'outils vente). /oeth et
+                /cee : portes d'entrée dédiées par espace (même formulaire,
+                habillage différent — voir Connexion.jsx) ; /connexion reste
+                l'adresse générique, sans espace présélectionné. */}
             <Route path="/connexion" element={<Connexion />} />
+            <Route path="/oeth" element={<Connexion espaceCible="oeth" />} />
+            <Route path="/cee" element={<Connexion espaceCible="cee" />} />
             <Route
               path="/admin/utilisateurs"
               element={
