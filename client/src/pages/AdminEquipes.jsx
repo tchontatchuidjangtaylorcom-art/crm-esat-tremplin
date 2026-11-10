@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
+import SelecteurPersonne from "../components/SelecteurPersonne.jsx";
 
 const CHAMPS_MAIL_VIDES = { smtpHost: "", smtpPort: "", imapHost: "", imapPort: "", user: "", password: "", from: "", replyTo: "" };
 
@@ -441,18 +442,15 @@ export default function AdminEquipes() {
             </label>
             <label className="block text-xs text-slate-500 dark:text-slate-400">
               Manager (optionnel)
-              <select
-                value={managerId}
-                onChange={(e) => setManagerId(e.target.value)}
-                className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
-              >
-                <option value="">À définir plus tard</option>
-                {managersDisponibles.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.prenom || u.email}
-                  </option>
-                ))}
-              </select>
+              <SelecteurPersonne
+                personnes={managersDisponibles}
+                valeur={managerId}
+                onChange={setManagerId}
+                optionsSpeciales={[{ valeur: "", label: "À définir plus tard" }]}
+                placeholder="À définir plus tard"
+                titre="Rechercher le manager par son nom"
+                className="mt-1 w-56 px-3 py-2 text-sm"
+              />
             </label>
             <button
               type="submit"
@@ -491,18 +489,15 @@ export default function AdminEquipes() {
                       <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{eq.nom}</td>
                       <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{nomEspace(eq.espace)}</td>
                       <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        <select
-                          value={eq.managerId || ""}
-                          onChange={(e) => modifier(eq.id, { managerId: e.target.value || null })}
-                          className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-2 py-1 text-xs"
-                        >
-                          <option value="">Aucun</option>
-                          {managersDisponibles.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.prenom || u.email}
-                            </option>
-                          ))}
-                        </select>
+                        <SelecteurPersonne
+                          personnes={managersDisponibles}
+                          valeur={eq.managerId || ""}
+                          onChange={(id) => modifier(eq.id, { managerId: id || null })}
+                          optionsSpeciales={[{ valeur: "", label: "Aucun" }]}
+                          placeholder="Aucun"
+                          titre="Rechercher le manager par son nom"
+                          className="px-2 py-1 text-xs max-w-[180px]"
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <span
