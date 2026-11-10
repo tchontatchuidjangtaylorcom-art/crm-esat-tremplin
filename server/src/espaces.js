@@ -20,6 +20,32 @@ import { estAdmin } from "./auth.js";
 
 export const ESPACE_PAR_DEFAUT = "oeth";
 
+// Identifiants réservés : routes de premier niveau qui ne sont PAS des portes
+// d'entrée d'espace (voir CrmApp.jsx, la route générique /:espaceCible) —
+// un nouvel espace ne peut pas voler l'une de ces adresses. Les pages du CRM
+// authentifié à un seul segment (chat, mes-kpis…) sont réservées pour la même
+// raison : ce sont de vraies routes statiques, toujours prioritaires sur
+// ":espaceCible" côté client, donc un espace prenant l'un de ces noms n'aurait
+// tout simplement aucune porte d'entrée accessible.
+const IDENTIFIANTS_RESERVES = [
+  "connexion",
+  "admin",
+  "vitrine",
+  "api",
+  "chat",
+  "mes-kpis",
+  "kpis-equipe",
+  "mon-equipe",
+  "supervision",
+  "campagnes",
+  "boite-mail",
+];
+
+// Couleurs disponibles pour un espace (voir aussi COULEURS dans
+// SelecteurEspace.jsx, côté client — les deux listes doivent rester en
+// phase). Seules des teintes Tailwind standard, sans retouche de config.
+export const COULEURS_ESPACE = ["marine", "emerald", "orange", "violet", "rose", "sky", "amber", "teal"];
+
 const ESPACES_INITIAUX = [
   {
     id: "oeth",
@@ -139,9 +165,89 @@ export function installerEspaces(app, { exigerAuth, exigerAdmin }) {
     });
   });
 
-  // Tous les espaces (administration des accès).
+  // Tous les espaces (administration des accès) — y compris les désactivés
+  // (tableau BRUT, pas listeEspaces() qui les masque) : l'écran d'admin doit
+  // pouvoir les réafficher avec leur badge "Désactivé" et les réactiver.
   app.get("/api/espaces/tous", exigerAdmin, (req, res) => {
-    res.json(listeEspaces().map(espaceSansSecrets));
+    listeEspaces(); // initialise db.data.espaces si besoin.
+    res.json(db.data.espaces.map(espaceSansSecrets));
+  });
+
+  // Porte d'entrée publique d'un espace (voir CrmApp.jsx, route générique
+  // /:espaceCible et Connexion.jsx) — accessible SANS connexion, donc
+  // volontairement minimal : jamais la boîte mail (`mail`), jamais les
+  // modules. Un espace désactivé (actif: false) n'a plus de porte : il
+  // n'apparaît pas dans listeEspaces() et retombe donc ici sur un 404,
+  // exactement comme un identifiant inconnu.
+  app.get("/api/espaces/porte/:id", (req, res) => {
+    const espace = listeEspaces().find((e) => e.id === req.params.id);
+    if (!espace) return res.status(404).json({ error: "Espace introuvable." });
+    res.json({ id: espace.id, nom: espace.nom, court: espace.court, couleur: espace.couleur });
+  });
+
+  // Création d'un espace depuis l'administration — c'est ce qui permet au
+  // fondateur d'ouvrir une nouvelle ligne d'activité (un nouveau client) sans
+  // développeur ni nouveau déploiement : même app, même base, juste un espace
+  // de plus, avec sa propre porte d'entrée sur /<id> (voir CrmApp.jsx).
+  app.post("/api/espaces", exigerAdmin, async (req, res) => {
+    const id = String(req.body.id || "")
+      .trim()
+      .toLowerCase();
+    if (!/^[a-z][a-z0-9-]{1,39}$/.test(id)) {
+      return res
+        .status(400)
+        .json({ error: "Identifiant d'espace invalide (lettres minuscules, chiffres, tirets, doit commencer par une lettre)." });
+    }
+    // Vérifié sur le tableau BRUT (y compris les espaces désactivés) : un
+    // identifiant ne doit jamais pouvoir être réutilisé, même par un espace
+    // qu'on a remis en service entre-temps.
+    listeEspaces(); // initialise db.data.espaces si besoin.
+    const existeDeja = db.data.espaces.some((e) => e.id === id);
+    if (existeDeja || IDENTIFIANTS_RESERVES.includes(id)) {
+      return res.status(409).json({ error: "Cet identifiant est déjà utilisé ou réservé." });
+    }
+    const nom = String(req.body.nom || "").trim();
+    if (!nom) return res.status(400).json({ error: "Le nom de l'espace est obligatoire." });
+    const couleur = String(req.body.couleur || "").trim();
+    if (!COULEURS_ESPACE.includes(couleur)) return res.status(400).json({ error: "Couleur inconnue." });
+    const espace = {
+      id,
+      nom,
+      court: String(req.body.court || "").trim() || nom,
+      description: String(req.body.description || "").trim(),
+      couleur,
+      modules: [],
+      actif: true,
+      mail: null,
+    };
+    db.data.espaces.push(espace);
+    await db.write();
+    res.status(201).json(espaceSansSecrets(espace));
+  });
+
+  // Modification d'un espace existant — jamais son `id` : les fiches et les
+  // portes d'entrée le référencent déjà, le renommer les orphelinerait.
+  app.put("/api/espaces/:id", exigerAdmin, async (req, res) => {
+    listeEspaces(); // initialise db.data.espaces si besoin.
+    // Tableau BRUT : un espace désactivé doit rester modifiable (ne serait-ce
+    // que pour le réactiver via `actif: true`).
+    const espace = db.data.espaces.find((e) => e.id === req.params.id);
+    if (!espace) return res.status(404).json({ error: "Espace introuvable." });
+    if (req.body.couleur !== undefined) {
+      const couleur = String(req.body.couleur || "").trim();
+      if (!COULEURS_ESPACE.includes(couleur)) return res.status(400).json({ error: "Couleur inconnue." });
+      espace.couleur = couleur;
+    }
+    if (req.body.nom !== undefined) {
+      const nom = String(req.body.nom || "").trim();
+      if (!nom) return res.status(400).json({ error: "Le nom de l'espace est obligatoire." });
+      espace.nom = nom;
+    }
+    if (req.body.court !== undefined) espace.court = String(req.body.court || "").trim() || espace.nom;
+    if (req.body.description !== undefined) espace.description = String(req.body.description || "").trim();
+    if (req.body.actif !== undefined) espace.actif = Boolean(req.body.actif);
+    await db.write();
+    res.json(espaceSansSecrets(espace));
   });
 
   // Boîte mail propre à un espace (ex : domaine CEE dédié) — même esprit que
