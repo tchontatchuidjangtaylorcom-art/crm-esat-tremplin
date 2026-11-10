@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { changerEspace, useEspaces } from "../espace.js";
-
-const COULEURS = {
-  marine: "bg-marine-600",
-  emerald: "bg-emerald-600",
-  orange: "bg-orange-500",
-  violet: "bg-violet-600",
-};
+import { COULEURS_ESPACE as COULEURS } from "../couleursEspace.js";
 
 // Sélecteur d'espace de travail, en haut du CRM : un clic pour passer de
 // l'espace OETH à l'espace CEE (et aux suivants). Un compte qui n'a qu'un

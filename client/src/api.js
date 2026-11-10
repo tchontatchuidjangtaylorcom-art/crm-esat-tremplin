@@ -621,6 +621,30 @@ export const api = {
       body: JSON.stringify({ mail }),
     }).then(handle),
 
+  // Tous les espaces, y compris désactivés (administration — voir
+  // AdminEspaces.jsx et server/src/espaces.js, GET /api/espaces/tous).
+  listerEspacesAdmin: () => fetch(`${BASE}/espaces/tous`).then(handle),
+
+  // Création d'un nouvel espace (nouvelle ligne d'activité, sans développeur
+  // ni nouveau déploiement) — voir AdminEspaces.jsx.
+  creerEspace: (donnees) =>
+    fetch(`${BASE}/espaces`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+
+  modifierEspace: (id, donnees) =>
+    fetch(`${BASE}/espaces/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+
+  // Porte d'entrée publique d'un espace (sans connexion) — voir
+  // Connexion.jsx et server/src/espaces.js, GET /api/espaces/porte/:id.
+  getPorteEspace: (id) => fetch(`${BASE}/espaces/porte/${id}`).then(handle),
+
   definirEquipeUtilisateur: (utilisateurId, equipeId) =>
     fetch(`${BASE}/utilisateurs/${utilisateurId}/equipe`, {
       method: "PUT",

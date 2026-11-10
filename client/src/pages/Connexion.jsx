@@ -3,37 +3,60 @@ import { useSearchParams, Navigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { definirEspaceDesire } from "../espace.js";
+import { COULEURS_ESPACE } from "../couleursEspace.js";
 
-// Deux portes d'entrée, un même CRM derrière (voir espaces.js côté serveur) :
-// /connexion (par défaut, OETH) et /cee, habillées différemment, mais qui
-// mènent exactement au même compte et au même formulaire. `espaceCible`
-// mémorise juste l'espace désiré (voir définirEspaceDesire, espace.js) avant
-// la connexion ; une fois connecté, le tableau de bord part sur cet espace-là
-// si le compte y a accès, sinon le serveur retombe sur son propre espace —
-// jamais d'erreur affichée ici, et une page /oeth ou /connexion reste
-// disponible pour l'autre porte, ou pour un compte qui a accès aux deux.
-const BRANDING = {
-  oeth: {
-    bandeau: (
-      <div className="bandeau-tricolore">
-        <span className="bg-marine-800" />
-        <span className="bg-white" />
-        <span className="bg-red-700" />
-      </div>
-    ),
-    pastille: null,
-    surtitreClasse: "text-marine-700 dark:text-marine-300",
-    surtitre: "Portail Opérationnel OETH",
-    titre: "CRM OETH / AGEFIPH",
-  },
-  cee: {
-    bandeau: <div className="h-1.5 bg-emerald-600" />,
-    pastille: <span aria-hidden className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-600 mr-1.5 align-middle" />,
-    surtitreClasse: "text-emerald-700 dark:text-emerald-400",
-    surtitre: "Portail Opérationnel CEE",
-    titre: "CRM CEE — Économies d'énergie",
-  },
+// Porte d'entrée générique, un même CRM derrière (voir espaces.js côté
+// serveur) : /connexion (par défaut, habillage OETH) et /<id-espace> pour
+// n'importe quel espace créé depuis l'administration (AdminEspaces.jsx,
+// route /:espaceCible dans CrmApp.jsx) — habillées différemment selon la
+// couleur de l'espace, mais qui mènent exactement au même compte et au même
+// formulaire. `espaceCible` mémorise juste l'espace désiré (voir
+// définirEspaceDesire, espace.js) avant la connexion ; une fois connecté, le
+// tableau de bord part sur cet espace-là si le compte y a accès, sinon le
+// serveur retombe sur son propre espace — jamais d'erreur affichée ici, et
+// une page /connexion reste disponible pour la porte générique, ou pour un
+// compte qui a accès à plusieurs espaces.
+const BRANDING_OETH_PAR_DEFAUT = {
+  bandeau: (
+    <div className="bandeau-tricolore">
+      <span className="bg-marine-800" />
+      <span className="bg-white" />
+      <span className="bg-red-700" />
+    </div>
+  ),
+  pastille: null,
+  surtitreClasse: "text-marine-700 dark:text-marine-300",
+  surtitre: "Portail Opérationnel OETH",
+  titre: "CRM OETH / AGEFIPH",
 };
+
+// Habillage propre à CEE (couleur historique, avant la généralisation des
+// espaces) : conservé tel quel plutôt que généré depuis sa couleur, pour ne
+// rien changer visuellement sur cette porte existante.
+const BRANDING_CEE = {
+  bandeau: <div className="h-1.5 bg-emerald-600" />,
+  pastille: <span aria-hidden className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-600 mr-1.5 align-middle" />,
+  surtitreClasse: "text-emerald-700 dark:text-emerald-400",
+  surtitre: "Portail Opérationnel CEE",
+  titre: "CRM CEE — Économies d'énergie",
+};
+
+// Pastille/bandeau fins générés depuis la couleur de l'espace (voir
+// COULEURS_ESPACE, partagé avec SelecteurEspace.jsx et AdminEspaces.jsx) —
+// pour un espace quelconque créé depuis l'administration, sans rien connaître
+// de lui à l'avance.
+function brandingDepuisEspace(espace) {
+  if (espace.id === "oeth") return BRANDING_OETH_PAR_DEFAUT;
+  if (espace.id === "cee") return BRANDING_CEE;
+  const classeCouleur = COULEURS_ESPACE[espace.couleur] || COULEURS_ESPACE.marine;
+  return {
+    bandeau: <div className={`h-1.5 ${classeCouleur}`} />,
+    pastille: <span aria-hidden className={`inline-block w-2.5 h-2.5 rounded-full ${classeCouleur} mr-1.5 align-middle`} />,
+    surtitreClasse: "text-slate-600 dark:text-slate-300",
+    surtitre: `Portail Opérationnel ${espace.court || espace.nom}`,
+    titre: espace.nom,
+  };
+}
 
 // Connexion principalement sans mot de passe : lien magique par mail, ou
 // Google si configuré côté serveur (bouton masqué sinon). Un mot de passe
@@ -46,10 +69,33 @@ const BRANDING = {
 export default function Connexion({ espaceCible }) {
   const { utilisateur, chargement } = useAuth();
   const [searchParams] = useSearchParams();
-  const branding = BRANDING[espaceCible] || BRANDING.oeth;
+
+  // Habillage de la porte : /connexion (pas d'espaceCible) garde exactement
+  // l'habillage OETH d'aujourd'hui, sans aucun appel réseau. Une porte
+  // dédiée (/<id-espace>) va chercher le nom/la couleur de cet espace — en
+  // cas d'erreur (identifiant inconnu, espace désactivé, ou juste le temps
+  // du chargement) on retombe sur ce même habillage par défaut, jamais de
+  // page cassée pour une URL mal tapée.
+  const [branding, setBranding] = useState(BRANDING_OETH_PAR_DEFAUT);
 
   useEffect(() => {
     if (espaceCible) definirEspaceDesire(espaceCible);
+    if (!espaceCible || espaceCible === "oeth") {
+      setBranding(BRANDING_OETH_PAR_DEFAUT);
+      return;
+    }
+    let actif = true;
+    api
+      .getPorteEspace(espaceCible)
+      .then((espace) => {
+        if (actif) setBranding(brandingDepuisEspace(espace));
+      })
+      .catch(() => {
+        if (actif) setBranding(BRANDING_OETH_PAR_DEFAUT);
+      });
+    return () => {
+      actif = false;
+    };
   }, [espaceCible]);
   const [mode, setMode] = useState("connexion"); // "connexion" | "creation"
   const [email, setEmail] = useState("");

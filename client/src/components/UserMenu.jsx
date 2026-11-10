@@ -87,6 +87,14 @@ export default function UserMenu({ theme, onBasculerTheme }) {
             🏢 Équipes
           </Link>
 
+          <Link
+            to="/admin/espaces"
+            title="Créer de nouvelles lignes d'activité (espaces), chacune avec sa propre porte d'entrée"
+            className="flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            🧩 Espaces
+          </Link>
+
           {utilisateur?.role === "super_admin" && (
             <Link
               to="/supervision"
