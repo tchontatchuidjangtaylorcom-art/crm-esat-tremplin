@@ -367,6 +367,15 @@ export default function AdminUtilisateurs() {
         <Link to="/" className="text-sm text-marine-700 dark:text-marine-300 hover:underline">
           &larr; Retour au tableau de bord
         </Link>
+        <nav className="flex items-center gap-3 mt-2 text-xs">
+          <span className="font-semibold text-slate-600 dark:text-slate-300">Gestion des accès</span>
+          <Link to="/admin/equipes" className="text-slate-400 dark:text-slate-500 hover:text-marine-700 dark:hover:text-marine-300 hover:underline">
+            Équipes
+          </Link>
+          <Link to="/admin/espaces" className="text-slate-400 dark:text-slate-500 hover:text-marine-700 dark:hover:text-marine-300 hover:underline">
+            Espaces
+          </Link>
+        </nav>
         <div className="flex items-center gap-2 mt-3 mb-1">
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Gestion des accès</h1>
         </div>

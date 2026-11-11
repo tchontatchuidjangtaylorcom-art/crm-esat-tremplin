@@ -226,6 +226,15 @@ export default function AdminEquipes() {
         <Link to="/" className="text-sm text-marine-700 dark:text-marine-300 hover:underline">
           &larr; Retour au tableau de bord
         </Link>
+        <nav className="flex items-center gap-3 mt-2 text-xs">
+          <Link to="/admin/utilisateurs" className="text-slate-400 dark:text-slate-500 hover:text-marine-700 dark:hover:text-marine-300 hover:underline">
+            Gestion des accès
+          </Link>
+          <span className="font-semibold text-slate-600 dark:text-slate-300">Équipes</span>
+          <Link to="/admin/espaces" className="text-slate-400 dark:text-slate-500 hover:text-marine-700 dark:hover:text-marine-300 hover:underline">
+            Espaces
+          </Link>
+        </nav>
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-3 mb-1">Gestion des équipes</h1>
         <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
           Un bureau (Cameroun, Paris…) = une équipe. Son manager voit toutes ses fiches, ses agents n'y voient que les
