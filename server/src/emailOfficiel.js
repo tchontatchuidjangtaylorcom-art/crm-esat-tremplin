@@ -269,6 +269,7 @@ export function genererEmailCreationCompteHtml({ utilisateur, appUrl, motDePasse
 
   <tr><td style="padding:16px 32px 24px;background:#f1f5f9;">
     <p style="margin:0;font-size:11px;line-height:1.5;color:${GRIS_CLAIR};">Si vous n'attendiez pas ce message, vous pouvez l'ignorer en toute sécurité.</p>
+    <p style="margin:6px 0 0;font-size:11px;color:${GRIS_CLAIR};">Message automatique — merci de ne pas y répondre directement.</p>
     <p style="margin:6px 0 0;font-size:11px;color:${GRIS_CLAIR};">${marque}</p>
   </td></tr>
 
@@ -319,6 +320,7 @@ function emailAccesSimpleHtml({ titre, sousTitre, paragraphesHtml, lienBouton, t
 
   <tr><td style="padding:16px 32px 24px;background:#f1f5f9;">
     <p style="margin:0;font-size:11px;line-height:1.5;color:${GRIS_CLAIR};">${pied || "Si vous n'attendiez pas ce message, vous pouvez l'ignorer en toute sécurité."}</p>
+    <p style="margin:6px 0 0;font-size:11px;color:${GRIS_CLAIR};">Message automatique — merci de ne pas y répondre directement.</p>
     <p style="margin:6px 0 0;font-size:11px;color:${GRIS_CLAIR};">${marque}</p>
   </td></tr>
 

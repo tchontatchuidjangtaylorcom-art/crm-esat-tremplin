@@ -21,7 +21,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import db from "./db.js";
-import { envoyerMail, estEnvoiConfigure } from "./mail.js";
+import { envoyerMail, estEnvoiConfigure, adresseNePasRepondre } from "./mail.js";
 import {
   genererEmailCreationCompteHtml,
   genererEmailLienConnexionHtml,
@@ -223,7 +223,7 @@ export async function creerUtilisateurParAdmin(
           `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes. Vous pouvez aussi vous connecter ` +
           `directement avec le mot de passe provisoire suivant : ${motDePasseClair}\n\n` +
           `À la première connexion, il vous sera demandé de choisir votre propre mot de passe.\n\n` +
-          `${marque}`,
+          `Ceci est un message automatique, merci de ne pas y répondre directement.\n\n${marque}`,
         html: genererEmailCreationCompteHtml({
           utilisateur,
           appUrl,
@@ -232,6 +232,7 @@ export async function creerUtilisateurParAdmin(
           espace,
         }),
         fromName: marque,
+        replyTo: adresseNePasRepondre(),
       });
       mailEnvoye = true;
     } catch (e) {
@@ -373,9 +374,10 @@ export async function envoyerLienMagique(utilisateur, appUrl) {
     await envoyerMail({
       to: utilisateur.email,
       subject: "Votre lien de connexion",
-      text: `Bonjour,\n\nCliquez sur ce lien pour vous connecter (valable ${DUREE_LIEN_MINUTES} minutes) :\n\n${lien}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\n${marque}`,
+      text: `Bonjour,\n\nCliquez sur ce lien pour vous connecter (valable ${DUREE_LIEN_MINUTES} minutes) :\n\n${lien}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\nCeci est un message automatique, merci de ne pas y répondre directement.\n\n${marque}`,
       html: genererEmailLienConnexionHtml({ lien, dureeLienMinutes: DUREE_LIEN_MINUTES, espace }),
       fromName: marque,
+      replyTo: adresseNePasRepondre(),
     });
     console.log(`[auth] Lien de connexion envoyé avec succès à ${utilisateur.email}.`);
   } catch (e) {
@@ -451,9 +453,11 @@ export async function envoyerConfirmationAcces(utilisateur, appUrl) {
       `Bonjour${utilisateur.prenom ? ` ${utilisateur.prenom}` : ""},\n\n` +
       `Votre demande d'accès au CRM vient d'être validée par l'administrateur.\n\n` +
       `Pour vous connecter, rendez-vous sur ${appUrl} et indiquez cette adresse mail : ` +
-      `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.\n\n${marque}`,
+      `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.\n\n` +
+      `Ceci est un message automatique, merci de ne pas y répondre directement.\n\n${marque}`,
     html: genererEmailConfirmationAccesHtml({ utilisateur, appUrl, dureeLienMinutes: DUREE_LIEN_MINUTES, espace }),
     fromName: marque,
+    replyTo: adresseNePasRepondre(),
   });
   console.log(`[auth] Confirmation d'accès envoyée avec succès à ${utilisateur.email}.`);
 }

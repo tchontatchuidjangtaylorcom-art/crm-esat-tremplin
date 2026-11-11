@@ -176,6 +176,18 @@ export function adresseMailPole(mailEquipe) {
   return config(mailEquipe).from || "contact@oeth-fiph.fr";
 }
 
+// Adresse "ne-pas-répondre" sur le même domaine que la boîte d'envoi — pour
+// les mails de compte (lien de connexion, création de compte, confirmation
+// d'accès, voir auth.js) qui n'attendent pas de réponse, contrairement aux
+// mails envoyés aux entreprises (genererEmailOfficielHtml) où répondre à la
+// boîte du pôle a du sens. Pas besoin d'une vraie boîte mail derrière : cette
+// adresse n'est utilisée qu'en Reply-To, jamais pour recevoir — une réponse
+// qui y atterrit malgré tout rebondit simplement, comme pour n'importe quel
+// expéditeur "no-reply" standard.
+export function adresseNePasRepondre(mailEquipe) {
+  return `ne-pas-repondre@${domaineDe(adresseMailPole(mailEquipe))}`;
+}
+
 // Coordonnées du pôle affichées en signature des mails, sur les PDF et sur le
 // site : e-mail et téléphone uniquement. L'adresse postale n'est volontairement
 // JAMAIS publiée (les bureaux changent) — un conseiller la communique à
