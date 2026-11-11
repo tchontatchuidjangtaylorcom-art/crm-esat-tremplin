@@ -185,13 +185,6 @@ export function installerEspaces(app, { exigerAuth, exigerAdmin }) {
     res.json({ id: espace.id, nom: espace.nom, court: espace.court, couleur: espace.couleur });
   });
 
-  // Liste publique des portes d'entrée (voir Connexion.jsx, sélecteur affiché
-  // sur l'adresse générique /connexion) — mêmes champs minimaux que la porte
-  // individuelle ci-dessus, pour les espaces actifs uniquement.
-  app.get("/api/espaces/portes", (req, res) => {
-    res.json(listeEspaces().map((e) => ({ id: e.id, nom: e.nom, court: e.court, couleur: e.couleur })));
-  });
-
   // Création d'un espace depuis l'administration — c'est ce qui permet au
   // fondateur d'ouvrir une nouvelle ligne d'activité (un nouveau client) sans
   // développeur ni nouveau déploiement : même app, même base, juste un espace
@@ -284,6 +277,29 @@ export function installerEspaces(app, { exigerAuth, exigerAdmin }) {
     }
     await db.write();
     res.json(espaceSansSecrets(espace));
+  });
+
+  // Suppression d'un espace — seulement s'il n'est référencé nulle part
+  // (aucune fiche, aucune équipe, aucun compte) : jamais le risque
+  // d'orpheliner des données en cassant un espace déjà utilisé. Un espace qui
+  // a servi, même une fois, doit être désactivé (PUT .../actif:false)
+  // plutôt que supprimé.
+  app.delete("/api/espaces/:id", exigerAdmin, async (req, res) => {
+    listeEspaces(); // initialise db.data.espaces si besoin.
+    const index = db.data.espaces.findIndex((e) => e.id === req.params.id);
+    if (index === -1) return res.status(404).json({ error: "Espace introuvable." });
+    const id = req.params.id;
+    const ficheReference = [...db.data.entreprises, ...db.data.archives].some((e) => espaceDe(e) === id);
+    const equipeReference = (db.data.equipes || []).some((eq) => eq.espace === id);
+    const compteReference = (db.data.utilisateurs || []).some((u) => Array.isArray(u.espaces) && u.espaces.includes(id));
+    if (ficheReference || equipeReference || compteReference) {
+      return res.status(409).json({
+        error: "Cet espace est déjà utilisé (fiche, équipe ou compte) et ne peut pas être supprimé — désactivez-le plutôt.",
+      });
+    }
+    db.data.espaces.splice(index, 1);
+    await db.write();
+    res.json({ ok: true });
   });
 
   // Espaces d'un compte (Gestion des accès). Les administrateurs ont

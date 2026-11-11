@@ -98,6 +98,19 @@ export default function AdminEspaces() {
     }
   }
 
+  // Suppression définitive — seulement possible côté serveur si l'espace n'a
+  // jamais servi (aucune fiche, équipe ou compte) ; sinon le serveur refuse
+  // et on l'affiche tel quel (ex: "désactivez-le plutôt").
+  async function supprimer(esp) {
+    if (!window.confirm(`Supprimer définitivement l'espace "${esp.nom}" ? Cette action est irréversible.`)) return;
+    try {
+      await api.supprimerEspace(esp.id);
+      charger();
+    } catch (e) {
+      setErreur(e.message);
+    }
+  }
+
   return (
     <div className="min-h-screen">
       <div className="bandeau-tricolore">
@@ -261,6 +274,9 @@ export default function AdminEspaces() {
                           className="text-xs text-marine-700 dark:text-marine-300 hover:underline"
                         >
                           {editionOuverte?.id === esp.id ? "Fermer" : "Modifier…"}
+                        </button>
+                        <button onClick={() => supprimer(esp)} className="text-xs text-red-600 dark:text-red-400 hover:underline ml-3">
+                          Supprimer
                         </button>
                       </td>
                     </tr>

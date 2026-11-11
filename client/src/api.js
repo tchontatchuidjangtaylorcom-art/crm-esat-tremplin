@@ -634,6 +634,8 @@ export const api = {
       body: JSON.stringify(donnees),
     }).then(handle),
 
+  supprimerEspace: (id) => fetch(`${BASE}/espaces/${id}`, { method: "DELETE" }).then(handle),
+
   modifierEspace: (id, donnees) =>
     fetch(`${BASE}/espaces/${id}`, {
       method: "PUT",
@@ -644,10 +646,6 @@ export const api = {
   // Porte d'entrée publique d'un espace (sans connexion) — voir
   // Connexion.jsx et server/src/espaces.js, GET /api/espaces/porte/:id.
   getPorteEspace: (id) => fetch(`${BASE}/espaces/porte/${id}`).then(handle),
-
-  // Liste publique des portes d'entrée actives (sans connexion) — voir
-  // Connexion.jsx, sélecteur affiché sur l'adresse générique /connexion.
-  listerPortesEspaces: () => fetch(`${BASE}/espaces/portes`).then(handle),
 
   definirEquipeUtilisateur: (utilisateurId, equipeId) =>
     fetch(`${BASE}/utilisateurs/${utilisateurId}/equipe`, {
