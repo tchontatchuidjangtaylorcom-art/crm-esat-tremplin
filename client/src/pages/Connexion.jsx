@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
-import { definirEspaceDesire } from "../espace.js";
+import { definirEspaceDesire, appliquerFavicon } from "../espace.js";
 import { COULEURS_ESPACE } from "../couleursEspace.js";
 
 // Porte d'entrée générique, un même CRM derrière (voir espaces.js côté
@@ -91,6 +91,7 @@ export default function Connexion({ espaceCible }) {
   const [branding, setBranding] = useState(espaceCible ? BRANDING_OETH_PAR_DEFAUT : BRANDING_NEUTRE);
 
   useEffect(() => {
+    appliquerFavicon(espaceCible || null);
     if (espaceCible) definirEspaceDesire(espaceCible);
     if (!espaceCible) {
       setBranding(BRANDING_NEUTRE);

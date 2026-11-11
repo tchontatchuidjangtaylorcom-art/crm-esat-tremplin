@@ -1,5 +1,5 @@
 import { Routes, Route, useParams, Outlet, Navigate } from "react-router-dom";
-import { installerEnteteEspace } from "./espace.js";
+import { installerEnteteEspace, espaceChoisi, appliquerFavicon } from "./espace.js";
 import Dashboard from "./pages/Dashboard.jsx";
 import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
 import Connexion from "./pages/Connexion.jsx";
@@ -30,6 +30,10 @@ import MonEquipe from "./pages/MonEquipe.jsx";
 
 // Espace de travail affiché (OETH, CEE…) envoyé au serveur avec chaque requête /api.
 installerEnteteEspace();
+// Icône d'onglet du CRM authentifié — changerEspace() recharge toujours la
+// page (voir espace.js), donc un simple appel au chargement suffit à rester
+// juste après un changement d'espace.
+appliquerFavicon(espaceChoisi());
 
 // Porte d'entrée dédiée à un espace quelconque (/oeth, /cee, et tout espace
 // créé depuis l'administration — voir AdminEspaces.jsx) : un simple wrapper,

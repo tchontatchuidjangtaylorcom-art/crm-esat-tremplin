@@ -5,6 +5,20 @@ import { useEffect, useState } from "react";
 // requête /api, qui ne renvoie alors que les fiches de cet espace.
 const CLE = "crm-espace";
 
+// Icône d'onglet propre à chaque espace (voir public/favicon*.svg) — sans
+// quoi la porte CEE (ou toute autre porte générique) affichait toujours le
+// logo historique du Pôle OETH, trompeur pour un client qui n'a rien à voir
+// avec OETH. Espace inconnu (nouvel espace créé depuis l'administration, sans
+// favicon dédié) : icône neutre plutôt que l'icône OETH par défaut.
+const FAVICONS_PAR_ESPACE = { oeth: "/favicon.svg", cee: "/favicon-cee.svg" };
+const FAVICON_NEUTRE = "/favicon-neutre.svg";
+
+export function appliquerFavicon(espaceId) {
+  if (typeof document === "undefined") return;
+  const lien = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
+  if (lien) lien.setAttribute("href", (espaceId && FAVICONS_PAR_ESPACE[espaceId]) || FAVICON_NEUTRE);
+}
+
 export function espaceChoisi() {
   try {
     return localStorage.getItem(CLE) || "oeth";
