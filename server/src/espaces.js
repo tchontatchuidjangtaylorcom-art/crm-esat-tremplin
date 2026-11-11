@@ -185,6 +185,13 @@ export function installerEspaces(app, { exigerAuth, exigerAdmin }) {
     res.json({ id: espace.id, nom: espace.nom, court: espace.court, couleur: espace.couleur });
   });
 
+  // Liste publique des portes d'entrée (voir Connexion.jsx, sélecteur affiché
+  // sur l'adresse générique /connexion) — mêmes champs minimaux que la porte
+  // individuelle ci-dessus, pour les espaces actifs uniquement.
+  app.get("/api/espaces/portes", (req, res) => {
+    res.json(listeEspaces().map((e) => ({ id: e.id, nom: e.nom, court: e.court, couleur: e.couleur })));
+  });
+
   // Création d'un espace depuis l'administration — c'est ce qui permet au
   // fondateur d'ouvrir une nouvelle ligne d'activité (un nouveau client) sans
   // développeur ni nouveau déploiement : même app, même base, juste un espace

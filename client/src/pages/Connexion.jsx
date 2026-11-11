@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, Navigate } from "react-router-dom";
+import { useSearchParams, useNavigate, Navigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { definirEspaceDesire } from "../espace.js";
@@ -69,6 +69,27 @@ function brandingDepuisEspace(espace) {
 export default function Connexion({ espaceCible }) {
   const { utilisateur, chargement } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // Sélecteur d'espace : uniquement sur l'adresse générique /connexion (pas
+  // sur une porte dédiée /<id-espace>), pour retrouver facilement une autre
+  // porte sans avoir à en connaître l'adresse par cœur. Le formulaire de
+  // connexion ci-dessous reste inchangé et utilisable directement en dessous
+  // — un agent dont la session a expiré retombe ici sans gêne.
+  const [portes, setPortes] = useState([]);
+  useEffect(() => {
+    if (espaceCible) return;
+    let actif = true;
+    api
+      .listerPortesEspaces()
+      .then((liste) => {
+        if (actif) setPortes(liste);
+      })
+      .catch(() => {});
+    return () => {
+      actif = false;
+    };
+  }, [espaceCible]);
 
   // Habillage de la porte : /connexion (pas d'espaceCible) garde exactement
   // l'habillage OETH d'aujourd'hui, sans aucun appel réseau. Une porte
@@ -188,7 +209,28 @@ export default function Connexion({ espaceCible }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 p-6">
-      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="w-full max-w-sm">
+        {!espaceCible && portes.length > 1 && (
+          <div className="mb-4 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+              Choisir un espace
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {portes.map((espace) => (
+                <button
+                  key={espace.id}
+                  type="button"
+                  onClick={() => navigate(`/${espace.id}`)}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 transition"
+                >
+                  <span aria-hidden className={`inline-block w-2.5 h-2.5 rounded-full ${COULEURS_ESPACE[espace.couleur] || COULEURS_ESPACE.marine}`} />
+                  {espace.court || espace.nom}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {branding.bandeau}
         <div className="p-8 space-y-6">
           <div className="text-center">
@@ -375,6 +417,7 @@ export default function Connexion({ espaceCible }) {
               : "Premier accès ? Utilisez l'onglet « Créer un compte » ci-dessus."}
           </p>
         </div>
+      </div>
       </div>
     </div>
   );
