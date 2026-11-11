@@ -30,6 +30,18 @@ const BRANDING_OETH_PAR_DEFAUT = {
   titre: "CRM OETH / AGEFIPH",
 };
 
+// Habillage neutre de l'adresse générique /connexion : ne présume d'aucun
+// espace particulier (voir le sélecteur juste au-dessus, dans le rendu plus
+// bas) — seules les portes dédiées (/oeth, /cee...) gardent un habillage
+// propre à leur espace.
+const BRANDING_NEUTRE = {
+  bandeau: <div className="h-1.5 bg-slate-400 dark:bg-slate-600" />,
+  pastille: null,
+  surtitreClasse: "text-slate-500 dark:text-slate-400",
+  surtitre: "Portail Opérationnel",
+  titre: "CRM",
+};
+
 // Habillage propre à CEE (couleur historique, avant la généralisation des
 // espaces) : conservé tel quel plutôt que généré depuis sa couleur, pour ne
 // rien changer visuellement sur cette porte existante.
@@ -91,17 +103,21 @@ export default function Connexion({ espaceCible }) {
     };
   }, [espaceCible]);
 
-  // Habillage de la porte : /connexion (pas d'espaceCible) garde exactement
-  // l'habillage OETH d'aujourd'hui, sans aucun appel réseau. Une porte
-  // dédiée (/<id-espace>) va chercher le nom/la couleur de cet espace — en
-  // cas d'erreur (identifiant inconnu, espace désactivé, ou juste le temps
-  // du chargement) on retombe sur ce même habillage par défaut, jamais de
-  // page cassée pour une URL mal tapée.
-  const [branding, setBranding] = useState(BRANDING_OETH_PAR_DEFAUT);
+  // Habillage de la porte : /connexion (pas d'espaceCible) reste neutre, sans
+  // aucun appel réseau — voir BRANDING_NEUTRE plus haut. Une porte dédiée
+  // (/<id-espace>) va chercher le nom/la couleur de cet espace — en cas
+  // d'erreur (identifiant inconnu, espace désactivé, ou juste le temps du
+  // chargement) on retombe sur l'habillage OETH par défaut, jamais de page
+  // cassée pour une URL mal tapée.
+  const [branding, setBranding] = useState(espaceCible ? BRANDING_OETH_PAR_DEFAUT : BRANDING_NEUTRE);
 
   useEffect(() => {
     if (espaceCible) definirEspaceDesire(espaceCible);
-    if (!espaceCible || espaceCible === "oeth") {
+    if (!espaceCible) {
+      setBranding(BRANDING_NEUTRE);
+      return;
+    }
+    if (espaceCible === "oeth") {
       setBranding(BRANDING_OETH_PAR_DEFAUT);
       return;
     }
