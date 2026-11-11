@@ -77,6 +77,10 @@ export default function AdminUtilisateurs() {
   const [siret, setSiret] = useState("");
   const [role, setRole] = useState("agent");
   const [equipeCreation, setEquipeCreation] = useState("");
+  // Espace du nouveau compte (OETH, CEE…) : fixe à la fois ses accès et
+  // l'habillage du mail d'invitation (voir creerUtilisateurParAdmin,
+  // server/src/auth.js) — vide = OETH par défaut, comportement historique.
+  const [espaceCreation, setEspaceCreation] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [creation, setCreation] = useState(false);
   const [erreurCreation, setErreurCreation] = useState(null);
@@ -139,6 +143,7 @@ export default function AdminUtilisateurs() {
         siret: siret.trim(),
         role,
         equipeId: equipeCreation || null,
+        espace: espaceCreation,
         motDePasse: motDePasse.trim(),
       });
       const morceaux = [
@@ -160,6 +165,7 @@ export default function AdminUtilisateurs() {
       setSiret("");
       setRole("agent");
       setEquipeCreation("");
+      setEspaceCreation("");
       setMotDePasse("");
       charger();
     } catch (e) {
@@ -474,6 +480,24 @@ export default function AdminUtilisateurs() {
                   {e.nom}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
+            Espace
+            <select
+              value={espaceCreation}
+              onChange={(e) => setEspaceCreation(e.target.value)}
+              title="Détermine les fiches auxquelles ce compte aura accès, et l'habillage du mail d'invitation envoyé"
+              className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm"
+            >
+              <option value="">OETH / AGEFIPH (par défaut)</option>
+              {espaces
+                .filter((e) => e.id !== "oeth")
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nom}
+                  </option>
+                ))}
             </select>
           </label>
           <label className="block text-xs text-slate-500 dark:text-slate-400">

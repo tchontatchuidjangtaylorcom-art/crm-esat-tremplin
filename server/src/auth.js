@@ -22,7 +22,21 @@ import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, estEnvoiConfigure } from "./mail.js";
-import { genererEmailCreationCompteHtml } from "./emailOfficiel.js";
+import {
+  genererEmailCreationCompteHtml,
+  genererEmailLienConnexionHtml,
+  genererEmailConfirmationAccesHtml,
+  marqueCompte,
+} from "./emailOfficiel.js";
+
+// Espace du compte, pour l'habillage des mails (voir marqueCompte /
+// genererEmail*Html dans emailOfficiel.js) — simple objet { id }, sans
+// dépendre de espaces.js (qui importe déjà ce fichier pour estAdmin, un
+// import circulaire dans l'autre sens serait fragile). Un compte à plusieurs
+// espaces (agent interne) retombe sur l'habillage par défaut (OETH).
+function espaceDuCompte(utilisateur) {
+  return Array.isArray(utilisateur.espaces) && utilisateur.espaces.length === 1 ? { id: utilisateur.espaces[0] } : null;
+}
 
 const TOURS_BCRYPT = 10;
 const LONGUEUR_MIN_MOT_DE_PASSE = 8;
@@ -130,6 +144,13 @@ export async function creerUtilisateurParAdmin(
     siret = "",
     entrepriseLieeId = null,
     equipeId = null,
+    // Espace de travail du nouveau compte (voir espaces.js, résolu par
+    // l'appelant qui a accès à listeEspaces() — objet { id, nom, court,
+    // couleur } ou null) : fixe à la fois les accès du compte (espacesAutorises,
+    // voir espaces.js) et l'habillage du mail d'invitation ci-dessous. Sans
+    // quoi un nouveau compte reste sans espace explicite et retombe sur OETH
+    // par défaut (espacesAutorises), ce qui serait faux pour un client CEE.
+    espace = null,
   } = {}
 ) {
   const propre = normaliserEmail(email);
@@ -175,6 +196,7 @@ export async function creerUtilisateurParAdmin(
     entrepriseLieeId: entrepriseLieeId || null,
     role: ["admin", "super_admin", "superviseur", "manager"].includes(role) ? role : "agent",
     equipeId: equipeId || null,
+    ...(espace?.id ? { espaces: [espace.id] } : {}),
     statut: "valide",
     motDePasseHash,
     doitChangerMotDePasse: true,
@@ -190,24 +212,26 @@ export async function creerUtilisateurParAdmin(
   // déjà réussi côté base au moment où on tente ce mail.
   let mailEnvoye = false;
   if (appUrl && estEnvoiConfigure()) {
+    const marque = marqueCompte(espace);
     try {
       await envoyerMail({
         to: utilisateur.email,
-        subject: "Votre accès au CRM OETH/AGEFIPH est prêt",
+        subject: `Votre accès au CRM ${marque} est prêt`,
         text:
-          `Bonjour ${utilisateur.prenom},\n\nUn accès au CRM OETH/AGEFIPH vient d'être créé pour vous.\n\n` +
+          `Bonjour ${utilisateur.prenom},\n\nUn accès au CRM vient d'être créé pour vous.\n\n` +
           `Pour vous connecter, rendez-vous sur ${appUrl} et indiquez cette adresse mail : ` +
           `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes. Vous pouvez aussi vous connecter ` +
           `directement avec le mot de passe provisoire suivant : ${motDePasseClair}\n\n` +
           `À la première connexion, il vous sera demandé de choisir votre propre mot de passe.\n\n` +
-          `Pôle OETH / AGEFIPH`,
+          `${marque}`,
         html: genererEmailCreationCompteHtml({
           utilisateur,
           appUrl,
           motDePasseProvisoire: motDePasseClair,
           dureeLienMinutes: DUREE_LIEN_MINUTES,
+          espace,
         }),
-        fromName: "Pôle OETH / AGEFIPH",
+        fromName: marque,
       });
       mailEnvoye = true;
     } catch (e) {
@@ -342,13 +366,16 @@ export function optionsCookie() {
 // configurée dans mail.js — mêmes identifiants OVH que le reste du CRM).
 export async function envoyerLienMagique(utilisateur, appUrl) {
   const lien = genererLienMagique(utilisateur, appUrl);
+  const espace = espaceDuCompte(utilisateur);
+  const marque = marqueCompte(espace);
   console.log(`[auth] Envoi du lien de connexion à ${utilisateur.email}…`);
   try {
     await envoyerMail({
       to: utilisateur.email,
-      subject: "Votre lien de connexion — CRM OETH/AGEFIPH",
-      text: `Bonjour,\n\nCliquez sur ce lien pour vous connecter (valable ${DUREE_LIEN_MINUTES} minutes) :\n\n${lien}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\nPôle OETH / AGEFIPH`,
-      fromName: "Pôle OETH / AGEFIPH",
+      subject: "Votre lien de connexion",
+      text: `Bonjour,\n\nCliquez sur ce lien pour vous connecter (valable ${DUREE_LIEN_MINUTES} minutes) :\n\n${lien}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\n${marque}`,
+      html: genererEmailLienConnexionHtml({ lien, dureeLienMinutes: DUREE_LIEN_MINUTES, espace }),
+      fromName: marque,
     });
     console.log(`[auth] Lien de connexion envoyé avec succès à ${utilisateur.email}.`);
   } catch (e) {
@@ -414,16 +441,19 @@ export async function definirMailPersonnel(utilisateurId, m) {
 // désormais ouvert et où aller le demander. Best-effort côté appelant (la
 // validation du compte doit réussir même si ce mail échoue).
 export async function envoyerConfirmationAcces(utilisateur, appUrl) {
+  const espace = espaceDuCompte(utilisateur);
+  const marque = marqueCompte(espace);
   console.log(`[auth] Envoi de la confirmation d'accès à ${utilisateur.email}…`);
   await envoyerMail({
     to: utilisateur.email,
-    subject: "Votre accès au CRM OETH/AGEFIPH a été validé",
+    subject: "Votre accès au CRM a été validé",
     text:
       `Bonjour${utilisateur.prenom ? ` ${utilisateur.prenom}` : ""},\n\n` +
-      `Votre demande d'accès au CRM OETH/AGEFIPH vient d'être validée par l'administrateur.\n\n` +
+      `Votre demande d'accès au CRM vient d'être validée par l'administrateur.\n\n` +
       `Pour vous connecter, rendez-vous sur ${appUrl} et indiquez cette adresse mail : ` +
-      `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.\n\nPôle OETH / AGEFIPH`,
-    fromName: "Pôle OETH / AGEFIPH",
+      `vous recevrez un lien de connexion valable ${DUREE_LIEN_MINUTES} minutes.\n\n${marque}`,
+    html: genererEmailConfirmationAccesHtml({ utilisateur, appUrl, dureeLienMinutes: DUREE_LIEN_MINUTES, espace }),
+    fromName: marque,
   });
   console.log(`[auth] Confirmation d'accès envoyée avec succès à ${utilisateur.email}.`);
 }

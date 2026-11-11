@@ -545,6 +545,11 @@ app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
   try {
     const siretSaisi = String(req.body.siret || "").trim();
     const entrepriseLiee = siretSaisi ? trouverEntrepriseParSiret(siretSaisi) : null;
+    // Résolu ici (pas dans auth.js, qui ne peut pas importer espaces.js sans
+    // import circulaire — voir espaceDuCompte dans auth.js) : fixe l'espace du
+    // nouveau compte et l'habillage du mail d'invitation (voir marqueCompte /
+    // genererEmailCreationCompteHtml, emailOfficiel.js).
+    const espaceChoisi = listeEspaces().find((e) => e.id === String(req.body.espace || "").trim()) || null;
 
     const { utilisateur, mailEnvoye, motDePasseProvisoire } = await creerUtilisateurParAdmin(req.body.email, {
       prenom: String(req.body.prenom || "").trim(),
@@ -554,6 +559,7 @@ app.post("/api/utilisateurs", exigerAdmin, async (req, res) => {
       entrepriseLieeId: entrepriseLiee?.id || null,
       role: ["admin", "super_admin", "superviseur", "manager"].includes(req.body.role) ? req.body.role : "agent",
       equipeId: req.body.equipeId || null,
+      espace: espaceChoisi,
       appUrl: APP_URL,
       motDePasse: req.body.motDePasse ? String(req.body.motDePasse) : null,
     });
