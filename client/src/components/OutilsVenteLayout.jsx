@@ -4,6 +4,15 @@ import BarreOutilsVente from "./BarreOutilsVente.jsx";
 import PanelOutilsVente from "./PanelOutilsVente.jsx";
 import { api } from "../api.js";
 import { prechargerContenusAide } from "../useContenuAide.js";
+import { espaceChoisi } from "../espace.js";
+
+// Outil par défaut à l'ouverture d'une fiche, par espace — doit rester
+// synchro avec OUTILS / OUTILS_CEE dans BarreOutilsVente.jsx : un outil par
+// défaut qui n'existe pas pour l'espace courant afficherait un panneau
+// d'un autre métier (ex: Argumentaire AGEFIPH, contenu OETH, sur une fiche
+// CEE). Pas de contenu dédié pour un espace hors de cette liste : pas de
+// panneau par défaut.
+const OUTIL_PAR_DEFAUT_PAR_ESPACE = { oeth: "argumentaire", cee: "script" };
 
 // Enveloppe l'ensemble de l'application (tableau de bord ET fiche
 // entreprise) : la barre d'outils reste accessible partout, et le panneau
@@ -16,7 +25,7 @@ export default function OutilsVenteLayout({ children }) {
   // qu'une fois, au premier rendu de cet onglet — il ne force jamais la
   // réouverture si l'agent ferme le panneau ou choisit un autre outil).
   const [outil, setOutil] = useState(() =>
-    location.pathname.startsWith("/entreprise/") ? "argumentaire" : null
+    location.pathname.startsWith("/entreprise/") ? OUTIL_PAR_DEFAUT_PAR_ESPACE[espaceChoisi()] || null : null
   );
 
   // Argumentaire, script et modèles de mails téléchargés dès l'ouverture du
