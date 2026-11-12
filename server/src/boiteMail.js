@@ -62,8 +62,18 @@ export function rangerMailRecu(mail, { equipeId = null, espaceId = null, mailEqu
   etatReleve.recusDepuisDemarrage++;
   // Notifications envoyées par le CRM lui-même à la boîte du pôle (« CRM —
   // Fiche client », « CRM — Rendez-vous client »…) : déjà visibles dans le
-  // CRM, on ne les range pas.
-  if (norm(mail.de) === norm(adresseMailPole(mailEquipe))) return "interne";
+  // CRM, on ne les range pas. Piège classique lors d'un test manuel : un
+  // message envoyé DEPUIS le webmail de cette boîte VERS elle-même (pour
+  // « voir si ça arrive dans le CRM ») a justement `mail.de` égal à l'adresse
+  // de cette boîte — il est donc filtré ici comme s'il venait du CRM, et
+  // n'apparaît nulle part (ni une fiche, ni « à rattacher »). Un vrai test de
+  // réception doit toujours être envoyé depuis une AUTRE adresse. Le log
+  // ci-dessous rend ce cas immédiat à repérer dans les logs Render plutôt que
+  // de ressembler à un mail disparu.
+  if (norm(mail.de) === norm(adresseMailPole(mailEquipe))) {
+    console.log(`[boiteMail] Mail ignoré comme « interne » : expéditeur ${mail.de} = adresse de cette boîte (${adresseMailPole(mailEquipe)}). Si c'était un test manuel, renvoyez-le depuis une autre adresse.`);
+    return "interne";
+  }
   const entree = {
     id: nanoid(),
     direction: "recu",
@@ -82,7 +92,11 @@ export function rangerMailRecu(mail, { equipeId = null, espaceId = null, mailEqu
   const fiche = trouverFicheExpediteur(mail.de);
   if (fiche) {
     fiche.emails = fiche.emails || [];
-    if (mail.messageId && fiche.emails.some((m) => m.messageId === mail.messageId)) return fiche;
+    if (mail.messageId && fiche.emails.some((m) => m.messageId === mail.messageId)) {
+      console.log(`[boiteMail] Mail de ${mail.de} déjà présent (messageId dupliqué) sur la fiche "${fiche.nom}" — ignoré.`);
+      return fiche;
+    }
+    console.log(`[boiteMail] Mail de ${mail.de} rattaché à la fiche "${fiche.nom}" (espace ${espaceDe(fiche)}).`);
     fiche.emails.unshift(entree);
     return fiche;
   }
@@ -93,8 +107,12 @@ export function rangerMailRecu(mail, { equipeId = null, espaceId = null, mailEqu
   // espaceDuMailNonRattache ci-dessus).
   entree.equipeId = equipeId;
   entree.espaceId = espaceId;
-  if (mail.messageId && nonRattaches().some((m) => m.messageId === mail.messageId)) return null;
+  if (mail.messageId && nonRattaches().some((m) => m.messageId === mail.messageId)) {
+    console.log(`[boiteMail] Mail de ${mail.de} déjà présent dans « à rattacher » (messageId dupliqué) — ignoré.`);
+    return null;
+  }
   nonRattaches().unshift(entree);
+  console.log(`[boiteMail] Mail de ${mail.de} gardé « à rattacher » (espace ${espaceDuMailNonRattache(entree)}).`);
   // Garde-fou de taille : les 2 000 plus récents.
   if (nonRattaches().length > 2000) nonRattaches().length = 2000;
   return null;
