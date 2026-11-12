@@ -1,5 +1,5 @@
 import { Routes, Route, useParams, Outlet, Navigate } from "react-router-dom";
-import { installerEnteteEspace, espaceChoisi, appliquerFavicon } from "./espace.js";
+import { installerEnteteEspace, espaceChoisi, appliquerFavicon, useEspaces } from "./espace.js";
 import Dashboard from "./pages/Dashboard.jsx";
 import EntrepriseDetail from "./pages/EntrepriseDetail.jsx";
 import Connexion from "./pages/Connexion.jsx";
@@ -54,6 +54,13 @@ function PorteEspace() {
 // ":espaceCible" dans le classement — un segment statique l'emporte alors
 // toujours sur un segment dynamique, exactement ce qu'il faut ici.
 function EspaceAuthentifieLayout() {
+  // Assistant IA "domaine métier" : son contenu (accueil, actions —
+  // argumentaire, ESAT Tremplin…) est entièrement spécifique à l'OETH (voir
+  // AssistantDomaineCrm.jsx) — aucune base de connaissance équivalente pour
+  // CEE ou un futur espace pour l'instant. Masqué hors OETH plutôt que
+  // d'afficher du contenu OETH à une équipe qui n'y a rien à voir, même
+  // principe que OUTILS_CEE dans BarreOutilsVente.jsx.
+  const { estOeth } = useEspaces();
   return (
     <RequireAuth>
       <ChatProvider>
@@ -62,7 +69,7 @@ function EspaceAuthentifieLayout() {
             <Outlet />
           </OutilsVenteLayout>
           <ChatWidget />
-          <AssistantDomaineCrm />
+          {estOeth && <AssistantDomaineCrm />}
           <RappelsEcheances />
         </SupervisionProvider>
       </ChatProvider>
