@@ -12,6 +12,7 @@ import { nanoid } from "nanoid";
 import db from "./db.js";
 import { poserQuestionContact, nettoieEmail, estRechercheIaConfiguree } from "./rechercheContact.js";
 import { fichesSelon, domaineRecoitMail, estDesinscrit } from "./campagnes.js";
+import { espaceDeRequete } from "./espaces.js";
 
 const MAX_PAR_LOT = 500;
 const PAUSE_MS = 1500;
@@ -98,7 +99,10 @@ export function enregistrerRoutesEmailsEnLot(app, { exigerSuperAdmin, ajouterEma
   app.get("/api/campagnes-emails/statut", exigerSuperAdmin, (req, res) => res.json(etat));
 
   app.post("/api/campagnes-emails/apercu", exigerSuperAdmin, (req, res) => {
-    const n = aChercher(req.body.filtres || {}).length;
+    // Question posée à l'IA 100 % OETH (voir QUESTION ci-dessus) : jamais
+    // lancée sur une fiche d'un autre espace, quel que soit l'espace
+    // consulté — espace toujours fixé depuis la requête, jamais le client.
+    const n = aChercher({ ...(req.body.filtres || {}), espace: espaceDeRequete(req) }).length;
     res.json({ aChercher: n, maxParLot: MAX_PAR_LOT, coutParFiche: COUT_ESTIME_PAR_FICHE, iaConfiguree: estRechercheIaConfiguree() });
   });
 
@@ -107,7 +111,7 @@ export function enregistrerRoutesEmailsEnLot(app, { exigerSuperAdmin, ajouterEma
     if (!estRechercheIaConfiguree()) return res.status(503).json({ error: "Recherche IA non configurée (ANTHROPIC_API_KEY)." });
     const nombre = Math.min(Math.max(1, Math.round(Number(req.body.nombre) || 0)), MAX_PAR_LOT);
     // Les plus grosses entreprises d'abord (contribution la plus élevée).
-    const fiches = aChercher(req.body.filtres || {})
+    const fiches = aChercher({ ...(req.body.filtres || {}), espace: espaceDeRequete(req) })
       .sort((a, b) => (Number(b.effectif) || 0) - (Number(a.effectif) || 0))
       .slice(0, nombre);
     if (!fiches.length) return res.status(400).json({ error: "Aucune fiche sans e-mail à chercher pour ces critères." });

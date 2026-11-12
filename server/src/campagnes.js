@@ -27,6 +27,13 @@ import { classifierSecteur, determinerCollecteur } from "./secteurs.js";
 import { tailleEffectif, dansTaille } from "./taillesEffectif.js";
 import { SITE_URL } from "./seo.js";
 import { equipeParId, estManager } from "./equipes.js";
+import { espaceDe, espaceDeRequete } from "./espaces.js";
+
+// Contenu 100 % OETH (signature « Pôle OETH / AGEFIPH », modèle officiel
+// DOETH…) : une campagne créée avant l'existence des espaces (ou sans espace
+// renseigné pour toute autre raison) est donc traitée comme une campagne
+// OETH, jamais comme si elle pouvait viser n'importe quel espace.
+const ESPACE_CAMPAGNES_PAR_DEFAUT = "oeth";
 
 const SECRET = process.env.SESSION_SECRET || "dev-secret-non-securise-a-changer-en-production";
 const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -213,11 +220,15 @@ export function etatEnvoi(maintenant = new Date()) {
 
 // Fiches qui correspondent aux critères (statut, secteur, vague, privé /
 // public, taille), avec ou sans e-mail — aussi utilisé par la recherche
-// d'e-mails en lot (emailsEnLot.js).
+// d'e-mails en lot (emailsEnLot.js). `filtres.espace` : jamais laissé au
+// client (voir ses appelants, toujours fixé depuis espaceDeRequete(req)) —
+// une campagne ou une recherche d'e-mails en lot ne doit jamais mélanger les
+// fiches de deux espaces (ex: contenu OETH envoyé à des fiches CEE).
 export function fichesSelon(filtres = {}) {
   const statuts = Array.isArray(filtres.statuts) && filtres.statuts.length ? filtres.statuts : STATUTS_PAR_DEFAUT;
   const taille = tailleEffectif(filtres.taille);
   return db.data.entreprises.filter((e) => {
+    if (filtres.espace && espaceDe(e) !== filtres.espace) return false;
     if (!statuts.includes(e.statut)) return false;
     if (filtres.categorie) {
       const cle = classifierSecteur(e.secteurActivite, { secteurPublic: e.secteurPublic, categorieForcee: e.categorieForcee }).cle;
@@ -356,8 +367,25 @@ export async function passageCampagnes(maintenant = new Date()) {
       const base = { entrepriseId: id, nom: entreprise?.nom || "?", email: destinataire, date: new Date().toISOString(), jour: h.jour };
       campagne.envois = campagne.envois || [];
       // Revérifié au moment d'envoyer : la fiche a pu changer depuis le lancement.
-      if (!entreprise || !EMAIL_VALIDE.test(destinataire) || estDesinscrit(destinataire) || ["fiche", "fiche_one_shot", "rdv"].includes(entreprise.statut)) {
-        campagne.envois.push({ ...base, statut: "ignore", erreur: !entreprise ? "Fiche archivée ou supprimée" : estDesinscrit(destinataire) ? "Désinscrit" : !EMAIL_VALIDE.test(destinataire) ? "Plus d'e-mail" : "Déjà en relation (CP / RDV)" });
+      // Espace aussi revérifié ici (pas seulement au ciblage, voir fichesSelon) :
+      // filet de sécurité pour une campagne déjà en file AVANT l'ajout de ce
+      // contrôle — sans ça, une fiche CEE glissée par erreur dans une
+      // campagne OETH continuerait de recevoir le mail malgré le correctif.
+      const espaceCampagne = campagne.espace || ESPACE_CAMPAGNES_PAR_DEFAUT;
+      if (!entreprise || !EMAIL_VALIDE.test(destinataire) || estDesinscrit(destinataire) || ["fiche", "fiche_one_shot", "rdv"].includes(entreprise.statut) || espaceDe(entreprise) !== espaceCampagne) {
+        campagne.envois.push({
+          ...base,
+          statut: "ignore",
+          erreur: !entreprise
+            ? "Fiche archivée ou supprimée"
+            : estDesinscrit(destinataire)
+            ? "Désinscrit"
+            : !EMAIL_VALIDE.test(destinataire)
+            ? "Plus d'e-mail"
+            : espaceDe(entreprise) !== espaceCampagne
+            ? `Hors espace de la campagne (${espaceDe(entreprise)} ≠ ${espaceCampagne})`
+            : "Déjà en relation (CP / RDV)",
+        });
         continue;
       }
       if (!(await domaineRecoitMail(destinataire))) {
@@ -410,6 +438,7 @@ function resumer(c) {
   return {
     id: c.id,
     nom: c.nom,
+    espace: c.espace || ESPACE_CAMPAGNES_PAR_DEFAUT,
     statut: c.statut,
     motifPause: c.motifPause || null,
     objet: c.objet,
@@ -465,8 +494,16 @@ export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin, exigerAuth }
 
   app.get("/api/campagnes", exigerSuperAdmin, (req, res) => {
     const d = donnees();
+    const espace = espaceDeRequete(req);
     res.json({
-      campagnes: [...d.campagnes].reverse().map(resumer),
+      // Espace de la campagne jamais renseigné (créée avant les espaces) :
+      // traitée comme OETH (voir ESPACE_CAMPAGNES_PAR_DEFAUT) — une campagne
+      // d'un autre espace ne doit jamais apparaître ni se gérer (pause,
+      // reprendre, annuler) depuis un espace où elle ne devrait rien envoyer.
+      campagnes: [...d.campagnes]
+        .reverse()
+        .filter((c) => (c.espace || ESPACE_CAMPAGNES_PAR_DEFAUT) === espace)
+        .map(resumer),
       etat: etatEnvoi(),
       statutsCiblables: STATUTS_CIBLABLES,
       statutsParDefaut: STATUTS_PAR_DEFAUT,
@@ -474,7 +511,11 @@ export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin, exigerAuth }
   });
 
   app.post("/api/campagnes/apercu", exigerSuperAdmin, (req, res) => {
-    const { cibles, exclusions } = ciblesPour(req.body.filtres || {});
+    // Espace toujours fixé ici depuis la requête, jamais depuis le corps
+    // envoyé par le client (voir fichesSelon) : un aperçu ne doit jamais
+    // compter des fiches d'un autre espace que celui actuellement affiché.
+    const filtres = { ...(req.body.filtres || {}), espace: espaceDeRequete(req) };
+    const { cibles, exclusions } = ciblesPour(filtres);
     const etat = etatEnvoi();
     res.json({
       nombre: cibles.length,
@@ -500,10 +541,16 @@ export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin, exigerAuth }
   });
 
   app.post("/api/campagnes", exigerSuperAdmin, async (req, res) => {
-    const { nom, objet, corps, formatOfficiel = true, filtres = {} } = req.body;
+    const { nom, objet, corps, formatOfficiel = true, filtres: filtresRecus = {} } = req.body;
     if (!String(nom || "").trim()) return res.status(400).json({ error: "Donnez un nom à la campagne." });
     if (!objet?.trim() || !corps?.trim()) return res.status(400).json({ error: "Objet et texte du mail requis." });
     if (!estEnvoiConfigure()) return res.status(503).json({ error: "L'envoi d'e-mails n'est pas configuré (clé Resend)." });
+    // Espace toujours fixé depuis la requête (jamais depuis le client) : une
+    // campagne créée en consultant l'espace CEE ne doit jamais pouvoir viser
+    // une fiche OETH, et inversement — voir aussi le filet de sécurité au
+    // moment de l'envoi dans passageCampagnes ci-dessus.
+    const espace = espaceDeRequete(req);
+    const filtres = { ...filtresRecus, espace };
     const { cibles } = ciblesPour(filtres);
     if (!cibles.length) return res.status(400).json({ error: "Aucune fiche ne correspond à ces critères." });
     // Équipe concernée (optionnelle) — n'importe quelle valeur qui ne
@@ -514,6 +561,7 @@ export function enregistrerRoutesCampagnes(app, { exigerSuperAdmin, exigerAuth }
       id: nanoid(),
       nom: String(nom).trim().slice(0, 120),
       statut: "en_cours",
+      espace,
       objet: objet.trim(),
       corps,
       formatOfficiel: Boolean(formatOfficiel),
