@@ -719,4 +719,54 @@ export const api = {
 
   getKpisEquipePresence: ({ semaine = 0 } = {}) =>
     fetch(`${BASE}/presence/equipe?semaine=${semaine}`).then(handle),
+
+  // Espace AcademTrade (formation trading) — côté client final, compte séparé
+  // du CRM (voir academtradeAuth.js / academtrade.js).
+  academtradeInfosJeton: (jeton) => fetch(`${BASE}/academtrade/definir-mot-de-passe/${encodeURIComponent(jeton)}`).then(handle),
+  academtradeDefinirMotDePasse: (jeton, motDePasse) =>
+    fetch(`${BASE}/academtrade/definir-mot-de-passe/${encodeURIComponent(jeton)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motDePasse }),
+    }).then(handle),
+  academtradeConnexion: (email, motDePasse) =>
+    fetch(`${BASE}/academtrade/connexion`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, motDePasse }),
+    }).then(handle),
+  academtradeDeconnexion: () => fetch(`${BASE}/academtrade/deconnexion`, { method: "POST" }).then(handle),
+  academtradeMoi: () => fetch(`${BASE}/academtrade/moi`).then(handle),
+  academtradeMarche: () => fetch(`${BASE}/academtrade/marche`).then(handle),
+  academtradePositions: () => fetch(`${BASE}/academtrade/positions`).then(handle),
+  academtradeOuvrirPosition: (donnees) =>
+    fetch(`${BASE}/academtrade/positions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  academtradeFermerPosition: (id) => fetch(`${BASE}/academtrade/positions/${id}/fermer`, { method: "POST" }).then(handle),
+  academtradeRetraits: () => fetch(`${BASE}/academtrade/retraits`).then(handle),
+  academtradeDemanderRetrait: (montant) =>
+    fetch(`${BASE}/academtrade/retraits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ montant }),
+    }).then(handle),
+
+  // Espace AcademTrade — côté gestionnaire de compte (CRM).
+  academtradeClients: () => fetch(`${BASE}/academtrade/clients`).then(handle),
+  academtradeClient: (id) => fetch(`${BASE}/academtrade/clients/${id}`).then(handle),
+  academtradeTraiterRetrait: (clientId, retraitId, decision, commentaire) =>
+    fetch(`${BASE}/academtrade/clients/${clientId}/retraits/${retraitId}/traiter`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, commentaire }),
+    }).then(handle),
+  academtradeCreerClientTest: (donnees) =>
+    fetch(`${BASE}/academtrade/clients`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
 };

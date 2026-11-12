@@ -49,6 +49,7 @@ function chargerAvecRelance(importer) {
 
 const VitrineApp = chargerAvecRelance(() => import("./VitrineApp.jsx"));
 const CrmApp = chargerAvecRelance(() => import("./CrmApp.jsx"));
+const AcademtradeApp = chargerAvecRelance(() => import("./AcademtradeApp.jsx"));
 
 function Chargement() {
   return (
@@ -130,9 +131,14 @@ class EchecChargement extends Component {
 export default function App() {
   const { pathname } = useLocation();
   const estVitrine = pathname === "/vitrine" || pathname.startsWith("/vitrine/");
+  // Espace AcademTrade (formation trading) : compte client séparé, jamais le
+  // code du CRM interne (voir AcademtradeApp.jsx).
+  const estAcademtrade = pathname === "/academtrade" || pathname.startsWith("/academtrade/");
   return (
     <EchecChargement>
-      <Suspense fallback={<Chargement />}>{estVitrine ? <VitrineApp /> : <CrmApp />}</Suspense>
+      <Suspense fallback={<Chargement />}>
+        {estVitrine ? <VitrineApp /> : estAcademtrade ? <AcademtradeApp /> : <CrmApp />}
+      </Suspense>
     </EchecChargement>
   );
 }

@@ -59,6 +59,8 @@ import {
   controlesEchangePour,
   marquerControleEchangeVu,
 } from "./controleRdv.js";
+import { installerAcademtrade } from "./academtrade.js";
+import { demarrerMarcheAcademtrade } from "./academtradeMarche.js";
 import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesMonCompte } from "./monCompte.js";
 import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit, remplirTexte } from "./campagnes.js";
@@ -1100,6 +1102,10 @@ enregistrerRoutesVitrineRdv(app);
 // du RDV, relances automatiques, alerte à l'agent principal (voir controleRdv.js).
 enregistrerRoutesControleRdv(app);
 demarrerControleRdv();
+// Espace AcademTrade (formation trading) : compte client séparé, marché
+// simulé, positions et retraits pédagogiques (voir academtrade.js).
+installerAcademtrade(app, { exigerAuth, exigerAdmin });
+demarrerMarcheAcademtrade();
 // Remplissage du stock de fiches de l'équipe (admin, sans recherche Claude).
 enregistrerRoutesStockEquipe(app, { exigerAdmin, creerLeadDepuisSiren, CATEGORIES, sirenDe });
 // « Mon compte » : nom, e-mail de connexion et mot de passe de chacun.

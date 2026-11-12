@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { estAdmin, estManager } from "../roles.js";
 import { useIdentiteActuelle } from "../identite.js";
+import { useEspaces } from "../espace.js";
 import { useSupervision } from "../SupervisionContext.jsx";
 import { usePresence } from "../PresenceContext.jsx";
 import { api } from "../api.js";
@@ -18,6 +19,7 @@ import SelecteurPersonne from "./SelecteurPersonne.jsx";
 export default function UserMenu({ theme, onBasculerTheme }) {
   const { utilisateur } = useAuth();
   const identite = useIdentiteActuelle();
+  const { estAcademtrade } = useEspaces();
   const { agentSupervise, setAgentSupervise } = useSupervision();
   const { enPause } = usePresence();
   const [agents, setAgents] = useState([]);
@@ -144,6 +146,16 @@ export default function UserMenu({ theme, onBasculerTheme }) {
       >
         📬 Boîte mail
       </Link>
+
+      {estAcademtrade && (
+        <Link
+          to="/clients-academtrade"
+          title="Comptes clients AcademTrade : positions, paiement, demandes de retrait"
+          className="text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap"
+        >
+          📈 Clients AcademTrade
+        </Link>
+      )}
 
       <Link
         to="/mes-kpis"

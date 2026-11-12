@@ -27,6 +27,7 @@ import Supervision from "./pages/Supervision.jsx";
 import Campagnes from "./pages/Campagnes.jsx";
 import BoiteMail from "./pages/BoiteMail.jsx";
 import MonEquipe from "./pages/MonEquipe.jsx";
+import AcademtradeClients from "./pages/AcademtradeClients.jsx";
 
 // Espace de travail affiché (OETH, CEE…) envoyé au serveur avec chaque requête /api.
 installerEnteteEspace();
@@ -176,6 +177,17 @@ export default function CrmApp() {
                 element={
                   <RequireAuth>
                     <BoiteMail />
+                  </RequireAuth>
+                }
+              />
+              {/* Comptes clients de l'espace AcademTrade (formation trading) — le
+                  serveur refuse déjà l'accès hors de cet espace/admin (voir
+                  academtrade.js), RequireAuth se limite donc à exiger une session. */}
+              <Route
+                path="/clients-academtrade"
+                element={
+                  <RequireAuth>
+                    <AcademtradeClients />
                   </RequireAuth>
                 }
               />

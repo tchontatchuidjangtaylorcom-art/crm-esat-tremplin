@@ -109,5 +109,8 @@ export function useEspaces() {
     // réalité dire "CEE précisément", pour qu'un futur troisième espace
     // n'hérite pas par erreur des champs/libellés propres à CEE.
     estCee: donnees.courant === "cee",
+    // Espace AcademTrade (formation trading) : gestionnaires de compte dédiés,
+    // voir AcademtradeClients.jsx côté CRM.
+    estAcademtrade: donnees.courant === "academtrade",
   };
 }

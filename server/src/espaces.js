@@ -39,6 +39,7 @@ const IDENTIFIANTS_RESERVES = [
   "supervision",
   "campagnes",
   "boite-mail",
+  "clients-academtrade",
 ];
 
 // Couleurs disponibles pour un espace (voir aussi COULEURS dans
@@ -63,6 +64,16 @@ const ESPACES_INITIAUX = [
     description:
       "Certificats d'Économies d'Énergie : pompes à chaleur, isolation et équipements financés par les primes CEE, pour le compte d'un partenaire.",
     couleur: "emerald",
+    modules: [],
+    actif: true,
+  },
+  {
+    id: "academtrade",
+    nom: "AcademTrade — Formation trading",
+    court: "AcademTrade",
+    description:
+      "Prospects amenés par des campagnes publicitaires, achat d'une formation au trading, puis suivi par un gestionnaire de compte (environnement pédagogique : aucun argent réel investi sur un marché à ce stade).",
+    couleur: "violet",
     modules: [],
     actif: true,
   },

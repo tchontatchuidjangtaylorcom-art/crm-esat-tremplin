@@ -131,6 +131,21 @@ export async function initDb() {
     db.data.signalementsVigilance = [];
     aEcrire = true;
   }
+  // Espace AcademTrade (formation trading, voir academtrade.js) : comptes
+  // clients finaux (distincts de db.data.utilisateurs, réservé au personnel),
+  // leurs positions simulées, et leurs demandes de retrait.
+  if (!db.data.comptesAcademtrade) {
+    db.data.comptesAcademtrade = [];
+    aEcrire = true;
+  }
+  if (!db.data.positionsAcademtrade) {
+    db.data.positionsAcademtrade = [];
+    aEcrire = true;
+  }
+  if (!db.data.demandesRetraitAcademtrade) {
+    db.data.demandesRetraitAcademtrade = [];
+    aEcrire = true;
+  }
   if (!db.data.presenceDebutSuivi) {
     db.data.presenceDebutSuivi = new Date().toISOString();
     aEcrire = true;
