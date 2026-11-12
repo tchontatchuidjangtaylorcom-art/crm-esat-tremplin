@@ -161,6 +161,8 @@ export const SECTIONS_CEE = [
           "« Je vois ici [nombre] serres, pour à peu près [surface] m². C'est toujours ça ? Elles sont chauffées aujourd'hui ou pas ? Vous cultivez quoi dedans ? Et vous êtes toujours à [commune] ? »",
       },
       { type: "instruction", texte: "Ne pas tout redemander : reprendre simplement ce qui est déjà dans le CRM (fiche prospect)." },
+      { type: "instruction", texte: "Si le nombre de serres n'est pas renseigné dans la fiche, demander directement :" },
+      { type: "texte", texte: "« Vous avez combien de serres ? »" },
     ],
   },
   {
