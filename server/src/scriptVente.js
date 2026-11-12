@@ -144,12 +144,11 @@ export const SECTIONS_CEE = [
     lignes: [
       {
         type: "texte",
-        texte: `« Bonjour Monsieur / Madame [Nom], c'est ${AGENT} d'Eco Smart France, mandataire CEE, les Certificats d'Économies d'Énergie. Je vous appelle pour vos serres agricoles. En ce moment, nous proposons une pompe à chaleur pour chauffer les serres, avec une offre à zéro euro pour les dossiers qui remplissent les conditions. On va reprendre ensemble deux ou trois infos sur votre exploitation. Vous avez bien [nombre] serres ? »`,
+        texte: `« Bonjour Monsieur / Madame [Nom], c'est ${AGENT}. En ce moment, nous proposons une pompe à chaleur pour chauffer les serres, avec une offre à zéro euro pour les dossiers qui remplissent les conditions. On va reprendre ensemble deux ou trois infos sur votre exploitation. Vous avez bien des serres ? »`,
       },
       {
         type: "instruction",
-        texte:
-          "Dire « mandataire CEE » seulement si la société dispose réellement du mandat. Vérifier que le zéro euro est prévu pour le dossier concerné.",
+        texte: "Vérifier que le zéro euro est prévu pour le dossier concerné.",
       },
     ],
   },
