@@ -15,17 +15,20 @@ import {
   envoyerLienAcces,
   definirMotDePasse,
   verifierMotDePasse,
+  changerMotDePasse,
+  mettreAJourProfil,
   creerCookieSession,
   supprimerCookieSession,
   exigerAuthAcademtrade,
   sansMotDePasse,
 } from "./academtradeAuth.js";
-import { etatMarche } from "./academtradeMarche.js";
+import { etatMarche, catalogue } from "./academtradeMarche.js";
 import { positionsDe, soldeDisponible, ouvrirPosition, fermerPosition } from "./academtradePositions.js";
 import { retraitsDe, retraitsEnAttente, demanderRetrait, traiterRetrait } from "./academtradeRetraits.js";
+import { uploadDocument, enregistrerDocument, cheminDocument, traiterDocument, documentsSansChemin } from "./academtradeDocuments.js";
 
 function compteAvecSolde(compte) {
-  return { ...sansMotDePasse(compte), soldeDisponible: soldeDisponible(compte) };
+  return { ...sansMotDePasse(compte), documents: documentsSansChemin(compte), soldeDisponible: soldeDisponible(compte) };
 }
 
 // Réservé aux gestionnaires de compte de l'espace AcademTrade et aux
@@ -83,6 +86,38 @@ export function installerAcademtrade(app, { exigerAuth, exigerAdmin }) {
     res.json(etatMarche());
   });
 
+  app.get("/api/academtrade/catalogue", exigerAuthAcademtrade, (req, res) => {
+    res.json(catalogue());
+  });
+
+  app.put("/api/academtrade/moi", exigerAuthAcademtrade, async (req, res) => {
+    const compte = await mettreAJourProfil(req.compteAcademtrade, req.body || {});
+    res.json(compteAvecSolde(compte));
+  });
+
+  app.post("/api/academtrade/mot-de-passe", exigerAuthAcademtrade, async (req, res) => {
+    try {
+      await changerMotDePasse(req.compteAcademtrade, String(req.body?.ancien || ""), String(req.body?.nouveau || ""));
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  // Pièce d'identité / justificatif de domicile — voir academtradeDocuments.js.
+  app.post("/api/academtrade/documents", exigerAuthAcademtrade, (req, res) => {
+    uploadDocument(req, res, async (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!req.file) return res.status(400).json({ error: "Aucun fichier reçu." });
+      try {
+        await enregistrerDocument(req.compteAcademtrade, req.body.type, req.file);
+        res.status(201).json(compteAvecSolde(req.compteAcademtrade));
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    });
+  });
+
   app.get("/api/academtrade/positions", exigerAuthAcademtrade, (req, res) => {
     res.json(positionsDe(req.compteAcademtrade.id));
   });
@@ -134,6 +169,24 @@ export function installerAcademtrade(app, { exigerAuth, exigerAdmin }) {
     const compte = db.data.comptesAcademtrade.find((c) => c.id === req.params.id);
     if (!compte) return res.status(404).json({ error: "Compte introuvable." });
     res.json({ compte: compteAvecSolde(compte), positions: positionsDe(compte.id), retraits: retraitsDe(compte.id) });
+  });
+
+  app.get("/api/academtrade/clients/:id/documents/:type", exigerGestionnaire, (req, res) => {
+    const compte = db.data.comptesAcademtrade.find((c) => c.id === req.params.id);
+    const chemin = compte && cheminDocument(compte, req.params.type);
+    if (!chemin) return res.status(404).json({ error: "Document introuvable." });
+    res.download(chemin, compte.documents[req.params.type].nomOriginal);
+  });
+
+  app.post("/api/academtrade/clients/:id/documents/:type/statut", exigerGestionnaire, async (req, res) => {
+    const compte = db.data.comptesAcademtrade.find((c) => c.id === req.params.id);
+    if (!compte) return res.status(404).json({ error: "Compte introuvable." });
+    try {
+      await traiterDocument(compte, req.params.type, { decision: req.body?.decision, commentaire: req.body?.commentaire });
+      res.json(compteAvecSolde(compte));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
   });
 
   app.post("/api/academtrade/clients/:id/retraits/:retraitId/traiter", exigerGestionnaire, async (req, res) => {

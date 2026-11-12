@@ -753,12 +753,38 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ montant }),
     }).then(handle),
+  academtradeCatalogue: () => fetch(`${BASE}/academtrade/catalogue`).then(handle),
+  academtradeMettreAJourProfil: (donnees) =>
+    fetch(`${BASE}/academtrade/moi`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(donnees),
+    }).then(handle),
+  academtradeChangerMotDePasse: (ancien, nouveau) =>
+    fetch(`${BASE}/academtrade/mot-de-passe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ancien, nouveau }),
+    }).then(handle),
+  academtradeEnvoyerDocument: (type, fichier) => {
+    const donnees = new FormData();
+    donnees.append("type", type);
+    donnees.append("fichier", fichier);
+    return fetch(`${BASE}/academtrade/documents`, { method: "POST", body: donnees }).then(handle);
+  },
 
   // Espace AcademTrade — côté gestionnaire de compte (CRM).
   academtradeClients: () => fetch(`${BASE}/academtrade/clients`).then(handle),
   academtradeClient: (id) => fetch(`${BASE}/academtrade/clients/${id}`).then(handle),
   academtradeTraiterRetrait: (clientId, retraitId, decision, commentaire) =>
     fetch(`${BASE}/academtrade/clients/${clientId}/retraits/${retraitId}/traiter`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, commentaire }),
+    }).then(handle),
+  academtradeUrlDocument: (clientId, type) => `${BASE}/academtrade/clients/${clientId}/documents/${type}`,
+  academtradeTraiterDocument: (clientId, type, decision, commentaire) =>
+    fetch(`${BASE}/academtrade/clients/${clientId}/documents/${type}/statut`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision, commentaire }),

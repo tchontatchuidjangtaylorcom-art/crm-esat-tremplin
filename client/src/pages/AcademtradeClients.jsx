@@ -43,6 +43,16 @@ export default function AcademtradeClients() {
     }
   }
 
+  async function traiterDocument(type, decision) {
+    try {
+      await api.academtradeTraiterDocument(clientOuvert.compte.id, type, decision, "");
+      ouvrirClient(clientOuvert.compte.id);
+      charger();
+    } catch (e) {
+      setErreur(e.message);
+    }
+  }
+
   async function creerCompteTest(ev) {
     ev.preventDefault();
     setCreation(true);
@@ -120,6 +130,7 @@ export default function AcademtradeClients() {
               <th className="px-4 py-2.5">Solde simulé</th>
               <th className="px-4 py-2.5">Positions ouvertes</th>
               <th className="px-4 py-2.5">Retraits en attente</th>
+              <th className="px-4 py-2.5">Documents</th>
             </tr>
           </thead>
           <tbody>
@@ -143,11 +154,20 @@ export default function AcademtradeClients() {
                     "—"
                   )}
                 </td>
+                <td className="px-4 py-2.5">
+                  {[c.documents?.identite, c.documents?.adresse].some((d) => d?.statut === "en_attente") ? (
+                    <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-xs font-semibold">
+                      à vérifier
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
               </tr>
             ))}
             {clients && clients.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
                   Aucun client pour le moment.
                 </td>
               </tr>
@@ -173,20 +193,71 @@ export default function AcademtradeClients() {
             {clientOuvert.positions.map((p) => (
               <div key={p.id} className="flex items-center justify-between text-sm border-b border-slate-100 dark:border-slate-800 py-1.5">
                 <span>
-                  {p.instrumentNom} · {p.sens === "achat" ? "Achat" : "Vente"} · {p.montant}
+                  {p.instrumentNom} · {p.sens === "achat" ? "Achat" : "Vente"} · {p.lots} lot(s)
                 </span>
                 <span>
                   {p.statut === "ouverte" ? (
                     <span className="text-slate-400">ouverte</span>
                   ) : (
-                    <span className={p.pnl >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
-                      {p.pnl >= 0 ? "+" : ""}
-                      {p.pnl.toFixed(2)}
+                    <span className={p.pnlNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                      {p.pnlNet >= 0 ? "+" : ""}
+                      {p.pnlNet.toFixed(2)}
                     </span>
                   )}
                 </span>
               </div>
             ))}
+          </div>
+
+          <h3 className="font-semibold text-sm mt-5 mb-2">Documents</h3>
+          <div className="space-y-2">
+            {["identite", "adresse"].map((type) => {
+              const doc = clientOuvert.compte.documents?.[type];
+              return (
+                <div key={type} className="flex items-center justify-between text-sm border-b border-slate-100 dark:border-slate-800 py-1.5">
+                  <span>
+                    {type === "identite" ? "Pièce d'identité" : "Justificatif de domicile"}
+                    {doc && (
+                      <span className="text-slate-400">
+                        {" "}
+                        · {doc.nomOriginal} ·{" "}
+                        {doc.statut === "en_attente" ? "en attente" : doc.statut === "validee" ? "validé" : "refusé"}
+                      </span>
+                    )}
+                  </span>
+                  {doc && (
+                    <div className="flex gap-2">
+                      <a
+                        href={api.academtradeUrlDocument(clientOuvert.compte.id, type)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1"
+                      >
+                        Voir
+                      </a>
+                      {doc.statut === "en_attente" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => traiterDocument(type, "validee")}
+                            className="text-xs font-semibold rounded-lg bg-emerald-600 text-white px-3 py-1"
+                          >
+                            Valider
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => traiterDocument(type, "refusee")}
+                            className="text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1"
+                          >
+                            Refuser
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <h3 className="font-semibold text-sm mt-5 mb-2">Demandes de retrait</h3>

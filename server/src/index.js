@@ -61,6 +61,7 @@ import {
 } from "./controleRdv.js";
 import { installerAcademtrade } from "./academtrade.js";
 import { demarrerMarcheAcademtrade } from "./academtradeMarche.js";
+import { demarrerSwapQuotidienAcademtrade } from "./academtradePositions.js";
 import { enregistrerRoutesStockEquipe } from "./stockEquipe.js";
 import { enregistrerRoutesMonCompte } from "./monCompte.js";
 import { enregistrerRoutesCampagnes, demarrerCampagnes, estDesinscrit, remplirTexte } from "./campagnes.js";
@@ -1106,6 +1107,7 @@ demarrerControleRdv();
 // simulé, positions et retraits pédagogiques (voir academtrade.js).
 installerAcademtrade(app, { exigerAuth, exigerAdmin });
 demarrerMarcheAcademtrade();
+demarrerSwapQuotidienAcademtrade();
 // Remplissage du stock de fiches de l'équipe (admin, sans recherche Claude).
 enregistrerRoutesStockEquipe(app, { exigerAdmin, creerLeadDepuisSiren, CATEGORIES, sirenDe });
 // « Mon compte » : nom, e-mail de connexion et mot de passe de chacun.

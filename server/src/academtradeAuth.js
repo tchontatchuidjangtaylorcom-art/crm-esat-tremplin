@@ -119,6 +119,45 @@ export async function definirMotDePasse(jeton, motDePasse) {
   return compte;
 }
 
+// Changement de mot de passe par le client lui-même, une fois connecté —
+// exige l'ancien mot de passe (contrairement à definirMotDePasse, réservé au
+// tout premier réglage via le lien personnel).
+export async function changerMotDePasse(compte, ancien, nouveau) {
+  const valide = await bcrypt.compare(ancien || "", compte.motDePasseHash || "");
+  if (!valide) {
+    const erreur = new Error("Mot de passe actuel incorrect.");
+    erreur.code = "MOT_DE_PASSE_INCORRECT";
+    throw erreur;
+  }
+  if (!nouveau || nouveau.length < LONGUEUR_MIN_MOT_DE_PASSE) {
+    const erreur = new Error(`Le nouveau mot de passe doit contenir au moins ${LONGUEUR_MIN_MOT_DE_PASSE} caractères.`);
+    erreur.code = "MOT_DE_PASSE_TROP_COURT";
+    throw erreur;
+  }
+  compte.motDePasseHash = await bcrypt.hash(nouveau, TOURS_BCRYPT);
+  await db.write();
+  return compte;
+}
+
+// Informations personnelles modifiables par le client lui-même — jamais
+// l'e-mail (identifiant de connexion) ni le solde/les positions.
+export async function mettreAJourProfil(compte, { prenom, nom, telephone, adresse }) {
+  if (prenom !== undefined) compte.prenom = String(prenom || "").trim();
+  if (nom !== undefined) compte.nom = String(nom || "").trim();
+  if (telephone !== undefined) compte.telephone = String(telephone || "").trim() || null;
+  if (adresse !== undefined) {
+    const a = adresse || {};
+    compte.adresse = {
+      rue: String(a.rue || "").trim(),
+      ville: String(a.ville || "").trim(),
+      codePostal: String(a.codePostal || "").trim(),
+      pays: String(a.pays || "").trim(),
+    };
+  }
+  await db.write();
+  return compte;
+}
+
 export async function verifierMotDePasse(email, motDePasse) {
   const compte = compteParEmail(email);
   if (!compte || !compte.motDePasseHash) {

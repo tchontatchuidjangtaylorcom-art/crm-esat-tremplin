@@ -24,7 +24,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 //   2. Variable d'environnement DATA_DIR = /var/data
 //   3. Redéployer. Le premier démarrage sur un disque vide amorce les
 //      données (seed), puis chaque redémarrage suivant les retrouve intactes.
-const dossierDonnees = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+// Exporté pour que tout autre fichier stockant des données (ex : documents
+// envoyés par les clients AcademTrade, voir academtradeDocuments.js) utilise
+// le même disque persistant que la base — jamais un dossier temporaire du
+// conteneur, effacé lui aussi à chaque redéploiement sans Disk Render.
+export const DOSSIER_DONNEES = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+const dossierDonnees = DOSSIER_DONNEES;
 const file = path.join(dossierDonnees, "db.json");
 
 // Le dossier peut ne pas exister encore (disque tout juste monté, ou premier
