@@ -3697,11 +3697,19 @@ app.get("/api/entreprises/:id/rapport-pdf", exigerAuth, chargerEntrepriseAutoris
 });
 
 // Boîte mail connectée (IMAP/SMTP) : indique si elle est configurée, et
-// l'adresse du pôle pour l'affichage côté frontend.
+// l'adresse du pôle pour l'affichage côté frontend. Pas de exigerAuth ici
+// (appelé aussi depuis la vitrine publique, non connectée) : on lit
+// directement l'en-tête X-Espace (posé par installerEnteteEspace côté
+// client, voir espace.js) plutôt que d'utiliser espaceDeRequete, qui
+// renverrait toujours l'espace par défaut sans req.utilisateur. Un espace
+// avec sa propre boîte (voir mailDeEspace, espaces.js — ex: Eco Smart
+// France pour CEE) l'affiche à la place de la boîte partagée du pôle.
 app.get("/api/emails/statut", (req, res) => {
+  const espace = listeEspaces().find((e) => e.id === String(req.get("x-espace") || req.query.espace || "").trim());
+  const mailEspace = espace ? mailDeEspace(espace.id) : undefined;
   res.json({
-    configuree: estEnvoiConfigure(),
-    adresse: adresseMailPole(),
+    configuree: estEnvoiConfigure(mailEspace),
+    adresse: adresseMailPole(mailEspace),
     signature: signatureMail(),
     telephone: telephonePole(),
   });
