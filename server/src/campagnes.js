@@ -20,7 +20,7 @@ import dns from "dns/promises";
 import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, adresseMailPole, telephonePole, estEnvoiConfigure } from "./mail.js";
-import { genererEmailOfficielHtml } from "./emailOfficiel.js";
+import { genererEmailOfficielHtml, genererEmailOfficielHtmlCee } from "./emailOfficiel.js";
 import { lienRendezVousClient } from "./vitrineRdv.js";
 import { lienFicheClient } from "./ficheClient.js";
 import { classifierSecteur, determinerCollecteur } from "./secteurs.js";
@@ -277,10 +277,21 @@ function ciblesPour(filtres = {}) {
 
 // ---- Contenu ----
 
-function signature(entreprise) {
-  const pole = determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
-  return `— ${pole}\n✉️ ${adresseMailPole()}\n📞 ${telephonePole()}`;
+// Nom du pôle/partenaire selon l'espace de la fiche — jamais "Pôle OETH /
+// AGEFIPH" pour une fiche CEE, voir même règle dans index.js
+// (/api/entreprises/:id/emails/envoyer, ESPACES_AVEC_FORMAT_OFFICIEL).
+function nomPole(entreprise) {
+  return espaceDe(entreprise) === "cee" ? "Eco Smart France" : determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH";
 }
+
+function signature(entreprise) {
+  return `— ${nomPole(entreprise)}\n✉️ ${adresseMailPole()}\n📞 ${telephonePole()}`;
+}
+
+// Mise en page « officielle » (bandeau + bouton RDV) : seulement OETH et CEE
+// (voir genererEmailOfficielHtml / genererEmailOfficielHtmlCee) — jamais pour
+// un autre espace (ex. AcademTrade) qui n'a pas encore ce modèle.
+const ESPACES_AVEC_FORMAT_OFFICIEL = new Set(["oeth", "cee"]);
 
 export function remplirTexte(texte, entreprise) {
   const annee = new Date().getFullYear();
@@ -295,25 +306,39 @@ async function envoyerA(campagne, entreprise, destinataire) {
   const objet = remplirTexte(campagne.objet, entreprise);
   const corps = remplirTexte(campagne.corps, entreprise);
   const desinscription = lienDesinscription(destinataire);
+  const espaceEntreprise = espaceDe(entreprise);
+  const estOeth = espaceEntreprise === "oeth";
   let html;
   let texte = `${corps}\n\n—\nVous ne souhaitez plus recevoir nos e-mails ? ${desinscription}`;
-  if (campagne.formatOfficiel) {
+  if (campagne.formatOfficiel && ESPACES_AVEC_FORMAT_OFFICIEL.has(espaceEntreprise)) {
     const rdv = lienRendezVousClient(entreprise);
-    const dossier = lienFicheClient(entreprise);
+    // Le dossier (calcul de contribution) n'existe que pour OETH : pas de
+    // simulateur CEE dans le CRM pour l'instant (même règle que index.js,
+    // /api/entreprises/:id/emails/envoyer).
+    const dossier = estOeth ? lienFicheClient(entreprise) : null;
     // Rendez-vous pris depuis ce mail sur une fiche sans agent : prévenir
     // la personne qui a lancé la campagne.
     if (!entreprise.rdvClient.envoyePar) entreprise.rdvClient.envoyePar = campagne.creePar;
     entreprise.rdvClient.email = entreprise.rdvClient.email || destinataire;
-    html = genererEmailOfficielHtml({
-      entreprise,
-      corps,
-      poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
-      lienRendezVous: rdv.url,
-      lienDossier: dossier.url,
-      lienDesinscription: desinscription,
-    });
+    html = estOeth
+      ? genererEmailOfficielHtml({
+          entreprise,
+          corps,
+          poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+          lienRendezVous: rdv.url,
+          lienDossier: dossier.url,
+          lienDesinscription: desinscription,
+        })
+      : genererEmailOfficielHtmlCee({
+          entreprise,
+          corps,
+          poleInfo: { email: adresseMailPole(), telephone: telephonePole() },
+          lienRendezVous: rdv.url,
+          lienDesinscription: desinscription,
+        });
     texte =
-      `${corps}\n\nCalculer ma contribution et mettre à jour mon dossier OETH : ${dossier.url}` +
+      `${corps}` +
+      (dossier ? `\n\nCalculer ma contribution et mettre à jour mon dossier OETH : ${dossier.url}` : "") +
       `\nVous préférez en parler de vive voix ? Choisir un créneau avec un conseiller : ${rdv.url}` +
       `\n\n—\nVous ne souhaitez plus recevoir nos e-mails ? ${desinscription}`;
   }
@@ -322,7 +347,7 @@ async function envoyerA(campagne, entreprise, destinataire) {
     subject: objet,
     text: texte,
     html,
-    fromName: determinerCollecteur(entreprise) === "FIPHFP" ? "Pôle FIPHFP" : "Pôle OETH / AGEFIPH",
+    fromName: nomPole(entreprise),
     listeDiffusion: true,
     urlDesinscription: desinscription,
     fromAdresse: EXPEDITEUR_CAMPAGNES,

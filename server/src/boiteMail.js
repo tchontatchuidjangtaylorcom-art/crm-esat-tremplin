@@ -237,6 +237,12 @@ export function enregistrerRoutesBoiteMail(app, { exigerAuth, exigerAdmin, estAd
     if (i === -1) return res.status(404).json({ error: "Mail introuvable." });
     const e = db.data.entreprises.find((x) => x.id === req.body.entrepriseId);
     if (!e) return res.status(404).json({ error: "Fiche introuvable." });
+    // Jamais un mail d'un espace rattaché à une fiche d'un autre espace
+    // (sinon un mail OETH se retrouverait dans le fil « Boîte mail » d'une
+    // fiche CEE, ou l'inverse).
+    if (espaceDe(e) !== espaceDuMailNonRattache(nonRattaches()[i])) {
+      return res.status(400).json({ error: "Ce mail appartient à un autre espace que cette fiche." });
+    }
     const [m] = nonRattaches().splice(i, 1);
     e.emails = e.emails || [];
     e.emails.unshift({ ...m, lu: true });

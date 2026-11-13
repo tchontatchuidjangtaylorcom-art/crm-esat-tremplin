@@ -3725,12 +3725,15 @@ app.get("/api/emails/statut", (req, res) => {
 
 // Notification globale (nombre de mails non lus par entreprise), pour
 // afficher un badge/pop-up dans le CRM sans avoir à ouvrir chaque fiche —
-// limitée aux dossiers visibles par l'utilisateur connecté.
+// limitée aux dossiers visibles par l'utilisateur connecté ET à l'espace
+// affiché (sinon un compte admin verrait ses mails OETH comptés dans le
+// badge pendant qu'il consulte l'espace CEE, et inversement).
 app.get("/api/emails/non-lus", exigerAuth, (req, res) => {
+  const espace = espaceDeRequete(req);
   const parEntreprise = [];
   let total = 0;
   for (const e of db.data.entreprises) {
-    if (!estVisiblePar(e, req.utilisateur)) continue;
+    if (espaceDe(e) !== espace || !estVisiblePar(e, req.utilisateur)) continue;
     const nonLus = (e.emails || []).filter((m) => m.direction === "recu" && !m.lu).length;
     if (nonLus > 0) {
       parEntreprise.push({ id: e.id, nom: e.nom, count: nonLus });
@@ -4150,14 +4153,17 @@ app.get("/api/utilisateurs/collegues", exigerAuth, (req, res) => {
 // haut), et rendez-vous planifiés dans les prochaines 48h.
 const FENETRE_RDV_HEURES = 48;
 
-function calculerNotifications(utilisateur) {
+// `espace` : espace affiché par le navigateur (voir espaceDeRequete) — sans
+// ce filtre, un admin ou un agent multi-espaces verrait ses alertes (leads,
+// RDV, confirmations client…) de TOUS les espaces mélangées, quel que soit
+// celui actuellement ouvert.
+function calculerNotifications(utilisateur, espace) {
   const mesCanaux = db.data.canaux.filter((c) => estMembreCanal(c, utilisateur.id));
   const messagesNonLus = mesCanaux.reduce((somme, c) => somme + compterNonLus(c, utilisateur), 0);
 
-  const mesEntreprises =
-    estAdmin(utilisateur)
-      ? db.data.entreprises
-      : db.data.entreprises.filter((e) => estVisiblePar(e, utilisateur));
+  const mesEntreprises = (estAdmin(utilisateur) ? db.data.entreprises : db.data.entreprises.filter((e) => estVisiblePar(e, utilisateur))).filter(
+    (e) => espaceDe(e) === espace
+  );
 
   const nouveauxLeads = mesEntreprises
     .filter(
@@ -4213,7 +4219,7 @@ function calculerNotifications(utilisateur) {
   // à défaut celui qui a envoyé l'e-mail, à défaut les administrateurs.
   const rdvClients = db.data.entreprises
     .filter((e) => {
-      if (!e.rdvClient?.nonVu || (e.rdvClient.vuPar || []).includes(utilisateur.id)) return false;
+      if (espaceDe(e) !== espace || !e.rdvClient?.nonVu || (e.rdvClient.vuPar || []).includes(utilisateur.id)) return false;
       const destinataire = destinataireAlerteRdvClient(e);
       return estAdmin(utilisateur) || destinataire === utilisateur.id || e.superviseurId === utilisateur.id || e.binomeId === utilisateur.id;
     })
@@ -4230,7 +4236,7 @@ function calculerNotifications(utilisateur) {
   debutJour.setHours(0, 0, 0, 0);
   const rdvClientsAVenir = db.data.entreprises
     .filter((e) => {
-      if (!e.rdvClient?.reservations?.length || e.statut !== "rdv" || !e.dateRdv) return false;
+      if (espaceDe(e) !== espace || !e.rdvClient?.reservations?.length || e.statut !== "rdv" || !e.dateRdv) return false;
       if (new Date(e.dateRdv) < debutJour) return false;
       const destinataire = destinataireAlerteRdvClient(e);
       return estAdmin(utilisateur) || destinataire === utilisateur.id || e.superviseurId === utilisateur.id || e.binomeId === utilisateur.id;
@@ -4250,10 +4256,10 @@ function calculerNotifications(utilisateur) {
     })
     .sort((a, b) => new Date(a.dateRdv) - new Date(b.dateRdv));
 
-  const confirmationsClient = ficheClient.confirmationsPour(utilisateur);
+  const confirmationsClient = ficheClient.confirmationsPour(utilisateur, espace);
   // Mission de contrôle et de suivi : UNIQUEMENT l'agent principal et les
   // administrateurs, jamais le superviseur (voir controleRdv.js).
-  const controlesEchange = controlesEchangePour(utilisateur, estAdmin);
+  const controlesEchange = controlesEchangePour(utilisateur, estAdmin, espace);
   return {
     rdvClientsAVenir,
     messagesNonLus,
@@ -4295,11 +4301,13 @@ app.post("/api/entreprises/:id/controle-echange/vu", exigerAuth, chargerEntrepri
 // absorbe le décalage horaire du serveur (UTC).
 app.get("/api/echeances", exigerAuth, (req, res) => {
   const utilisateur = req.utilisateur;
+  const espace = espaceDeRequete(req);
   const maintenant = Date.now();
   const debut = maintenant - 14 * 3600 * 1000;
   const fin = maintenant + 26 * 3600 * 1000;
   const echeances = [];
   for (const e of db.data.entreprises) {
+    if (espaceDe(e) !== espace) continue;
     // L'alerte ne sonne que chez l'agent assigné ; fiche non assignée : chez
     // la personne qui a programmé le RDV / rappel. Jamais chez toute l'équipe
     // (avant, tous les administrateurs la recevaient pour les fiches non
@@ -4358,7 +4366,7 @@ app.get("/api/notifications", exigerAuth, (req, res) => {
           .sort((a, b) => new Date(a.dateCreation) - new Date(b.dateCreation))
       : [];
 
-  res.json({ ...calculerNotifications(cible), demandesAcces });
+  res.json({ ...calculerNotifications(cible, espaceDeRequete(req)), demandesAcces });
 });
 
 // Suivi du temps de travail (voir presence.js et client/src/PresenceContext.jsx).

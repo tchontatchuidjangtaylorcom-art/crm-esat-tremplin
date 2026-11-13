@@ -15,6 +15,7 @@ import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, estEnvoiConfigure, adresseMailPole, telephonePole } from "./mail.js";
 import { SITE_URL } from "./seo.js";
+import { espaceDe } from "./espaces.js";
 
 const MAX_ENVOIS = 3; // 1 e-mail par jour pendant 3 jours, puis on arrête et on alerte l'agent.
 const INTERVALLE_MS = 60 * 60 * 1000; // passage toutes les heures, comme recyclageNrp.js
@@ -49,7 +50,10 @@ function aujourdhuiParis() {
   return new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
 }
 
-const signature = () => `— Pôle OETH / AGEFIPH\n✉️ ${adresseMailPole()}${telephonePole() ? `\n📞 ${telephonePole()}` : ""}`;
+// Même règle que vitrineRdv.js (signatureFiche) et campagnes.js (nomPole) :
+// jamais "Pôle OETH / AGEFIPH" pour une fiche d'un autre espace (ex. CEE).
+const nomPole = (entreprise) => (espaceDe(entreprise) === "cee" ? "Eco Smart France" : "Pôle OETH / AGEFIPH");
+const signature = (entreprise) => `— ${nomPole(entreprise)}\n✉️ ${adresseMailPole()}${telephonePole() ? `\n📞 ${telephonePole()}` : ""}`;
 
 function parJeton(jeton) {
   const j = String(jeton || "");
@@ -101,15 +105,23 @@ export async function envoyerConfirmationRdv(entreprise) {
   const email = emailClient(entreprise);
   if (!email || !estEnvoiConfigure()) return false;
   const quand = quandEnClair(entreprise.dateRdv);
+  const estOeth = espaceDe(entreprise) === "oeth";
+  const objetAppel = estOeth
+    ? `avec un conseiller du Pôle OETH / AGEFIPH, pour faire le point sur votre situation vis-à-vis de l'obligation ` +
+      `d'emploi des travailleurs handicapés (OETH) et les dispositifs possibles (ESAT Tremplin, TIH…)`
+    : `avec un conseiller`;
   const texte =
     `Bonjour,\n\n` +
-    `Nous confirmons votre rendez-vous téléphonique du ${quand} avec un conseiller du Pôle OETH / AGEFIPH, pour faire ` +
-    `le point sur votre situation vis-à-vis de l'obligation d'emploi des travailleurs handicapés (OETH) et les ` +
-    `dispositifs possibles (ESAT Tremplin, TIH…).\n\n` +
+    `Nous confirmons votre rendez-vous téléphonique du ${quand} ${objetAppel}.\n\n` +
     `Un conseiller vous contactera au numéro que vous nous avez communiqué.\n\n` +
-    `${phraseAnnonceSuivi()}\n\n${signature()}`;
+    `${phraseAnnonceSuivi()}\n\n${signature(entreprise)}`;
   try {
-    await envoyerMail({ to: email, subject: "Confirmation de votre rendez-vous — Pôle OETH/AGEFIPH", text: texte, fromName: "Pôle OETH / AGEFIPH" });
+    await envoyerMail({
+      to: email,
+      subject: `Confirmation de votre rendez-vous — ${nomPole(entreprise)}`,
+      text: texte,
+      fromName: nomPole(entreprise),
+    });
     return true;
   } catch (e) {
     console.error(`[controle-rdv] E-mail de confirmation impossible pour ${entreprise.nom} :`, e.message);
@@ -131,13 +143,14 @@ function corpsMail2(entreprise, c) {
   const quand = quandEnClair(c.dateRdv);
   const url = lienControleEchange(entreprise);
   const relance = c.envois > 0;
+  const nomConseiller = espaceDe(entreprise) === "oeth" ? `notre conseiller du Pôle OETH / AGEFIPH` : `notre conseiller`;
   const intro = relance
-    ? `Nous revenons vers vous : avez-vous pu échanger avec notre conseiller du Pôle OETH / AGEFIPH, au sujet de votre rendez-vous du ${quand} ?`
-    : `Un conseiller du Pôle OETH / AGEFIPH devait vous contacter aujourd'hui dans le cadre de votre rendez-vous du ${quand}.\n\nAvez-vous pu échanger avec lui ?`;
+    ? `Nous revenons vers vous : avez-vous pu échanger avec ${nomConseiller}, au sujet de votre rendez-vous du ${quand} ?`
+    : `Un conseiller devait vous contacter aujourd'hui dans le cadre de votre rendez-vous du ${quand}.\n\nAvez-vous pu échanger avec lui ?`;
   const texte =
     `Bonjour,\n\n${intro}\n\nMerci de nous le confirmer en un clic :\n\n${url}\n\n` +
     `Message automatique envoyé pour assurer un bon suivi de votre dossier. Vous ne recevrez plus de rappel une fois ` +
-    `votre réponse enregistrée.\n\n${signature()}`;
+    `votre réponse enregistrée.\n\n${signature(entreprise)}`;
   const html =
     `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1e293b;max-width:600px">` +
     `<p>Bonjour,</p><p>${echapper(intro).replace(/\n\n/g, "</p><p>")}</p>` +
@@ -157,7 +170,7 @@ async function envoyerMail2(entreprise, c) {
       subject: "Avez-vous pu échanger avec notre conseiller aujourd'hui ?",
       text: texte,
       html,
-      fromName: "Pôle OETH / AGEFIPH",
+      fromName: nomPole(entreprise),
     });
     return true;
   } catch (e) {
@@ -303,11 +316,11 @@ export function enregistrerRoutesControleRdv(app) {
 // Notifications (cloche) : UNIQUEMENT l'agent principal (snapshot au moment
 // du rendez-vous) et les administrateurs — jamais le superviseur, c'est tout
 // l'intérêt de cette vérification indépendante.
-export function controlesEchangePour(utilisateur, estAdmin) {
+export function controlesEchangePour(utilisateur, estAdmin, espace) {
   return db.data.entreprises
     .filter((e) => {
       const c = e.controleEchange;
-      if (!c?.nonVu || (c.vuPar || []).includes(utilisateur.id)) return false;
+      if (espaceDe(e) !== espace || !c?.nonVu || (c.vuPar || []).includes(utilisateur.id)) return false;
       return estAdmin(utilisateur) || c.agentPrincipal === utilisateur.id;
     })
     .map((e) => {

@@ -10,6 +10,7 @@ import { estJourOuvre as estJourOuvreHorsFeries } from "./presence.js";
 import { SITE_URL } from "./seo.js";
 import { lienFicheClient, recapFicheClient } from "./ficheClient.js";
 import { preparerControleEchange, phraseAnnonceSuivi } from "./controleRdv.js";
+import { espaceDe } from "./espaces.js";
 
 // Date/heure de Paris → ISO UTC (gère l'heure d'été / d'hiver).
 function isoDepuisParis(date, heure) {
@@ -84,8 +85,18 @@ function creneauxLibres(dateIso) {
   return CRENEAUX.filter((h) => !pris.has(h));
 }
 
-// Signature normalisée des accusés de réception (sans adresse postale).
+// Signature normalisée des accusés de réception (sans adresse postale) —
+// pour les formulaires de la page publique "Pilotage handicap" (OETH),
+// jamais pour une confirmation liée à une fiche d'un autre espace (voir
+// signatureFiche ci-dessous, utilisée pour /api/vitrine/rdv-client).
 const signature = () => `— Pôle OETH / AGEFIPH\n✉️ ${adresseMailPole()}${telephonePole() ? `\n📞 ${telephonePole()}` : ""}`;
+
+// Même règle que campagnes.js (nomPole) et index.js
+// (/api/entreprises/:id/emails/envoyer) : jamais "Pôle OETH / AGEFIPH" pour
+// une confirmation envoyée au sujet d'une fiche CEE (ou d'un autre espace).
+const nomPoleFiche = (entreprise) => (espaceDe(entreprise) === "cee" ? "Eco Smart France" : "Pôle OETH / AGEFIPH");
+const signatureFiche = (entreprise) =>
+  `— ${nomPoleFiche(entreprise)}\n✉️ ${adresseMailPole()}${telephonePole() ? `\n📞 ${telephonePole()}` : ""}`;
 
 const texte = (v, max = 200) => String(v || "").trim().slice(0, max);
 const emailValide = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
@@ -323,17 +334,24 @@ export function enregistrerRoutesVitrineRdv(app) {
         }
       }
       if (entreprise.rdvClient.email) {
+        // Paragraphe "dossier" (calcul de contribution OETH) : seulement pour
+        // OETH, pas de simulateur CEE (ni pour un autre espace) dans le CRM
+        // pour l'instant — même règle que index.js / campagnes.js.
+        const estOeth = espaceDe(entreprise) === "oeth";
         try {
           await envoyerMail({
             to: entreprise.rdvClient.email,
             subject: "Votre demande de rendez-vous est bien enregistrée",
             text:
               `Bonjour,\n\nVotre demande de rendez-vous est bien enregistrée : ${quand}.\n` +
-              `Un conseiller du Pôle OETH / AGEFIPH vous appellera à cette date${telephone ? ` au ${telephone}` : ""}.\n\n` +
+              `Un conseiller vous appellera à cette date${telephone ? ` au ${telephone}` : ""}.\n\n` +
               `Pour modifier ce créneau, utilisez à nouveau le lien reçu par e-mail ou répondez simplement à ce message.\n\n` +
-              `Pour préparer l'échange, vous pouvez vérifier et confirmer dès maintenant votre effectif et votre nombre de ` +
-              `salariés bénéficiaires : ${lienFicheClient(entreprise).url}\n\n${phraseAnnonceSuivi()}\n\n${signature()}`,
-            fromName: "Pôle OETH / AGEFIPH",
+              (estOeth
+                ? `Pour préparer l'échange, vous pouvez vérifier et confirmer dès maintenant votre effectif et votre nombre de ` +
+                  `salariés bénéficiaires : ${lienFicheClient(entreprise).url}\n\n`
+                : "") +
+              `${phraseAnnonceSuivi()}\n\n${signatureFiche(entreprise)}`,
+            fromName: nomPoleFiche(entreprise),
           });
           confirmationEnvoyee = true;
         } catch (e) {

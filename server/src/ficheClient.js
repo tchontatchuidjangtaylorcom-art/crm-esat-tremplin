@@ -19,6 +19,7 @@ import { calculerObligationOeth, simulerContributionOeth, smicPourExercice, exer
 import { lienRendezVousClient } from "./vitrineRdv.js";
 import { determinerCollecteur } from "./secteurs.js";
 import { SITE_URL } from "./seo.js";
+import { espaceDe } from "./espaces.js";
 
 const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_CONFIRMATIONS_PAR_JOUR = 10;
@@ -119,7 +120,6 @@ export function recapFicheClient(entreprise, trouverUtilisateurParId) {
   const contact = entreprise.contact || {};
   const effectif = entreprise.effectif ?? null;
   const rqth = entreprise.effectifBeneficiaire ?? 0;
-  const calcul = resume(entreprise, effectif, rqth, c.depuisZero || null);
   const avant = (actuel, ancien) => (ancien != null && ancien !== actuel ? ` (avant : ${ancien})` : "");
   const valide = (v) => (v && v !== "-" ? v : null);
 
@@ -128,13 +128,6 @@ export function recapFicheClient(entreprise, trouverUtilisateurParId) {
     : valide(contact.nom)
       ? `${contact.nom}${valide(contact.fonction) ? ` — ${contact.fonction}` : ""}`
       : "à identifier";
-  const manque =
-    calcul.assujetti === false
-      ? "non assujettie (moins de 20 salariés ou période de neutralisation)"
-      : `${calcul.unitesManquantes} unité(s) manquante(s)` +
-        (calcul.montantEstime != null
-          ? ` — contribution estimée ${calcul.montantEstime.toLocaleString("fr-FR")} €/an${calcul.surcontribution ? " (surcontribution)" : ""}`
-          : " — secteur public (FIPHFP) : montant à présenter par le conseiller");
   const rdv = entreprise.statut === "rdv" ? quandEnClair(entreprise.dateRdv) : null;
   const rappel = quandEnClair(entreprise.dateRappel);
   const aRappeler = rdv
@@ -144,14 +137,32 @@ export function recapFicheClient(entreprise, trouverUtilisateurParId) {
       : "à convenir — le client n'a pas encore choisi de créneau";
   const agent = entreprise.assigneA ? trouverUtilisateurParId(entreprise.assigneA) : null;
 
+  // Effectif / RQTH / unités manquantes : notion OETH uniquement (voir
+  // calculerObligationOeth) — jamais affichée pour une fiche d'un autre
+  // espace (ex. CEE), qui n'a pas ces champs.
+  const lignesOeth = [];
+  if (espaceDe(entreprise) === "oeth") {
+    const calcul = resume(entreprise, effectif, rqth, c.depuisZero || null);
+    const manque =
+      calcul.assujetti === false
+        ? "non assujettie (moins de 20 salariés ou période de neutralisation)"
+        : `${calcul.unitesManquantes} unité(s) manquante(s)` +
+          (calcul.montantEstime != null
+            ? ` — contribution estimée ${calcul.montantEstime.toLocaleString("fr-FR")} €/an${calcul.surcontribution ? " (surcontribution)" : ""}`
+            : " — secteur public (FIPHFP) : montant à présenter par le conseiller");
+    lignesOeth.push(
+      `5. Effectif : ${effectif ?? "-"}${avant(effectif, c.avant?.effectif)}`,
+      `6. RQTH : ${rqth}${avant(rqth, c.avant?.rqth)}${c.depuisZero && rqth === 0 ? ` — aucun bénéficiaire : ${(libelleDepuisZero(c.depuisZero) || "").toLowerCase()}` : ""}`,
+      `7. Manque : ${manque}`
+    );
+  }
+
   return [
     `1. Nom de la structure : ${entreprise.nom || "-"}`,
     `2. SIRET : ${entreprise.siret || "-"}`,
     `3. RH : ${rh}`,
     `4. Numéro direct : ${c.telephone || contact.telephone || "-"}`,
-    `5. Effectif : ${effectif ?? "-"}${avant(effectif, c.avant?.effectif)}`,
-    `6. RQTH : ${rqth}${avant(rqth, c.avant?.rqth)}${c.depuisZero && rqth === 0 ? ` — aucun bénéficiaire : ${(libelleDepuisZero(c.depuisZero) || "").toLowerCase()}` : ""}`,
-    `7. Manque : ${manque}`,
+    ...lignesOeth,
     `8. À rappeler : ${aRappeler}`,
     c.commentaire ? `\nMessage du client : ${c.commentaire}` : "",
     `\nAgent : ${agent ? agent.prenom || agent.email : "non assigné"}`,
@@ -186,9 +197,14 @@ export function enregistrerRoutesFicheClient(
     res.json({ url });
   });
 
-  // Envoi en un clic du lien « Confirmer ma fiche » au client.
+  // Envoi en un clic du lien « Confirmer ma fiche » au client — simulateur de
+  // contribution OETH : n'existe pas pour les autres espaces (pas de
+  // simulateur CEE dans le CRM pour l'instant, voir index.js/campagnes.js).
   app.post("/api/entreprises/:id/fiche-client/envoyer", exigerAuth, chargerEntrepriseAutorisee, async (req, res) => {
     const entreprise = req.entreprise;
+    if (espaceDe(entreprise) !== "oeth") {
+      return res.status(400).json({ error: "« Confirmer ma fiche » n'existe que pour l'espace OETH." });
+    }
     const destinataire = String(req.body.destinataire || entreprise.contact?.email || "").trim();
     if (!EMAIL_VALIDE.test(destinataire)) return res.status(400).json({ error: "Indiquez l'adresse e-mail du client." });
     const copies = (Array.isArray(req.body.cc) ? req.body.cc : []).map((a) => String(a || "").trim()).filter(Boolean);
@@ -407,12 +423,12 @@ export function enregistrerRoutesFicheClient(
   // Notifications : fiches confirmées non encore ouvertes, pour l'agent qui
   // suit la fiche (ou son superviseur) et pour les administrateurs.
   return {
-    confirmationsPour(utilisateur) {
+    confirmationsPour(utilisateur, espace) {
       const limite = Date.now() - 14 * 24 * 3600 * 1000;
       return db.data.entreprises
         .filter((e) => {
           const c = e.confirmationClient;
-          if (!c || new Date(c.date).getTime() < limite || (c.vuPar || []).includes(utilisateur.id)) return false;
+          if (espaceDe(e) !== espace || !c || new Date(c.date).getTime() < limite || (c.vuPar || []).includes(utilisateur.id)) return false;
           return estAdmin(utilisateur) || e.assigneA === utilisateur.id || e.superviseurId === utilisateur.id || e.binomeId === utilisateur.id;
         })
         .map((e) => ({ id: e.id, nom: e.nom, date: e.confirmationClient.date, par: e.confirmationClient.nom }))
