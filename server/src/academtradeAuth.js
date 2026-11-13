@@ -11,6 +11,7 @@ import { nanoid } from "nanoid";
 import db from "./db.js";
 import { envoyerMail, estEnvoiConfigure } from "./mail.js";
 import { SITE_URL } from "./seo.js";
+import { genererEmailAcademtradeAccesHtml } from "./emailOfficiel.js";
 
 const TOURS_BCRYPT = 10;
 const LONGUEUR_MIN_MOT_DE_PASSE = 8;
@@ -93,6 +94,7 @@ export async function envoyerLienAcces(compte) {
         `Rappel : nous sommes dans la phase pédagogique de la formation — les positions et le solde affichés dans votre ` +
         `espace sont simulés, aucun argent réel n'est investi sur un marché à ce stade.\n\n` +
         `Ceci est un message automatique, merci de ne pas y répondre directement.\n\n— AcademTrade`,
+      html: genererEmailAcademtradeAccesHtml({ compte, lien }),
       fromName: "AcademTrade",
     });
     return true;

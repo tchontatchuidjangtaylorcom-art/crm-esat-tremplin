@@ -24,6 +24,7 @@ const GRIS = "#475569";
 const GRIS_CLAIR = "#64748b";
 const VERT = "#15803d";
 const ARDOISE = "#334155";
+const VIOLET = "#7c3aed"; // Espace AcademTrade (formation trading) — même violet que l'interface (couleur "violet" dans espaces.js).
 
 // Habillage du mail de création de compte CRM (voir genererEmailCreationCompteHtml
 // ci-dessous) selon l'espace du nouveau compte (voir espaces.js) : garde le
@@ -34,6 +35,7 @@ const ARDOISE = "#334155";
 const THEMES_COMPTE_PAR_ESPACE = {
   cee: { couleur: VERT, marque: "Eco Smart France", logo: null },
   oeth: { couleur: BLEU, marque: "Pôle OETH / AGEFIPH", logo: true },
+  academtrade: { couleur: VIOLET, marque: "AcademTrade", logo: null },
 };
 function themeCompte(espace) {
   if (espace?.id && THEMES_COMPTE_PAR_ESPACE[espace.id]) return THEMES_COMPTE_PAR_ESPACE[espace.id];
@@ -358,6 +360,27 @@ export function genererEmailConfirmationAccesHtml({ utilisateur, appUrl, dureeLi
     lienBouton: appUrl,
     texteBouton: "Se connecter au CRM",
     espace,
+  });
+}
+
+// Mail « votre espace AcademTrade est prêt » (voir envoyerLienAcces dans
+// academtradeAuth.js) — même mise en page que les mails d'accès CRM
+// ci-dessus, habillage violet dédié (voir THEMES_COMPTE_PAR_ESPACE). Rappel
+// pédagogique encadré : le client ne doit jamais croire qu'un argent réel
+// est engagé à ce stade.
+export function genererEmailAcademtradeAccesHtml({ compte, lien }) {
+  const prenom = echapper(compte.prenom || "");
+  return emailAccesSimpleHtml({
+    titre: "Votre espace AcademTrade est prêt",
+    sousTitre: "Formation trading",
+    paragraphesHtml: `
+      <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:${GRIS};">Bonjour${prenom ? ` ${prenom}` : ""},<br><br>Votre paiement est confirmé, votre espace personnel AcademTrade vous attend. Choisissez votre mot de passe pour y accéder :</p>
+      <div style="padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 22px;">
+        <p style="margin:0;font-size:12px;line-height:1.55;color:#92400e;"><strong>Rappel :</strong> nous sommes dans la phase pédagogique de la formation — les positions et le solde affichés dans votre espace sont simulés, aucun argent réel n'est investi sur un marché à ce stade.</p>
+      </div>`,
+    lienBouton: lien,
+    texteBouton: "Choisir mon mot de passe",
+    espace: { id: "academtrade" },
   });
 }
 
