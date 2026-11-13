@@ -8,7 +8,8 @@
 // protéger davantage une fois le paiement réellement branché.
 import db from "./db.js";
 import { estAdmin } from "./auth.js";
-import { aAccesEspace } from "./espaces.js";
+import { aAccesEspace, mailDeEspace } from "./espaces.js";
+import { adresseMailPole } from "./mail.js";
 import {
   compteParJeton,
   creerCompte,
@@ -87,7 +88,10 @@ export function installerAcademtrade(app, { exigerAuth, exigerAdmin }) {
   });
 
   app.get("/api/academtrade/catalogue", exigerAuthAcademtrade, (req, res) => {
-    res.json(catalogue());
+    // Adresse de contact affichée dans "Support" côté client — la boîte
+    // propre à l'espace AcademTrade une fois configurée (voir AdminEquipes.jsx,
+    // "Boîte mail par espace"), sinon la boîte partagée du pôle en attendant.
+    res.json({ ...catalogue(), contact: adresseMailPole(mailDeEspace("academtrade")) });
   });
 
   app.put("/api/academtrade/moi", exigerAuthAcademtrade, async (req, res) => {

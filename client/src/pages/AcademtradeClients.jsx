@@ -155,7 +155,7 @@ export default function AcademtradeClients() {
                   )}
                 </td>
                 <td className="px-4 py-2.5">
-                  {[c.documents?.identite, c.documents?.adresse].some((d) => d?.statut === "en_attente") ? (
+                  {[c.documents?.identite_recto, c.documents?.identite_verso, c.documents?.adresse].some((d) => d?.statut === "en_attente") ? (
                     <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-xs font-semibold">
                       à vérifier
                     </span>
@@ -211,12 +211,13 @@ export default function AcademtradeClients() {
 
           <h3 className="font-semibold text-sm mt-5 mb-2">Documents</h3>
           <div className="space-y-2">
-            {["identite", "adresse"].map((type) => {
+            {["identite_recto", "identite_verso", "adresse"].map((type) => {
               const doc = clientOuvert.compte.documents?.[type];
+              const libelle = type === "identite_recto" ? "Pièce d'identité (recto)" : type === "identite_verso" ? "Pièce d'identité (verso)" : "Justificatif de domicile";
               return (
                 <div key={type} className="flex items-center justify-between text-sm border-b border-slate-100 dark:border-slate-800 py-1.5">
                   <span>
-                    {type === "identite" ? "Pièce d'identité" : "Justificatif de domicile"}
+                    {libelle}
                     {doc && (
                       <span className="text-slate-400">
                         {" "}

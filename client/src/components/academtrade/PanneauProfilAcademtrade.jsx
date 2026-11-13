@@ -240,7 +240,8 @@ export default function PanneauProfilAcademtrade({ compte, onFermer, onMisAJour 
           {onglet === "documents" && (
             <div className="space-y-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">PDF, PNG ou JPG, 10 Mo maximum.</p>
-              <LigneDocument type="identite" titre="Pièce d'identité" document={compte.documents?.identite} surEnvoye={rafraichirCompte} />
+              <LigneDocument type="identite_recto" titre="Pièce d'identité (recto)" document={compte.documents?.identite_recto} surEnvoye={rafraichirCompte} />
+              <LigneDocument type="identite_verso" titre="Pièce d'identité (verso)" document={compte.documents?.identite_verso} surEnvoye={rafraichirCompte} />
               <LigneDocument type="adresse" titre="Justificatif de domicile" document={compte.documents?.adresse} surEnvoye={rafraichirCompte} />
             </div>
           )}

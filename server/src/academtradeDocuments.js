@@ -1,15 +1,16 @@
-// Documents envoyés par les clients AcademTrade (pièce d'identité, justificatif
-// de domicile) — stockés sur le disque persistant (même disque que la base,
-// voir DOSSIER_DONNEES dans db.js), jamais dans un dossier temporaire du
-// conteneur. Chaque client ne peut déposer que les deux types prévus ; un
-// nouvel envoi remplace le précédent et repasse en attente de vérification.
+// Documents envoyés par les clients AcademTrade (pièce d'identité recto et
+// verso, justificatif de domicile) — stockés sur le disque persistant (même
+// disque que la base, voir DOSSIER_DONNEES dans db.js), jamais dans un
+// dossier temporaire du conteneur. Chaque client ne peut déposer que les
+// trois types prévus ; un nouvel envoi remplace le précédent et repasse en
+// attente de vérification.
 import fs from "fs";
 import path from "path";
 import multer from "multer";
 import { nanoid } from "nanoid";
 import db, { DOSSIER_DONNEES } from "./db.js";
 
-const TYPES_DOCUMENTS = new Set(["identite", "adresse"]);
+const TYPES_DOCUMENTS = new Set(["identite_recto", "identite_verso", "adresse"]);
 const DOSSIER_DOCUMENTS = path.join(DOSSIER_DONNEES, "academtrade-documents");
 fs.mkdirSync(DOSSIER_DOCUMENTS, { recursive: true });
 
