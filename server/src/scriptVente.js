@@ -155,14 +155,12 @@ export const SECTIONS_CEE = [
   {
     titre: "2. Questions pour orienter l'appel (CRM)",
     lignes: [
-      {
-        type: "texte",
-        texte:
-          "« Je vois ici [nombre] serres, pour à peu près [surface] m². C'est toujours ça ? Elles sont chauffées aujourd'hui ou pas ? Vous cultivez quoi dedans ? Et vous êtes toujours à [commune] ? »",
-      },
-      { type: "instruction", texte: "Ne pas tout redemander : reprendre simplement ce qui est déjà dans le CRM (fiche prospect)." },
-      { type: "instruction", texte: "Si le nombre de serres n'est pas renseigné dans la fiche, demander directement :" },
-      { type: "texte", texte: "« Vous avez combien de serres ? »" },
+      { type: "instruction", texte: "Si une information est déjà connue dans la fiche CRM, ne pas la redemander : la confirmer simplement." },
+      { type: "texte", texte: "« Combien de serres avez-vous ? »" },
+      { type: "texte", texte: "« Sur à peu près combien de m² ? »" },
+      { type: "texte", texte: "« Elles sont chauffées aujourd'hui ou pas ? »" },
+      { type: "texte", texte: "« Vous cultivez quoi dedans ? »" },
+      { type: "texte", texte: "« Elles sont situées à quelle adresse ? »" },
     ],
   },
   {
@@ -189,67 +187,29 @@ export const SECTIONS_CEE = [
     titre: "4. Les avantages du produit (du plus à savoir)",
     lignes: [
       {
-        type: "instruction",
+        type: "texte",
         texte:
-          "Démétherme 400 : sert à chauffer les serres, peut remplacer un chauffage existant. Puissance annoncée 411,1 kW. Eau chaude jusqu'à 60 °C. COP annoncé 3,56, selon les conditions de mesure. Les économies dépendent du bâtiment et de l'utilisation — ne jamais garantir un chiffre d'économie précis.",
+          "« Démétherme 400 : sert à chauffer les serres, peut remplacer un chauffage existant. Sa puissance est de 411,1 kW. Eau chaude jusqu'à 60 °C. COP annoncé 3,56, selon les conditions de mesure. Les économies dépendent du bâtiment et de l'utilisation. »",
       },
+      { type: "instruction", texte: "Ne jamais garantir un chiffre d'économie précis." },
     ],
   },
   {
     titre: "5. Informations à confirmer dans le CRM",
     lignes: [
-      {
-        type: "instruction",
-        texte:
-          "Nom de l'exploitation, nom du gérant, téléphone, e-mail, adresse, nombre de serres, surface, cultures, chauffage actuel et énergie utilisée.",
-      },
+      { type: "instruction", texte: "1. Nom de l'exploitation" },
+      { type: "instruction", texte: "2. Nom du gérant" },
+      { type: "instruction", texte: "3. Téléphone" },
+      { type: "instruction", texte: "4. E-mail" },
+      { type: "instruction", texte: "5. Adresse" },
+      { type: "instruction", texte: "6. Nombre de serres" },
+      { type: "instruction", texte: "7. Surface" },
+      { type: "instruction", texte: "8. Type de cultures" },
+      { type: "instruction", texte: "9. Chauffage actuel et énergie utilisée" },
     ],
   },
   {
-    titre: "6. Objections clients — réponses simples",
-    lignes: [
-      {
-        type: "instruction",
-        texte:
-          "« C'est vraiment à zéro euro ? » → « Oui, si votre dossier correspond à cette offre, le devis indique bien zéro euro à votre charge. Vous n'avez pas d'avance de fonds à faire : le financement prévu est versé directement dans le cadre de l'opération. Ce sont les entreprises soumises aux obligations CEE, notamment des fournisseurs d'énergie, qui financent ces économies d'énergie. On vérifie les conditions avant de confirmer votre dossier. »",
-      },
-      {
-        type: "instruction",
-        texte: "« Je n'ai pas de chauffage. » → « Justement, ça peut vous permettre d'en avoir un à disposition pour plus tard, si votre installation est adaptée. »",
-      },
-      {
-        type: "instruction",
-        texte: "« J'ai déjà une chaudière. » → « Très bien, l'idée est de la remplacer par une pompe à chaleur pour essayer de réduire votre facture. »",
-      },
-      {
-        type: "instruction",
-        texte: "« Ça consomme beaucoup ? » → « Ça consomme de l'électricité quand vous l'utilisez. La consommation dépend du temps de chauffage et de vos serres. »",
-      },
-      {
-        type: "instruction",
-        texte: "« Envoyez-moi un mail. » → « Oui, bien sûr. Je termine juste les informations de votre exploitation pour que vous receviez le bon document. Votre adresse e-mail, c'est bien [e-mail] ? »",
-      },
-      {
-        type: "instruction",
-        texte: "« Je ne connais pas votre société. » → « Je comprends. Vous trouverez notre nom et nos coordonnées sur le document, et je peux vous donner notre SIREN. »",
-      },
-      {
-        type: "instruction",
-        texte: "« Je suis occupé. » → « Je comprends. Il me reste juste deux informations à confirmer. Sinon, je peux vous rappeler à un meilleur moment. »",
-      },
-      {
-        type: "instruction",
-        texte:
-          "« Pourquoi signer maintenant ? » → « Parce que cette offre peut évoluer vite. Si la date de clôture est bien fixée à une semaine, on vous le précise : il reste une semaine pour déposer les dossiers. La signature nous permet de lancer la vérification, pas de garantir automatiquement les aides. » Ne jamais annoncer un délai non réellement confirmé.",
-      },
-      {
-        type: "instruction",
-        texte: "« Je peux changer d'avis ? » → « On vous explique les conditions prévues dans le devis, notamment les possibilités d'annulation. Vous pouvez prendre connaissance du document avant de signer. »",
-      },
-    ],
-  },
-  {
-    titre: "7. Conclusion — signature électronique Yousign",
+    titre: "6. Conclusion — signature électronique Yousign",
     lignes: [
       {
         type: "texte",
@@ -288,6 +248,56 @@ export const SECTIONS_CEE = [
     ],
   },
 ];
+
+// Objections clients CEE : volontairement à part du script d'appel
+// ci-dessus (ScriptVenteContenu) — il s'agit d'une « boîte à outils »
+// consultée en cas de besoin pendant l'appel, pas d'une suite de répliques
+// à lire dans l'ordre. Son propre outil dans la barre (voir
+// BarreOutilsVente.jsx/PanelOutilsVente.jsx : "objections").
+export const OBJECTIONS_CEE = [
+  {
+    objection: "« C'est vraiment à zéro euro ? »",
+    reponse:
+      "« Oui, si votre dossier correspond à cette offre, le devis indique bien zéro euro à votre charge. Vous n'avez pas d'avance de fonds à faire : le financement prévu est versé directement dans le cadre de l'opération. Ce sont les entreprises soumises aux obligations CEE, notamment des fournisseurs d'énergie, qui financent ces économies d'énergie. On vérifie les conditions avant de confirmer votre dossier. »",
+  },
+  {
+    objection: "« Je n'ai pas de chauffage. »",
+    reponse: "« Justement, ça peut vous permettre d'en avoir un à disposition pour plus tard, si votre installation est adaptée. »",
+  },
+  {
+    objection: "« J'ai déjà une chaudière. »",
+    reponse: "« Très bien, l'idée est de la remplacer par une pompe à chaleur pour essayer de réduire votre facture. »",
+  },
+  {
+    objection: "« Ça consomme beaucoup ? »",
+    reponse: "« Ça consomme de l'électricité quand vous l'utilisez. La consommation dépend du temps de chauffage et de vos serres. »",
+  },
+  {
+    objection: "« Envoyez-moi un mail. »",
+    reponse: "« Oui, bien sûr. Je termine juste les informations de votre exploitation pour que vous receviez le bon document. Votre adresse e-mail, c'est bien [e-mail] ? »",
+  },
+  {
+    objection: "« Je ne connais pas votre société. »",
+    reponse: "« Je comprends. Vous trouverez notre nom et nos coordonnées sur le document, et je peux vous donner notre SIREN. »",
+  },
+  {
+    objection: "« Je suis occupé. »",
+    reponse: "« Je comprends. Il me reste juste deux informations à confirmer. Sinon, je peux vous rappeler à un meilleur moment. »",
+  },
+  {
+    objection: "« Pourquoi signer maintenant ? »",
+    reponse:
+      "« Parce que cette offre peut évoluer vite. Si la date de clôture est bien fixée à une semaine, on vous le précise : il reste une semaine pour déposer les dossiers. La signature nous permet de lancer la vérification, pas de garantir automatiquement les aides. » Ne jamais annoncer un délai non réellement confirmé.",
+  },
+  {
+    objection: "« Je peux changer d'avis ? »",
+    reponse: "« On vous explique les conditions prévues dans le devis, notamment les possibilités d'annulation. Vous pouvez prendre connaissance du document avant de signer. »",
+  },
+];
+
+export function getObjectionsVente(espace = "oeth") {
+  return { objections: espace === "cee" ? OBJECTIONS_CEE : [] };
+}
 
 // `sections` : contenu personnalisé par un super-administrateur (voir
 // PUT /api/script-vente dans index.js), persisté dans

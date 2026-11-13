@@ -283,6 +283,8 @@ export const api = {
 
   reinitialiserScriptVente: () => fetch(`${BASE}/script-vente/reinitialiser`, { method: "POST" }).then(handle),
 
+  getObjectionsVente: () => fetch(`${BASE}/objections-vente`).then(handle),
+
   getModelesMails: () => fetch(`${BASE}/modeles-mails`).then(handle),
   // Campagnes d'e-mails (super-administrateur, voir server/src/campagnes.js).
   listCampagnes: () => fetch(`${BASE}/campagnes`).then(handle),

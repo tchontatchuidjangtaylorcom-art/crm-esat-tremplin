@@ -51,6 +51,13 @@ const OUTILS_CEE = [
     pastille: "bg-emerald-600",
     actif: "border-emerald-600 text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40",
   },
+  {
+    cle: "objections",
+    label: "Objections clients",
+    court: "Objections",
+    pastille: "bg-rose-500",
+    actif: "border-rose-500 text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30",
+  },
 ];
 
 // Coordonnées du pôle, toujours visibles en haut du CRM : l'agent au téléphone

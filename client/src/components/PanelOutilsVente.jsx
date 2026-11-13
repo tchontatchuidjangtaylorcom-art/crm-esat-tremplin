@@ -4,6 +4,7 @@ import { useContenuAide } from "../useContenuAide.js";
 import { useAuth } from "../AuthContext.jsx";
 import ArgumentaireContenu from "./ArgumentaireContenu.jsx";
 import ScriptVenteContenu from "./ScriptVenteContenu.jsx";
+import ObjectionsContenu from "./ObjectionsContenu.jsx";
 import ModelesMailsContenu from "./ModelesMailsContenu.jsx";
 import EditeurArgumentaire from "./EditeurArgumentaire.jsx";
 import EditeurScriptVente from "./EditeurScriptVente.jsx";
@@ -16,6 +17,7 @@ import { useEspaces } from "../espace.js";
 const TITRES = {
   argumentaire: "Argumentaire AGEFIPH",
   script: "Script de vente",
+  objections: "Objections clients",
   mails: "Modèles de mails",
   esat: "ESAT Tremplin / TIH",
 };
@@ -141,6 +143,7 @@ export default function PanelOutilsVente({ outil, onFermer }) {
         {!pitchPublic && outil === "script" && (
           <PanelScriptVente modeEdition={modeEdition} onEnregistre={() => setModeEdition(false)} onAnnuler={() => setModeEdition(false)} />
         )}
+        {outil === "objections" && <ObjectionsContenu />}
         {outil === "mails" && (
           <PanelModelesMails modeEdition={modeEdition} onEnregistre={() => setModeEdition(false)} onAnnuler={() => setModeEdition(false)} />
         )}

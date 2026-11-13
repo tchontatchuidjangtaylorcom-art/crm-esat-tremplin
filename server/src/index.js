@@ -24,7 +24,7 @@ import {
   rechercherEntreprises,
 } from "./insee.js";
 import { getArgumentaireAgefiph, trouverLigneBareme } from "./argumentaire.js";
-import { getScriptVente } from "./scriptVente.js";
+import { getScriptVente, getObjectionsVente } from "./scriptVente.js";
 import { getModelesMails } from "./modelesMails.js";
 import {
   estSmtpConfigure,
@@ -729,6 +729,13 @@ app.get("/api/argumentaire-agefiph", (req, res) => {
 // "oeth" par défaut, même connecté et sur l'espace CEE.
 app.get("/api/script-vente", exigerAuth, (req, res) => {
   res.json(getScriptVente(db.data.contenusEditables?.scriptVente, espaceDeRequete(req)));
+});
+
+// Objections clients CEE : outil séparé du script d'appel (voir
+// scriptVente.js) — `exigerAuth` nécessaire pour la même raison que
+// /api/script-vente ci-dessus (espaceDeRequete en a besoin).
+app.get("/api/objections-vente", exigerAuth, (req, res) => {
+  res.json(getObjectionsVente(espaceDeRequete(req)));
 });
 
 // `exigerAuth` nécessaire pour que espaceDeRequete() connaisse l'espace

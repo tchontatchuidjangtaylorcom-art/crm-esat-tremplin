@@ -34,6 +34,7 @@ export default function OutilsVenteLayout({ children }) {
     prechargerContenusAide([
       ["argumentaire-agefiph", api.getArgumentaireAgefiph],
       ["script-vente", api.getScriptVente],
+      ["objections-vente", api.getObjectionsVente],
       ["modeles-mails", api.getModelesMails],
     ]);
   }, []);
